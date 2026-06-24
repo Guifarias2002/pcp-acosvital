@@ -120,20 +120,22 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
         {/* Roteiro visual com círculos — só admin vê os próximos passos */}
         {isAdmin ? (
           <div className="bg-white rounded-xl border shadow-sm p-4 mb-4">
-            <div className="flex items-center gap-0">
-              {roteiroCirculos.map((r, i) => (
-                <div key={r.setor} className="flex items-center">
-                  <div className="flex flex-col items-center">
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm border-2 ${r.current ? 'bg-orange-500 border-orange-500 text-white' : r.done ? 'bg-gray-800 border-gray-800 text-white' : 'bg-white border-gray-300 text-gray-400'}`}>
-                      {r.done ? '✓' : i + 1}
+            <div className="overflow-x-auto -mx-1 px-1">
+              <div className="flex items-center gap-0" style={{ minWidth: 'max-content' }}>
+                {roteiroCirculos.map((r, i) => (
+                  <div key={r.setor} className="flex items-center">
+                    <div className="flex flex-col items-center">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm border-2 ${r.current ? 'bg-orange-500 border-orange-500 text-white' : r.done ? 'bg-gray-800 border-gray-800 text-white' : 'bg-white border-gray-300 text-gray-400'}`}>
+                        {r.done ? '✓' : i + 1}
+                      </div>
+                      <span className="text-xs mt-1 text-center leading-tight text-gray-500" style={{ width: 52 }}>{NOMES[r.setor] || r.setor}</span>
                     </div>
-                    <span className="text-xs mt-1 text-center max-w-14 leading-tight text-gray-500">{NOMES[r.setor] || r.setor}</span>
+                    {i < roteiroCirculos.length - 1 && (
+                      <div className={`h-0.5 w-8 mb-4 ${r.done ? 'bg-gray-800' : 'bg-gray-200'}`} />
+                    )}
                   </div>
-                  {i < roteiroCirculos.length - 1 && (
-                    <div className={`h-0.5 w-8 mb-4 ${r.done ? 'bg-gray-800' : 'bg-gray-200'}`} />
-                  )}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         ) : (
