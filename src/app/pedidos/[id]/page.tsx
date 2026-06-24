@@ -456,7 +456,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
             {/* Card do pedido */}
             <div className={`rounded-xl border-2 p-4 ${pedido.atrasado ? 'border-red-300 bg-red-50' : 'border-yellow-300 bg-yellow-50'}`}>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center mb-2">Pedido</p>
-              <p className="text-3xl font-bold text-gray-800 text-center">{pedido.numero_pedido_venda}</p>
+              <p className="font-bold text-gray-800 text-center break-all" style={{ fontSize: 'clamp(13px, 3vw, 28px)', lineHeight: 1.2 }}>{pedido.numero_pedido_venda}</p>
               <div className="text-center mt-2">
                 {(() => {
                   const et = getPedidoEtapa(pedido);
