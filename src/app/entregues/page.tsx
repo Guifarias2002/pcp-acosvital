@@ -1,0 +1,256 @@
+'use client';
+import { useEffect, useState } from 'react';
+import AuthGuard from '@/components/AuthGuard';
+import { getEntregues } from '@/lib/api';
+import { Pedido, PRIORIDADE_COR } from '@/lib/types';
+import Link from 'next/link';
+import AnexarComprovanteModal from '@/components/AnexarComprovanteModal';
+import ReportarDivergenciaModal from '@/components/ReportarDivergenciaModal';
+
+interface Comprovante {
+  id: number;
+  item_id: number;
+  numero_nf: string;
+  comprovante_url: string | null;
+  comprovante_tipo: string | null;
+  observacao: string | null;
+  criado_em: string;
+  usuario_nome: string | null;
+}
+
+interface PedidoEntregue extends Pedido {
+  comprovantes: Comprovante[];
+}
+
+function fmtHora(s: string) {
+  if (!s) return '';
+  const d = new Date(s);
+  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function isImagem(url: string) {
+  return /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
+}
+
+export default function EntreguesPage() {
+  const [data, setData] = useState<{ pedidos: PedidoEntregue[]; total_pedidos: number; total_itens: number; total_valor: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [fCliente, setFCliente] = useState('');
+  const [expandido, setExpandido] = useState<number | null>(null);
+  const [anexar, setAnexar] = useState<{ itemId: number; pedidoNumero: string } | null>(null);
+  const [divergencia, setDivergencia] = useState<{ pedidoId: number; pedidoNumero: string; itens: PedidoEntregue['itens'] } | null>(null);
+
+  function buscar() {
+    setLoading(true);
+    getEntregues({ cliente: fCliente }).then(setData).finally(() => setLoading(false));
+  }
+
+  useEffect(() => { buscar(); }, []);
+
+  return (
+    <AuthGuard>
+      {divergencia && (
+        <ReportarDivergenciaModal
+          pedidoId={divergencia.pedidoId}
+          pedidoNumero={divergencia.pedidoNumero}
+          itens={divergencia.itens?.map(i => ({ id: i.id, codigo: i.codigo, descricao: i.descricao }))}
+          onClose={() => setDivergencia(null)}
+          onSuccess={() => { setDivergencia(null); alert('Divergência registrada!'); }}
+        />
+      )}
+      {anexar && (
+        <AnexarComprovanteModal
+          itemId={anexar.itemId}
+          pedidoNumero={anexar.pedidoNumero}
+          onClose={() => setAnexar(null)}
+          onSuccess={() => { setAnexar(null); buscar(); }}
+        />
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <h4 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c', fontSize: 20 }}>
+            <i className="bi bi-check-circle-fill" style={{ marginRight: 8, color: '#198754' }}></i>
+            Entregues
+          </h4>
+          <small style={{ color: '#888' }}>Ordens de produção concluídas e entregues</small>
+        </div>
+      </div>
+
+      {data && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 18 }}>
+          {[
+            { label: 'Pedidos Entregues', val: data.total_pedidos, icon: 'bi-box-seam', color: '#198754' },
+            { label: 'Itens Entregues', val: data.total_itens, icon: 'bi-list-check', color: '#0d6efd' },
+            { label: 'Valor Total', val: `R$ ${Number(data.total_valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: 'bi-currency-dollar', color: '#fd7e14' },
+          ].map(c => (
+            <div key={c.label} className="card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <i className={`bi ${c.icon}`} style={{ fontSize: 28, color: c.color }}></i>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.val}</div>
+                <div style={{ fontSize: 11, color: '#888' }}>{c.label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Filtro */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        <input value={fCliente} onChange={e => setFCliente(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && buscar()}
+          placeholder="Buscar cliente..."
+          style={{ border: '1px solid #dee2e6', borderRadius: 6, padding: '6px 12px', fontSize: 13, flex: 1, maxWidth: 320 }} />
+        <button onClick={buscar} className="btn btn-primary btn-sm">
+          <i className="bi bi-search" style={{ marginRight: 4 }}></i>Filtrar
+        </button>
+      </div>
+
+      {loading && <p style={{ color: '#999', textAlign: 'center', padding: 40 }}>Carregando...</p>}
+
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: '#212529', color: '#fff' }}>
+              <th style={{ padding: '9px 12px', width: 32 }}></th>
+              <th style={{ padding: '9px 12px', textAlign: 'left' }}>Pedido</th>
+              <th style={{ padding: '9px 12px', textAlign: 'left' }}>Cliente</th>
+              <th style={{ padding: '9px 12px', textAlign: 'left' }}>Prazo</th>
+              <th style={{ padding: '9px 12px', textAlign: 'left' }}>Prioridade</th>
+              <th style={{ padding: '9px 12px', textAlign: 'left' }}>Valor</th>
+              <th style={{ padding: '9px 12px', textAlign: 'left' }}>Comprovantes</th>
+              <th style={{ padding: '9px 12px', textAlign: 'left' }}>Divergência</th>
+              <th style={{ padding: '9px 12px', textAlign: 'left' }}>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {!loading && (!data || data.pedidos.length === 0) && (
+              <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum pedido entregue encontrado.</td></tr>
+            )}
+            {data?.pedidos.map(p => {
+              const aberto = expandido === p.id;
+              const temComprovante = p.comprovantes?.some(c => c.comprovante_url);
+              const semComprovante = p.comprovantes?.filter(c => !c.comprovante_url) || [];
+              return (
+                <>
+                  <tr key={p.id} style={{ borderBottom: '1px solid #f0f0f0', background: aberto ? '#f8fffe' : undefined }}>
+                    <td style={{ padding: '8px 12px' }}>
+                      <button onClick={() => setExpandido(aberto ? null : p.id)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', fontSize: 14 }}>
+                        <i className={`bi bi-chevron-${aberto ? 'down' : 'right'}`}></i>
+                      </button>
+                    </td>
+                    <td style={{ padding: '8px 12px' }}>
+                      <Link href={`/pedidos/${p.id}`} style={{ color: '#1a3a5c', fontWeight: 700, textDecoration: 'none' }}>
+                        {p.numero_pedido_venda}
+                      </Link>
+                      {p.status !== 'entregue' && (
+                        <span style={{ marginLeft: 6, fontSize: 10, background: '#fef9c3', color: '#854d0e', padding: '1px 6px', borderRadius: 8, fontWeight: 700 }}>
+                          Parcial
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: '8px 12px', color: '#444' }}>{p.cliente}</td>
+                    <td style={{ padding: '8px 12px', color: '#666', fontSize: 12 }}>{p.prazo_entrega}</td>
+                    <td style={{ padding: '8px 12px' }}>
+                      <span className={`badge-${p.prioridade || 'normal'}`} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4 }}>
+                        {p.prioridade?.charAt(0).toUpperCase() + p.prioridade?.slice(1)}
+                      </span>
+                    </td>
+                    <td style={{ padding: '8px 12px', color: '#444' }}>
+                      {p.valor_calculado ? `R$ ${Number(p.valor_calculado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+                    </td>
+                    <td style={{ padding: '8px 12px' }}>
+                      {temComprovante
+                        ? <span style={{ fontSize: 11, color: '#198754', fontWeight: 600 }}><i className="bi bi-paperclip" style={{ marginRight: 4 }}></i>{p.comprovantes.filter(c => c.comprovante_url).length} anexo(s)</span>
+                        : <span style={{ fontSize: 11, color: '#aaa' }}>Sem comprovante</span>}
+                    </td>
+                    <td style={{ padding: '8px 12px' }}>
+                      <button
+                        onClick={() => setDivergencia({ pedidoId: p.id, pedidoNumero: p.numero_pedido_venda, itens: p.itens })}
+                        style={{ fontSize: 11, background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontWeight: 700 }}>
+                        <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 4 }}></i>Reportar
+                      </button>
+                    </td>
+                    <td style={{ padding: '8px 12px' }}>
+                      <Link href={`/pedidos/${p.id}`}
+                        style={{ border: '1px solid #0d6efd', color: '#0d6efd', borderRadius: 4, padding: '2px 10px', textDecoration: 'none', fontSize: 12 }}>
+                        <i className="bi bi-eye"></i>
+                      </Link>
+                    </td>
+                  </tr>
+
+                  {/* Painel expandido */}
+                  {aberto && (
+                    <tr key={`${p.id}-detail`}>
+                      <td colSpan={9} style={{ padding: 0, background: '#f8fffe', borderBottom: '2px solid #d1fae5' }}>
+                        <div style={{ padding: '16px 24px' }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+                            <i className="bi bi-truck" style={{ marginRight: 6 }}></i>Registros de Entrega
+                          </div>
+
+                          {(!p.comprovantes || p.comprovantes.length === 0) && (
+                            <p style={{ color: '#aaa', fontSize: 13 }}>Nenhum registro de entrega encontrado.</p>
+                          )}
+
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+                            {p.comprovantes?.map(c => (
+                              <div key={c.id} style={{ background: '#fff', border: '1px solid #d1fae5', borderRadius: 10, padding: 14, minWidth: 240, maxWidth: 320, flex: '1 1 240px' }}>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: '#166534', marginBottom: 8 }}>
+                                  <i className="bi bi-file-earmark-check-fill" style={{ marginRight: 6 }}></i>NF {c.numero_nf}
+                                </div>
+                                <div style={{ fontSize: 11, color: '#666', marginBottom: 6 }}>
+                                  <i className="bi bi-clock" style={{ marginRight: 4 }}></i>{fmtHora(c.criado_em)}
+                                  {c.usuario_nome && <span style={{ marginLeft: 8, color: '#888' }}>· {c.usuario_nome}</span>}
+                                </div>
+                                {c.observacao && (
+                                  <div style={{ fontSize: 11, color: '#555', marginBottom: 8, fontStyle: 'italic' }}>"{c.observacao}"</div>
+                                )}
+
+                                {/* Comprovante */}
+                                {c.comprovante_url ? (
+                                  isImagem(c.comprovante_url) ? (
+                                    <a href={c.comprovante_url} target="_blank" rel="noreferrer">
+                                      <img src={c.comprovante_url} alt="Canhoto"
+                                        style={{ width: '100%', maxHeight: 160, objectFit: 'contain', borderRadius: 6, border: '1px solid #e5e7eb', cursor: 'pointer' }} />
+                                    </a>
+                                  ) : (
+                                    <a href={c.comprovante_url} target="_blank" rel="noreferrer"
+                                      style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '8px 12px', textDecoration: 'none', color: '#1d4ed8', fontSize: 12, fontWeight: 600 }}>
+                                      <i className="bi bi-file-earmark-pdf-fill" style={{ fontSize: 20, color: '#dc2626' }}></i>
+                                      Ver documento
+                                    </a>
+                                  )
+                                ) : (
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <span style={{ fontSize: 11, color: '#aaa' }}>Sem comprovante</span>
+                                    <button
+                                      onClick={() => setAnexar({ itemId: c.item_id, pedidoNumero: p.numero_pedido_venda })}
+                                      style={{ fontSize: 11, color: '#0d6efd', background: 'none', border: '1px solid #bfdbfe', borderRadius: 4, padding: '3px 10px', cursor: 'pointer', fontWeight: 600 }}>
+                                      <i className="bi bi-paperclip" style={{ marginRight: 4 }}></i>Anexar
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          {semComprovante.length > 0 && (
+                            <div style={{ marginTop: 10, fontSize: 11, color: '#f59e0b', fontWeight: 600 }}>
+                              <i className="bi bi-exclamation-triangle" style={{ marginRight: 4 }}></i>
+                              {semComprovante.length} entrega(s) sem comprovante anexado
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </AuthGuard>
+  );
+}

@@ -1,0 +1,556 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =====================================================
+   ESTILOS EXATOS DO DJANGO — base.html
+   ===================================================== */
+
+html, body {
+  /* Impede o "bounce"/arrasto elástico da página (tablet/iOS) quando o
+     conteúdo cabe na tela. A rolagem normal de conteúdo que excede a
+     tela continua funcionando, pois isso só afeta o scroll do documento.
+     overflow-x: hidden evita que o "bounce" horizontal revele a borda
+     do sidebar (que fica fora da tela via transform no mobile). */
+  overscroll-behavior: none;
+  overflow-x: hidden;
+  height: 100%;
+}
+
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: #f0f2f5;
+}
+
+/* ---- Sidebar ---- */
+#sidebar {
+  width: 220px;
+  background: #1a3a5c;
+  min-height: 100vh;
+  height: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.25s ease, transform 0.25s ease;
+  overflow: hidden;
+}
+#sidebar .brand {
+  padding: 18px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.1);
+  flex-shrink: 0;
+}
+#sidebar .brand-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+#sidebar .brand h5 {
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  margin: 0;
+}
+#sidebar .brand small {
+  color: rgba(255,255,255,.45);
+  font-size: 11px;
+}
+.btn-colapsar {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,.5);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.btn-colapsar:hover {
+  background: rgba(255,255,255,.1);
+  color: #fff;
+}
+
+/* Sidebar colapsada */
+#sidebar.colapsada {
+  width: 0;
+  overflow: hidden;
+}
+#main.main-colapsado {
+  margin-left: 0;
+}
+#sidebar .nav-link {
+  color: rgba(255,255,255,.7);
+  padding: 9px 14px;
+  border-radius: 6px;
+  margin: 1px 6px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  cursor: pointer;
+}
+#sidebar .nav-link:hover,
+#sidebar .nav-link.ativo {
+  background: rgba(255,255,255,.15);
+  color: #fff;
+}
+#sidebar .sec {
+  color: rgba(255,255,255,.3);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 14px 14px 2px;
+}
+#sidebar .sec-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 14px 14px 2px;
+}
+#sidebar .sec-toggle:hover {
+  color: rgba(255,255,255,.55);
+}
+#sidebar nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+/* Overlay para fechar sidebar no mobile */
+#sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 199;
+}
+#sidebar-overlay.ativo {
+  display: block;
+}
+
+/* ---- Topbar ---- */
+.topbar {
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 11px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 99;
+  gap: 10px;
+}
+.topbar-titulo {
+  font-size: 14px;
+  color: #555;
+  flex: 1;
+}
+.topbar-usuario {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Botão hamburger — oculto no desktop */
+.btn-hamburger {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #1a3a5c;
+  cursor: pointer;
+  padding: 0 6px 0 0;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.btn-expandir-sidebar {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #1a3a5c;
+  cursor: pointer;
+  padding: 0 8px 0 0;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.btn-expandir-sidebar:hover {
+  color: #0d6efd;
+}
+
+/* ---- Layout principal ---- */
+#main {
+  margin-left: 220px;
+  min-height: 100vh;
+  transition: margin-left 0.25s ease;
+}
+#main.main-colapsado {
+  margin-left: 0;
+}
+.content {
+  padding: 22px;
+}
+
+/* =====================================================
+   SISTEMA DE BOTÕES — padrão único em todo o sistema
+   ===================================================== */
+
+/* Base */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+  text-decoration: none;
+  line-height: 1.4;
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn:focus-visible {
+  outline: 2px solid #1a3a5c;
+  outline-offset: 2px;
+}
+
+/* Variantes */
+.btn-primary {
+  background: #1a3a5c;
+  color: #fff;
+  border-color: #1a3a5c;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #14304e;
+  box-shadow: 0 2px 6px rgba(26,58,92,.25);
+}
+
+.btn-success {
+  background: #198754;
+  color: #fff;
+  border-color: #198754;
+}
+.btn-success:hover:not(:disabled) {
+  background: #146c43;
+  box-shadow: 0 2px 6px rgba(25,135,84,.25);
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: #fff;
+  border-color: #dc3545;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #bb2d3b;
+  box-shadow: 0 2px 6px rgba(220,53,69,.25);
+}
+
+.btn-warning {
+  background: #fd7e14;
+  color: #fff;
+  border-color: #fd7e14;
+}
+.btn-warning:hover:not(:disabled) {
+  background: #e8720c;
+}
+
+.btn-outline {
+  background: #fff;
+  color: #1a3a5c;
+  border-color: #d0d7de;
+}
+.btn-outline:hover:not(:disabled) {
+  background: #f6f8fa;
+  border-color: #1a3a5c;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #555;
+  border-color: transparent;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: #f0f2f5;
+  color: #1a3a5c;
+}
+
+/* Tamanhos */
+.btn-sm {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 5px;
+}
+.btn-lg {
+  font-size: 14px;
+  padding: 9px 20px;
+  border-radius: 8px;
+}
+.btn-full {
+  width: 100%;
+  justify-content: center;
+}
+
+/* Grupo de botões — ficam juntos sem gap entre eles */
+.btn-group {
+  display: inline-flex;
+  align-items: center;
+}
+.btn-group .btn {
+  border-radius: 0;
+}
+.btn-group .btn:first-child {
+  border-radius: 6px 0 0 6px;
+}
+.btn-group .btn:last-child {
+  border-radius: 0 6px 6px 0;
+}
+.btn-group .btn + .btn {
+  border-left: none;
+}
+
+/* Hint — texto explicativo abaixo do botão */
+.btn-hint {
+  display: block;
+  font-size: 10px;
+  color: #9ca3af;
+  margin-top: 3px;
+  text-align: center;
+}
+
+/* ---- Cards ---- */
+.card {
+  border: none !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  border-radius: 10px;
+  background: #fff;
+}
+
+/* ---- Badges de prioridade ---- */
+.badge-baixa   { background: #6c757d; color: #fff; border-radius: 4px; font-size: 11px; padding: 2px 8px; font-weight: 600; }
+.badge-normal  { background: #0d6efd; color: #fff; border-radius: 4px; font-size: 11px; padding: 2px 8px; font-weight: 600; }
+.badge-alta    { background: #fd7e14; color: #fff; border-radius: 4px; font-size: 11px; padding: 2px 8px; font-weight: 600; }
+.badge-urgente { background: #dc3545; color: #fff; border-radius: 4px; font-size: 11px; padding: 2px 8px; font-weight: 600; }
+
+/* ---- Tabelas responsivas ---- */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.table-responsive table {
+  min-width: 600px;
+}
+
+/* ---- Grid helpers ---- */
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.counters-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.etapas-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+.etapa-card:hover {
+  opacity: 0.88;
+}
+
+/* Nova Ordem — layout desktop: info+itens à esquerda, roteiro à direita */
+.novo-pedido-grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 16px;
+  align-items: start;
+}
+.grid-6 {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.grid-item-3col {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+/* =====================================================
+   RESPONSIVO — TABLET (≤ 1024px)
+   ===================================================== */
+@media (max-width: 1024px) {
+  .grid-6 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .grid-item-3col {
+    grid-template-columns: 1fr 1fr;
+  }
+  .etapas-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .counters-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* =====================================================
+   RESPONSIVO — MOBILE (≤ 768px)
+   ===================================================== */
+@media (max-width: 768px) {
+  /* Sidebar vira gaveta lateral */
+  #sidebar {
+    transform: translateX(-100%);
+  }
+  #sidebar.aberto {
+    transform: translateX(0);
+  }
+
+  /* Main ocupa tela toda */
+  #main {
+    margin-left: 0;
+  }
+
+  /* Hamburger visível */
+  .btn-hamburger {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* Topbar usuário — esconde nome no celular pequeno */
+  .topbar-nome {
+    display: none;
+  }
+
+  /* Padding menor no mobile */
+  .content {
+    padding: 14px;
+  }
+
+  /* Grids */
+  .counters-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .etapas-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .novo-pedido-grid {
+    grid-template-columns: 1fr;
+  }
+  .grid-3 {
+    grid-template-columns: 1fr;
+  }
+  .grid-6 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+  .grid-item-3col {
+    grid-template-columns: 1fr;
+  }
+
+  /* Touch targets — botões de ação no painel de setor */
+  .card button,
+  .card a[role="button"] {
+    min-height: 40px;
+  }
+
+  /* Tabelas com scroll horizontal no mobile */
+  .table-responsive table {
+    min-width: 520px;
+  }
+
+  /* Modal ocupa tela inteira no mobile */
+  .modal-dialog {
+    margin: 0;
+    max-width: 100%;
+    min-height: 100vh;
+    border-radius: 0;
+  }
+}
+
+/* =====================================================
+   RESPONSIVO — TELAS LARGAS / TV (≥ 1440px)
+   ===================================================== */
+@media (min-width: 1440px) {
+  .counters-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+  .etapas-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+@media (min-width: 1920px) {
+  #sidebar {
+    width: 260px;
+  }
+  #main {
+    margin-left: 260px;
+  }
+  .content {
+    padding: 28px 36px;
+  }
+  .etapa-card {
+    padding: 20px 22px !important;
+  }
+  .etapa-card .text-36 {
+    font-size: 44px;
+  }
+  .card {
+    border-radius: 12px;
+  }
+}
+
+/* =====================================================
+   RESPONSIVO — CELULAR PEQUENO (≤ 480px)
+   ===================================================== */
+@media (max-width: 480px) {
+  .grid-6 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .etapas-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .content {
+    padding: 10px;
+  }
+  .topbar {
+    padding: 9px 14px;
+  }
+
+  /* Texto menor nos cards de etapa */
+  .etapa-card {
+    padding: 12px 14px !important;
+  }
+  .etapa-card .text-36 {
+    font-size: 28px;
+  }
+}

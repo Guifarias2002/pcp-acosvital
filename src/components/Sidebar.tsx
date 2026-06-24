@@ -1,0 +1,213 @@
+'use client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { logout, getUser } from '@/lib/auth';
+import { SETOR_CHOICES, NOMES } from '@/lib/types';
+import { useEffect, useState } from 'react';
+import { JWTPayload } from '@/lib/auth';
+
+const SETOR_ICONS: Record<string, string> = {
+  emissao: 'bi-file-earmark-plus',
+  compras: 'bi-cart3',
+  recebimento: 'bi-box-arrow-in-down',
+  estoque: 'bi-box-seam',
+  plasma: 'bi-lightning-charge',
+  'maçarico': 'bi-fire',
+  usinagem: 'bi-tools',
+  beneficiadores: 'bi-gear-wide',
+  qualidade: 'bi-patch-check',
+  furacao: 'bi-circle',
+  acabamento: 'bi-brush',
+  embalagem: 'bi-box',
+  logistica: 'bi-truck',
+};
+
+function NavItem({ href, label, icon, onNav }: { href: string; label: string; icon?: string; onNav?: () => void }) {
+  const rawPath = usePathname();
+  // usePathname() não decodifica segmentos com acentos (ex: "ma%C3%A7arico")
+  let path = rawPath;
+  try { path = decodeURIComponent(rawPath); } catch { /* já decodificado */ }
+  const active = path === href || (href !== '/' && path.startsWith(href));
+  return (
+    <Link href={href} className={`nav-link${active ? ' ativo' : ''}`} onClick={onNav}>
+      {icon && <i className={`bi ${icon}`}></i>}
+      <span>{label}</span>
+    </Link>
+  );
+}
+
+function NavGroup({ label, defaultOpen = true, alwaysOpen = false, children }: { label: string; defaultOpen?: boolean; alwaysOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const isOpen = alwaysOpen || open;
+  return (
+    <>
+      <button
+        className="sec sec-toggle"
+        onClick={() => { if (!alwaysOpen) setOpen(v => !v); }}
+        aria-expanded={isOpen}
+        style={{ cursor: alwaysOpen ? 'default' : 'pointer' }}
+      >
+        <span>{label}</span>
+        {!alwaysOpen && <i className={`bi ${isOpen ? 'bi-chevron-up' : 'bi-chevron-down'}`} style={{ fontSize: 10, opacity: 0.7 }} />}
+      </button>
+      {isOpen && children}
+    </>
+  );
+}
+
+interface SidebarProps {
+  aberto: boolean;
+  fechar: () => void;
+  colapsada?: boolean;
+  onColapsar?: () => void;
+}
+
+export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: SidebarProps) {
+  const [user, setUser] = useState<JWTPayload | null>(null);
+  useEffect(() => { setUser(getUser()); }, []);
+
+  const isAdmin = user?.is_staff;
+  const isSuperAdmin = user?.perfil === 'administrador' || (user?.is_staff && user?.perfil !== 'pcp' && user?.perfil !== 'lider');
+  const meuSetor = user?.setor;
+
+  return (
+    <>
+      {/* Overlay mobile */}
+      <div id="sidebar-overlay" className={aberto ? 'ativo' : ''} onClick={fechar} />
+      <div id="sidebar" className={`${aberto ? 'aberto' : ''} ${colapsada ? 'colapsada' : ''}`}>
+        <div className="brand">
+          <div className="brand-header">
+            <div>
+              <h5>PCP ACOSVITAL</h5>
+              <small>Planejamento e Controle</small>
+            </div>
+            <button className="btn-colapsar" onClick={onColapsar} title={colapsada ? 'Expandir menu' : 'Recolher menu'}>
+              <i className={`bi ${colapsada ? 'bi-chevron-right' : 'bi-chevron-left'}`}></i>
+            </button>
+          </div>
+        </div>
+        <nav>
+          <NavGroup label="Geral">
+            <NavItem href="/" label="Dashboard" icon="bi-speedometer2" onNav={fechar} />
+            {isAdmin && (
+              <>
+                <NavItem href="/pedidos" label="Todos os Pedidos" icon="bi-list-ul" onNav={fechar} />
+                <NavItem href="/kanban" label="Kanban" icon="bi-kanban" onNav={fechar} />
+                <NavItem href="/por-lider" label="Por Líder" icon="bi-people-fill" onNav={fechar} />
+                <NavItem href="/emitidos" label="Em Produção" icon="bi-send-fill" onNav={fechar} />
+                <NavItem href="/entregues" label="Entregues" icon="bi-check-circle" onNav={fechar} />
+                <NavItem href="/divergencias" label="Divergências" icon="bi-exclamation-triangle" onNav={fechar} />
+              </>
+            )}
+          </NavGroup>
+
+          {isAdmin ? (
+            <NavGroup label="Setores" defaultOpen={true} alwaysOpen={true}>
+              {SETOR_CHOICES.map(([cod, nome]) => (
+                <NavItem key={cod} href={`/setor/${cod}`} label={nome} icon={SETOR_ICONS[cod]} onNav={fechar} />
+              ))}
+            </NavGroup>
+          ) : meuSetor ? (
+            <NavGroup label="Meu Setor">
+              <NavItem
+                href={`/setor/${meuSetor}`}
+                label={NOMES[meuSetor] || meuSetor}
+                icon={SETOR_ICONS[meuSetor]}
+                onNav={fechar}
+              />
+            </NavGroup>
+          ) : null}
+
+          {isSuperAdmin && (
+            <NavGroup label="Sistema" defaultOpen={false}>
+              <NavItem href="/usuarios" label="Usuários" icon="bi-people" onNav={fechar} />
+              <NavItem href="/relatorios" label="Backup Diário" icon="bi-cloud-arrow-down-fill" onNav={fechar} />
+              <NavItem href="/exportar" label="Exportar Excel" icon="bi-file-earmark-excel" onNav={fechar} />
+              <NavItem href="/excluidos" label="Pedidos Excluídos" icon="bi-trash3" onNav={fechar} />
+              <NavItem href="/setup" label="Configurar Banco" icon="bi-database-gear" onNav={fechar} />
+            </NavGroup>
+          )}
+        </nav>
+      </div>
+    </>
+  );
+}
+
+interface TopBarProps {
+  onHamburger: () => void;
+  colapsada?: boolean;
+  onExpandir?: () => void;
+}
+
+export function TopBar({ onHamburger, colapsada, onExpandir }: TopBarProps) {
+  const [user, setUser] = useState<JWTPayload | null>(null);
+  const pathname = usePathname();
+
+  useEffect(() => { setUser(getUser()); }, []);
+
+  const titles: Record<string, string> = {
+    '/': 'Dashboard',
+    '/pedidos': 'Todos os Pedidos',
+    '/kanban': 'Kanban',
+    '/por-lider': 'Painel por Líder',
+    '/emitidos': 'Ordens de Produção Emitidas',
+    '/entregues': 'Entregues',
+    '/divergencias': 'Divergências',
+    '/usuarios': 'Usuários',
+    '/relatorios': 'Relatórios',
+    '/exportar': 'Exportar Excel',
+    '/excluidos': 'Pedidos Excluídos',
+  };
+  // Detecta /setor/[setor] e /pedidos/[id] e /item/[id] direto pela URL
+  const setorMatch = pathname.match(/^\/setor\/([^/]+)/);
+  const pedidoMatch = pathname.match(/^\/pedidos\/(\d+)/);
+  const itemMatch = pathname.match(/^\/item\/(\d+)/);
+  // usePathname() não decodifica segmentos com acentos (ex: "ma%C3%A7arico")
+  let setorNome = setorMatch?.[1] || '';
+  try { setorNome = decodeURIComponent(setorNome); } catch { /* já decodificado */ }
+  const title = setorMatch
+    ? (NOMES[setorNome] || setorNome)
+    : pedidoMatch
+    ? `Pedido ${pedidoMatch[1]}`
+    : itemMatch
+    ? `Item ${itemMatch[1]}`
+    : (titles[pathname] || '');
+
+  return (
+    <div className="topbar">
+      {colapsada && (
+        <button className="btn-expandir-sidebar" onClick={onExpandir} title="Abrir menu">
+          <i className="bi bi-layout-sidebar"></i>
+        </button>
+      )}
+      <button className="btn-hamburger" onClick={onHamburger} aria-label="Menu">
+        <i className="bi bi-list"></i>
+      </button>
+      <span className="topbar-titulo">{title}</span>
+      <div className="topbar-usuario">
+        {user && (
+          <>
+            <i className="bi bi-person-circle" style={{ color: '#555' }}></i>
+            <span className="topbar-nome" style={{ fontSize: 13, fontWeight: 600, color: '#333' }}>
+              {user.nome?.toUpperCase()}
+            </span>
+            <span style={{
+              fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600,
+              background: user.is_staff ? '#dc3545' : '#0d6efd', color: '#fff',
+              whiteSpace: 'nowrap',
+            }}>
+              {user.perfil ? user.perfil.charAt(0).toUpperCase() + user.perfil.slice(1) : (user.is_staff ? 'Administrador' : 'Operador')}
+            </span>
+          </>
+        )}
+        <button onClick={logout} style={{
+          fontSize: 12, border: '1px solid #dc3545', color: '#dc3545',
+          background: 'none', borderRadius: 4, padding: '3px 10px', cursor: 'pointer', whiteSpace: 'nowrap',
+        }}>
+          <i className="bi bi-box-arrow-right"></i>
+          <span className="topbar-nome" style={{ marginLeft: 4 }}>Sair</span>
+        </button>
+      </div>
+    </div>
+  );
+}

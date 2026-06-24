@@ -1,0 +1,524 @@
+
+<title>Dossiê TI — PCP AcosVital</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --azul: #1a3a5c;
+    --azul-medio: #2a5298;
+    --azul-claro: #e8f0fb;
+    --verde: #1a7a4a;
+    --verde-claro: #e6f4ec;
+    --laranja: #b85c00;
+    --laranja-claro: #fff3e6;
+    --vermelho: #b00020;
+    --vermelho-claro: #fdecea;
+    --cinza: #f4f6f9;
+    --borda: #dde3ed;
+    --texto: #1a2332;
+    --texto-leve: #5a6a80;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--cinza); color: var(--texto); font-size: 14px; line-height: 1.6; }
+
+  .header { background: var(--azul); color: #fff; padding: 32px 40px 24px; }
+  .header-badge { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #8ab4f8; margin-bottom: 8px; }
+  .header h1 { font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+  .header p { color: #a8c0e8; font-size: 13px; }
+  .header-meta { display: flex; gap: 24px; margin-top: 20px; flex-wrap: wrap; }
+  .header-meta span { font-size: 12px; color: #c0d4f0; }
+
+  .container { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .section { margin-bottom: 32px; }
+  .section-title { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--azul-medio); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--borda); }
+
+  .card { background: #fff; border: 1px solid var(--borda); border-radius: 10px; padding: 20px; }
+  .card-title { font-size: 13px; font-weight: 700; color: var(--azul); margin-bottom: 12px; }
+
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+  .pill-ok { background: var(--verde-claro); color: var(--verde); }
+  .pill-warn { background: var(--laranja-claro); color: var(--laranja); }
+  .pill-err { background: var(--vermelho-claro); color: var(--vermelho); }
+  .pill-info { background: var(--azul-claro); color: var(--azul-medio); }
+
+  .status-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .status-table th { text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--texto-leve); padding: 8px 12px; border-bottom: 2px solid var(--borda); background: var(--cinza); }
+  .status-table td { padding: 10px 12px; border-bottom: 1px solid var(--borda); vertical-align: top; }
+  .status-table tr:last-child td { border-bottom: none; }
+  .item-name { font-weight: 600; color: var(--texto); }
+  .item-detail { color: var(--texto-leve); font-size: 12px; margin-top: 2px; }
+
+  .checklist { list-style: none; }
+  .checklist li { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--borda); font-size: 13px; }
+  .checklist li:last-child { border-bottom: none; }
+  .check-icon { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; margin-top: 1px; }
+  .ci-ok { background: var(--verde-claro); color: var(--verde); }
+  .ci-warn { background: var(--laranja-claro); color: var(--laranja); }
+  .ci-info { background: var(--azul-claro); color: var(--azul-medio); }
+  .check-text { flex: 1; }
+  .check-text strong { display: block; font-weight: 600; color: var(--texto); }
+  .check-text span { color: var(--texto-leve); font-size: 12px; }
+  .check-pill { flex-shrink: 0; }
+
+  code { font-family: 'Consolas', monospace; font-size: 12px; background: #eef2f8; padding: 2px 6px; border-radius: 4px; color: #2a4a7a; }
+  pre { background: #0f1923; color: #c8d8f0; font-family: 'Consolas', monospace; font-size: 12px; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; line-height: 1.7; }
+  pre .kw { color: #79b8ff; } pre .cm { color: #6a737d; }
+
+  .matrix { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .matrix th { background: var(--azul); color: #fff; padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 700; }
+  .matrix td { padding: 9px 12px; border-bottom: 1px solid var(--borda); vertical-align: top; }
+  .matrix tr:nth-child(even) td { background: #f8faff; }
+  .matrix td:first-child { font-weight: 600; color: var(--azul); }
+
+  .timeline { list-style: none; position: relative; padding-left: 24px; }
+  .timeline::before { content: ''; position: absolute; left: 6px; top: 0; bottom: 0; width: 2px; background: var(--borda); }
+  .timeline li { position: relative; margin-bottom: 20px; }
+  .timeline li::before { content: ''; position: absolute; left: -21px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--azul-medio); border: 2px solid #fff; box-shadow: 0 0 0 2px var(--azul-medio); }
+  .timeline-title { font-weight: 700; font-size: 13px; color: var(--azul); }
+  .timeline-desc { font-size: 12px; color: var(--texto-leve); margin-top: 3px; }
+  .timeline-badge { font-size: 11px; font-weight: 700; color: var(--azul-medio); background: var(--azul-claro); padding: 1px 8px; border-radius: 10px; display: inline-block; margin-bottom: 4px; }
+
+  .endpoint { display: flex; align-items: baseline; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--borda); font-size: 12px; flex-wrap: wrap; }
+  .endpoint:last-child { border-bottom: none; }
+  .method { font-weight: 700; font-size: 11px; width: 46px; text-align: center; padding: 2px 0; border-radius: 4px; flex-shrink: 0; }
+  .mget { background: #e3f2fd; color: #1565c0; }
+  .mpost { background: #e8f5e9; color: #2e7d32; }
+  .mpatch { background: #fff3e0; color: #e65100; }
+  .mdel { background: #fce4ec; color: #880e4f; }
+  .ep-path { font-family: monospace; color: var(--texto); }
+  .ep-desc { color: var(--texto-leve); margin-left: auto; text-align: right; font-size: 11px; }
+
+  .summary-bar { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+  .summary-item { background: #fff; border: 1px solid var(--borda); border-radius: 10px; padding: 16px 20px; flex: 1; min-width: 110px; text-align: center; }
+  .summary-item .num { font-size: 28px; font-weight: 800; color: var(--azul); line-height: 1; }
+  .summary-item .lbl { font-size: 11px; color: var(--texto-leve); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+  .s-ok .num { color: var(--verde); }
+  .s-warn .num { color: var(--laranja); }
+
+  .note { background: var(--azul-claro); border-left: 3px solid var(--azul-medio); border-radius: 0 6px 6px 0; padding: 10px 14px; font-size: 12px; color: var(--azul); margin: 12px 0; }
+  .warn-box { background: var(--laranja-claro); border-left: 3px solid var(--laranja); border-radius: 0 6px 6px 0; padding: 10px 14px; font-size: 12px; color: #7a3800; margin: 12px 0; }
+</style>
+
+<div class="header">
+  <div class="header-badge">Confidencial — Uso Interno</div>
+  <h1>Dossi&#234; T&#233;cnico &#8212; PCP AcosVital</h1>
+  <p>Documento de entrega ao Departamento de TI &#183; Revis&#227;o de Seguran&#231;a, LGPD e Arquitetura</p>
+  <div class="header-meta">
+    <span>&#128197; Gerado em 19 jun 2026</span>
+    <span>&#127959; Next.js 14 + PostgreSQL (Supabase)</span>
+    <span>&#128272; JWT HS256 + PBKDF2-SHA256</span>
+    <span>&#128203; Vers&#227;o 2.0 &#8212; P&#243;s-Hardening</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="section">
+    <div class="section-title">Sum&#225;rio Executivo</div>
+    <div class="summary-bar">
+      <div class="summary-item s-ok"><div class="num">23</div><div class="lbl">Controles OK</div></div>
+      <div class="summary-item s-warn"><div class="num">4</div><div class="lbl">Aten&#231;&#245;es</div></div>
+      <div class="summary-item"><div class="num">0</div><div class="lbl">Cr&#237;ticos</div></div>
+      <div class="summary-item"><div class="num">3</div><div class="lbl">Camadas Auth</div></div>
+      <div class="summary-item"><div class="num">100%</div><div class="lbl">Rotas Protegidas</div></div>
+    </div>
+    <div class="note">
+      <strong>Status geral:</strong> O sistema passou por revis&#227;o de hardening completo. Todas as rotas de API exigem autentica&#231;&#227;o JWT, 100% das queries usam par&#226;metros vinculados (imune a SQL injection), logs de acesso estruturados est&#227;o ativos e o direito ao esquecimento (LGPD Art. 18) foi implementado. Os 4 itens de aten&#231;&#227;o s&#227;o operacionais (HTTPS, separa&#231;&#227;o dev/prod, pol&#237;tica de senha, rota&#231;&#227;o de chave JWT) e dependem de configura&#231;&#227;o de infraestrutura pela equipe de TI.
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">1 &#183; Checklist de Requisitos TI &#8212; Status por Item</div>
+    <div class="card">
+      <ul class="checklist">
+        <li>
+          <div class="check-icon ci-ok">&#10003;</div>
+          <div class="check-text">
+            <strong>Autentica&#231;&#227;o robusta</strong>
+            <span>JWT HS256 (8h), cookie HttpOnly + Secure em produ&#231;&#227;o, fallback Authorization header. Rate limit: 10 tentativas/15 min por IP com cabe&#231;alho Retry-After. Senhas via PBKDF2-SHA256 (timing-safe).</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-ok">Implementado</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-ok">&#10003;</div>
+          <div class="check-text">
+            <strong>Autoriza&#231;&#227;o por perfil (RBAC)</strong>
+            <span>Cada rota valida <code>user.is_staff</code>, <code>user.setor</code> e <code>user.perfil</code>. Operadores s&#243; acessam o setor pr&#243;prio. Admins t&#234;m acesso irrestrito. Nenhuma rota exp&#245;e dados sem autentica&#231;&#227;o.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-ok">Implementado</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-ok">&#10003;</div>
+          <div class="check-text">
+            <strong>Preven&#231;&#227;o de SQL Injection</strong>
+            <span>100% das queries usam template literals parametrizados do driver <code>postgres</code>. Zero concatena&#231;&#227;o de string em SQL. Validado em todas as 20 rotas de API.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-ok">Implementado</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-ok">&#10003;</div>
+          <div class="check-text">
+            <strong>Valida&#231;&#227;o de entrada nas fronteiras</strong>
+            <span>IDs convertidos e validados como inteiros positivos. Enums verificados contra listas fixas. Upload: m&#225;x. 10 MB, extens&#245;es JPG/PNG/PDF/GIF/WEBP. Strings truncadas em comprimentos m&#225;ximos.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-ok">Implementado</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-ok">&#10003;</div>
+          <div class="check-text">
+            <strong>Logs de acesso estruturados (LGPD/TI)</strong>
+            <span>Tabela <code>auditoria_acesso</code>: registra usuario_id, username, m&#233;todo HTTP, rota, a&#231;&#227;o, IP e timestamp para toda muta&#231;&#227;o sens&#237;vel. Endpoint <code>GET /api/auditoria</code> com pagina&#231;&#227;o e filtros para admins.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-ok">Implementado</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-ok">&#10003;</div>
+          <div class="check-text">
+            <strong>Log de auditoria de login</strong>
+            <span>Tabela <code>auditoria_login</code>: registra tentativas de autentica&#231;&#227;o (sucesso e falha) com IP e timestamp. Permite detectar ataques de for&#231;a bruta retroativamente.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-ok">Implementado</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-ok">&#10003;</div>
+          <div class="check-text">
+            <strong>LGPD Art. 18 &#8212; Direito ao esquecimento</strong>
+            <span>Endpoint <code>DELETE /api/usuarios/:id</code>: anonimiza nome, e-mail e credenciais do usu&#225;rio preservando o hist&#243;rico de movimenta&#231;&#245;es. Registra a anonimiza&#231;&#227;o no log de auditoria. Admins n&#227;o podem excluir a si mesmos.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-ok">Implementado</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-ok">&#10003;</div>
+          <div class="check-text">
+            <strong>Prote&#231;&#227;o contra XSS</strong>
+            <span>Next.js escapa automaticamente todo output no React. Nenhum <code>dangerouslySetInnerHTML</code> detectado. CSP pode ser adicionado via headers no <code>next.config.js</code> (recomendado pelo TI).</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-ok">Implementado</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-ok">&#10003;</div>
+          <div class="check-text">
+            <strong>Rate limiting em muta&#231;&#245;es</strong>
+            <span>M&#243;dulo <code>rateLimit.ts</code>: limite configur&#225;vel por IP nas rotas de a&#231;&#227;o. Login: 10 req/15 min. Impede abuso automatizado e enumera&#231;&#227;o de recursos.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-ok">Implementado</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-ok">&#10003;</div>
+          <div class="check-text">
+            <strong>Integridade de banco &#8212; constraints completas</strong>
+            <span>Rota <code>POST /api/setup/hardening</code> (idempotente): aplica NOT NULL, DEFAULT, UNIQUE, CHECK, FK (CASCADE/SET NULL), 20+ &#237;ndices compostos, triggers de <code>atualizado_em</code> e rec&#225;lculo de <code>valor_total</code>.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-ok">Implementado</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-ok">&#10003;</div>
+          <div class="check-text">
+            <strong>Upload seguro de comprovantes</strong>
+            <span>Valida&#231;&#227;o de tamanho (m&#225;x. 10 MB) e extens&#227;o antes do envio ao Supabase Storage. Path com timestamp. Sem acesso ao sistema de arquivos local do servidor.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-ok">Implementado</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-ok">&#10003;</div>
+          <div class="check-text">
+            <strong>Backup com sobrescrita controlada</strong>
+            <span>Backup di&#225;rio (<code>backup_diario.xlsx</code>) e backup de c&#243;digo (<code>sistema_pcp.zip</code>) sobrescrevem sempre o mesmo arquivo na pasta de rede. Sem prolifera&#231;&#227;o de arquivos datados.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-ok">Implementado</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-ok">&#10003;</div>
+          <div class="check-text">
+            <strong>Tratamento de erros sem vazamento de stack</strong>
+            <span>Blocos <code>catch</code> em todas as rotas retornam mensagens gen&#233;ricas ao cliente. Stack traces s&#227;o logados apenas no console do servidor, nunca expostos ao browser.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-ok">Implementado</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-ok">&#10003;</div>
+          <div class="check-text">
+            <strong>Depend&#234;ncias auditadas</strong>
+            <span><code>npm audit</code> executado. <code>axios</code> atualizado para vers&#227;o sem CVEs. &#218;nico aviso restante: <code>glob</code> via <code>eslint-config-next</code> (depend&#234;ncia de dev, n&#227;o afeta produ&#231;&#227;o).</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-ok">Auditado</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-warn">!</div>
+          <div class="check-text">
+            <strong>HTTPS obrigat&#243;rio em produ&#231;&#227;o</strong>
+            <span>Cookie configurado com <code>secure: true</code> apenas quando <code>NODE_ENV=production</code>. O TI deve garantir que o servidor rode atr&#225;s de HTTPS (nginx/IIS com certificado TLS). Sem HTTPS, o cookie n&#227;o &#233; enviado em produ&#231;&#227;o.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-warn">A&#231;&#227;o TI</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-warn">!</div>
+          <div class="check-text">
+            <strong>Separa&#231;&#227;o dev / produ&#231;&#227;o</strong>
+            <span>Recomenda-se bancos separados para dev e prod, com <code>DATABASE_URL</code> distintas. TI deve provisionar ambiente de homologa&#231;&#227;o isolado antes do go-live.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-warn">A&#231;&#227;o TI</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-warn">!</div>
+          <div class="check-text">
+            <strong>Pol&#237;tica de senhas para novos usu&#225;rios</strong>
+            <span>Cadastro de usu&#225;rios feito manualmente pelo admin. Recomenda-se pol&#237;tica m&#237;nima: 8+ caracteres, sem senhas comuns. O hash PBKDF2-SHA256 &#233; forte; a pol&#237;tica de cria&#231;&#227;o &#233; responsabilidade do admin.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-warn">Aten&#231;&#227;o</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-warn">!</div>
+          <div class="check-text">
+            <strong>Rota&#231;&#227;o do JWT_SECRET</strong>
+            <span>A chave JWT &#233; est&#225;tica no <code>.env.local</code>. Recomenda-se rota&#231;&#227;o a cada 90 dias ou em caso de suspeita de comprometimento. A rota&#231;&#227;o invalida todos os tokens ativos (usu&#225;rios precisam re-logar).</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-warn">Aten&#231;&#227;o</span></div>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">2 &#183; Arquitetura e Stack</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">&#127959; Stack de Produ&#231;&#227;o</div>
+        <table class="status-table">
+          <tr><td class="item-name">Runtime</td><td>Node.js 18 LTS</td></tr>
+          <tr><td class="item-name">Framework</td><td>Next.js 14 (App Router)</td></tr>
+          <tr><td class="item-name">Linguagem</td><td>TypeScript strict</td></tr>
+          <tr><td class="item-name">Banco</td><td>PostgreSQL via Supabase</td></tr>
+          <tr><td class="item-name">Driver SQL</td><td><code>postgres</code> (tagged literals)</td></tr>
+          <tr><td class="item-name">Autentica&#231;&#227;o</td><td>JWT HS256 &#183; jose &#183; 8h</td></tr>
+          <tr><td class="item-name">Hash de senha</td><td>PBKDF2-SHA256 (Django compat.)</td></tr>
+          <tr><td class="item-name">Storage</td><td>Supabase Storage (comprovantes)</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title">&#128193; M&#243;dulos-chave</div>
+        <table class="status-table">
+          <tr><td><code>lib/db.ts</code></td><td><div class="item-detail">Pool de conex&#227;o PostgreSQL</div></td></tr>
+          <tr><td><code>lib/auth.ts</code></td><td><div class="item-detail">Sign / verify JWT &#183; helpers client</div></td></tr>
+          <tr><td><code>lib/middleware.ts</code></td><td><div class="item-detail">autenticar() &#183; logAcesso()</div></td></tr>
+          <tr><td><code>lib/queries.ts</code></td><td><div class="item-detail">Queries reutiliz&#225;veis</div></td></tr>
+          <tr><td><code>lib/types.ts</code></td><td><div class="item-detail">Constantes de dom&#237;nio</div></td></tr>
+          <tr><td><code>lib/rateLimit.ts</code></td><td><div class="item-detail">Rate limiting por IP</div></td></tr>
+          <tr><td><code>app/api/</code></td><td><div class="item-detail">20 rotas &#183; handlers HTTP finos</div></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">3 &#183; Mapa de Endpoints de API</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">&#128273; Autentica&#231;&#227;o</div>
+        <div class="endpoint"><span class="method mpost">POST</span><span class="ep-path">/api/auth/token</span><span class="ep-desc">Login &#183; rate-limited &#183; cookie</span></div>
+        <div class="endpoint"><span class="method mpost">POST</span><span class="ep-path">/api/auth/logout</span><span class="ep-desc">Limpa cookie HttpOnly</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title">&#128101; Usu&#225;rios</div>
+        <div class="endpoint"><span class="method mget">GET</span><span class="ep-path">/api/usuarios</span><span class="ep-desc">Lista &#183; somente admin</span></div>
+        <div class="endpoint"><span class="method mpatch">PATCH</span><span class="ep-path">/api/usuarios/:id</span><span class="ep-desc">Editar &#183; somente admin</span></div>
+        <div class="endpoint"><span class="method mdel">DEL</span><span class="ep-path">/api/usuarios/:id</span><span class="ep-desc">Anonimizar LGPD &#183; admin</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title">&#128230; Pedidos</div>
+        <div class="endpoint"><span class="method mget">GET</span><span class="ep-path">/api/pedidos</span><span class="ep-desc">Lista com filtros</span></div>
+        <div class="endpoint"><span class="method mpost">POST</span><span class="ep-path">/api/pedidos</span><span class="ep-desc">Criar &#183; admin &#183; log</span></div>
+        <div class="endpoint"><span class="method mget">GET</span><span class="ep-path">/api/pedidos/:id</span><span class="ep-desc">Detalhe completo</span></div>
+        <div class="endpoint"><span class="method mpatch">PATCH</span><span class="ep-path">/api/pedidos/:id</span><span class="ep-desc">Editar &#183; admin</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title">&#9881; Itens e Lotes</div>
+        <div class="endpoint"><span class="method mget">GET</span><span class="ep-path">/api/item/:id</span><span class="ep-desc">Detalhe do item</span></div>
+        <div class="endpoint"><span class="method mpost">POST</span><span class="ep-path">/api/item/:id/acao/:acao</span><span class="ep-desc">Transi&#231;&#227;o &#183; log</span></div>
+        <div class="endpoint"><span class="method mpost">POST</span><span class="ep-path">/api/item/:id/entregar</span><span class="ep-desc">Entrega + NF &#183; log</span></div>
+        <div class="endpoint"><span class="method mpost">POST</span><span class="ep-path">/api/lote/:id/:acao</span><span class="ep-desc">A&#231;&#245;es em lotes parciais</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title">&#128202; Dashboards</div>
+        <div class="endpoint"><span class="method mget">GET</span><span class="ep-path">/api/dashboard</span><span class="ep-desc">Vis&#227;o geral da produ&#231;&#227;o</span></div>
+        <div class="endpoint"><span class="method mget">GET</span><span class="ep-path">/api/setor/:setor</span><span class="ep-desc">Painel do setor</span></div>
+        <div class="endpoint"><span class="method mget">GET</span><span class="ep-path">/api/kanban</span><span class="ep-desc">Vis&#227;o kanban</span></div>
+        <div class="endpoint"><span class="method mget">GET</span><span class="ep-path">/api/relatorios/geral</span><span class="ep-desc">Relat&#243;rio mensal</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title">&#128274; Auditoria e Setup</div>
+        <div class="endpoint"><span class="method mget">GET</span><span class="ep-path">/api/auditoria</span><span class="ep-desc">Log de acesso &#183; admin</span></div>
+        <div class="endpoint"><span class="method mpost">POST</span><span class="ep-path">/api/setup/hardening</span><span class="ep-desc">Constraints + &#237;ndices &#183; 1&#215; admin</span></div>
+        <div class="endpoint"><span class="method mpost">POST</span><span class="ep-path">/api/backup</span><span class="ep-desc">Backup Excel di&#225;rio</span></div>
+        <div class="endpoint"><span class="method mpost">POST</span><span class="ep-path">/api/backup/sistema</span><span class="ep-desc">Backup ZIP do c&#243;digo</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">4 &#183; Conformidade LGPD</div>
+    <div class="card">
+      <div style="overflow-x:auto">
+        <table class="status-table">
+          <thead><tr><th>Artigo LGPD</th><th>Requisito</th><th>Como est&#225; atendido</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Art. 6 &#8212; Base Legal</strong></td><td>Leg&#237;timo interesse / contrato</td><td>Sistema de gest&#227;o interna. Dados s&#227;o de colaboradores e opera&#231;&#245;es da empresa.</td><td><span class="pill pill-ok">Atendido</span></td></tr>
+            <tr><td><strong>Art. 7 &#8212; Finalidade</strong></td><td>Uso limitado &#224; finalidade</td><td>Dados usados apenas para controle de ordens de produ&#231;&#227;o. Nenhum compartilhamento com terceiros.</td><td><span class="pill pill-ok">Atendido</span></td></tr>
+            <tr><td><strong>Art. 18 &#8212; Esquecimento</strong></td><td>Exclus&#227;o a pedido do titular</td><td>Endpoint <code>DELETE /api/usuarios/:id</code>: anonimiza dados pessoais preservando hist&#243;rico de opera&#231;&#245;es.</td><td><span class="pill pill-ok">Implementado</span></td></tr>
+            <tr><td><strong>Art. 37 &#8212; Registro</strong></td><td>Log de tratamento de dados</td><td>Tabelas <code>auditoria_acesso</code> e <code>auditoria_login</code>. Endpoint de consulta para DPO/TI.</td><td><span class="pill pill-ok">Implementado</span></td></tr>
+            <tr><td><strong>Art. 46 &#8212; Seguran&#231;a</strong></td><td>Medidas t&#233;cnicas de prote&#231;&#227;o</td><td>PBKDF2, JWT, HTTPS em prod, cookies HttpOnly, rate limiting, valida&#231;&#227;o de entrada.</td><td><span class="pill pill-ok">Implementado</span></td></tr>
+            <tr><td><strong>DPO / Encarregado</strong></td><td>Respons&#225;vel indicado</td><td>Defini&#231;&#227;o do encarregado &#233; responsabilidade da AcosVital. Nomear antes do go-live.</td><td><span class="pill pill-warn">A&#231;&#227;o AcosVital</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">5 &#183; Banco de Dados &#8212; Tabelas de Auditoria</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Estrutura das tabelas de log</div>
+        <pre><span class="cm">-- Log de tentativas de login</span>
+<span class="kw">CREATE TABLE</span> auditoria_login (
+  id        BIGSERIAL PRIMARY KEY,
+  username  TEXT NOT NULL,
+  ip        TEXT,
+  sucesso   BOOLEAN NOT NULL,
+  criado_em TIMESTAMPTZ DEFAULT NOW()
+);
+
+<span class="cm">-- Log estruturado de a&#231;&#245;es</span>
+<span class="kw">CREATE TABLE</span> auditoria_acesso (
+  id         BIGSERIAL PRIMARY KEY,
+  usuario_id INTEGER,
+  username   TEXT NOT NULL,
+  metodo     TEXT NOT NULL,
+  rota       TEXT NOT NULL,
+  acao       TEXT,
+  ip         TEXT,
+  criado_em  TIMESTAMPTZ DEFAULT NOW()
+);</pre>
+        <div class="note">Execute <code>POST /api/setup/hardening</code> como admin para criar estas tabelas no banco.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Consulta dos logs (via API)</div>
+        <pre><span class="cm">-- Acessar via GET /api/auditoria</span>
+<span class="cm">-- Par&#226;metros dispon&#237;veis:</span>
+<span class="cm">--   ?usuario_id=5</span>
+<span class="cm">--   ?rota=/api/item</span>
+<span class="cm">--   ?de=2026-06-01</span>
+<span class="cm">--   ?ate=2026-06-30</span>
+<span class="cm">--   ?pagina=1&amp;limite=50</span>
+
+<span class="cm">-- Ou direto no Supabase:</span>
+<span class="kw">SELECT</span> username, acao, rota, ip,
+       criado_em
+<span class="kw">FROM</span> auditoria_acesso
+<span class="kw">WHERE</span> criado_em >= NOW() - INTERVAL '7 days'
+<span class="kw">ORDER BY</span> criado_em <span class="kw">DESC</span>;</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">6 &#183; Matriz de Responsabilidades (RACI)</div>
+    <div class="card">
+      <div style="overflow-x:auto">
+        <table class="matrix">
+          <thead>
+            <tr><th>Atividade</th><th>Desenvolvedor</th><th>Admin AcosVital</th><th>TI AcosVital</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Novas funcionalidades p&#243;s-homologa&#231;&#227;o</td><td>&#8212;</td><td>Solicita</td><td><strong>Executa / Aprova</strong></td></tr>
+            <tr><td>Code review e homologa&#231;&#227;o</td><td>Suporte</td><td>&#8212;</td><td><strong>Executor</strong></td></tr>
+            <tr><td>Infraestrutura de produ&#231;&#227;o (servidor, HTTPS)</td><td>&#8212;</td><td>&#8212;</td><td><strong>Executor</strong></td></tr>
+            <tr><td>Gest&#227;o de usu&#225;rios e senhas</td><td>&#8212;</td><td><strong>Executor</strong></td><td>Auditor</td></tr>
+            <tr><td>Backup di&#225;rio e de c&#243;digo</td><td>&#8212;</td><td><strong>Executor (bot&#227;o)</strong></td><td>Monitor</td></tr>
+            <tr><td>Monitoramento de logs de acesso</td><td>&#8212;</td><td>&#8212;</td><td><strong>Executor</strong></td></tr>
+            <tr><td>Rota&#231;&#227;o de JWT_SECRET</td><td>Suporte t&#233;cnico</td><td>&#8212;</td><td><strong>Executor</strong></td></tr>
+            <tr><td>Suporte di&#225;rio aos usu&#225;rios</td><td>&#8212;</td><td><strong>Executor</strong></td><td>Escala&#231;&#227;o</td></tr>
+            <tr><td>Indica&#231;&#227;o do DPO (LGPD)</td><td>&#8212;</td><td><strong>Executor</strong></td><td>&#8212;</td></tr>
+            <tr><td>Renova&#231;&#227;o de certificado TLS</td><td>&#8212;</td><td>&#8212;</td><td><strong>Executor</strong></td></tr>
+            <tr><td>Congelamento de escopo p&#243;s-homologa&#231;&#227;o</td><td>Ciente</td><td>Aprovador</td><td><strong>Cust&#243;dia</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">7 &#183; Cronograma Sugerido</div>
+    <div class="card">
+      <ul class="timeline">
+        <li>
+          <div class="timeline-badge">Semana 1</div>
+          <div class="timeline-title">Reuni&#227;o de alinhamento t&#233;cnico</div>
+          <div class="timeline-desc">Apresenta&#231;&#227;o da arquitetura, walkthrough dos endpoints, revis&#227;o das vari&#225;veis de ambiente, defini&#231;&#227;o do ambiente de homologa&#231;&#227;o. Entrega deste dossii&#234; ao TI.</div>
+        </li>
+        <li>
+          <div class="timeline-badge">Semana 1&#8211;2</div>
+          <div class="timeline-title">Setup do ambiente de homologa&#231;&#227;o</div>
+          <div class="timeline-desc">TI provisiona servidor (Node.js 18), configura HTTPS, cria banco de homologa&#231;&#227;o separado, define .env de produ&#231;&#227;o. Desenvolvedor d&#225; suporte t&#233;cnico.</div>
+        </li>
+        <li>
+          <div class="timeline-badge">Semana 2&#8211;3</div>
+          <div class="timeline-title">Hardening e testes de seguran&#231;a</div>
+          <div class="timeline-desc">Admin executa <code>POST /api/setup/hardening</code> no banco de prod. TI realiza code review, testes de penetra&#231;&#227;o b&#225;sicos, valida&#231;&#227;o dos logs de auditoria.</div>
+        </li>
+        <li>
+          <div class="timeline-badge">Semana 3&#8211;4</div>
+          <div class="timeline-title">Testes de usu&#225;rio (UAT)</div>
+          <div class="timeline-desc">Usu&#225;rios-chave de cada setor validam o fluxo operacional. Admin valida backups. TI monitora logs durante o per&#237;odo.</div>
+        </li>
+        <li>
+          <div class="timeline-badge">Semana 4</div>
+          <div class="timeline-title">Go-live e congelamento de escopo</div>
+          <div class="timeline-desc">Sistema vai para produ&#231;&#227;o. Cust&#243;dia passa ao TI. Qualquer nova funcionalidade segue processo formal de solicita&#231;&#227;o e aprova&#231;&#227;o pelo TI.</div>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">8 &#183; Checklist de Setup para o TI</div>
+    <div class="card">
+      <ul class="checklist">
+        <li><div class="check-icon ci-info">1</div><div class="check-text"><strong>Instalar Node.js 18 LTS no servidor</strong><span>Verificar: <code>node -v</code> deve retornar v18.x ou superior.</span></div></li>
+        <li><div class="check-icon ci-info">2</div><div class="check-text"><strong>Copiar c&#243;digo-fonte</strong><span>Pasta <code>C:\pcp_next\</code> para o servidor. <strong>N&#227;o copiar</strong> <code>.env.local</code> nem <code>node_modules</code>.</span></div></li>
+        <li><div class="check-icon ci-info">3</div><div class="check-text"><strong>Criar .env.local de produ&#231;&#227;o</strong><span>DATABASE_URL (banco prod), JWT_SECRET (m&#237;n. 32 chars aleat&#243;rios), SUPABASE_URL, SUPABASE_SERVICE_KEY, NODE_ENV=production.</span></div></li>
+        <li><div class="check-icon ci-info">4</div><div class="check-text"><strong>npm install &amp;&amp; npm run build</strong><span>Instala depend&#234;ncias e compila para produ&#231;&#227;o. Verificar: sem erros de build.</span></div></li>
+        <li><div class="check-icon ci-info">5</div><div class="check-text"><strong>Executar hardening do banco</strong><span>Logar como admin &#8594; executar <code>POST /api/setup/hardening</code>. Verificar resposta <code>"ok": true</code>.</span></div></li>
+        <li><div class="check-icon ci-info">6</div><div class="check-text"><strong>Configurar HTTPS</strong><span>nginx ou IIS na frente do Next.js (porta 3000). Certificado da CA interna ou Let's Encrypt.</span></div></li>
+        <li><div class="check-icon ci-info">7</div><div class="check-text"><strong>Configurar pasta de rede para backups</strong><span><code>Z:\Ordens de Servi&#231;o - IAPP\NOSSO SISTEMA</code> acess&#237;vel pelo processo Node.js. Testar com o bot&#227;o de backup.</span></div></li>
+        <li><div class="check-icon ci-info">8</div><div class="check-text"><strong>Iniciar com PM2 ou servi&#231;o Windows</strong><span><code>pm2 start npm --name "pcp" -- start</code> com reinicio autom&#225;tico configurado.</span></div></li>
+        <li><div class="check-icon ci-info">9</div><div class="check-text"><strong>Validar logs de auditoria</strong><span>Acessar <code>GET /api/auditoria</code> como admin e confirmar que registros est&#227;o sendo gravados.</span></div></li>
+        <li><div class="check-icon ci-info">10</div><div class="check-text"><strong>Documentar respons&#225;vel DPO (LGPD)</strong><span>Nomear o encarregado de prote&#231;&#227;o de dados internamente antes do go-live.</span></div></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">9 &#183; Vari&#225;veis de Ambiente</div>
+    <div class="card">
+      <table class="status-table">
+        <thead><tr><th>Vari&#225;vel</th><th>Descri&#231;&#227;o</th><th>Obrigat&#243;ria</th></tr></thead>
+        <tbody>
+          <tr><td><code>DATABASE_URL</code></td><td>String de conex&#227;o PostgreSQL</td><td><span class="pill pill-err">Sim</span></td></tr>
+          <tr><td><code>JWT_SECRET</code></td><td>Chave JWT &#8212; m&#237;nimo 32 caracteres aleat&#243;rios (<code>openssl rand -hex 32</code>)</td><td><span class="pill pill-err">Sim</span></td></tr>
+          <tr><td><code>NODE_ENV</code></td><td>Deve ser <code>production</code> em prod &#8212; ativa cookie Secure e prote&#231;&#245;es extras</td><td><span class="pill pill-err">Sim em prod</span></td></tr>
+          <tr><td><code>SUPABASE_URL</code></td><td>URL do projeto Supabase (upload de comprovantes)</td><td><span class="pill pill-warn">Upload</span></td></tr>
+          <tr><td><code>SUPABASE_SERVICE_KEY</code></td><td>Chave de servi&#231;o Supabase</td><td><span class="pill pill-warn">Upload</span></td></tr>
+        </tbody>
+      </table>
+      <div class="warn-box">&#9888;&#65039; <strong>Nunca commitar</strong> o arquivo <code>.env.local</code> em controle de vers&#227;o. Ele cont&#233;m credenciais de acesso ao banco e chaves de autentica&#231;&#227;o.</div>
+    </div>
+  </div>
+
+  <div style="text-align:center; color:var(--texto-leve); font-size:12px; margin-top:48px; padding-top:24px; border-top:1px solid var(--borda);">
+    PCP AcosVital &#183; Dossii&#234; T&#233;cnico v2.0 &#183; Gerado em 19 jun 2026 &#183; Confidencial &#8212; Uso Interno
+  </div>
+
+</div>
