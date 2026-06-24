@@ -57,7 +57,7 @@ async function api(method, path, body, token, opts = {}) {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(30000),
   });
   let json = null;
   try { json = await res.json(); } catch { /* body vazio */ }
@@ -993,7 +993,7 @@ async function main() {
 
   // Verifica se servidor está rodando
   try {
-    await fetch(`${BASE_URL}/login`, { signal: AbortSignal.timeout(5000) });
+    await fetch(`${BASE_URL}/api/auth/token`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(10000) });
   } catch {
     console.log(colorize(`\n✗ ERRO: Servidor não responde em ${BASE_URL}`, 'red'));
     console.log(colorize('  Execute: npm run dev -- --port 3001', 'yellow'));
