@@ -296,7 +296,7 @@ export default function DashboardPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
           {/* 5 Etapas do ciclo de vida */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }} className="etapas-grid">
+          <div className="etapas-grid">
             {[
               {
                 etapa: 'a_produzir', bg: '#1a3a5c', label: 'A Produzir',
@@ -381,7 +381,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Contadores secundários */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }} className="counters-grid">
+          <div className="counters-grid">
             {[
               { label: 'Total em aberto', val: data.total, color: '#0d6efd', icon: 'bi-list-check', href: null },
               { label: 'Atrasados', val: data.atrasados, color: '#dc3545', icon: 'bi-exclamation-circle-fill', href: null },

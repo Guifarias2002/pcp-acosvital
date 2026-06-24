@@ -420,6 +420,18 @@ body {
 }
 
 /* =====================================================
+   RESPONSIVO — TABLET PORTRAIT (≤ 820px)
+   ===================================================== */
+@media (max-width: 820px) {
+  .etapas-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .counters-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* =====================================================
    RESPONSIVO — MOBILE (≤ 768px)
    ===================================================== */
 @media (max-width: 768px) {
