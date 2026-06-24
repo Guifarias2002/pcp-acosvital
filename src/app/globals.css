@@ -412,22 +412,38 @@ body {
     grid-template-columns: 1fr 1fr;
   }
   .etapas-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+  .etapas-grid .etapa-card {
+    padding: 10px 8px !important;
+  }
+  .etapas-grid .etapa-count {
+    font-size: 24px !important;
+    margin: 4px 0 2px !important;
+  }
+  .etapas-grid .etapa-label-titulo {
+    font-size: 9px !important;
+  }
+  .etapas-grid .etapa-label-num {
+    font-size: 9px !important;
+    margin-bottom: 2px !important;
+  }
+  .etapas-grid .etapa-valor {
+    font-size: 10px !important;
+  }
+  .etapas-grid .etapa-sub {
+    display: none;
+  }
+  .etapas-grid .etapa-icone {
+    font-size: 18px !important;
   }
   .counters-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
   }
-}
-
-/* =====================================================
-   RESPONSIVO — TABLET PORTRAIT (≤ 820px)
-   ===================================================== */
-@media (max-width: 820px) {
-  .etapas-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .counters-grid {
-    grid-template-columns: repeat(3, 1fr);
+  .counters-grid .card {
+    padding: 8px 10px !important;
   }
 }
 

@@ -355,19 +355,19 @@ export default function DashboardPage() {
                       clique para ver todos →
                     </div>
                   )}
-                  <div style={{ fontSize: 10, fontWeight: 700, opacity: .45, marginBottom: 4, letterSpacing: 1 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, opacity: .45, marginBottom: 4, letterSpacing: 1 }} className="etapa-label-num">
                     ETAPA {i + 1}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, opacity: .8 }}>{c.label}</div>
-                      <div style={{ fontSize: 36, fontWeight: 800, lineHeight: 1, margin: '8px 0 4px' }}>{c.count}</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, opacity: .8 }} className="etapa-label-titulo">{c.label}</div>
+                      <div style={{ fontSize: 36, fontWeight: 800, lineHeight: 1, margin: '8px 0 4px' }} className="etapa-count">{c.count}</div>
                       {isAdmin && c.val != null && (
-                        <div style={{ fontSize: 12, fontWeight: 600, opacity: .85 }}><BRL v={c.val} /></div>
+                        <div style={{ fontSize: 12, fontWeight: 600, opacity: .85 }} className="etapa-valor"><BRL v={c.val} /></div>
                       )}
-                      <div style={{ fontSize: 10, opacity: .6, marginTop: 4 }}>{c.sub}</div>
+                      <div style={{ fontSize: 10, opacity: .6, marginTop: 4 }} className="etapa-sub">{c.sub}</div>
                     </div>
-                    <i className={`bi ${c.icon}`} style={{ fontSize: 28, opacity: .3 }}></i>
+                    <i className={`bi ${c.icon} etapa-icone`} style={{ fontSize: 28, opacity: .3 }}></i>
                   </div>
                   {i < 3 && (
                     <div style={{ marginTop: 10, textAlign: 'right', opacity: .35, fontSize: 11 }}>
