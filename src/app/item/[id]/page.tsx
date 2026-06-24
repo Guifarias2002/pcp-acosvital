@@ -52,7 +52,8 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   async function acao(a: string, body?: Record<string, unknown>) {
     setAtuando(true);
     try { await itemAcao(Number(id), a, body); carregar(); }
-    catch (e: unknown) { alert((e as { response?: { data?: { erro?: string } } }).response?.data?.erro || 'Erro'); setAtuando(false); }
+    catch (e: unknown) { alert((e as { response?: { data?: { erro?: string } } }).response?.data?.erro || 'Erro'); }
+    finally { setAtuando(false); }
   }
 
   const isAdmin = getUser()?.is_staff;
