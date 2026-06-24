@@ -48,6 +48,7 @@ export default function KanbanPage() {
   function carregar() {
     api.get('/api/kanban')
       .then(r => { setSetores(r.data.setores); setUltimaAtt(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })); })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }
 

@@ -26,10 +26,11 @@ const STATUS_ICON: Record<string, string> = {
 
 export default function NotificacoesLive({ filtroSetor }: { filtroSetor?: string } = {}) {
   const [toasts, setToasts] = useState<(Notificacao & { key: number })[]>([]);
-  const desdeRef = useRef<string>(new Date().toISOString());
+  const desdeRef = useRef<string>('');
   const keyRef = useRef(0);
 
   useEffect(() => {
+    if (!desdeRef.current) desdeRef.current = new Date().toISOString();
     const token = getToken();
     if (!token) return;
 

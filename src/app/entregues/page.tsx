@@ -42,7 +42,7 @@ export default function EntreguesPage() {
 
   function buscar() {
     setLoading(true);
-    getEntregues({ cliente: fCliente }).then(setData).finally(() => setLoading(false));
+    getEntregues({ cliente: fCliente }).then(setData).catch(() => {}).finally(() => setLoading(false));
   }
 
   useEffect(() => { buscar(); }, []);

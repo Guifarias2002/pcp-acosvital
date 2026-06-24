@@ -73,6 +73,7 @@ export default function DivergenciasPage() {
     fetch(`/api/divergencias?${p}`, { headers: { Authorization: `Bearer ${getToken() || ''}` } })
       .then(r => r.json())
       .then(d => { setDivs(d.divergencias || []); setTotais(d.totais || null); })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }
 
