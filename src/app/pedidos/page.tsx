@@ -52,7 +52,7 @@ function PedidosPageInner() {
     setSelectedIds(new Set());
     const params: Record<string, string> = { cliente: fBusca, status: fStatus, prioridade: fPrioridade, entregue: '1' };
     if (fEtapa === 'entregue') params.entregue = '1';
-    getPedidos(params).then(setPedidos).finally(() => setLoading(false));
+    getPedidos(params).then(setPedidos).catch(() => {}).finally(() => setLoading(false));
   }
 
   useEffect(() => { buscar(); }, []);
