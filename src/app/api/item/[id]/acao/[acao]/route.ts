@@ -576,6 +576,14 @@ export async function POST(
           AND setor_atual = ${item.setor_atual}
           AND status IN ('em_aberto')
       `;
+      // Finaliza lotes em_trabalho para este item neste setor (chegaram via envio parcial)
+      await tx`
+        UPDATE producao_loteitem
+        SET status = 'concluido', atualizado_em = NOW()
+        WHERE item_pedido_id = ${item.id}
+          AND setor_destino = ${item.setor_atual}
+          AND status = 'em_trabalho'
+      `;
     });
 
   // ── finalizar ─────────────────────────────────────────────────────────────

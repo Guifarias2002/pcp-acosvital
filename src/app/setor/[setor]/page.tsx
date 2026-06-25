@@ -636,20 +636,6 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
             </section>
           )}
 
-          {/* Lotes em trabalho */}
-          {data.lotes_trabalho.length > 0 && (
-            <section>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#fd7e14', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-                <i className="bi bi-gear-fill" style={{ marginRight: 6 }}></i>
-                Lotes em Trabalho ({data.lotes_trabalho.length})
-              </div>
-              <div className="grid-3">
-                {data.lotes_trabalho.map(l => (
-                  <LoteCard key={l.id} lote={l as LoteItem & Record<string, unknown>} tipo="trabalho" onRefresh={carregar} />
-                ))}
-              </div>
-            </section>
-          )}
 
           {/* Todos os itens — agrupados por pedido */}
           {(() => {
