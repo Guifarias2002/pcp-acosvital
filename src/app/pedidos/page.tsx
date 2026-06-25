@@ -107,7 +107,7 @@ function PedidosPageInner() {
         const res = await fetch(`/api/pedidos/${id}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ motivo: modalExcluirLote.motivo }),
+          body: JSON.stringify({ motivo: modalExcluirLote.motivo, confirmar_excluir_em_producao: true }),
         });
         if (!res.ok) erros.push(id);
       } catch {
