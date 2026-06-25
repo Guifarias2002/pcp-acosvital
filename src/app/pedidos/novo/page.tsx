@@ -215,38 +215,58 @@ export default function NovoPedidoPage() {
               <p style={{ fontSize:12, color:'#888', margin:'0 0 12px' }}>
                 Clique nos setores na ordem em que o pedido deve passar:
               </p>
-              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                {SETOR_CHOICES.map(([cod, nome]) => {
+              {(() => {
+                const selecionados = roteiro
+                  .filter(c => SETOR_CHOICES.some(([cod]) => cod === c))
+                  .map(c => SETOR_CHOICES.find(([cod]) => cod === c)!);
+                const naoSelecionados = SETOR_CHOICES.filter(([c]) => !roteiro.includes(c));
+                const lista = [...selecionados, ...naoSelecionados];
+                return (
+              <div style={{ display:'flex', flexDirection:'column', gap:6, paddingLeft:14 }}>
+                {lista.map(([cod, nome]) => {
                   const selecionado = roteiro.includes(cod);
                   const fixo = cod === 'emissao';
                   const pos = roteiro.indexOf(cod);
                   return (
-                    <button key={cod} type="button" onClick={() => toggleSetor(cod)}
-                      disabled={fixo}
-                      style={{
-                        display:'flex', alignItems:'center', gap:10,
-                        padding:'9px 12px', borderRadius:8, border:'1px solid',
-                        borderColor: selecionado ? '#1a3a5c' : '#e5e7eb',
-                        background: fixo ? '#1a3a5c' : selecionado ? '#eef2ff' : '#fff',
-                        color: fixo ? '#fff' : selecionado ? '#1a3a5c' : '#666',
-                        cursor: fixo ? 'default' : 'pointer',
-                        fontWeight: selecionado ? 700 : 400,
-                        fontSize:13, textAlign:'left', transition:'all .15s',
-                      }}>
-                      {selecionado ? (
-                        <span style={{ width:22, height:22, borderRadius:'50%', background: fixo?'rgba(255,255,255,.3)':'#1a3a5c', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, flexShrink:0 }}>
+                    <div key={cod} style={{ position:'relative' }}>
+                      {selecionado && (
+                        <span style={{
+                          position:'absolute', left:-14, top:'50%', transform:'translateY(-50%)',
+                          width:24, height:24, borderRadius:'50%',
+                          background: fixo ? '#fff' : '#1a3a5c',
+                          color: fixo ? '#1a3a5c' : '#fff',
+                          border: '2px solid #1a3a5c',
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          fontSize:11, fontWeight:800, zIndex:1,
+                        }}>
                           {pos + 1}
                         </span>
-                      ) : (
-                        <span style={{ width:22, height:22, borderRadius:'50%', border:'1px dashed #ccc', flexShrink:0 }} />
                       )}
-                      <span style={{ flex:1 }}>{nome}</span>
-                      {fixo && <i className="bi bi-lock-fill" style={{ fontSize:11, opacity:.6 }} />}
-                      {selecionado && !fixo && <i className="bi bi-check2" style={{ color:'#1a3a5c', fontSize:14 }} />}
-                    </button>
+                      <button type="button" onClick={() => toggleSetor(cod)}
+                        disabled={fixo}
+                        style={{
+                          width:'100%', display:'flex', alignItems:'center', gap:10,
+                          padding:'9px 12px', borderRadius:8, border:'1px solid',
+                          borderColor: selecionado ? '#1a3a5c' : '#e5e7eb',
+                          background: fixo ? '#1a3a5c' : selecionado ? '#eef2ff' : '#fff',
+                          color: fixo ? '#fff' : selecionado ? '#1a3a5c' : '#666',
+                          cursor: fixo ? 'default' : 'pointer',
+                          fontWeight: selecionado ? 700 : 400,
+                          fontSize:13, textAlign:'left', transition:'all .15s',
+                        }}>
+                        {!selecionado && (
+                          <span style={{ width:16, height:16, borderRadius:'50%', border:'1px dashed #ccc', flexShrink:0 }} />
+                        )}
+                        <span style={{ flex:1 }}>{nome}</span>
+                        {fixo && <i className="bi bi-lock-fill" style={{ fontSize:11, opacity:.6 }} />}
+                        {selecionado && !fixo && <i className="bi bi-check2" style={{ color:'#1a3a5c', fontSize:14 }} />}
+                      </button>
+                    </div>
                   );
                 })}
               </div>
+                );
+              })()}
               {roteiro.length > 1 && (
                 <div style={{ marginTop:16, padding:'10px 12px', background:'#f0f4ff', borderRadius:8, fontSize:12, color:'#1a3a5c' }}>
                   <strong>Fluxo:</strong><br />
