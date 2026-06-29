@@ -4,6 +4,7 @@ import { autenticar, logAcesso } from '@/lib/middleware';
 import { nomeSector } from '@/lib/queries';
 import { SETOR_CHOICES } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
+import { runMigrations } from '@/lib/migrations';
 
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
 
@@ -12,7 +13,7 @@ const TRANSICOES: Record<string, string[]> = {
   receber: ['aguardando'],
   iniciar: ['recebido'],
   pausar: ['em_andamento'],
-  retomar: ['pausado'],
+  retomar: ['pausado', 'finalizado_setor'],
   finalizar: ['em_andamento', 'pausado', 'finalizado_setor'],
   enviar_tudo: ['finalizado_setor', 'aguardando', 'recebido', 'em_andamento', 'pausado'],
   enviar_parcial: ['finalizado_setor', 'aguardando', 'recebido', 'em_andamento', 'pausado'],
@@ -87,7 +88,25 @@ async function moverParcialInteira(
   userId: number,
   obs: string,
 ) {
-  const parcial = await getParcialAtiva(tx, itemId, setorOrigem);
+  // Busca a parcial PRINCIPAL (sem pai) independente do status — inclui concluídas.
+  // O operador pode ter pressionado "Finalizar" antes de "Enviar tudo", o que deixa a
+  // parcial como 'concluida'. Sem esse filtro mais amplo, a função criaria uma duplicata.
+  const [parcial] = await tx`
+    SELECT id FROM producao_itemparcial
+    WHERE item_pedido_id = ${itemId}
+      AND setor_atual    = ${setorOrigem}
+      AND parcial_origem_id IS NULL
+      AND status NOT IN ('cancelada')
+    ORDER BY
+      CASE status
+        WHEN 'em_andamento'    THEN 0
+        WHEN 'em_aberto'       THEN 1
+        WHEN 'finalizado_setor'THEN 2
+        WHEN 'concluida'       THEN 3
+        ELSE 4
+      END ASC
+    LIMIT 1
+  `;
   if (parcial) {
     await tx`
       UPDATE producao_itemparcial
@@ -111,6 +130,8 @@ export async function POST(
   req: Request,
   { params }: { params: { id: string; acao: string } }
 ) {
+  try {
+  await runMigrations();
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   logAcesso(user, req, params.acao);
@@ -226,15 +247,33 @@ export async function POST(
 
     if (!qtd || qtd <= 0)
       return NextResponse.json({ erro: 'Quantidade invalida: deve ser maior que zero' }, { status: 400 });
-    if (qtd > qtdPendente)
-      return NextResponse.json({
-        erro: `Quantidade invalida: solicitado ${qtd}, disponivel ${qtdPendente} ${item.unidade}`
-      }, { status: 400 });
     if (!proximoSetor)
       return NextResponse.json({ erro: 'Nao ha proximo setor no roteiro' }, { status: 400 });
 
-    // Se a quantidade pedida >= pendente, converte em enviar_tudo
-    if (qtd >= qtdPendente) {
+    // Calcula total disponível no setor somando TODAS as parciais ativas.
+    // Cenário típico: item foi split e há múltiplas parciais no mesmo setor
+    // (ex: 25 un de envio anterior + 75 un da remessa principal = 100 un disponíveis).
+    const parciaisNoSetor = await sql`
+      SELECT id, quantidade::float AS quantidade, parcial_origem_id
+      FROM producao_itemparcial
+      WHERE item_pedido_id = ${item.id}
+        AND setor_atual = ${item.setor_atual}
+        AND status IN ('em_aberto', 'em_andamento')
+      ORDER BY
+        CASE WHEN parcial_origem_id IS NULL THEN 0 ELSE 1 END ASC,
+        quantidade DESC
+    `;
+    const qtdTotalNoSetor = parciaisNoSetor.length > 0
+      ? parciaisNoSetor.reduce((s: number, p: Record<string, unknown>) => s + Number(p.quantidade), 0)
+      : qtdPendente;
+
+    if (qtd > qtdTotalNoSetor)
+      return NextResponse.json({
+        erro: `Quantidade invalida: solicitado ${qtd}, disponivel ${qtdTotalNoSetor} ${item.unidade} neste setor`
+      }, { status: 400 });
+
+    // Se a quantidade pedida cobre todo o setor, converte em enviar_tudo
+    if (qtd >= qtdTotalNoSetor) {
       await sql.begin(async (tx) => {
         await tx`
           INSERT INTO producao_movimentacaoitem
@@ -255,60 +294,83 @@ export async function POST(
       return NextResponse.json({ ok: true, status: 'aguardando' });
     }
 
-    // Envio parcial real: divide a quantidade
+    // Envio parcial real: consome das parciais ativas no setor (maior primeiro)
+    // até atingir a quantidade pedida. Assim 30 un de (25+75) funciona normalmente.
     await sql.begin(async (tx) => {
-      // 1. Valida integridade: soma das parciais ativas + em_andamento deve cobrir qtdPendente
-      //    (garantia extra — o CHECK constraint no DB protege contra negativo)
+      // Busca e trava todas as parciais ativas no setor (maior primeiro)
+      let parciaisAtivas = await (tx as unknown as typeof sql)`
+        SELECT id, quantidade::float AS quantidade
+        FROM producao_itemparcial
+        WHERE item_pedido_id = ${item.id}
+          AND setor_atual = ${item.setor_atual}
+          AND status IN ('em_aberto', 'em_andamento')
+        ORDER BY quantidade DESC
+        FOR UPDATE
+      `;
 
-      // 2. Busca parcial ativa no setor de origem
-      const parcialOrigem = await getParcialAtiva(
-        tx as unknown as typeof sql,
-        item.id,
-        item.setor_atual
-      );
-
-      let parcialOrigemId: number | null = null;
-
-      if (parcialOrigem) {
-        const qtdParcial = parcialOrigem.quantidade;
-
-        if (qtd > qtdParcial) {
-          throw new Error(
-            `Quantidade solicitada (${qtd}) maior que a parcial disponivel no setor (${qtdParcial})`
-          );
-        }
-
-        if (qtd < qtdParcial) {
-          // Divide: reduz parcial origem
-          await tx`
-            UPDATE producao_itemparcial
-            SET quantidade = ${qtdParcial - qtd}, atualizado_em = NOW()
-            WHERE id = ${parcialOrigem.id}
+      // Fallback: o operador finalizou a etapa antes de enviar parcial → usa concluídas
+      if (parciaisAtivas.length === 0) {
+        const concluidas = await (tx as unknown as typeof sql)`
+          SELECT id, quantidade::float AS quantidade
+          FROM producao_itemparcial
+          WHERE item_pedido_id = ${item.id}
+            AND setor_atual = ${item.setor_atual}
+            AND status = 'concluida'
+          ORDER BY quantidade DESC
+          FOR UPDATE
+        `;
+        if (concluidas.length > 0) {
+          // Reativa as concluídas para permitir o split
+          const ids = concluidas.map((p: Record<string, unknown>) => p.id);
+          await (tx as unknown as typeof sql)`
+            UPDATE producao_itemparcial SET status = 'em_andamento', atualizado_em = NOW()
+            WHERE id = ANY(${ids})
           `;
+          parciaisAtivas = concluidas;
         } else {
-          // Toda a parcial vai para o destino — parcial origem fica com 0; cancela
-          await tx`
-            UPDATE producao_itemparcial
-            SET status = 'cancelada', quantidade = ${qtd}, atualizado_em = NOW()
-            WHERE id = ${parcialOrigem.id}
-          `;
-        }
-        parcialOrigemId = parcialOrigem.id;
-      } else {
-        // Item sem parcial (anterior ao sistema): cria parcial restante na origem
-        const qtdRestante = qtdPendente - qtd;
-        if (qtdRestante > 0) {
-          await tx`
-            INSERT INTO producao_itemparcial
-              (item_pedido_id, pedido_id, quantidade, setor_atual, status, observacao, criado_por_id, criado_em, atualizado_em)
-            VALUES
-              (${item.id}, ${item.pedido_id}, ${qtdRestante}, ${item.setor_atual},
-               'em_aberto', 'Saldo remanescente — migração', ${user.id}, NOW(), NOW())
-          `;
+          // Verdadeiro fallback: item anterior ao sistema sem nenhuma parcial
+          const qtdRestante = qtdPendente - qtd;
+          if (qtdRestante > 0) {
+            await tx`
+              INSERT INTO producao_itemparcial
+                (item_pedido_id, pedido_id, quantidade, setor_atual, status, observacao, criado_por_id, criado_em, atualizado_em)
+              VALUES
+                (${item.id}, ${item.pedido_id}, ${qtdRestante}, ${item.setor_atual},
+                 'em_andamento', 'Saldo remanescente — migração', ${user.id}, NOW(), NOW())
+            `;
+          }
         }
       }
 
-      // 3. Cria nova parcial filha no setor de destino
+      // Consome das parciais em ordem (maior primeiro) até cobrir qtd
+      let restante = qtd;
+      let parcialOrigemId: number | null = null;
+
+      for (const p of parciaisAtivas) {
+        if (restante <= 0) break;
+        const disponivel = Number(p.quantidade);
+        const consumir = Math.min(disponivel, restante);
+        const sobra = disponivel - consumir;
+
+        if (!parcialOrigemId) parcialOrigemId = Number(p.id);
+
+        if (sobra > 0) {
+          await tx`
+            UPDATE producao_itemparcial
+            SET quantidade = ${sobra}, status = 'em_andamento', atualizado_em = NOW()
+            WHERE id = ${p.id}
+          `;
+        } else {
+          await tx`
+            UPDATE producao_itemparcial
+            SET status = 'cancelada', atualizado_em = NOW()
+            WHERE id = ${p.id}
+          `;
+        }
+        restante -= consumir;
+      }
+
+      // Cria nova parcial filha no setor de destino
       await tx`
         INSERT INTO producao_itemparcial
           (item_pedido_id, pedido_id, parcial_origem_id, quantidade, setor_atual, status,
@@ -318,7 +380,7 @@ export async function POST(
            'em_aberto', ${obs || null}, ${user.id}, NOW(), NOW())
       `;
 
-      // 4. Cria lote de trânsito (compatibilidade com fluxo de "receber lote" nos setores)
+      // Lote de trânsito (compatibilidade com fluxo de "receber lote" nos setores)
       await tx`
         INSERT INTO producao_loteitem
           (item_pedido_id, setor_origem, setor_destino, quantidade, status, observacao,
@@ -328,26 +390,25 @@ export async function POST(
            ${obs || null}, ${user.id}, NOW(), NOW())
       `;
 
-      // 5. Registra movimentação
+      const novaQtdPendente = Math.max(0, qtdPendente - qtd);
+      const obsMovItem = `Parcial: ${qtd} ${item.unidade} → ${nomeSector(proximoSetor)}. Saldo em ${nomeSector(item.setor_atual)}: ${novaQtdPendente} ${item.unidade}`;
+
       await tx`
         INSERT INTO producao_movimentacaoitem
           (item_id, pedido_id, usuario_id, setor_origem, setor_destino,
            status_anterior, status_novo, observacao, criado_em)
         VALUES
           (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${proximoSetor},
-           ${item.status}, 'aguardando',
-           ${`Parcial: ${qtd} ${item.unidade} → ${nomeSector(proximoSetor)}. Saldo em ${nomeSector(item.setor_atual)}: ${qtdPendente - qtd} ${item.unidade}`},
-           NOW())
+           ${item.status}, 'em_andamento', ${obsMovItem}, NOW())
       `;
 
-      // 6. Atualiza quantidade_pendente do item (saldo restante na origem)
-      const novaQtdPendente = qtdPendente - qtd;
       await tx`
         UPDATE producao_itempedido
-        SET quantidade_pendente = ${novaQtdPendente}, atualizado_em = NOW()
+        SET quantidade_pendente = ${novaQtdPendente}, status = 'em_andamento', atualizado_em = NOW()
         WHERE id = ${item.id}
       `;
     });
+    return NextResponse.json({ ok: true, status: 'em_andamento' });
 
   // ── devolver ──────────────────────────────────────────────────────────────
   } else if (acao === 'devolver') {
@@ -373,18 +434,21 @@ export async function POST(
 
   // ── entregar ──────────────────────────────────────────────────────────────
   } else if (acao === 'entregar') {
+    let jaEntregue = false;
     await sql.begin(async (tx) => {
+      // Re-read with FOR UPDATE inside tx to prevent concurrent double-delivery
       const [locked] = await tx`
-        SELECT id, quantidade_entregue, quantidade_pendente
+        SELECT id, status, quantidade_entregue, quantidade_pendente
         FROM producao_itempedido WHERE id = ${item.id} FOR UPDATE
       `;
+      if (locked.status === 'entregue') { jaEntregue = true; return; }
       const qtdEntregue = Number(locked.quantidade_entregue || 0) + Number(locked.quantidade_pendente);
       await tx`
         INSERT INTO producao_movimentacaoitem
           (item_id, pedido_id, usuario_id, setor_origem, setor_destino,
            status_anterior, status_novo, observacao, criado_em)
-        VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, '',
-                ${item.status}, 'entregue', ${obs || ''}, NOW())
+        VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, NULL,
+                ${item.status}, 'entregue', ${obs || null}, NOW())
       `;
       await tx`
         UPDATE producao_itempedido
@@ -405,6 +469,7 @@ export async function POST(
         await tx`UPDATE producao_pedido SET status='entregue', atualizado_em=NOW() WHERE id=${item.pedido_id}`;
       }
     });
+    if (jaEntregue) return NextResponse.json({ ok: true, mensagem: 'Item já estava entregue' });
 
   // ── receber ───────────────────────────────────────────────────────────────
   } else if (acao === 'receber') {
@@ -415,17 +480,29 @@ export async function POST(
       const idxAtual = roteiro.indexOf(item.setor_atual);
       const setorAnterior = idxAtual > 0 ? roteiro[idxAtual - 1] : item.setor_atual;
       await sql.begin(async (tx) => {
-        // Cria lote para o restante
-        await tx`
-          INSERT INTO producao_loteitem
-            (item_pedido_id, setor_origem, setor_destino, quantidade, status, observacao,
-             criado_por_id, criado_em, atualizado_em)
-          VALUES
-            (${item.id}, ${setorAnterior}, ${item.setor_atual}, ${qtdRestante}, 'em_producao',
-             ${`Restante parcial: ${qtdRestante} de ${qtdTotal} ${item.unidade}`},
-             ${user.id}, NOW(), NOW())
-        `;
-        // Cria parcial para o restante que ficou no setor anterior
+        // 1. Ajusta a parcial existente no setor atual: reduz para qtdReceber e marca como em_andamento.
+        //    Sem isso, a soma das parciais ativas ultrapassaria a quantidade total do item.
+        const parcialAtual = await getParcialAtiva(tx as unknown as typeof sql, item.id, item.setor_atual);
+        if (parcialAtual) {
+          await tx`
+            UPDATE producao_itemparcial
+            SET quantidade = ${qtdReceber}, status = 'em_andamento', atualizado_em = NOW()
+            WHERE id = ${parcialAtual.id}
+          `;
+        } else {
+          // Item sem parcial (pré-sistema): cria parcial para a quantidade recebida
+          await tx`
+            INSERT INTO producao_itemparcial
+              (item_pedido_id, pedido_id, quantidade, setor_atual, status, observacao,
+               criado_por_id, criado_em, atualizado_em)
+            VALUES
+              (${item.id}, ${item.pedido_id}, ${qtdReceber}, ${item.setor_atual},
+               'em_andamento', ${`Recebido parcialmente: ${qtdReceber} de ${qtdTotal} ${item.unidade}`},
+               ${user.id}, NOW(), NOW())
+          `;
+        }
+
+        // 2. Cria parcial para o restante que ficou no setor anterior
         await tx`
           INSERT INTO producao_itemparcial
             (item_pedido_id, pedido_id, quantidade, setor_atual, status, observacao,
@@ -435,7 +512,19 @@ export async function POST(
              'em_aberto', ${`Restante não recebido: ${qtdRestante} ${item.unidade}`},
              ${user.id}, NOW(), NOW())
         `;
-        const obsReceber = `Recebido ${qtdReceber} de ${qtdTotal} ${item.unidade}. Restam ${qtdRestante} ${item.unidade} no setor anterior.`;
+
+        // 3. Lote de compatibilidade para o restante em trânsito
+        await tx`
+          INSERT INTO producao_loteitem
+            (item_pedido_id, setor_origem, setor_destino, quantidade, status, observacao,
+             criado_por_id, criado_em, atualizado_em)
+          VALUES
+            (${item.id}, ${setorAnterior}, ${item.setor_atual}, ${qtdRestante}, 'em_producao',
+             ${`Restante parcial: ${qtdRestante} de ${qtdTotal} ${item.unidade}`},
+             ${user.id}, NOW(), NOW())
+        `;
+
+        const obsReceber = `Recebido ${qtdReceber} de ${qtdTotal} ${item.unidade}. Restam ${qtdRestante} ${item.unidade} em ${nomeSector(setorAnterior)}.`;
         await tx`
           INSERT INTO producao_movimentacaoitem
             (item_id, pedido_id, usuario_id, setor_origem, setor_destino,
@@ -445,8 +534,8 @@ export async function POST(
         `;
         await tx`
           UPDATE producao_itempedido
-          SET status='recebido', quantidade_pendente=${qtdReceber}, atualizado_em=NOW()
-          WHERE id=${item.id}
+          SET status = 'recebido', quantidade_pendente = ${qtdReceber}, atualizado_em = NOW()
+          WHERE id = ${item.id}
         `;
       });
     } else {
@@ -568,10 +657,12 @@ export async function POST(
                 ${item.status}, 'em_andamento', ${obs}, NOW())
       `;
       await tx`UPDATE producao_itempedido SET status='em_andamento', atualizado_em=NOW() WHERE id=${item.id}`;
-      // Atualiza status da parcial
+      // Atualiza status da parcial e registra horário de início
       await tx`
         UPDATE producao_itemparcial
-        SET status = 'em_andamento', atualizado_em = NOW()
+        SET status = 'em_andamento',
+            iniciado_em = COALESCE(iniciado_em, NOW()),
+            atualizado_em = NOW()
         WHERE item_pedido_id = ${item.id}
           AND setor_atual = ${item.setor_atual}
           AND status IN ('em_aberto')
@@ -597,21 +688,53 @@ export async function POST(
                 ${item.status}, 'finalizado_setor', ${obs}, NOW())
       `;
       await tx`UPDATE producao_itempedido SET status='finalizado_setor', atualizado_em=NOW() WHERE id=${item.id}`;
-      // Marca parcial do setor como concluida (pronta para ser enviada)
+      // Marca parcial do setor como concluida e registra horário de conclusão
       await tx`
         UPDATE producao_itemparcial
-        SET status = 'concluida', atualizado_em = NOW()
+        SET status = 'concluida',
+            iniciado_em = COALESCE(iniciado_em, NOW()),
+            concluido_em = COALESCE(concluido_em, NOW()),
+            atualizado_em = NOW()
         WHERE item_pedido_id = ${item.id}
           AND setor_atual = ${item.setor_atual}
           AND status IN ('em_aberto', 'em_andamento')
       `;
     });
 
-  // ── demais ações (pausar, retomar, aprovar, despachar) ────────────────────
+  // ── retomar ───────────────────────────────────────────────────────────────
+  // Quando vem de 'finalizado_setor', precisa reativar a parcial concluída
+  } else if (acao === 'retomar') {
+    await sql.begin(async (tx) => {
+      await tx`
+        INSERT INTO producao_movimentacaoitem
+          (item_id, pedido_id, usuario_id, setor_origem, setor_destino,
+           status_anterior, status_novo, observacao, criado_em)
+        VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${item.setor_atual},
+                ${item.status}, 'em_andamento', ${obs || 'Etapa reaberta'}, NOW())
+      `;
+      await tx`UPDATE producao_itempedido SET status='em_andamento', atualizado_em=NOW() WHERE id=${item.id}`;
+      // Reativa parcial concluída neste setor (caso tenha sido finalizada antes do envio parcial)
+      await tx`
+        UPDATE producao_itemparcial
+        SET status = 'em_andamento', atualizado_em = NOW()
+        WHERE item_pedido_id = ${item.id}
+          AND setor_atual = ${item.setor_atual}
+          AND status = 'concluida'
+          AND parcial_origem_id IS NULL
+      `;
+    });
+
+  // ── demais ações (pausar, aprovar, despachar) ─────────────────────────────
   } else {
     await registrarMovItem(item.id, item.pedido_id, user.id, item.setor_atual, item.setor_atual, item.status, novoStatus, obs);
     await sql`UPDATE producao_itempedido SET status=${novoStatus}, atualizado_em=NOW() WHERE id=${item.id}`;
   }
 
   return NextResponse.json({ ok: true, status: novoStatus });
+
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Erro interno no servidor';
+    console.error('[item/acao]', params.acao, err);
+    return NextResponse.json({ erro: msg }, { status: 500 });
+  }
 }

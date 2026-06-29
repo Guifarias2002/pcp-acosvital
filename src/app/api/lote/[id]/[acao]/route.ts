@@ -19,55 +19,61 @@ export async function POST(req: Request, { params }: { params: { id: string; aca
   if (!checkMutationRateLimit(getClientIp(req)))
     return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
-  const [lote] = await sql`SELECT * FROM producao_loteitem WHERE id = ${loteId}`;
+  const [lote] = await sql`
+    SELECT l.*, i.pedido_id, i.status AS item_status, i.setor_atual AS item_setor_atual
+    FROM producao_loteitem l
+    JOIN producao_itempedido i ON i.id = l.item_pedido_id
+    WHERE l.id = ${loteId}
+  `;
   if (!lote) return NextResponse.json({ erro: 'Lote nao encontrado' }, { status: 404 });
 
-  // Operadores só podem receber lotes do próprio setor (sem setor = sem acesso)
-  if (!user.is_staff && lote.setor_destino !== user.setor) {
+  if (!user.is_staff && lote.setor_destino !== user.setor)
     return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
-  }
 
-  if (params.acao === 'receber') {
-    await sql.begin(async (tx) => {
-      await tx`
-        UPDATE producao_loteitem
-        SET status = 'em_trabalho', recebido_por_id = ${user.id}, recebido_em = NOW(), atualizado_em = NOW()
-        WHERE id = ${loteId}
-      `;
-      // Atualiza o item para aparecer no setor destino e poder continuar o fluxo
-      await tx`
-        UPDATE producao_itempedido
-        SET setor_atual = ${lote.setor_destino}, status = 'recebido', atualizado_em = NOW()
-        WHERE id = ${lote.item_pedido_id}
-      `;
-      // Registra movimentação
-      await tx`
-        INSERT INTO producao_movimentacaoitem
-          (item_id, setor_origem, setor_destino, status_anterior, status_novo, usuario_id, observacao, criado_em)
-        VALUES
-          (${lote.item_pedido_id}, ${lote.setor_origem}, ${lote.setor_destino},
-           'em_transito', 'recebido', ${user.id}, 'Recebido via lote', NOW())
-      `;
-    });
-  } else {
-    await sql.begin(async (tx) => {
-      // Lock para evitar race condition se dois lotes finalizam simultaneamente
-      await tx`SELECT id FROM producao_loteitem WHERE item_pedido_id = ${lote.item_pedido_id} FOR UPDATE`;
-      await tx`UPDATE producao_loteitem SET status = 'concluido', atualizado_em = NOW() WHERE id = ${loteId}`;
-      const [{ pendentes }] = await tx`
-        SELECT COUNT(*) AS pendentes FROM producao_loteitem
-        WHERE item_pedido_id = ${lote.item_pedido_id} AND status != 'concluido'
-      `;
-      if (Number(pendentes) === 0) {
-        await tx`UPDATE producao_itempedido SET status='aguardando', setor_atual=${lote.setor_destino}, atualizado_em=NOW() WHERE id=${lote.item_pedido_id}`;
+  try {
+    if (params.acao === 'receber') {
+      await sql.begin(async (tx) => {
+        await tx`
+          UPDATE producao_loteitem
+          SET status = 'em_trabalho', recebido_por_id = ${user.id}, recebido_em = NOW(), atualizado_em = NOW()
+          WHERE id = ${loteId}
+        `;
+
+        // Ativa a parcial correspondente (em_aberto → em_andamento) no setor de destino.
+        // UPDATE...LIMIT não existe no PostgreSQL — usa subquery para garantir apenas 1 linha.
+        await tx`
+          UPDATE producao_itemparcial
+          SET status = 'em_andamento', atualizado_em = NOW()
+          WHERE id = (
+            SELECT id FROM producao_itemparcial
+            WHERE item_pedido_id = ${lote.item_pedido_id}
+              AND setor_atual    = ${lote.setor_destino}
+              AND status         = 'em_aberto'
+              AND parcial_origem_id IS NOT NULL
+            ORDER BY criado_em ASC
+            LIMIT 1
+          )
+        `;
+
         await tx`
           INSERT INTO producao_movimentacaoitem
-            (item_id, setor_origem, setor_destino, status_anterior, status_novo, usuario_id, observacao, criado_em)
-          VALUES (${lote.item_pedido_id}, ${lote.setor_origem}, ${lote.setor_destino},
-                  'finalizado_setor', 'aguardando', ${user.id}, 'Lote concluído — encaminhado ao próximo setor', NOW())
+            (item_id, pedido_id, setor_origem, setor_destino, status_anterior, status_novo,
+             usuario_id, observacao, criado_em)
+          VALUES
+            (${lote.item_pedido_id}, ${lote.pedido_id}, ${lote.setor_origem}, ${lote.setor_destino},
+             ${lote.item_status}, 'em_andamento', ${user.id},
+             ${`Lote recebido: ${lote.quantidade} un chegaram em ${lote.setor_destino}`}, NOW())
         `;
-      }
-    });
+      });
+
+    } else {
+      // finalizar: conclui o lote de trânsito
+      await sql`UPDATE producao_loteitem SET status = 'concluido', atualizado_em = NOW() WHERE id = ${loteId}`;
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Erro interno';
+    console.error('[lote/acao]', params.acao, err);
+    return NextResponse.json({ erro: msg }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

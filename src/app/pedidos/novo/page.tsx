@@ -208,7 +208,7 @@ export default function NovoPedidoPage() {
 
           {/* COLUNA DIREITA — Roteiro */}
           <div>
-            <div className="card" style={{ padding:20, position:'sticky', top:16 }}>
+            <div className="card" style={{ padding:20, position:'sticky', top:16, maxHeight:'calc(100vh - 80px)', overflowY:'auto' }}>
               <div style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
                 <i className="bi bi-arrow-right-circle" style={{ marginRight:6 }} />Roteiro de Produção *
               </div>

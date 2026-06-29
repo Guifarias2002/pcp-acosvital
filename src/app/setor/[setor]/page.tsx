@@ -1,8 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
-import { getSetorPainel, itemAcao, loteAcao } from '@/lib/api';
-import { SetorPainelData, ItemPedido, LoteItem, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES } from '@/lib/types';
+import { getSetorPainel, itemAcao, loteAcao, parcialAcao, getCachedSync } from '@/lib/api';
+import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES } from '@/lib/types';
+import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
 import NotificacoesLive from '@/components/NotificacoesLive';
@@ -15,6 +17,7 @@ const BADGE_STATUS: Record<string, { bg: string; color: string }> = {
   aguardando:       { bg: '#e2e3e5', color: '#333' },
   recebido:         { bg: '#cff4fc', color: '#055160' },
   em_andamento:     { bg: '#fff3cd', color: '#664d03' },
+  em_producao:      { bg: '#cff4fc', color: '#055160' },
   pausado:          { bg: '#f8d7da', color: '#842029' },
   finalizado_setor: { bg: '#d1e7dd', color: '#0a3622' },
   em_transito:      { bg: '#fff3cd', color: '#856404' },
@@ -331,8 +334,8 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
           <select value={setorDev} onChange={e => setSetorDev(e.target.value)}
             style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13, marginBottom: 8 }}>
             <option value="">Selecione o setor...</option>
-            {['emissao','compras','recebimento','estoque','plasma','macarico','usinagem','beneficiadores','inspecao','acabamento','embalagem','logistica'].map(s => (
-              <option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>
+            {SETOR_CHOICES.map(([cod, nome]) => (
+              <option key={cod} value={cod}>{nome}</option>
             ))}
           </select>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -360,23 +363,32 @@ function LoteCard({ lote, tipo, onRefresh }: { lote: LoteItem & Record<string, u
   const [loading, setLoading] = useState(false);
   const [showReceber, setShowReceber] = useState(false);
   const [showConfirmFinalizar, setShowConfirmFinalizar] = useState(false);
+  const [erro, setErro] = useState('');
 
-  async function receber(qtd?: number) {
+  async function receber() {
     setLoading(true);
+    setErro('');
     try {
       await loteAcao(lote.id, 'receber');
       onRefresh();
-    } catch { alert('Erro ao receber lote'); }
+    } catch (e: unknown) {
+      const ax = e as { response?: { data?: { erro?: string } } };
+      setErro(ax?.response?.data?.erro || 'Erro ao receber lote');
+    }
     finally { setLoading(false); }
   }
 
   async function finalizar() {
     setLoading(true);
     setShowConfirmFinalizar(false);
+    setErro('');
     try {
       await loteAcao(lote.id, 'finalizar');
       onRefresh();
-    } catch { alert('Erro ao finalizar lote'); }
+    } catch (e: unknown) {
+      const ax = e as { response?: { data?: { erro?: string } } };
+      setErro(ax?.response?.data?.erro || 'Erro ao finalizar lote');
+    }
     finally { setLoading(false); }
   }
 
@@ -439,15 +451,318 @@ function LoteCard({ lote, tipo, onRefresh }: { lote: LoteItem & Record<string, u
           unidade={(lote.unidade as string) || 'un'}
           loading={loading}
           onCancel={() => setShowReceber(false)}
-          onConfirm={async (decisao, qtd, obs) => {
+          onConfirm={async (decisao, _qtd, _obs) => {
             setShowReceber(false);
-            if (decisao === 'divergente') {
-              await receber(undefined);
-            } else {
-              await receber(qtd);
-            }
+            await receber();
           }}
         />
+      )}
+
+      {erro && (
+        <div style={{ marginTop: 8, background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '8px 10px', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+          <span style={{ color: '#dc2626', fontWeight: 700, flexShrink: 0 }}>⚠</span>
+          <div style={{ flex: 1 }}>
+            <p style={{ color: '#b91c1c', fontSize: 12, fontWeight: 600, margin: 0 }}>Erro</p>
+            <p style={{ color: '#dc2626', fontSize: 11, margin: '2px 0 0' }}>{erro}</p>
+          </div>
+          <button onClick={() => setErro('')} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: 12 }}>✕</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const BADGE_PARCIAL: Record<string, { bg: string; color: string }> = {
+  em_aberto:        { bg: '#dbeafe', color: '#1d4ed8' },
+  em_andamento:     { bg: '#fff3cd', color: '#664d03' },
+  pausado:          { bg: '#fef9c3', color: '#854d0e' },
+  finalizado_setor: { bg: '#d1e7dd', color: '#0a3622' },
+  concluida:        { bg: '#d1e7dd', color: '#0a3622' },
+  cancelada:        { bg: '#f8d7da', color: '#842029' },
+};
+
+const LABEL_PARCIAL: Record<string, string> = {
+  em_aberto:        'Aguardando',
+  em_andamento:     'Em Andamento',
+  pausado:          'Pausado',
+  finalizado_setor: 'Finalizado no Setor',
+  concluida:        'Concluída',
+  cancelada:        'Cancelada',
+};
+
+function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [showEnviar, setShowEnviar] = useState(false);
+  const [showDevolver, setShowDevolver] = useState(false);
+  const [showNaoEntregue, setShowNaoEntregue] = useState(false);
+  const [qtdEnvio, setQtdEnvio] = useState('');
+  const [setorDestino, setSetorDestino] = useState('');
+  const [setorDev, setSetorDev] = useState('');
+  const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void; perigo?: boolean } | null>(null);
+  const isLogistica = parcial.setor_atual === 'logistica';
+
+  function erroMsg(e: unknown) {
+    const ax = e as { response?: { data?: { erro?: string }; status?: number } };
+    return ax?.response?.data?.erro || `Erro ${ax?.response?.status || ''}`.trim() || String(e);
+  }
+
+  async function acao(a: string, body?: Record<string, unknown>) {
+    if (loading) return;
+    setLoading(true);
+    try { await parcialAcao(parcial.id, a, body); onRefresh(); }
+    catch (e: unknown) { alert(erroMsg(e)); }
+    finally { setLoading(false); }
+  }
+
+  const isAberto    = parcial.status === 'em_aberto';
+  const isAndamento = parcial.status === 'em_andamento';
+  const isPausado   = parcial.status === 'pausado';
+  const isFinalizado = parcial.status === 'finalizado_setor';
+  const badge = BADGE_PARCIAL[parcial.status] || { bg: '#e2e3e5', color: '#333' };
+
+  const btnStyle = (bg: string, outline = false): React.CSSProperties => ({
+    background: outline ? 'none' : bg,
+    color: outline ? bg : '#fff',
+    border: outline ? `1px solid ${bg}` : 'none',
+    borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700,
+    cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1,
+  });
+
+  return (
+    <div style={{ opacity: loading ? .6 : 1 }}>
+      {confirm && (
+        <ConfirmModal
+          titulo={confirm.titulo}
+          mensagem={confirm.mensagem}
+          confirmLabel="Confirmar"
+          perigo={confirm.perigo}
+          onConfirm={() => { confirm.acao(); setConfirm(null); }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {/* Cabeçalho */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1a3a5c' }}>{parcial.numero_pedido_venda}</div>
+          <div style={{ fontSize: 13, color: '#555' }}>
+            <strong>{parcial.item_codigo}</strong>
+            {parcial.item_descricao && <span style={{ color: '#999', marginLeft: 6 }}>{parcial.item_descricao}</span>}
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: badge.bg, color: badge.color }}>
+            {LABEL_PARCIAL[parcial.status] || parcial.status}
+          </span>
+          <Link href={`/parcial/${parcial.id}`} title="Ver detalhe" style={{ color: '#0d6efd', fontSize: 14, textDecoration: 'none' }}>
+            <i className="bi bi-eye" />
+          </Link>
+        </div>
+      </div>
+
+      {/* Quantidade e prioridade */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 16, fontWeight: 700, color: '#0d6efd' }}>
+          {fmtQtd(parcial.quantidade)} {parcial.unidade}
+        </span>
+        {parcial.quantidade_total_item && (
+          <span style={{ fontSize: 11, color: '#888' }}>de {fmtQtd(parcial.quantidade_total_item)} totais</span>
+        )}
+        {parcial.prioridade && (
+          <span className={`badge-${parcial.prioridade}`}>
+            {parcial.prioridade.charAt(0).toUpperCase() + parcial.prioridade.slice(1)}
+          </span>
+        )}
+      </div>
+
+      {/* Prazo */}
+      {parcial.pedido_prazo && (
+        <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>
+          <i className="bi bi-calendar3" style={{ marginRight: 4 }} />
+          Prazo: {parcial.pedido_prazo}
+        </div>
+      )}
+
+      {/* Ações */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+
+        {/* ── Logística: fluxo de entrega ─────────────────────────────────── */}
+        {isLogistica && isAberto && (
+          <button onClick={() => acao('iniciar')} disabled={loading} style={btnStyle('#0d6efd')}>
+            <i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar entrega
+          </button>
+        )}
+
+        {isLogistica && isAndamento && (
+          <>
+            <button onClick={() => setConfirm({
+              titulo: 'Confirmar Entrega',
+              mensagem: `Confirma que as ${fmtQtd(parcial.quantidade)} ${parcial.unidade} do pedido ${parcial.numero_pedido_venda} foram entregues ao cliente?`,
+              acao: () => acao('concluir'),
+            })} disabled={loading} style={btnStyle('#198754')}>
+              <i className="bi bi-check-circle-fill" style={{ marginRight: 5 }} />Pedido entregue
+            </button>
+            <button onClick={() => { setShowNaoEntregue(v => !v); setShowDevolver(false); }} disabled={loading}
+              style={btnStyle('#dc3545', !showNaoEntregue)}>
+              <i className="bi bi-x-circle" style={{ marginRight: 5 }} />Não entregue
+            </button>
+          </>
+        )}
+
+        {isLogistica && isPausado && (
+          <button onClick={() => acao('retomar')} disabled={loading} style={btnStyle('#0d6efd')}>
+            <i className="bi bi-truck" style={{ marginRight: 5 }} />Tentar entrega novamente
+          </button>
+        )}
+
+        {/* ── Setores normais: fluxo de produção ─────────────────────────── */}
+        {!isLogistica && isAberto && (
+          <button onClick={() => acao('iniciar')} disabled={loading} style={btnStyle('#198754')}>
+            <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Iniciar produção
+          </button>
+        )}
+
+        {!isLogistica && isAndamento && (
+          <>
+            <button onClick={() => setConfirm({
+              titulo: 'Finalizar etapa',
+              mensagem: `Confirma que a etapa de ${NOMES[parcial.setor_atual] || parcial.setor_atual} foi concluída?`,
+              acao: () => acao('finalizar'),
+            })} disabled={loading} style={btnStyle('#198754')}>
+              <i className="bi bi-check-lg" style={{ marginRight: 5 }} />Finalizar etapa
+            </button>
+            <button onClick={() => acao('pausar')} disabled={loading} style={btnStyle('#fd7e14')}>
+              <i className="bi bi-pause-fill" style={{ marginRight: 5 }} />Pausar
+            </button>
+          </>
+        )}
+
+        {!isLogistica && isPausado && (
+          <button onClick={() => acao('retomar')} disabled={loading} style={btnStyle('#198754')}>
+            <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Retomar
+          </button>
+        )}
+
+        {!isLogistica && isFinalizado && (
+          <>
+            <button onClick={() => setShowEnviar(v => !v)} disabled={loading} style={btnStyle('#1a3a5c')}>
+              <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
+            </button>
+            <button onClick={() => acao('retomar')} disabled={loading} style={btnStyle('#fd7e14')}>
+              <i className="bi bi-arrow-counterclockwise" style={{ marginRight: 5 }} />Retomar etapa
+            </button>
+            <button onClick={() => setConfirm({
+              titulo: 'Encerrar Parcial',
+              mensagem: 'As peças já foram processadas e não precisam ir a outro setor. Deseja encerrar esta parcial como concluída?',
+              acao: () => acao('concluir'),
+            })} disabled={loading} style={btnStyle('#198754', true)}>
+              ✓ Encerrar
+            </button>
+          </>
+        )}
+
+        {!isLogistica && isAndamento && (
+          <button onClick={() => setShowEnviar(v => !v)} disabled={loading} style={btnStyle('#0d6efd')}>
+            <i className="bi bi-scissors" style={{ marginRight: 5 }} />Enviar parcial
+          </button>
+        )}
+
+        {/* Devolver — disponível em todos os setores */}
+        {(isAberto || isAndamento || isPausado || isFinalizado) && !isLogistica && (
+          <button onClick={() => { setShowDevolver(v => !v); setShowNaoEntregue(false); }} disabled={loading} style={btnStyle('#dc3545', true)}>
+            <i className="bi bi-arrow-return-left" style={{ marginRight: 5 }} />Devolver
+          </button>
+        )}
+      </div>
+
+      {/* Painel "Não entregue" — exclusivo da Logística */}
+      {showNaoEntregue && (
+        <div style={{ marginTop: 10, background: '#fff8f8', border: '1px solid #f5c2c7', borderRadius: 8, padding: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#842029', marginBottom: 4 }}>
+            <i className="bi bi-x-circle-fill" style={{ marginRight: 6 }} />Entrega não realizada
+          </div>
+          <p style={{ fontSize: 12, color: '#666', margin: '0 0 12px', lineHeight: 1.5 }}>
+            O que deseja fazer com as peças?
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button onClick={() => {
+              setConfirm({
+                titulo: 'Reagendar entrega',
+                mensagem: 'A parcial será pausada e ficará aguardando nova tentativa de entrega.',
+                acao: () => { acao('pausar'); setShowNaoEntregue(false); },
+              });
+            }} disabled={loading}
+              style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontWeight: 600, color: '#664d03', cursor: 'pointer', textAlign: 'left' }}>
+              <i className="bi bi-clock-history" style={{ marginRight: 6 }} />Reagendar — tentar entregar depois
+            </button>
+            <button onClick={() => { setShowNaoEntregue(false); setShowDevolver(true); }} disabled={loading}
+              style={{ background: '#fff8f8', border: '1px solid #f5c2c7', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontWeight: 600, color: '#842029', cursor: 'pointer', textAlign: 'left' }}>
+              <i className="bi bi-arrow-return-left" style={{ marginRight: 6 }} />Devolver — retornar as peças a um setor
+            </button>
+            <button onClick={() => setShowNaoEntregue(false)}
+              style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 6, padding: '6px 12px', fontSize: 12, color: '#666', cursor: 'pointer' }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Painel enviar para setor */}
+      {showEnviar && (
+        <div style={{ marginTop: 10, background: '#f8f9fa', borderRadius: 6, padding: '10px 12px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 140 }}>
+            <label style={{ fontSize: 11, color: '#555' }}>Setor destino:</label>
+            <select value={setorDestino} onChange={e => setSetorDestino(e.target.value)}
+              style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
+              <option value="">Selecione...</option>
+              {SETOR_CHOICES.filter(([cod]) => cod !== parcial.setor_atual).map(([cod, nome]) => (
+                <option key={cod} value={cod}>{nome}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 11, color: '#555' }}>Quantidade:</label>
+            <input type="number" value={qtdEnvio} onChange={e => setQtdEnvio(e.target.value)}
+              placeholder={`Máx: ${fmtQtd(parcial.quantidade)}`}
+              style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 13, width: 90 }} />
+          </div>
+          <button onClick={() => {
+            if (!setorDestino) { alert('Selecione o setor destino'); return; }
+            const qtd = Number(qtdEnvio) || Number(parcial.quantidade);
+            acao('mover', { setor_destino: setorDestino, quantidade: qtd });
+            setShowEnviar(false);
+          }} disabled={loading} style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            Confirmar envio
+          </button>
+          <button onClick={() => setShowEnviar(false)}
+            style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 10px', fontSize: 12, color: '#888', cursor: 'pointer' }}>
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Painel devolver */}
+      {showDevolver && (
+        <div style={{ marginTop: 10, background: '#fff8f8', border: '1px solid #f5c2c7', borderRadius: 6, padding: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#842029', marginBottom: 8 }}>Devolver para qual setor?</div>
+          <select value={setorDev} onChange={e => setSetorDev(e.target.value)}
+            style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13, marginBottom: 8 }}>
+            <option value="">Selecione o setor...</option>
+            {SETOR_CHOICES.filter(([cod]) => cod !== parcial.setor_atual).map(([cod, nome]) => (
+              <option key={cod} value={cod}>{nome}</option>
+            ))}
+          </select>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => { if (!setorDev) return; acao('devolver', { setor_destino: setorDev }); setShowDevolver(false); }}
+              style={{ flex: 1, background: '#dc3545', color: '#fff', border: 'none', borderRadius: 5, padding: '7px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              Confirmar devolução
+            </button>
+            <button onClick={() => setShowDevolver(false)}
+              style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 5, padding: '7px 14px', fontSize: 13, color: '#666', cursor: 'pointer' }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -560,16 +875,24 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   let setor = params.setor;
   try { setor = decodeURIComponent(setor); } catch { /* já decodificado */ }
   const nomeSetor = NOMES[setor] || setor;
-  const [data, setData] = useState<SetorPainelData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<SetorPainelData | null>(() => getCachedSync<SetorPainelData>(`setor:${setor}`));
+  const [loading, setLoading] = useState(false);
   const [filtroLog, setFiltroLog] = useState<FiltroLogistica>('todos');
 
-  function carregar() {
-    setLoading(true);
-    getSetorPainel(setor).then(setData).finally(() => setLoading(false));
-  }
+  const carregar = useCallback(() => {
+    getSetorPainel(setor).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+  }, [setor]);
 
-  useEffect(() => { carregar(); }, [setor]);
+  useEffect(() => {
+    if (!data) setLoading(true); // Spinner só na primeira carga sem cache
+    carregar();
+  }, [setor]);
+
+  useRealtime(
+    ['producao_itempedido', 'producao_loteitem', 'producao_itemparcial'],
+    carregar,
+    [`setor:${setor}`, 'dashboard'],
+  );
 
   return (
     <AuthGuard>
@@ -636,6 +959,38 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
             </section>
           )}
 
+
+          {/* Parciais de outros setores chegando aqui */}
+          {(() => {
+            const itemIdsNoSetor = new Set(data.itens.map(i => i.id));
+            const parciaisExternas = (data.parciais || []).filter(p => !itemIdsNoSetor.has(p.item_pedido_id));
+            if (parciaisExternas.length === 0) return null;
+
+            return (
+              <section>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                  <i className="bi bi-diagram-3-fill" style={{ marginRight: 6 }} />
+                  Parciais de outros setores ({parciaisExternas.length})
+                  <span style={{ marginLeft: 8, fontWeight: 400, textTransform: 'none', fontSize: 10, color: '#64748b' }}>
+                    peças enviadas para cá enquanto o item principal ainda está em outro setor
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {parciaisExternas.map(p => (
+                    <div key={p.id} style={{
+                      border: p.status === 'em_andamento' ? '1.5px solid #86efac' : '1px solid #bfdbfe',
+                      borderRadius: 10, background: '#fff',
+                      boxShadow: '0 1px 4px rgba(0,0,0,.06)',
+                      padding: '14px 16px',
+                    }}>
+                      <ParcialCard parcial={p} onRefresh={carregar} />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            );
+          })()}
 
           {/* Todos os itens — agrupados por pedido */}
           {(() => {

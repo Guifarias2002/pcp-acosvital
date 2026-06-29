@@ -19,8 +19,9 @@ const PRIORIDADE_BADGE: Record<string, string> = {
   baixa: 'badge-baixa', normal: 'badge-normal', alta: 'badge-alta', urgente: 'badge-urgente',
 };
 
-interface ModalExcluir { id: number; numero: string; motivo: string; loading: boolean; }
+interface ModalExcluir { id: number; numero: string; motivo: string; loading: boolean; erro?: string; }
 interface ModalExcluirLote { ids: number[]; motivo: string; loading: boolean; }
+interface AvisoProducao { id: number; numero: string; motivo: string; count: number; loading: boolean; }
 
 export default function PedidosPage() {
   return (
@@ -42,6 +43,7 @@ function PedidosPageInner() {
   const [fEtapa, setFEtapa] = useState(etapaParam || '');
   const [modalExcluir, setModalExcluir] = useState<ModalExcluir | null>(null);
   const [modalExcluirLote, setModalExcluirLote] = useState<ModalExcluirLote | null>(null);
+  const [avisoProducao, setAvisoProducao] = useState<AvisoProducao | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const _u = getUser();
   const isAdmin = _u?.is_staff;
@@ -78,7 +80,7 @@ function PedidosPageInner() {
 
   async function confirmarExcluir() {
     if (!modalExcluir) return;
-    setModalExcluir(m => m ? { ...m, loading: true } : null);
+    setModalExcluir(m => m ? { ...m, loading: true, erro: undefined } : null);
     try {
       const token = getToken();
       const res = await fetch(`/api/pedidos/${modalExcluir.id}`, {
@@ -87,13 +89,46 @@ function PedidosPageInner() {
         body: JSON.stringify({ motivo: modalExcluir.motivo }),
       });
       const data = await res.json();
-      if (!res.ok) { alert((data.detalhe || data.erro) || 'Erro ao excluir'); return; }
+      if (res.status === 409 && data.requer_confirmacao) {
+        // Items em produção: fecha a modal simples e abre o aviso especializado
+        const { id, numero, motivo } = modalExcluir;
+        setModalExcluir(null);
+        setAvisoProducao({ id, numero, motivo, count: data.em_producao, loading: false });
+        return;
+      }
+      if (!res.ok) {
+        setModalExcluir(m => m ? { ...m, loading: false, erro: (data.detalhe || data.erro) || 'Erro ao excluir' } : null);
+        return;
+      }
       setModalExcluir(null);
       buscar();
     } catch {
-      alert('Erro ao excluir pedido.');
-    } finally {
-      setModalExcluir(m => m ? { ...m, loading: false } : null);
+      setModalExcluir(m => m ? { ...m, loading: false, erro: 'Erro de conexão. Tente novamente.' } : null);
+    }
+  }
+
+  async function excluirComConfirmacao() {
+    if (!avisoProducao) return;
+    setAvisoProducao(m => m ? { ...m, loading: true } : null);
+    try {
+      const token = getToken();
+      const res = await fetch(`/api/pedidos/${avisoProducao.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ motivo: avisoProducao.motivo, confirmar_excluir_em_producao: true }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setAvisoProducao(m => m ? { ...m, loading: false } : null);
+        // reutiliza o modal original para mostrar erros inesperados
+        setModalExcluir({ id: avisoProducao.id, numero: avisoProducao.numero, motivo: avisoProducao.motivo, loading: false, erro: data.erro || 'Erro ao excluir' });
+        setAvisoProducao(null);
+        return;
+      }
+      setAvisoProducao(null);
+      buscar();
+    } catch {
+      setAvisoProducao(m => m ? { ...m, loading: false } : null);
     }
   }
 
@@ -115,8 +150,11 @@ function PedidosPageInner() {
       }
     }
     setModalExcluirLote(null);
-    if (erros.length > 0) alert(`${erros.length} pedido(s) não puderam ser excluídos.`);
     buscar();
+    if (erros.length > 0) {
+      // Mostra como aviso inline na lista (não bloqueia o fluxo)
+      console.warn(`${erros.length} pedido(s) não puderam ser excluídos.`);
+    }
   }
 
   return (
@@ -330,8 +368,13 @@ function PedidosPageInner() {
               value={modalExcluir.motivo}
               onChange={e => setModalExcluir(m => m ? { ...m, motivo: e.target.value } : null)}
               placeholder="Ex: Pedido duplicado, cancelado pelo cliente..."
-              style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 10px', fontSize: 13, marginBottom: 16, boxSizing: 'border-box' }}
+              style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 10px', fontSize: 13, marginBottom: 12, boxSizing: 'border-box' }}
             />
+            {modalExcluir.erro && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#b91c1c' }}>
+                ⚠ {modalExcluir.erro}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setModalExcluir(null)}
                 style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 5, padding: '6px 18px', fontSize: 13, cursor: 'pointer' }}>
@@ -340,6 +383,60 @@ function PedidosPageInner() {
               <button onClick={confirmarExcluir} disabled={modalExcluir.loading}
                 style={{ background: '#dc3545', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: modalExcluir.loading ? 0.7 : 1 }}>
                 {modalExcluir.loading ? 'Excluindo...' : 'Sim, excluir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal aviso produção ativa */}
+      {avisoProducao && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)',
+          backdropFilter: 'blur(3px)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div className="card" style={{ padding: 28, maxWidth: 460, width: '90%' }}>
+            {/* Ícone */}
+            <div style={{
+              width: 56, height: 56, borderRadius: '50%',
+              background: '#fff7ed', border: '2px solid #fed7aa',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px', fontSize: 26,
+            }}>⚠️</div>
+
+            <h5 style={{ margin: '0 0 6px', color: '#92400e', fontWeight: 700, textAlign: 'center', fontSize: 16 }}>
+              Pedido com produção ativa
+            </h5>
+            <p style={{ fontSize: 14, color: '#444', margin: '0 0 12px', textAlign: 'center', lineHeight: 1.5 }}>
+              O pedido <strong>{avisoProducao.numero}</strong> possui{' '}
+              <strong>{avisoProducao.count} item{avisoProducao.count > 1 ? 's' : ''}</strong>{' '}
+              em andamento na linha de produção.
+            </p>
+
+            <div style={{
+              background: '#fff7ed', border: '1px solid #fed7aa',
+              borderRadius: 8, padding: '10px 14px', marginBottom: 20,
+              fontSize: 12, color: '#92400e', lineHeight: 1.6,
+            }}>
+              <strong>Atenção:</strong> Excluir este pedido irá interromper o fluxo produtivo e
+              remover todos os registros de movimentação associados.
+              Esta ação <strong>não pode ser desfeita</strong>.
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setAvisoProducao(null)}
+                style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 5, padding: '7px 20px', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
+                Cancelar
+              </button>
+              <button onClick={excluirComConfirmacao} disabled={avisoProducao.loading}
+                style={{
+                  background: '#dc3545', color: '#fff', border: 'none',
+                  borderRadius: 5, padding: '7px 20px', fontSize: 13,
+                  fontWeight: 700, cursor: 'pointer',
+                  opacity: avisoProducao.loading ? 0.7 : 1,
+                }}>
+                {avisoProducao.loading ? 'Excluindo...' : '🗑 Excluir mesmo assim'}
               </button>
             </div>
           </div>
