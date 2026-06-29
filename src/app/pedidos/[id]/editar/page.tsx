@@ -338,18 +338,18 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
 
               {roteiro.length > 1 && (
                 <div style={{ marginTop: 16, padding: '10px 12px', background: '#f0f4ff', borderRadius: 8, fontSize: 12, color: '#1a3a5c' }}>
-                  <strong>Fluxo:</strong><br />
-                  <span style={{ lineHeight: 2 }}>
+                  <strong>Fluxo:</strong>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 0', marginTop: 6 }}>
                     {roteiro.map((s, i) => {
                       const nome = SETOR_CHOICES.find(([c]) => c === s)?.[1];
                       return (
-                        <span key={s}>
-                          <span style={{ background: '#1a3a5c', color: '#fff', borderRadius: 4, padding: '1px 7px', fontSize: 11 }}>{nome}</span>
-                          {i < roteiro.length - 1 && <span style={{ margin: '0 4px', color: '#aaa' }}>→</span>}
+                        <span key={s} style={{ display: 'flex', alignItems: 'center' }}>
+                          <span style={{ background: '#1a3a5c', color: '#fff', borderRadius: 4, padding: '2px 7px', fontSize: 11, whiteSpace: 'nowrap' }}>{nome}</span>
+                          {i < roteiro.length - 1 && <span style={{ margin: '0 4px', color: '#aaa', flexShrink: 0 }}>→</span>}
                         </span>
                       );
                     })}
-                  </span>
+                  </div>
                 </div>
               )}
             </div>
