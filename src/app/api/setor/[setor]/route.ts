@@ -66,7 +66,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       JOIN producao_itempedido i ON i.id = pa.item_pedido_id
       JOIN producao_pedido p ON p.id = pa.pedido_id
       WHERE pa.setor_atual = ${setor}
-        AND pa.status IN ('em_aberto', 'em_andamento')
+        AND pa.status IN ('em_aberto', 'em_andamento', 'finalizado_setor', 'pausado')
       ORDER BY p.numero_pedido_venda, i.codigo, pa.criado_em
     `.catch(() => [] as Record<string, unknown>[]),
 
