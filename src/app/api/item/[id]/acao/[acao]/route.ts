@@ -435,15 +435,6 @@ export async function POST(
            'em_aberto', ${obs || null}, ${user.id}, NOW(), NOW())
       `;
 
-      // Lote de trânsito (compatibilidade com fluxo de "receber lote" nos setores)
-      await tx`
-        INSERT INTO producao_loteitem
-          (item_pedido_id, setor_origem, setor_destino, quantidade, status, observacao,
-           criado_por_id, criado_em, atualizado_em)
-        VALUES
-          (${item.id}, ${item.setor_atual}, ${proximoSetor}, ${qtd}, 'em_producao',
-           ${obs || null}, ${user.id}, NOW(), NOW())
-      `;
 
       const novaQtdPendente = Math.max(0, qtdPendente - qtd);
       const obsMovItem = `Parcial: ${qtd} ${item.unidade} → ${nomeSector(proximoSetor)}. Saldo em ${nomeSector(item.setor_atual)}: ${novaQtdPendente} ${item.unidade}`;

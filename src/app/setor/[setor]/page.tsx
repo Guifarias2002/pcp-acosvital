@@ -953,13 +953,11 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
           )}
 
 
-          {/* Parciais de outros setores chegando aqui */}
+          {/* Parciais chegando neste setor */}
           {(() => {
             const itemIdsNoSetor = new Set(data.itens.map(i => i.id));
-            // Exclui parciais que já têm um lote chegando — o LoteCard acima já representa essa peça
-            const itemIdsComLote = new Set(data.lotes_chegando.map(l => (l as unknown as Record<string, unknown>).item_pedido_id as number));
             const parciaisExternas = (data.parciais || []).filter(p =>
-              !itemIdsNoSetor.has(p.item_pedido_id) && !itemIdsComLote.has(p.item_pedido_id)
+              !itemIdsNoSetor.has(p.item_pedido_id)
             );
             if (parciaisExternas.length === 0) return null;
 
@@ -967,9 +965,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
               <section>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
                   <i className="bi bi-diagram-3-fill" style={{ marginRight: 6 }} />
-                  Parciais de outros setores ({parciaisExternas.length})
+                  Itens Parciais ({parciaisExternas.length})
                   <span style={{ marginLeft: 8, fontWeight: 400, textTransform: 'none', fontSize: 10, color: '#64748b' }}>
-                    peças enviadas para cá enquanto o item principal ainda está em outro setor
+                    peças enviadas parcialmente para este setor
                   </span>
                 </div>
 
