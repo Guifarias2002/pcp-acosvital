@@ -25,7 +25,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       i.codigo AS item_codigo, i.unidade, i.descricao AS item_descricao,
       i.quantidade::text AS item_quantidade_total,
       i.status AS item_status, i.setor_atual AS item_setor_atual,
-      p.id AS pedido_id, p.numero_pedido_venda, p.cliente, p.prioridade
+      p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.prazo_entrega::text AS prazo_entrega, p.cliente, p.prioridade
     FROM producao_itemparcial pa
     JOIN producao_itempedido i ON i.id = pa.item_pedido_id
     JOIN producao_pedido p ON p.id = i.pedido_id
@@ -63,6 +63,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     item_descricao: parcial.item_descricao,
     item_quantidade_total: parcial.item_quantidade_total,
     numero_pedido_venda: parcial.numero_pedido_venda,
+    numero_op: parcial.numero_op ?? null,
+    prazo_entrega: parcial.prazo_entrega ?? null,
     cliente: parcial.cliente,
     criado_em: parcial.criado_em,
     atualizado_em: parcial.atualizado_em,

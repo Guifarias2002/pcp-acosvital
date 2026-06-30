@@ -358,7 +358,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
 
                         {/* Rastreabilidade — onde estão as peças */}
                         {(() => {
-                          const parciais = (item as Record<string, unknown>).parciais_por_setor as { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean; motivo_retrabalho: string | null }[] | undefined;
+                          const parciais = (item as unknown as Record<string, unknown>).parciais_por_setor as { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean; motivo_retrabalho: string | null }[] | undefined;
                           const entregues = Number(item.quantidade_entregue || 0);
                           const hasParciais = parciais && parciais.length > 0;
                           const STATUS_COR: Record<string, { bg: string; txt: string; label: string }> = {

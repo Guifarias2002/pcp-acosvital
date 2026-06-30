@@ -102,13 +102,13 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
           </NavGroup>
 
           {isAdmin ? (
-            <NavGroup label="Setores" defaultOpen={true} alwaysOpen={true}>
+            <NavGroup label="🔩 Flanges" defaultOpen={true}>
               {SETOR_CHOICES.map(([cod, nome]) => (
                 <NavItem key={cod} href={`/setor/${cod}`} label={nome} icon={SETOR_ICONS[cod]} onNav={fechar} />
               ))}
             </NavGroup>
           ) : meuSetor ? (
-            <NavGroup label="Meu Setor">
+            <NavGroup label="🔩 Flanges">
               <NavItem
                 href={`/setor/${meuSetor}`}
                 label={NOMES[meuSetor] || meuSetor}
@@ -117,6 +117,21 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
               />
             </NavGroup>
           ) : null}
+
+          {/* Futuras linhas de produto */}
+          {isAdmin && (
+            <>
+              <NavGroup label="🏗 Caldeiraria" defaultOpen={false}>
+                <span style={{ fontSize: 11, color: '#666', padding: '4px 16px', display: 'block', fontStyle: 'italic' }}>Em breve</span>
+              </NavGroup>
+              <NavGroup label="🔧 Serralheria" defaultOpen={false}>
+                <span style={{ fontSize: 11, color: '#666', padding: '4px 16px', display: 'block', fontStyle: 'italic' }}>Em breve</span>
+              </NavGroup>
+              <NavGroup label="🏠 Prod. de Telhas" defaultOpen={false}>
+                <span style={{ fontSize: 11, color: '#666', padding: '4px 16px', display: 'block', fontStyle: 'italic' }}>Em breve</span>
+              </NavGroup>
+            </>
+          )}
 
           {isSuperAdmin && (
             <NavGroup label="Sistema" defaultOpen={false}>

@@ -62,7 +62,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         pa.retrabalho, pa.motivo_retrabalho, pa.devolvido_de,
         i.id AS item_pedido_id, i.codigo AS item_codigo, i.unidade, i.descricao AS item_descricao,
         i.quantidade::text AS quantidade_total_item, i.roteiro_proprio,
-        p.id AS pedido_id, p.numero_pedido_venda, p.cliente, p.prioridade, p.roteiro_base
+        p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade, p.roteiro_base, p.prazo_entrega::text AS pedido_prazo
       FROM producao_itemparcial pa
       JOIN producao_itempedido i ON i.id = pa.item_pedido_id
       JOIN producao_pedido p ON p.id = pa.pedido_id
@@ -173,6 +173,8 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       item_descricao: p.item_descricao,
       quantidade_total_item: p.quantidade_total_item,
       numero_pedido_venda: p.numero_pedido_venda,
+      numero_op: p.numero_op ?? null,
+      pedido_prazo: p.pedido_prazo ?? null,
       cliente: p.cliente,
       prioridade: p.prioridade,
       proximo_setor,

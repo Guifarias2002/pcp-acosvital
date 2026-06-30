@@ -44,6 +44,7 @@ export default function NovoPedidoPage() {
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
+    if (!op.trim()) { setErro('O Número da Ordem de Produção (OP) é obrigatório. Ele identifica e agrupa todas as peças deste pedido ao longo dos setores.'); return; }
     if (roteiro.length < 3) { setErro('O roteiro precisa ter pelo menos 3 setores (incluindo Emissão de Ordens) para salvar o pedido. Selecione mais setores no painel à direita.'); return; }
     setErro('');
     setLoading(true);
@@ -116,8 +117,21 @@ export default function NovoPedidoPage() {
                   <input value={pv} onChange={e => setPv(e.target.value)} required placeholder="PV-001" className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>Nº OP</label>
-                  <input value={op} onChange={e => setOp(e.target.value)} placeholder="OP-001" className={inputCls} />
+                  <label className={labelCls} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    Nº OP <span style={{ color: '#dc2626' }}>*</span>
+                    <span title="Número da Ordem de Produção — identifica e agrupa todas as peças deste pedido ao longo de todos os setores. Cada parcial criada herda este código automaticamente."
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, height: 14, borderRadius: '50%', background: '#e0e7ff', color: '#3730a3', fontSize: 9, fontWeight: 800, cursor: 'help', marginLeft: 2 }}>
+                      ?
+                    </span>
+                  </label>
+                  <input value={op} onChange={e => setOp(e.target.value)} placeholder="OP-001" required
+                    style={{ borderColor: op.trim() ? undefined : '#fca5a5' }}
+                    className={inputCls} />
+                  {!op.trim() && (
+                    <p style={{ fontSize: 10, color: '#dc2626', margin: '3px 0 0', lineHeight: 1.3 }}>
+                      Obrigatório — identifica todas as peças deste pedido nos setores
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className={labelCls}>Cliente *</label>

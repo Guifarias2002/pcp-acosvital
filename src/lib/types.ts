@@ -231,6 +231,7 @@ export interface ItemParcial {
   setor_atual_nome: string;
   status: 'em_aberto' | 'em_andamento' | 'concluida' | 'cancelada' | 'pausado' | 'finalizado_setor';
   observacao: string | null;
+  numero_op?: string;
   item_codigo?: string;
   item_descricao?: string;
   numero_pedido_venda?: string;

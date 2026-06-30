@@ -29,6 +29,7 @@ interface ParcialDetalhe {
   item_descricao: string;
   item_quantidade_total: string;
   numero_pedido_venda: string;
+  numero_op: string | null;
   cliente: string;
   prioridade: string;
   prazo_entrega: string | null;
@@ -221,45 +222,71 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
         />
       )}
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          {isAdmin
-            ? <Link href={`/pedidos/${parcial.pedido_id}`} className="border border-gray-300 text-gray-600 text-xs px-3 py-1.5 rounded hover:bg-gray-50">
-                ← Pedido {parcial.numero_pedido_venda}
-              </Link>
-            : <span className="border border-gray-200 text-gray-500 text-xs px-3 py-1.5 rounded">
-                Pedido {parcial.numero_pedido_venda}
-              </span>
-          }
-          <Link href={`/item/${parcial.item_pedido_id}`} className="text-gray-500 font-semibold hover:underline text-sm">
-            {parcial.item_codigo}
-          </Link>
-          <span className="text-gray-300">›</span>
-          <span className="text-gray-500 text-xs">Parcial #{parcial.id}</span>
+      <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+        {/* Linha 1: descrição + prioridade + prazo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+          <span style={{ fontWeight: 800, fontSize: 16, color: '#1a3a5c', flex: 1, minWidth: 0 }}>
+            {parcial.item_descricao}
+          </span>
+          {parcial.prioridade === 'urgente' && (
+            <span style={{ background: '#dc2626', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4 }}>URGENTE</span>
+          )}
+          {parcial.prazo_entrega && (
+            <span style={{ fontSize: 12, color: '#64748b', whiteSpace: 'nowrap' }}>📅 {fmtData(parcial.prazo_entrega)}</span>
+          )}
+        </div>
+
+        {/* Linha 2: PV / OP / Cód */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginBottom: 6 }}>
+          <span style={{ fontSize: 13, color: '#475569' }}>
+            PV <span style={{ fontWeight: 800, color: '#1a3a5c', fontSize: 15 }}>{parcial.numero_pedido_venda}</span>
+          </span>
+          {parcial.numero_op && (
+            <span style={{ fontSize: 13, color: '#475569' }}>
+              OP <span style={{ fontWeight: 800, color: '#1a3a5c', fontSize: 15 }}>{parcial.numero_op}</span>
+            </span>
+          )}
+          <span style={{ fontSize: 13, color: '#475569' }}>
+            Cód <span style={{ fontWeight: 800, color: '#475569', fontSize: 15 }}>{parcial.item_codigo}</span>
+          </span>
+          <span style={{ fontSize: 13, color: '#475569' }}>
+            Parcial <span style={{ fontWeight: 800, color: '#475569', fontSize: 15 }}>#{parcial.id}</span>
+          </span>
+          <span style={{ fontSize: 13, color: '#475569' }}>
+            <strong>{fmtQtd(parcial.quantidade)} {parcial.unidade}</strong> neste setor
+          </span>
+        </div>
+
+        {/* Linha 3: status + link item + cancelar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <StatusBadgeParcial status={parcial.status} />
           {parcial.parcial_origem_id && (
             <span className="text-xs text-orange-500 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded">
               Split de #{parcial.parcial_origem_id}
             </span>
           )}
+          {isAdmin && (
+            <Link href={`/pedidos/${parcial.pedido_id}`} style={{ fontSize: 12, color: '#6b7280', textDecoration: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '2px 8px' }}>
+              ← Pedido {parcial.numero_pedido_venda}
+            </Link>
+          )}
+          <Link href={`/item/${parcial.item_pedido_id}`} style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>
+            👁 Ver item
+          </Link>
+          <div style={{ flex: 1 }} />
+          {isAdmin && isAtiva && (
+            <button onClick={() => setConfirmModal({
+              titulo: 'Cancelar Parcial',
+              mensagem: 'Esta ação só pode ser desfeita por um administrador. Deseja continuar?',
+              perigo: true,
+              acao: () => executarAcao('cancelar', { observacao: 'Cancelado manualmente pelo admin' }),
+            })} disabled={!!atuando}
+              className="border border-red-300 text-red-600 text-xs px-3 py-1.5 rounded hover:bg-red-50 disabled:opacity-60">
+              ✕ Cancelar parcial
+            </button>
+          )}
         </div>
-        {isAdmin && isAtiva && (
-          <button onClick={() => setConfirmModal({
-            titulo: 'Cancelar Parcial',
-            mensagem: 'Esta ação só pode ser desfeita por um administrador. Deseja continuar?',
-            perigo: true,
-            acao: () => executarAcao('cancelar', { observacao: 'Cancelado manualmente pelo admin' }),
-          })} disabled={!!atuando}
-            className="border border-red-300 text-red-600 text-xs px-3 py-1.5 rounded hover:bg-red-50 disabled:opacity-60">
-            ✕ Cancelar parcial
-          </button>
-        )}
       </div>
-
-      <p className="text-sm text-gray-500 mb-4">
-        {parcial.item_descricao} · <strong>{fmtQtd(parcial.quantidade)} {parcial.unidade}</strong> neste setor
-        {isAdmin && ` · ${parcial.cliente}`}
-      </p>
 
       {/* ── Roteiro do item ─────────────────────────────────────────────────── */}
       {circulos.length > 0 && (

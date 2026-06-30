@@ -64,6 +64,8 @@ export async function POST(req: Request) {
     // Validação de campos obrigatórios
     if (!numero_pedido_venda?.toString().trim())
       return NextResponse.json({ erro: 'Numero do pedido obrigatorio' }, { status: 400 });
+    if (!numero_op?.toString().trim())
+      return NextResponse.json({ erro: 'Numero da Ordem de Producao (OP) obrigatorio — ele identifica e agrupa todas as parciais deste pedido ao longo dos setores' }, { status: 400 });
     if (!cliente?.toString().trim())
       return NextResponse.json({ erro: 'Cliente obrigatorio' }, { status: 400 });
     if (!prazo_entrega || !/^\d{4}-\d{2}-\d{2}$/.test(prazo_entrega))
@@ -83,7 +85,7 @@ export async function POST(req: Request) {
          prioridade, roteiro_base, observacoes, status, setor_atual,
          data_emissao, criado_por_id, criado_em, atualizado_em)
       VALUES (
-        ${numero_pedido_venda}, ${numero_op || ''}, ${cliente}, ${vendedor || ''},
+        ${numero_pedido_venda}, ${numero_op.toString().trim()}, ${cliente}, ${vendedor || ''},
         ${prazo_entrega}, ${prioridade}, ${roteiro_base},
         ${observacoes || ''}, 'emitido', ${roteiro_base[0] || ''},
         NOW()::date, ${user.id}, NOW(), NOW()

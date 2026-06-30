@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import AuthGuard from '@/components/AuthGuard';
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao } from '@/lib/api';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES } from '@/lib/types';
@@ -11,6 +11,46 @@ import ConfirmModal from '@/components/ConfirmModal';
 import EntregarModal from '@/components/EntregarModal';
 import DespacharModal from '@/components/DespacharModal';
 import DivergenciaResolucaoModal from '@/components/DivergenciaResolucaoModal';
+
+function useToast() {
+  const [toast, setToast] = useState<{ msg: string; tipo: 'erro' | 'ok' } | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function mostrar(msg: string, tipo: 'erro' | 'ok' = 'erro') {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setToast({ msg, tipo });
+    timerRef.current = setTimeout(() => setToast(null), 5000);
+  }
+  function fechar() { setToast(null); }
+  return { toast, mostrar, fechar };
+}
+
+function Toast({ toast, fechar }: { toast: { msg: string; tipo: 'erro' | 'ok' } | null; fechar: () => void }) {
+  if (!toast) return null;
+  const isErro = toast.tipo === 'erro';
+  return (
+    <>
+    <style>{`@keyframes slideInRight{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}`}</style>
+    <div style={{
+      position: 'fixed', top: 20, right: 20, zIndex: 9999,
+      background: isErro ? '#fee2e2' : '#dcfce7',
+      border: `1.5px solid ${isErro ? '#fca5a5' : '#86efac'}`,
+      borderRadius: 10, padding: '14px 18px',
+      boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+      display: 'flex', alignItems: 'flex-start', gap: 12, maxWidth: 380, minWidth: 280,
+      animation: 'slideInRight 0.25s ease',
+    }}>
+      <span style={{ fontSize: 20, lineHeight: 1 }}>{isErro ? '⚠️' : '✅'}</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: isErro ? '#991b1b' : '#166534', marginBottom: 2 }}>
+          {isErro ? 'Ação não permitida' : 'Sucesso'}
+        </div>
+        <div style={{ fontSize: 13, color: isErro ? '#7f1d1d' : '#14532d', lineHeight: 1.4 }}>{toast.msg}</div>
+      </div>
+      <button onClick={fechar} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#9ca3af', padding: 0, lineHeight: 1 }}>✕</button>
+    </div>
+    </>
+  );
+}
 
 const BADGE_STATUS: Record<string, { bg: string; color: string }> = {
   aguardando:       { bg: '#e2e3e5', color: '#333' },
@@ -25,6 +65,7 @@ const BADGE_STATUS: Record<string, { bg: string; color: string }> = {
 };
 
 function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedido; onRefresh: () => void; ocultarCabecalhoPedido?: boolean }) {
+  const { toast: toastItem, mostrar: mostrarErroItem, fechar: fecharToastItem } = useToast();
   const [loading, setLoading] = useState(false);
   const [showReceber, setShowReceber] = useState(false);
   const [showParcial, setShowParcial] = useState(false);
@@ -46,7 +87,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
     if (loading) return;
     setLoading(true);
     try { await itemAcao(item.id, a, body); onRefresh(); }
-    catch (e: unknown) { alert(erroMsg(e)); }
+    catch (e: unknown) { mostrarErroItem(erroMsg(e)); }
     finally { setLoading(false); }
   }
 
@@ -62,13 +103,15 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
         }
       }
       onRefresh();
-    } catch (e: unknown) { alert(erroMsg(e)); }
+    } catch (e: unknown) { mostrarErroItem(erroMsg(e)); }
     finally { setLoading(false); }
   }
 
   const badge = BADGE_STATUS[item.status] || { bg: '#e2e3e5', color: '#333' };
 
   return (
+    <>
+    <Toast toast={toastItem} fechar={fecharToastItem} />
     <div style={{ opacity: loading ? .6 : 1 }}>
       {confirm && (
         <ConfirmModal
@@ -355,6 +398,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
         </div>
       )}
     </div>
+    </>
   );
 }
 
@@ -457,16 +501,6 @@ function LoteCard({ lote, tipo, onRefresh }: { lote: LoteItem & Record<string, u
         />
       )}
 
-      {erro && (
-        <div style={{ marginTop: 8, background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '8px 10px', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-          <span style={{ color: '#dc2626', fontWeight: 700, flexShrink: 0 }}>⚠</span>
-          <div style={{ flex: 1 }}>
-            <p style={{ color: '#b91c1c', fontSize: 12, fontWeight: 600, margin: 0 }}>Erro</p>
-            <p style={{ color: '#dc2626', fontSize: 11, margin: '2px 0 0' }}>{erro}</p>
-          </div>
-          <button onClick={() => setErro('')} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: 12 }}>✕</button>
-        </div>
-      )}
     </div>
   );
 }
@@ -489,13 +523,15 @@ const LABEL_PARCIAL: Record<string, string> = {
   cancelada:        'Cancelada',
 };
 
-function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: () => void }) {
+function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial; onRefresh: () => void; hideHeader?: boolean }) {
+  const { toast: toastParcial, mostrar: mostrarErroParcial, fechar: fecharToastParcial } = useToast();
   const [loading, setLoading] = useState(false);
   const [showEnviar, setShowEnviar] = useState(false);
   const [showDevolver, setShowDevolver] = useState(false);
   const [showNaoEntregue, setShowNaoEntregue] = useState(false);
   const [showDivQualidade, setShowDivQualidade] = useState(false);
-  const [showReceberOpcoes, setShowReceberOpcoes] = useState(false);
+  const [showReceberModal, setShowReceberModal] = useState(false);
+  const [recebidoSemIniciar, setRecebidoSemIniciar] = useState(false);
   const [qtdEnvio, setQtdEnvio] = useState('');
   const [setorDestino, setSetorDestino] = useState('');
   const [setorDev, setSetorDev] = useState('');
@@ -508,13 +544,13 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
   async function aprovarQualidadeParcial() {
     if (loading) return;
     const destino = setorDestino || parcial.proximo_setor || '';
-    if (!destino) { alert('Selecione o setor destino'); return; }
+    if (!destino) { mostrarErroParcial('Selecione o setor destino'); return; }
     setLoading(true);
     try {
       await parcialAcao(parcial.id, 'finalizar');
       await parcialAcao(parcial.id, 'mover', { setor_destino: destino, quantidade: Number(parcial.quantidade) });
       onRefresh();
-    } catch (e: unknown) { alert(erroMsg(e)); }
+    } catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
     finally { setLoading(false); }
   }
 
@@ -523,11 +559,15 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
     return ax?.response?.data?.erro || `Erro ${ax?.response?.status || ''}`.trim() || String(e);
   }
 
-  async function acao(a: string, body?: Record<string, unknown>) {
+  async function acao(a: string, body?: Record<string, unknown>, msgSucesso?: string) {
     if (loading) return;
     setLoading(true);
-    try { await parcialAcao(parcial.id, a, body); onRefresh(); }
-    catch (e: unknown) { alert(erroMsg(e)); }
+    try {
+      await parcialAcao(parcial.id, a, body);
+      if (msgSucesso) mostrarErroParcial(msgSucesso, 'ok');
+      onRefresh();
+    }
+    catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
     finally { setLoading(false); }
   }
 
@@ -536,6 +576,7 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
   const isPausado   = parcial.status === 'pausado';
   const isFinalizado = parcial.status === 'finalizado_setor';
   const badge = BADGE_PARCIAL[parcial.status] || { bg: '#e2e3e5', color: '#333' };
+  const foraDoRoteiro = !parcial.proximo_setor && !isLogistica;
 
   const btnStyle = (bg: string, outline = false): React.CSSProperties => ({
     background: outline ? 'none' : bg,
@@ -546,6 +587,8 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
   });
 
   return (
+    <>
+    <Toast toast={toastParcial} fechar={fecharToastParcial} />
     <div style={{ border: parcial.retrabalho ? '1.5px solid #fbbf24' : '1px solid #dde3f0', borderRadius: 10, overflow: 'hidden', background: '#fff', opacity: loading ? .6 : 1 }}>
       {confirm && (
         <ConfirmModal
@@ -559,24 +602,42 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
       )}
 
       {/* Cabeçalho do pedido */}
-      <div style={{ background: parcial.retrabalho ? '#fffbeb' : '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#1a3a5c' }}>{parcial.numero_pedido_venda}</span>
-          <span style={{ fontSize: 12, color: '#555' }}>·</span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>{parcial.item_codigo}</span>
-          {parcial.item_descricao && <span style={{ fontSize: 11, color: '#94a3b8' }}>{parcial.item_descricao}</span>}
-          {parcial.prioridade && (
-            <span className={`badge-${parcial.prioridade}`} style={{ fontSize: 10 }}>
-              {parcial.prioridade.charAt(0).toUpperCase() + parcial.prioridade.slice(1)}
-            </span>
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {!hideHeader && <div style={{ background: parcial.retrabalho ? '#fffbeb' : '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '10px 14px' }}>
+        {/* Linha 1: produto em destaque */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 15, fontWeight: 800, color: '#1a3a5c', letterSpacing: -0.3 }}>{parcial.item_descricao || parcial.item_codigo}</span>
+            {parcial.prioridade && (
+              <span className={`badge-${parcial.prioridade}`} style={{ fontSize: 10 }}>
+                {parcial.prioridade.charAt(0).toUpperCase() + parcial.prioridade.slice(1)}
+              </span>
+            )}
+          </div>
           {parcial.pedido_prazo && (
             <span style={{ fontSize: 10, color: '#94a3b8' }}>
               <i className="bi bi-calendar3" style={{ marginRight: 3 }} />{parcial.pedido_prazo}
             </span>
           )}
+        </div>
+        {/* Linha 2: PV e OP com labels */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <span>
+            <span style={{ fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', fontSize: 9, letterSpacing: 0.5, marginRight: 4 }}>PV</span>
+            <span style={{ fontWeight: 800, color: '#1a3a5c', fontSize: 15 }}>{parcial.numero_pedido_venda}</span>
+          </span>
+          {(parcial as any).numero_op && (
+            <span>
+              <span style={{ fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', fontSize: 9, letterSpacing: 0.5, marginRight: 4 }}>OP</span>
+              <span style={{ fontWeight: 800, color: '#1a3a5c', fontSize: 15 }}>{(parcial as any).numero_op}</span>
+            </span>
+          )}
+          <span>
+            <span style={{ fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', fontSize: 9, letterSpacing: 0.5, marginRight: 4 }}>Cód</span>
+            <span style={{ fontWeight: 800, color: '#475569', fontSize: 15 }}>{parcial.item_codigo}</span>
+          </span>
+        </div>
+        {/* Linha 3: status + link */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
           <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: badge.bg, color: badge.color }}>
             {LABEL_PARCIAL[parcial.status] || parcial.status}
           </span>
@@ -584,7 +645,22 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
             <i className="bi bi-eye" />
           </Link>
         </div>
-      </div>
+      </div>}
+
+      {/* Quando hideHeader, mostrar linha compacta de identificação */}
+      {hideHeader && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: '#f8fafc', borderBottom: '1px solid #e9ecef' }}>
+          <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Parcial <span style={{ color: '#1a3a5c', fontWeight: 800 }}>#{parcial.id}</span></span>
+          <span style={{ fontWeight: 700, color: '#0d6efd', fontSize: 13 }}>{fmtQtd(parcial.quantidade)} {parcial.unidade}</span>
+          <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: badge.bg, color: badge.color }}>
+            {LABEL_PARCIAL[parcial.status] || parcial.status}
+          </span>
+          {parcial.retrabalho && <span style={{ fontSize: 11, color: '#b45309', fontWeight: 700 }}>⚠ Retrabalho</span>}
+          <Link href={`/parcial/${parcial.id}`} title="Ver detalhe" style={{ color: '#0d6efd', fontSize: 13, textDecoration: 'none', marginLeft: 'auto' }}>
+            <i className="bi bi-eye" />
+          </Link>
+        </div>
+      )}
 
       {/* Corpo */}
       <div style={{ padding: '12px 14px' }}>
@@ -597,6 +673,28 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
               <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>Retrabalho — devolvido da Inspeção de Qualidade</div>
               {parcial.motivo_retrabalho && <div style={{ fontSize: 11, color: '#78350f' }}>Motivo: {parcial.motivo_retrabalho}</div>}
             </div>
+          </div>
+        )}
+
+        {/* Banner fora do roteiro */}
+        {foraDoRoteiro && (isAndamento || isPausado || isFinalizado) && (
+          <div style={{ background: '#fffbeb', border: '1.5px solid #f59e0b', borderRadius: 6, padding: '8px 12px', marginBottom: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+              ⚠ Parcial fora do roteiro desta ordem de produção
+            </div>
+            <div style={{ fontSize: 11, color: '#78350f', lineHeight: 1.5, marginBottom: parcial.outras_parciais?.length ? 6 : 0 }}>
+              Selecione manualmente o setor destino para prosseguir.
+            </div>
+            {parcial.outras_parciais && parcial.outras_parciais.length > 0 && (
+              <div style={{ fontSize: 11, color: '#78350f' }}>
+                <strong>Outras peças deste item:</strong>{' '}
+                {parcial.outras_parciais.map((op, i) => (
+                  <span key={i} style={{ display: 'inline-block', margin: '2px 4px', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 4, padding: '2px 6px', fontWeight: 600 }}>
+                    {fmtQtd(op.quantidade)} {op.unidade} → {op.setor_nome}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -659,22 +757,15 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
         )}
 
         {/* ── Setores normais: fluxo de produção ─────────────────────────── */}
-        {!isLogistica && isAberto && !showReceberOpcoes && (
-          <button onClick={() => setShowReceberOpcoes(true)} disabled={loading} style={btnStyle('#198754')}>
+        {!isLogistica && isAberto && !recebidoSemIniciar && (
+          <button onClick={() => setShowReceberModal(true)} disabled={loading} style={btnStyle('#d97706')}>
             <i className="bi bi-box-arrow-in-down" style={{ marginRight: 5 }} />Receber
           </button>
         )}
-        {!isLogistica && isAberto && showReceberOpcoes && (
-          <>
-            <button onClick={() => { acao('iniciar'); setShowReceberOpcoes(false); }} disabled={loading}
-              style={btnStyle('#198754')}>
-              <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Começar agora
-            </button>
-            <button onClick={() => setShowReceberOpcoes(false)} disabled={loading}
-              style={btnStyle('#6c757d')}>
-              <i className="bi bi-clock" style={{ marginRight: 5 }} />Começar depois
-            </button>
-          </>
+        {!isLogistica && isAberto && recebidoSemIniciar && (
+          <button onClick={() => acao('iniciar')} disabled={loading} style={btnStyle('#198754')}>
+            <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Iniciar produção
+          </button>
         )}
 
         {!isLogistica && isAndamento && isQualidade && (
@@ -683,6 +774,7 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
               <>
                 <select value={setorDestino || parcial.proximo_setor || ''} onChange={e => setSetorDestino(e.target.value)}
                   style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
+                  {!parcial.proximo_setor && !setorDestino && <option value="">Selecione o setor...</option>}
                   {SETOR_CHOICES.filter(([cod]) => cod !== parcial.setor_atual).map(([cod, nome]) => (
                     <option key={cod} value={cod}>{nome}{cod === parcial.proximo_setor ? ' ✓' : ''}</option>
                   ))}
@@ -710,6 +802,16 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
             })} disabled={loading} style={btnStyle('#198754')}>
               <i className="bi bi-check-lg" style={{ marginRight: 5 }} />Finalizar etapa
             </button>
+            <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
+              <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
+            </button>
+            <button onClick={() => setConfirm({
+              titulo: 'Encerrar Parcial',
+              mensagem: 'As peças já foram processadas e não precisam ir a outro setor. Deseja encerrar esta parcial como concluída?',
+              acao: () => acao('concluir'),
+            })} disabled={loading} style={btnStyle('#198754', true)}>
+              ✓ Encerrar
+            </button>
             <button onClick={() => acao('pausar')} disabled={loading} style={btnStyle('#fd7e14')}>
               <i className="bi bi-pause-fill" style={{ marginRight: 5 }} />Pausar
             </button>
@@ -717,15 +819,27 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
         )}
 
         {!isLogistica && isPausado && (
-          <button onClick={() => acao('retomar')} disabled={loading} style={btnStyle('#198754')}>
-            <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Retomar
-          </button>
+          <>
+            <button onClick={() => acao('retomar')} disabled={loading} style={btnStyle('#198754')}>
+              <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Retomar
+            </button>
+            <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
+              <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
+            </button>
+            <button onClick={() => setConfirm({
+              titulo: 'Encerrar Parcial',
+              mensagem: 'As peças já foram processadas e não precisam ir a outro setor. Deseja encerrar esta parcial como concluída?',
+              acao: () => acao('concluir'),
+            })} disabled={loading} style={btnStyle('#198754', true)}>
+              ✓ Encerrar
+            </button>
+          </>
         )}
 
         {!isLogistica && isFinalizado && (
           <>
             {!showDivQualidade && (
-              <button onClick={() => setShowEnviar(v => !v)} disabled={loading} style={btnStyle('#1a3a5c')}>
+              <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
                 <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
               </button>
             )}
@@ -754,6 +868,32 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
           </button>
         )}
       </div>
+
+      {/* Modal receber parcial */}
+      {!isLogistica && isAberto && showReceberModal && (
+        <ReceberModal
+          quantidade={parcial.quantidade}
+          unidade={parcial.unidade || 'un'}
+          setor={parcial.setor_atual_nome}
+          itemCodigo={parcial.item_codigo}
+          itemDescricao={parcial.item_descricao}
+          loading={loading}
+          onCancel={() => setShowReceberModal(false)}
+          onConfirm={async (decisao, _qtd, obs) => {
+            setShowReceberModal(false);
+            if (decisao === 'iniciar') { acao('iniciar'); }
+            else if (decisao === 'preparar') {
+              setLoading(true);
+              try {
+                await parcialAcao(parcial.id, 'receber');
+                setRecebidoSemIniciar(true);
+                mostrarErroParcial('Recebimento confirmado — clique em Iniciar quando estiver pronto', 'ok');
+              } catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
+              finally { setLoading(false); }
+            } else { acao('pausar', { observacao: obs || 'Divergência no recebimento' }); }
+          }}
+        />
+      )}
 
       {/* Painel "Não entregue" — exclusivo da Logística */}
       {showNaoEntregue && (
@@ -789,29 +929,40 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
 
       {/* Painel enviar para setor */}
       {showEnviar && (
-        <div style={{ marginTop: 10, background: '#f8f9fa', borderRadius: 6, padding: '10px 12px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
+        <div style={{ marginTop: 10, background: foraDoRoteiro ? '#fffbeb' : '#f8f9fa', border: foraDoRoteiro ? '1.5px solid #f59e0b' : 'none', borderRadius: 6, padding: '10px 12px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 140 }}>
-            <label style={{ fontSize: 11, color: '#555' }}>Setor destino:</label>
-            <select value={setorDestino} onChange={e => setSetorDestino(e.target.value)}
-              style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
-              <option value="">Selecione...</option>
+            <label style={{ fontSize: 11, color: foraDoRoteiro ? '#92400e' : '#555', fontWeight: foraDoRoteiro ? 700 : 400 }}>
+              {foraDoRoteiro ? '⚠ Selecione o setor destino:' : 'Setor destino:'}
+            </label>
+            <select value={setorDestino || parcial.proximo_setor || ''} onChange={e => setSetorDestino(e.target.value)}
+              style={{ border: foraDoRoteiro ? '2px solid #f59e0b' : '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
+              <option value="">Selecione o setor...</option>
               {SETOR_CHOICES.filter(([cod]) => cod !== parcial.setor_atual).map(([cod, nome]) => (
-                <option key={cod} value={cod}>{nome}</option>
+                <option key={cod} value={cod}>{nome}{cod === parcial.proximo_setor ? ' ✓' : ''}</option>
               ))}
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <label style={{ fontSize: 11, color: '#555' }}>Quantidade:</label>
-            <input type="number" value={qtdEnvio} onChange={e => setQtdEnvio(e.target.value)}
+            <input type="number" value={qtdEnvio}
+              onChange={e => {
+                const v = e.target.value;
+                const max = Number(parcial.quantidade);
+                if (v === '' || Number(v) <= max) setQtdEnvio(v);
+                else setQtdEnvio(String(max));
+              }}
+              min={1} max={Number(parcial.quantidade)}
               placeholder={`Máx: ${fmtQtd(parcial.quantidade)}`}
               style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 13, width: 90 }} />
           </div>
           <button onClick={() => {
-            if (!setorDestino) { alert('Selecione o setor destino'); return; }
+            const dest = setorDestino || parcial.proximo_setor || '';
+            if (!dest) { mostrarErroParcial('Selecione o setor destino'); return; }
             const qtd = Number(qtdEnvio) || Number(parcial.quantidade);
-            acao('mover', { setor_destino: setorDestino, quantidade: qtd });
+            acao('mover', { setor_destino: dest, quantidade: qtd });
             setShowEnviar(false);
-          }} disabled={loading} style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          }} disabled={loading || (!setorDestino && !parcial.proximo_setor)}
+            style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: (loading || (!setorDestino && !parcial.proximo_setor)) ? 'not-allowed' : 'pointer', opacity: (!setorDestino && !parcial.proximo_setor) ? 0.4 : 1 }}>
             Confirmar envio
           </button>
           <button onClick={() => setShowEnviar(false)}
@@ -836,7 +987,7 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
             <button onClick={async () => {
-              if (!motivoDiv.trim()) { alert('Informe o motivo da divergência.'); return; }
+              if (!motivoDiv.trim()) { mostrarErroParcial('Informe o motivo da divergência.'); return; }
               setShowDivQualidade(false);
               setLoading(true);
               try {
@@ -844,7 +995,7 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
                 await parcialAcao(parcial.id, 'pausar', { observacao: motivoDiv });
                 setMotivoDiv('');
                 onRefresh();
-              } catch (e: unknown) { alert(erroMsg(e)); }
+              } catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
               finally { setLoading(false); }
             }} disabled={loading || !motivoDiv.trim()}
               style={{ background: '#fef9c3', border: '1px solid #fde047', borderRadius: 6, padding: '10px 8px', fontSize: 12, fontWeight: 600, color: '#854d0e', cursor: motivoDiv.trim() ? 'pointer' : 'not-allowed', textAlign: 'center', opacity: motivoDiv.trim() ? 1 : 0.5 }}>
@@ -906,16 +1057,19 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
       )}
       </div>{/* fim corpo */}
     </div>
+    </>
   );
 }
 
 function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; onRefresh: () => void }) {
+  const { toast: toastGrupo, mostrar: mostrarErroGrupo, fechar: fecharToastGrupo } = useToast();
   const [loading, setLoading] = useState(false);
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
   const [showEnviar, setShowEnviar] = useState(false);
   const [showEnviarParcial, setShowEnviarParcial] = useState(false);
   const [showDivQualidade, setShowDivQualidade] = useState(false);
-  const [showReceberOpcoes, setShowReceberOpcoes] = useState(false);
+  const [showReceberModal, setShowReceberModal] = useState(false);
+  const [recebidoSemIniciar, setRecebidoSemIniciar] = useState(false);
   const [qtdParcial, setQtdParcial] = useState('');
   const [showDevolver, setShowDevolver] = useState(false);
   const [setorDestino, setSetorDestino] = useState('');
@@ -930,14 +1084,15 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
   const totalQtd = parciais.reduce((sum, p) => sum + Number(p.quantidade), 0);
   const todosIgual = parciais.every(p => p.status === p0.status);
 
-  async function acaoTodos(a: string, body?: Record<string, unknown>) {
+  async function acaoTodos(a: string, body?: Record<string, unknown>, msgSucesso?: string) {
     setLoading(true);
     try {
       for (const p of parciais) await parcialAcao(p.id, a, body);
+      if (msgSucesso) mostrarErroGrupo(msgSucesso, 'ok');
       onRefresh();
     } catch (e: unknown) {
       const ax = e as { response?: { data?: { erro?: string } } };
-      alert(ax?.response?.data?.erro || String(e));
+      mostrarErroGrupo(ax?.response?.data?.erro || String(e));
     } finally { setLoading(false); }
   }
 
@@ -951,10 +1106,11 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
   const badge = BADGE_PARCIAL[p0.status] || { bg: '#e2e3e5', color: '#333' };
   const isLogistica = p0.setor_atual === 'logistica';
   const isQualidadeGrupo = p0.setor_atual === 'qualidade';
+  const foraDoRoteiroGrupo = !p0.proximo_setor && !isLogistica;
 
   async function aprovarGrupoQualidade() {
     const destino = setorDestino || p0.proximo_setor || '';
-    if (!destino) { alert('Selecione o setor destino'); return; }
+    if (!destino) { mostrarErroGrupo('Selecione o setor destino'); return; }
     setLoading(true);
     try {
       for (const p of parciais) await parcialAcao(p.id, 'finalizar');
@@ -962,7 +1118,7 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
       onRefresh();
     } catch (e: unknown) {
       const ax = e as { response?: { data?: { erro?: string } } };
-      alert(ax?.response?.data?.erro || String(e));
+      mostrarErroGrupo(ax?.response?.data?.erro || String(e));
     } finally { setLoading(false); }
   }
 
@@ -1009,6 +1165,8 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
   const isFinalizado = p0.status === 'finalizado_setor';
 
   return (
+    <>
+    <Toast toast={toastGrupo} fechar={fecharToastGrupo} />
     <div style={{ border: isAndamento ? '1.5px solid #86efac' : '1px solid #bfdbfe', borderRadius: 10, background: '#fff', padding: '14px 16px', opacity: loading ? 0.6 : 1 }}>
       {confirm && (
         <ConfirmModal titulo={confirm.titulo} mensagem={confirm.mensagem} confirmLabel="Confirmar"
@@ -1052,10 +1210,32 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
         </div>
       )}
 
+      {/* Banner fora do roteiro (grupo) */}
+      {foraDoRoteiroGrupo && (isAndamento || isPausado || isFinalizado) && (
+        <div style={{ background: '#fffbeb', border: '1.5px solid #f59e0b', borderRadius: 6, padding: '8px 12px', marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+            ⚠ Parciais fora do roteiro desta ordem de produção
+          </div>
+          <div style={{ fontSize: 11, color: '#78350f', lineHeight: 1.5, marginBottom: (p0.outras_parciais?.length ?? 0) > 0 ? 6 : 0 }}>
+            Selecione manualmente o setor destino para prosseguir.
+          </div>
+          {(p0.outras_parciais ?? []).length > 0 && (
+            <div style={{ fontSize: 11, color: '#78350f' }}>
+              <strong>Outras peças deste item:</strong>{' '}
+              {(p0.outras_parciais ?? []).map((op, i) => (
+                <span key={i} style={{ display: 'inline-block', margin: '2px 4px', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 4, padding: '2px 6px', fontWeight: 600 }}>
+                  {fmtQtd(op.quantidade)} {op.unidade} → {op.setor_nome}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Rastreabilidade — outras parciais do mesmo item (grupo) */}
       {(() => {
         const outras = p0.outras_parciais ?? [];
-        if (!outras.length) return null;
+        if (!outras.length || foraDoRoteiroGrupo) return null;
         return (
           <div style={{ background: '#f0f4ff', border: '1px solid #c7d2fe', borderRadius: 6, padding: '6px 10px', marginBottom: 8 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#3730a3', marginBottom: 4 }}>📍 Outras peças deste item:</div>
@@ -1104,22 +1284,15 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
 
       {/* Ações combinadas */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {!isLogistica && isAberto && !showReceberOpcoes && (
-          <button onClick={() => setShowReceberOpcoes(true)} disabled={loading} style={btnStyle('#198754')}>
+        {!isLogistica && isAberto && !recebidoSemIniciar && (
+          <button onClick={() => setShowReceberModal(true)} disabled={loading} style={btnStyle('#d97706')}>
             <i className="bi bi-box-arrow-in-down" style={{ marginRight: 5 }} />Receber
           </button>
         )}
-        {!isLogistica && isAberto && showReceberOpcoes && (
-          <>
-            <button onClick={() => { acaoTodos('iniciar'); setShowReceberOpcoes(false); }} disabled={loading}
-              style={btnStyle('#198754')}>
-              <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Começar agora
-            </button>
-            <button onClick={() => setShowReceberOpcoes(false)} disabled={loading}
-              style={btnStyle('#6c757d')}>
-              <i className="bi bi-clock" style={{ marginRight: 5 }} />Começar depois
-            </button>
-          </>
+        {!isLogistica && isAberto && recebidoSemIniciar && (
+          <button onClick={() => acaoTodos('iniciar')} disabled={loading} style={btnStyle('#198754')}>
+            <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Iniciar produção
+          </button>
         )}
 
         {!isLogistica && isAndamento && isQualidadeGrupo && (
@@ -1128,6 +1301,7 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
               <>
                 <select value={setorDestino || p0.proximo_setor || ''} onChange={e => setSetorDestino(e.target.value)}
                   style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
+                  {!p0.proximo_setor && !setorDestino && <option value="">Selecione o setor...</option>}
                   {SETOR_CHOICES.filter(([cod]) => cod !== p0.setor_atual).map(([cod, nome]) => (
                     <option key={cod} value={cod}>{nome}{cod === p0.proximo_setor ? ' ✓' : ''}</option>
                   ))}
@@ -1155,6 +1329,19 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
             })} disabled={loading} style={btnStyle('#198754')}>
               <i className="bi bi-check-lg" style={{ marginRight: 5 }} />Finalizar etapa
             </button>
+            <button onClick={() => { setShowEnviar(v => !v); setShowEnviarParcial(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
+              <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
+            </button>
+            <button onClick={() => { setShowEnviarParcial(v => !v); setShowEnviar(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#0d6efd')}>
+              <i className="bi bi-send" style={{ marginRight: 5 }} />Enviar parcial
+            </button>
+            <button onClick={() => setConfirm({
+              titulo: 'Encerrar Parciais',
+              mensagem: `As ${fmtQtd(String(totalQtd))} ${p0.unidade} já foram processadas e não precisam ir a outro setor. Deseja encerrar todas as parciais?`,
+              acao: () => acaoTodos('concluir'),
+            })} disabled={loading} style={btnStyle('#198754', true)}>
+              ✓ Encerrar
+            </button>
             <button onClick={() => acaoTodos('pausar')} disabled={loading} style={btnStyle('#fd7e14')}>
               <i className="bi bi-pause-fill" style={{ marginRight: 5 }} />Pausar
             </button>
@@ -1162,19 +1349,34 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
         )}
 
         {!isLogistica && isPausado && (
-          <button onClick={() => acaoTodos('retomar')} disabled={loading} style={btnStyle('#198754')}>
-            <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Retomar
-          </button>
+          <>
+            <button onClick={() => acaoTodos('retomar')} disabled={loading} style={btnStyle('#198754')}>
+              <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Retomar
+            </button>
+            <button onClick={() => { setShowEnviar(v => !v); setShowEnviarParcial(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
+              <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
+            </button>
+            <button onClick={() => { setShowEnviarParcial(v => !v); setShowEnviar(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#0d6efd')}>
+              <i className="bi bi-send" style={{ marginRight: 5 }} />Enviar parcial
+            </button>
+            <button onClick={() => setConfirm({
+              titulo: 'Encerrar Parciais',
+              mensagem: `As ${fmtQtd(String(totalQtd))} ${p0.unidade} já foram processadas e não precisam ir a outro setor. Deseja encerrar todas as parciais?`,
+              acao: () => acaoTodos('concluir'),
+            })} disabled={loading} style={btnStyle('#198754', true)}>
+              ✓ Encerrar
+            </button>
+          </>
         )}
 
         {!isLogistica && isFinalizado && (
           <>
             {!showDivQualidade && (
               <>
-                <button onClick={() => { setShowEnviar(v => !v); setShowEnviarParcial(false); setShowDevolver(false); }} disabled={loading} style={btnStyle('#1a3a5c')}>
+                <button onClick={() => { setShowEnviar(v => !v); setShowEnviarParcial(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
                   <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
                 </button>
-                <button onClick={() => { setShowEnviarParcial(v => !v); setShowEnviar(false); setShowDevolver(false); }} disabled={loading} style={btnStyle('#0d6efd')}>
+                <button onClick={() => { setShowEnviarParcial(v => !v); setShowEnviar(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#0d6efd')}>
                   <i className="bi bi-send" style={{ marginRight: 5 }} />Enviar parcial
                 </button>
               </>
@@ -1204,25 +1406,56 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
         )}
       </div>
 
+      {/* Modal receber grupo */}
+      {!isLogistica && isAberto && showReceberModal && (
+        <ReceberModal
+          quantidade={String(totalQtd)}
+          unidade={p0.unidade || 'un'}
+          setor={p0.setor_atual_nome}
+          itemCodigo={p0.item_codigo}
+          itemDescricao={p0.item_descricao}
+          loading={loading}
+          onCancel={() => setShowReceberModal(false)}
+          onConfirm={async (decisao, _qtd, obs) => {
+            setShowReceberModal(false);
+            if (decisao === 'iniciar') { acaoTodos('iniciar'); }
+            else if (decisao === 'preparar') {
+              setLoading(true);
+              try {
+                for (const p of parciais) await parcialAcao(p.id, 'receber');
+                setRecebidoSemIniciar(true);
+                mostrarErroGrupo('Recebimento confirmado — clique em Iniciar quando estiver pronto', 'ok');
+              } catch (e: unknown) {
+                const ax = e as { response?: { data?: { erro?: string } } };
+                mostrarErroGrupo(ax?.response?.data?.erro || String(e));
+              } finally { setLoading(false); }
+            } else { acaoTodos('pausar', { observacao: obs || 'Divergência no recebimento' }); }
+          }}
+        />
+      )}
+
       {/* Painel enviar */}
       {showEnviar && (
-        <div style={{ marginTop: 10, background: '#f8f9fa', borderRadius: 6, padding: '10px 12px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
+        <div style={{ marginTop: 10, background: foraDoRoteiroGrupo ? '#fffbeb' : '#f8f9fa', border: foraDoRoteiroGrupo ? '1.5px solid #f59e0b' : 'none', borderRadius: 6, padding: '10px 12px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 140 }}>
-            <label style={{ fontSize: 11, color: '#555' }}>Setor destino:</label>
+            <label style={{ fontSize: 11, color: foraDoRoteiroGrupo ? '#92400e' : '#555', fontWeight: foraDoRoteiroGrupo ? 700 : 400 }}>
+              {foraDoRoteiroGrupo ? '⚠ Selecione o setor destino:' : 'Setor destino:'}
+            </label>
             <select value={setorDestino || p0.proximo_setor || ''} onChange={e => setSetorDestino(e.target.value)}
-              style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
-              <option value="">Selecione...</option>
+              style={{ border: foraDoRoteiroGrupo ? '2px solid #f59e0b' : '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
+              <option value="">Selecione o setor...</option>
               {SETOR_CHOICES.filter(([cod]) => cod !== p0.setor_atual).map(([cod, nome]) => (
-                <option key={cod} value={cod}>{nome}{cod === p0.proximo_setor ? ' (próximo no roteiro)' : ''}</option>
+                <option key={cod} value={cod}>{nome}{cod === p0.proximo_setor ? ' ✓' : ''}</option>
               ))}
             </select>
           </div>
           <button onClick={() => {
             const dest = setorDestino || p0.proximo_setor || '';
-            if (!dest) { alert('Selecione o setor destino'); return; }
+            if (!dest) { mostrarErroGrupo('Selecione o setor destino'); return; }
             acaoTodos('mover', { setor_destino: dest, quantidade: Number(p0.quantidade) });
             setShowEnviar(false);
-          }} disabled={loading} style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          }} disabled={loading || (!setorDestino && !p0.proximo_setor)}
+            style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: (loading || (!setorDestino && !p0.proximo_setor)) ? 'not-allowed' : 'pointer', opacity: (!setorDestino && !p0.proximo_setor) ? 0.4 : 1 }}>
             Confirmar envio
           </button>
           <button onClick={() => setShowEnviar(false)}
@@ -1234,35 +1467,44 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
       {showEnviarParcial && (
         <div style={{ marginTop: 10, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 12px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 140 }}>
-            <label style={{ fontSize: 11, color: '#555' }}>Setor destino:</label>
+            <label style={{ fontSize: 11, color: foraDoRoteiroGrupo ? '#92400e' : '#555', fontWeight: foraDoRoteiroGrupo ? 700 : 400 }}>
+              {foraDoRoteiroGrupo ? '⚠ Selecione o setor destino:' : 'Setor destino:'}
+            </label>
             <select value={setorDestino || p0.proximo_setor || ''} onChange={e => setSetorDestino(e.target.value)}
-              style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
-              <option value="">Selecione...</option>
+              style={{ border: foraDoRoteiroGrupo ? '2px solid #f59e0b' : '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
+              <option value="">Selecione o setor...</option>
               {SETOR_CHOICES.filter(([cod]) => cod !== p0.setor_atual).map(([cod, nome]) => (
-                <option key={cod} value={cod}>{nome}{cod === p0.proximo_setor ? ' (próximo no roteiro)' : ''}</option>
+                <option key={cod} value={cod}>{nome}{cod === p0.proximo_setor ? ' ✓' : ''}</option>
               ))}
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <label style={{ fontSize: 11, color: '#555' }}>Quantidade (máx: {fmtQtd(String(totalQtd))}):</label>
-            <input type="number" value={qtdParcial} onChange={e => setQtdParcial(e.target.value)}
+            <input type="number" value={qtdParcial}
+              onChange={e => {
+                const v = e.target.value;
+                if (v === '' || Number(v) <= totalQtd) setQtdParcial(v);
+                else setQtdParcial(String(totalQtd));
+              }}
               placeholder={String(totalQtd)} min={1} max={totalQtd}
               style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 13, width: 90 }} />
           </div>
           <button onClick={async () => {
-            if (!setorDestino) { alert('Selecione o setor destino'); return; }
+            const dest = setorDestino || p0.proximo_setor || '';
+            if (!dest) { mostrarErroGrupo('Selecione o setor destino'); return; }
             const qtdTotal = Number(qtdParcial) || totalQtd;
             let restante = qtdTotal;
             for (const p of parciais) {
               if (restante <= 0) break;
               const qtd = Math.min(restante, Number(p.quantidade));
-              await parcialAcao(p.id, 'mover', { setor_destino: setorDestino, quantidade: qtd });
+              await parcialAcao(p.id, 'mover', { setor_destino: dest, quantidade: qtd });
               restante -= qtd;
             }
             setShowEnviarParcial(false);
             setQtdParcial('');
             onRefresh();
-          }} disabled={loading} style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          }} disabled={loading || (!setorDestino && !p0.proximo_setor)}
+            style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: (loading || (!setorDestino && !p0.proximo_setor)) ? 'not-allowed' : 'pointer', opacity: (!setorDestino && !p0.proximo_setor) ? 0.4 : 1 }}>
             Confirmar envio
           </button>
           <button onClick={() => setShowEnviarParcial(false)}
@@ -1285,7 +1527,7 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
             <button onClick={async () => {
-              if (!motivoDivGrupo.trim()) { alert('Informe o motivo da divergência.'); return; }
+              if (!motivoDivGrupo.trim()) { mostrarErroGrupo('Informe o motivo da divergência.'); return; }
               setLoading(true);
               try {
                 if (p0.status === 'finalizado_setor') {
@@ -1297,7 +1539,7 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
                 onRefresh();
               } catch (e: unknown) {
                 const ax = e as { response?: { data?: { erro?: string } } };
-                alert(ax?.response?.data?.erro || String(e));
+                mostrarErroGrupo(ax?.response?.data?.erro || String(e));
               } finally { setLoading(false); }
             }} disabled={loading || !motivoDivGrupo.trim()}
               style={{ background: '#fef9c3', border: '1px solid #fde047', borderRadius: 6, padding: '8px 6px', fontSize: 12, fontWeight: 600, color: '#854d0e', cursor: motivoDivGrupo.trim() ? 'pointer' : 'not-allowed', textAlign: 'center', lineHeight: 1.4, opacity: motivoDivGrupo.trim() ? 1 : 0.5 }}>
@@ -1319,7 +1561,7 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
                 ))}
               </select>
               <button onClick={() => {
-                if (!motivoDivGrupo.trim()) { alert('Informe o motivo da divergência.'); return; }
+                if (!motivoDivGrupo.trim()) { mostrarErroGrupo('Informe o motivo da divergência.'); return; }
                 const dest = setorRetrabalhoGrupo === '__open__' ? '' : setorRetrabalhoGrupo;
                 if (!dest) return;
                 acaoTodos('devolver', { setor_destino: dest, observacao: motivoDivGrupo });
@@ -1363,6 +1605,7 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
         </div>
       )}
     </div>
+    </>
   );
 }
 
@@ -1538,35 +1781,103 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
 
 
 
-          {/* Parciais neste setor — agrupadas por item */}
+          {/* Parciais neste setor — agrupadas por pedido */}
           {(() => {
             const todasParciais = data.parciais || [];
             if (todasParciais.length === 0) return null;
 
-            // Agrupar por item_pedido_id preservando ordem de chegada
-            const grupoMap = new Map<number, ItemParcial[]>();
+            // Agrupar por pedido_id preservando ordem de chegada
+            const pedidoMap = new Map<number, { pedido_id: number; numero_pedido_venda: string; parciais: ItemParcial[] }>();
             for (const p of todasParciais) {
-              if (!grupoMap.has(p.item_pedido_id)) grupoMap.set(p.item_pedido_id, []);
-              grupoMap.get(p.item_pedido_id)!.push(p);
+              if (!pedidoMap.has(p.pedido_id)) {
+                pedidoMap.set(p.pedido_id, { pedido_id: p.pedido_id, numero_pedido_venda: p.numero_pedido_venda || '', parciais: [] });
+              }
+              pedidoMap.get(p.pedido_id)!.parciais.push(p);
             }
-            const grupos = Array.from(grupoMap.values());
-            const totalGrupos = grupos.length;
+            const pedidos = Array.from(pedidoMap.values());
+            const totalPedidos = pedidos.length;
             const totalParciais = todasParciais.length;
 
             return (
               <section>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
                   <i className="bi bi-diagram-3-fill" style={{ marginRight: 6 }} />
-                  Itens Parciais ({totalGrupos} {totalGrupos !== totalParciais ? `· ${totalParciais} parciais` : ''})
+                  Itens Parciais ({totalPedidos} {totalPedidos !== totalParciais ? `· ${totalParciais} parciais` : ''})
                   <span style={{ marginLeft: 8, fontWeight: 400, textTransform: 'none', fontSize: 10, color: '#64748b' }}>
                     peças enviadas parcialmente para este setor
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {grupos.map(grupo => (
-                    <ParcialGrupoCard key={grupo[0].item_pedido_id} parciais={grupo} onRefresh={carregar} />
-                  ))}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {pedidos.map(({ pedido_id, numero_pedido_venda, parciais }) => {
+                    // Agrupar parciais do pedido por item_pedido_id
+                    const itemMap = new Map<number, ItemParcial[]>();
+                    for (const p of parciais) {
+                      if (!itemMap.has(p.item_pedido_id)) itemMap.set(p.item_pedido_id, []);
+                      itemMap.get(p.item_pedido_id)!.push(p);
+                    }
+                    const grupos = Array.from(itemMap.values());
+
+                    // Agrupar por item_codigo para evitar repetição do nome do produto
+                    const itemCodigoMap = new Map<string, ItemParcial[]>();
+                    for (const p of parciais) {
+                      const key = p.item_codigo || String(p.item_pedido_id);
+                      if (!itemCodigoMap.has(key)) itemCodigoMap.set(key, []);
+                      itemCodigoMap.get(key)!.push(p);
+                    }
+                    const itemGrupos = Array.from(itemCodigoMap.values());
+
+                    return (
+                      <div key={pedido_id} style={{ border: '2px solid #dde3f0', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+                        {/* Cabeçalho do pedido */}
+                        <div style={{ background: '#1a3a5c', color: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <i className="bi bi-folder2-open" style={{ fontSize: 15 }} />
+                          <span style={{ fontWeight: 700, fontSize: 15 }}>Pedido de Venda {numero_pedido_venda}</span>
+                          <span style={{ fontSize: 11, opacity: 0.65, marginLeft: 4 }}>
+                            {parciais.length} parcial{parciais.length > 1 ? 'is' : ''}
+                            {itemGrupos.length > 1 ? ` · ${itemGrupos.length} produtos` : ''}
+                          </span>
+                        </div>
+                        {/* Produtos do pedido */}
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          {itemGrupos.map((grupo, itemIdx) => {
+                            const p0 = grupo[0];
+                            const totalQtd = grupo.reduce((s, p) => s + Number(p.quantidade), 0);
+                            return (
+                              <div key={(p0.item_codigo || '') + itemIdx} style={{ borderTop: itemIdx > 0 ? '2px solid #e2e8f0' : 'none' }}>
+                                {/* Header do produto — mostrado uma única vez */}
+                                <div style={{ background: '#f0f4ff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: 15, fontWeight: 800, color: '#1a3a5c' }}>{p0.item_descricao || p0.item_codigo}</span>
+                                  {p0.prioridade && p0.prioridade !== 'normal' && (
+                                    <span style={{ background: '#dc2626', color: '#fff', fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 4 }}>
+                                      {p0.prioridade.toUpperCase()}
+                                    </span>
+                                  )}
+                                  <span style={{ fontSize: 12, color: '#64748b' }}>
+                                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#94a3b8', marginRight: 3 }}>Cód</span>
+                                    <span style={{ fontWeight: 800, color: '#475569' }}>{p0.item_codigo}</span>
+                                  </span>
+                                  {(p0 as any).numero_op && (
+                                    <span style={{ fontSize: 12, color: '#64748b' }}>
+                                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#94a3b8', marginRight: 3 }}>OP</span>
+                                      <span style={{ fontWeight: 800, color: '#1a3a5c' }}>{(p0 as any).numero_op}</span>
+                                    </span>
+                                  )}
+                                  <span style={{ marginLeft: 'auto', fontSize: 12, color: '#0d6efd', fontWeight: 700 }}>
+                                    {totalQtd} {p0.unidade} · {grupo.length} parcial{grupo.length > 1 ? 'is' : ''}
+                                  </span>
+                                </div>
+                                {/* Todas as parciais do item agrupadas em um único card */}
+                                <div style={{ padding: '12px 12px' }}>
+                                  <ParcialGrupoCard parciais={grupo} onRefresh={carregar} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             );

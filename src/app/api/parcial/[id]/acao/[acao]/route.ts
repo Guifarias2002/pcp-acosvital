@@ -19,7 +19,7 @@ import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { runMigrations } from '@/lib/migrations';
 
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
-const ACOES_VALIDAS = ['mover', 'iniciar', 'finalizar', 'pausar', 'retomar', 'concluir', 'cancelar', 'apontar', 'devolver'] as const;
+const ACOES_VALIDAS = ['mover', 'iniciar', 'finalizar', 'pausar', 'retomar', 'concluir', 'cancelar', 'apontar', 'devolver', 'receber'] as const;
 type Acao = typeof ACOES_VALIDAS[number];
 
 export async function POST(
@@ -90,7 +90,7 @@ export async function POST(
       return NextResponse.json({ erro: 'Quantidade inválida: deve ser maior que zero' }, { status: 400 });
     if (qtdMover > parcial.qtd)
       return NextResponse.json({
-        erro: `Quantidade (${qtdMover}) maior que o disponível na parcial (${parcial.qtd} ${parcial.unidade})`
+        erro: `Quantidade informada (${qtdMover} ${parcial.unidade}) é maior do que o disponível nesta parcial (${parcial.qtd} ${parcial.unidade})`
       }, { status: 400 });
 
     // Validação de integridade: qtdMover não pode exceder a quantidade total do item
@@ -198,6 +198,27 @@ export async function POST(
       ok: true,
       mensagem: `${qtdMover} ${parcial.unidade} movidos de ${nomeSector(parcial.setor_atual)} → ${nomeSector(setor_destino)}`,
     });
+
+  // ── receber ── reconhece o recebimento sem iniciar (em_aberto → em_aberto) ─
+  } else if (acao === 'receber') {
+    if (parcial.status !== 'em_aberto')
+      return NextResponse.json({ erro: 'Parcial não está em aberto para recebimento' }, { status: 400 });
+    await sql`
+      UPDATE producao_itemparcial
+      SET atualizado_em = NOW(),
+          observacao = CASE WHEN ${obs} != '' THEN ${obs} ELSE observacao END
+      WHERE id = ${parcialId}
+    `;
+    await sql`
+      INSERT INTO producao_movimentacaoitem
+        (item_id, pedido_id, usuario_id, setor_origem, setor_destino,
+         status_anterior, status_novo, observacao, criado_em)
+      VALUES (${parcial.item_id}, ${parcial.pedido_id}, ${user.id},
+              ${parcial.setor_atual}, ${parcial.setor_atual},
+              ${parcial.item_status}, ${parcial.item_status},
+              ${obs || `Parcial #${parcialId} recebida em ${nomeSector(parcial.setor_atual)} — aguardando início`}, NOW())
+    `;
+    return NextResponse.json({ ok: true, mensagem: 'Parcial recebida — aguardando início da produção' });
 
   // ── iniciar ───────────────────────────────────────────────────────────────
   } else if (acao === 'iniciar') {
