@@ -630,6 +630,9 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
             })} disabled={loading} style={btnStyle('#198754')}>
               <i className="bi bi-check-lg" style={{ marginRight: 5 }} />Finalizar etapa
             </button>
+            <button onClick={() => setShowEnviar(v => !v)} disabled={loading} style={btnStyle('#0d6efd')}>
+              <i className="bi bi-scissors" style={{ marginRight: 5 }} />Enviar parcial
+            </button>
             <button onClick={() => acao('pausar')} disabled={loading} style={btnStyle('#fd7e14')}>
               <i className="bi bi-pause-fill" style={{ marginRight: 5 }} />Pausar
             </button>
@@ -658,12 +661,6 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
               ✓ Encerrar
             </button>
           </>
-        )}
-
-        {!isLogistica && isAndamento && (
-          <button onClick={() => setShowEnviar(v => !v)} disabled={loading} style={btnStyle('#0d6efd')}>
-            <i className="bi bi-scissors" style={{ marginRight: 5 }} />Enviar parcial
-          </button>
         )}
 
         {/* Devolver — disponível em todos os setores */}
