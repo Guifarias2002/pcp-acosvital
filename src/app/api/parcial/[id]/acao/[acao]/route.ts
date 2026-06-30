@@ -166,6 +166,32 @@ export async function POST(
           WHERE id = ${parcial.item_id}
         `;
       }
+
+      // Se o item ficou sem parciais ativas no seu setor atual, avança para o setor destino
+      const [{ restantes }] = await tx`
+        SELECT COUNT(*)::int AS restantes
+        FROM producao_itemparcial
+        WHERE item_pedido_id = ${parcial.item_id}
+          AND setor_atual = ${parcial.item_setor_atual}
+          AND status NOT IN ('cancelada', 'concluida')
+          AND id != ${parcialId}
+      `;
+      if (Number(restantes) === 0) {
+        // Recalcula quantidade_pendente = total de parciais ativas no destino (inclui a que acabou de chegar)
+        const [{ total_destino }] = await tx`
+          SELECT COALESCE(SUM(quantidade)::float, 0) AS total_destino
+          FROM producao_itemparcial
+          WHERE item_pedido_id = ${parcial.item_id}
+            AND setor_atual = ${setor_destino}
+            AND status NOT IN ('cancelada', 'concluida')
+        `;
+        await tx`
+          UPDATE producao_itempedido
+          SET setor_atual = ${setor_destino}, status = 'aguardando',
+              quantidade_pendente = ${total_destino}, atualizado_em = NOW()
+          WHERE id = ${parcial.item_id}
+        `;
+      }
     });
 
     return NextResponse.json({
@@ -381,7 +407,10 @@ export async function POST(
       await tx`
         UPDATE producao_itemparcial
         SET setor_atual = ${setor_destino}, status = 'em_aberto',
-            concluido_em = NULL, atualizado_em = NOW()
+            concluido_em = NULL, atualizado_em = NOW(),
+            retrabalho = TRUE,
+            motivo_retrabalho = ${obs || null},
+            devolvido_de = ${parcial.setor_atual}
         WHERE id = ${parcialId}
       `;
       await tx`

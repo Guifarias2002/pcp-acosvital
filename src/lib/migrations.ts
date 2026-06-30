@@ -32,6 +32,11 @@ export async function runMigrations() {
     `).catch(() => {});
   } catch { /* ignora */ }
 
+  // M04: flag de retrabalho em parciais devolvidas
+  await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS retrabalho BOOLEAN NOT NULL DEFAULT FALSE`).catch(() => {});
+  await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS motivo_retrabalho TEXT`).catch(() => {});
+  await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS devolvido_de TEXT`).catch(() => {});
+
   // M03: backfill timing
   await sql`
     UPDATE producao_itemparcial SET concluido_em = atualizado_em

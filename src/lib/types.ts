@@ -235,10 +235,15 @@ export interface ItemParcial {
   prioridade?: string;
   pedido_prazo?: string;
   quantidade_total_item?: string;
+  proximo_setor?: string | null;
   iniciado_em?: string | null;
   concluido_em?: string | null;
   criado_em: string;
   atualizado_em: string;
+  retrabalho?: boolean;
+  motivo_retrabalho?: string | null;
+  devolvido_de?: string | null;
+  outras_parciais?: { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean }[];
 }
 
 export interface ResumoItemParcial {

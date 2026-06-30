@@ -145,6 +145,36 @@ export async function POST(
   if (!Number.isInteger(itemId) || itemId <= 0)
     return NextResponse.json({ erro: 'ID invalido' }, { status: 400 });
 
+  // ── sync: corrige setor_atual do item com base nas parciais ativas ──────────
+  if (acao === 'sync') {
+    if (!user.is_staff) return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
+    const parciais = await sql`
+      SELECT setor_atual, COUNT(*)::int AS qtd
+      FROM producao_itemparcial
+      WHERE item_pedido_id = ${itemId}
+        AND status NOT IN ('cancelada', 'concluida')
+      GROUP BY setor_atual
+    `;
+    if (parciais.length === 1) {
+      const setor = parciais[0].setor_atual as string;
+      const [{ total }] = await sql`
+        SELECT COALESCE(SUM(quantidade)::float, 0) AS total
+        FROM producao_itemparcial
+        WHERE item_pedido_id = ${itemId}
+          AND setor_atual = ${setor}
+          AND status NOT IN ('cancelada', 'concluida')
+      `;
+      await sql`
+        UPDATE producao_itempedido
+        SET setor_atual = ${setor}, status = 'aguardando',
+            quantidade_pendente = ${total}, atualizado_em = NOW()
+        WHERE id = ${itemId}
+      `;
+      return NextResponse.json({ ok: true, setor_atual: setor, quantidade_pendente: total, mensagem: `Item sincronizado para ${nomeSector(setor)} (${total} un)` });
+    }
+    return NextResponse.json({ ok: false, mensagem: 'Parciais em múltiplos setores — sincronização não aplicada', parciais });
+  }
+
   const ACOES_VALIDAS = Object.keys(TRANSICOES);
   if (!ACOES_VALIDAS.includes(acao))
     return NextResponse.json({ erro: 'Acao invalida' }, { status: 400 });

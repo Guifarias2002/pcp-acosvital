@@ -19,8 +19,8 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
 
   const verFinanceiro = user.is_staff && user.perfil !== 'lider';
 
-  // Rodar as 5 queries em paralelo
-  const [itens, lotes_chegando, lotes_trabalho, parciais, resumo] = await Promise.all([
+  // Rodar as queries em paralelo
+  const [itens, lotes_chegando, lotes_trabalho, parciais, outras_parciais, resumo] = await Promise.all([
     // Itens cujo setor_atual é este setor (visão tradicional)
     sql`
       SELECT i.*, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
@@ -59,15 +59,38 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       SELECT
         pa.id, pa.quantidade::text AS quantidade, pa.status, pa.observacao,
         pa.parcial_origem_id, pa.criado_em, pa.atualizado_em,
+        pa.retrabalho, pa.motivo_retrabalho, pa.devolvido_de,
         i.id AS item_pedido_id, i.codigo AS item_codigo, i.unidade, i.descricao AS item_descricao,
-        i.quantidade::text AS quantidade_total_item,
-        p.id AS pedido_id, p.numero_pedido_venda, p.cliente, p.prioridade
+        i.quantidade::text AS quantidade_total_item, i.roteiro_proprio,
+        p.id AS pedido_id, p.numero_pedido_venda, p.cliente, p.prioridade, p.roteiro_base
       FROM producao_itemparcial pa
       JOIN producao_itempedido i ON i.id = pa.item_pedido_id
       JOIN producao_pedido p ON p.id = pa.pedido_id
       WHERE pa.setor_atual = ${setor}
         AND pa.status IN ('em_aberto', 'em_andamento', 'finalizado_setor', 'pausado')
       ORDER BY p.numero_pedido_venda, i.codigo, pa.criado_em
+    `.catch(() => [] as Record<string, unknown>[]),
+
+    // Outras parciais ativas do mesmo item em outros setores (rastreabilidade)
+    sql`
+      SELECT
+        pa.item_pedido_id,
+        pa.setor_atual,
+        pa.status,
+        pa.retrabalho,
+        SUM(pa.quantidade)::text AS quantidade,
+        i.unidade
+      FROM producao_itemparcial pa
+      JOIN producao_itempedido i ON i.id = pa.item_pedido_id
+      WHERE pa.status NOT IN ('cancelada', 'concluida')
+        AND pa.setor_atual != ${setor}
+        AND pa.item_pedido_id IN (
+          SELECT DISTINCT item_pedido_id FROM producao_itemparcial
+          WHERE setor_atual = ${setor}
+            AND status NOT IN ('cancelada', 'concluida')
+        )
+      GROUP BY pa.item_pedido_id, pa.setor_atual, pa.status, pa.retrabalho, i.unidade
+      ORDER BY pa.item_pedido_id, pa.setor_atual
     `.catch(() => [] as Record<string, unknown>[]),
 
     // Resumo de quantidades por item neste setor (para exibição agrupada)
@@ -114,26 +137,53 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     recebido_em: l.recebido_em,
   });
 
-  const fmtParcial = (p: Record<string, unknown>) => ({
-    id: p.id,
-    item_pedido_id: p.item_pedido_id,
-    pedido_id: p.pedido_id,
-    parcial_origem_id: p.parcial_origem_id ?? null,
-    quantidade: p.quantidade,
-    unidade: p.unidade,
-    setor_atual: setor,
-    setor_atual_nome: nomeSector(setor),
-    status: p.status,
-    observacao: p.observacao ?? null,
-    item_codigo: p.item_codigo,
-    item_descricao: p.item_descricao,
-    quantidade_total_item: p.quantidade_total_item,
-    numero_pedido_venda: p.numero_pedido_venda,
-    cliente: p.cliente,
-    prioridade: p.prioridade,
-    criado_em: p.criado_em,
-    atualizado_em: p.atualizado_em,
-  });
+  // Agrupa outras_parciais por item_pedido_id para lookup rápido
+  const outrasPorItem = new Map<number, { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean }[]>();
+  for (const op of outras_parciais as Record<string, unknown>[]) {
+    const itemId = Number(op.item_pedido_id);
+    if (!outrasPorItem.has(itemId)) outrasPorItem.set(itemId, []);
+    outrasPorItem.get(itemId)!.push({
+      setor: op.setor_atual as string,
+      setor_nome: nomeSector(op.setor_atual as string),
+      quantidade: op.quantidade as string,
+      unidade: op.unidade as string,
+      status: op.status as string,
+      retrabalho: Boolean(op.retrabalho),
+    });
+  }
+
+  const fmtParcial = (p: Record<string, unknown>) => {
+    const roteiro: string[] = (p.roteiro_proprio as string[] | null)?.length
+      ? (p.roteiro_proprio as string[])
+      : ((p.roteiro_base as string[]) || []);
+    const idx = roteiro.indexOf(setor);
+    const proximo_setor = (idx !== -1 && idx < roteiro.length - 1) ? roteiro[idx + 1] : null;
+    return {
+      id: p.id,
+      item_pedido_id: p.item_pedido_id,
+      pedido_id: p.pedido_id,
+      parcial_origem_id: p.parcial_origem_id ?? null,
+      quantidade: p.quantidade,
+      unidade: p.unidade,
+      setor_atual: setor,
+      setor_atual_nome: nomeSector(setor),
+      status: p.status,
+      observacao: p.observacao ?? null,
+      item_codigo: p.item_codigo,
+      item_descricao: p.item_descricao,
+      quantidade_total_item: p.quantidade_total_item,
+      numero_pedido_venda: p.numero_pedido_venda,
+      cliente: p.cliente,
+      prioridade: p.prioridade,
+      proximo_setor,
+      criado_em: p.criado_em,
+      atualizado_em: p.atualizado_em,
+      retrabalho: p.retrabalho ?? false,
+      motivo_retrabalho: p.motivo_retrabalho ?? null,
+      devolvido_de: p.devolvido_de ?? null,
+      outras_parciais: outrasPorItem.get(Number(p.item_pedido_id)) ?? [],
+    };
+  };
 
   const fmtResumo = (r: Record<string, unknown>) => ({
     item_pedido_id: r.item_pedido_id,
