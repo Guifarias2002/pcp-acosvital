@@ -76,6 +76,9 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
   const [showSplit, setShowSplit] = useState(false);
   const [setorDestino, setSetorDestino] = useState('');
   const [qtdEnvio, setQtdEnvio] = useState('');
+  const [showDivQualidade, setShowDivQualidade] = useState(false);
+  const [setorRetrabalho, setSetorRetrabalho] = useState('');
+  const [motivoDiv, setMotivoDiv] = useState('');
 
   // Devolver form state
   const [showDevolver, setShowDevolver] = useState(false);
@@ -110,6 +113,20 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
     setAtuando(a);
     try { await parcialAcao(parcialId, a, body); await carregar(); }
     catch (e: unknown) { alert(erroMsg(e)); }
+    finally { setAtuando(''); }
+  }
+
+  async function aprovarParcialQualidade() {
+    const rot = item?.roteiro_efetivo || [];
+    const idx = rot.indexOf(parcial?.setor_atual || '');
+    const proxSetor = setorDestino || (idx !== -1 && idx < rot.length - 1 ? rot[idx + 1] : null);
+    if (!proxSetor) { alert('Selecione o setor destino'); return; }
+    setAtuando('aprovar');
+    try {
+      await parcialAcao(parcialId, 'finalizar');
+      await parcialAcao(parcialId, 'mover', { setor_destino: proxSetor, quantidade: Number(parcial!.quantidade) });
+      await carregar();
+    } catch (e: unknown) { alert(erroMsg(e)); }
     finally { setAtuando(''); }
   }
 
@@ -378,12 +395,46 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
               {isAberto && (
                 <button onClick={() => executarAcao('iniciar')} disabled={!!atuando}
                   className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
-                  {atuando === 'iniciar' ? '⏳ Iniciando...' : '▶ Iniciar processamento'}
+                  {atuando === 'iniciar' ? '⏳ Recebendo...' : '▶ Receber'}
                 </button>
               )}
 
-              {/* FINALIZAR — quando em andamento */}
-              {isAndamento && (
+              {/* QUALIDADE: Enviar tudo / parcial / divergência */}
+              {isAndamento && parcial.setor_atual === 'qualidade' && (() => {
+                const rot = item?.roteiro_efetivo || [];
+                const idx = rot.indexOf(parcial.setor_atual);
+                const proxSetor = idx !== -1 && idx < rot.length - 1 ? rot[idx + 1] : null;
+                return (
+                  <>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Enviar para:</label>
+                      <select value={setorDestino || proxSetor || ''} onChange={e => setSetorDestino(e.target.value)}
+                        className="w-full border rounded px-2 py-1.5 text-sm mb-2">
+                        {SETOR_CHOICES.filter(([cod]) => cod !== parcial.setor_atual).map(([cod, nome]) => (
+                          <option key={cod} value={cod}>
+                            {nome}{cod === proxSetor ? ' (próximo no roteiro)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button onClick={aprovarParcialQualidade} disabled={!!atuando}
+                      className="w-full bg-[#1a3a5c] text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:opacity-90 disabled:opacity-60">
+                      {atuando === 'aprovar' ? '⏳ Enviando...' : '▶ Enviar tudo'}
+                    </button>
+                    <button onClick={() => { setShowSplit(v => !v); setShowDivQualidade(false); }} disabled={!!atuando}
+                      className="w-full bg-blue-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-blue-600 disabled:opacity-60">
+                      ▶ Enviar parcial
+                    </button>
+                    <button onClick={() => { setShowDivQualidade(v => !v); setShowSplit(false); }} disabled={!!atuando}
+                      className="w-full bg-orange-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-orange-600 disabled:opacity-60">
+                      ⚠ Pedido com divergência
+                    </button>
+                  </>
+                );
+              })()}
+
+              {/* FINALIZAR — quando em andamento (setores normais) */}
+              {isAndamento && parcial.setor_atual !== 'qualidade' && (
                 <button onClick={() => setConfirmModal({
                   titulo: 'Finalizar Etapa',
                   mensagem: `Confirma que a etapa de ${parcial.setor_atual_nome} foi concluída para esta parcial?`,
@@ -394,8 +445,8 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                 </button>
               )}
 
-              {/* PAUSAR — quando em andamento */}
-              {isAndamento && (
+              {/* PAUSAR — quando em andamento (setores normais) */}
+              {isAndamento && parcial.setor_atual !== 'qualidade' && (
                 <button onClick={() => executarAcao('pausar')} disabled={!!atuando}
                   className="w-full bg-orange-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-orange-600 disabled:opacity-60">
                   {atuando === 'pausar' ? '⏳ Pausando...' : '⏸ Pausar'}
@@ -411,10 +462,18 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
               )}
 
               {/* ENVIAR AO PRÓXIMO SETOR — quando finalizado_setor */}
-              {isFinalizado && (
+              {isFinalizado && !showDivQualidade && (
                 <button onClick={() => { setShowSplit(v => !v); setShowDevolver(false); }} disabled={!!atuando}
                   className="w-full bg-[#1a3a5c] text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:opacity-90 disabled:opacity-60">
                   ↗ Enviar ao próximo setor
+                </button>
+              )}
+
+              {/* DIVERGÊNCIA — qualidade, quando finalizado */}
+              {isFinalizado && parcial.setor_atual === 'qualidade' && (
+                <button onClick={() => { setShowDivQualidade(v => !v); setShowSplit(false); setShowDevolver(false); }} disabled={!!atuando}
+                  className="w-full bg-orange-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-orange-600 disabled:opacity-60">
+                  ⚠ Pedido com divergência
                 </button>
               )}
 
@@ -435,14 +494,6 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                 })} disabled={!!atuando}
                   className="w-full border border-green-500 text-green-700 px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-50 disabled:opacity-60">
                   {atuando === 'concluir' ? '⏳ Encerrando...' : '✓ Encerrar (concluído)'}
-                </button>
-              )}
-
-              {/* ENVIAR PARCIAL — quando em andamento */}
-              {isAndamento && (
-                <button onClick={() => { setShowSplit(v => !v); setShowDevolver(false); }} disabled={!!atuando}
-                  className="w-full bg-blue-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-blue-600 disabled:opacity-60">
-                  ↗ Enviar parcial
                 </button>
               )}
 
@@ -506,6 +557,66 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                   {atuando === 'mover' ? 'Enviando...' : 'Confirmar envio'}
                 </button>
                 <button onClick={() => setShowSplit(false)} className="w-full text-center text-xs text-gray-400 hover:text-gray-600 py-1">
+                  Cancelar
+                </button>
+              </div>
+            )}
+
+            {/* Painel divergência — qualidade */}
+            {showDivQualidade && parcial.setor_atual === 'qualidade' && (
+              <div className="mt-3 space-y-2 border-t pt-3">
+                <p className="text-xs font-semibold text-orange-700">⚠ Pedido com divergência</p>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Motivo da divergência: <span className="text-red-500">*</span>
+                  </label>
+                  <textarea value={motivoDiv} onChange={e => setMotivoDiv(e.target.value)}
+                    placeholder="Descreva o problema encontrado..."
+                    rows={3}
+                    className="border rounded px-3 py-2 text-sm w-full resize-none focus:outline-none focus:ring-1 focus:ring-orange-400" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={async () => {
+                    if (!motivoDiv.trim()) { alert('Informe o motivo da divergência.'); return; }
+                    if (parcial.status === 'finalizado_setor') await executarAcao('retomar');
+                    await executarAcao('pausar', { observacao: motivoDiv });
+                    setMotivoDiv('');
+                    setShowDivQualidade(false);
+                  }} disabled={!!atuando || !motivoDiv.trim()}
+                    className="bg-yellow-100 text-yellow-800 border border-yellow-300 px-3 py-2 rounded text-sm font-semibold text-center leading-tight hover:bg-yellow-200 disabled:opacity-50">
+                    ⏸ Segurar<br/>para revisão
+                  </button>
+                  <button onClick={() => setSetorRetrabalho(v => v ? '' : '__open__')}
+                    disabled={!!atuando || !motivoDiv.trim()}
+                    className="bg-orange-50 text-orange-700 border border-orange-200 px-3 py-2 rounded text-sm font-semibold text-center leading-tight hover:bg-orange-100 disabled:opacity-50">
+                    ↩ Devolver para<br/>retrabalho
+                  </button>
+                </div>
+                {(setorRetrabalho !== '' && setorRetrabalho !== undefined) && (
+                  <div className="space-y-2">
+                    <select value={setorRetrabalho === '__open__' ? '' : setorRetrabalho} onChange={e => setSetorRetrabalho(e.target.value)}
+                      className="border rounded px-3 py-2 text-sm w-full">
+                      <option value="">Selecione o setor...</option>
+                      {SETOR_CHOICES.filter(([cod]) => cod !== parcial.setor_atual).map(([cod, nome]) => (
+                        <option key={cod} value={cod}>{nome}</option>
+                      ))}
+                    </select>
+                    <button onClick={() => {
+                      if (!motivoDiv.trim()) { alert('Informe o motivo da divergência.'); return; }
+                      const dest = setorRetrabalho === '__open__' ? '' : setorRetrabalho;
+                      if (!dest) return;
+                      executarAcao('devolver', { setor_destino: dest, observacao: motivoDiv });
+                      setMotivoDiv('');
+                      setShowDivQualidade(false);
+                      setSetorRetrabalho('');
+                    }} disabled={!!atuando || !setorRetrabalho || setorRetrabalho === '__open__' || !motivoDiv.trim()}
+                      className="bg-orange-600 text-white px-4 py-2 rounded text-sm font-semibold w-full disabled:opacity-50">
+                      Confirmar devolução
+                    </button>
+                  </div>
+                )}
+                <button onClick={() => { setShowDivQualidade(false); setMotivoDiv(''); setSetorRetrabalho(''); }}
+                  className="w-full text-center text-xs text-gray-400 hover:text-gray-600 py-1">
                   Cancelar
                 </button>
               </div>

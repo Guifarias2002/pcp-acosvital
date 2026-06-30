@@ -43,6 +43,8 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   const [confirmModal, setConfirmModal] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
   const [erroAcao, setErroAcao] = useState('');
   const [showLiberarModal, setShowLiberarModal] = useState<'completo' | 'parcial' | null>(null);
+  const [showDivergencia, setShowDivergencia] = useState(false);
+  const [motivoDivergencia, setMotivoDivergencia] = useState('');
 
   function carregar() {
     getItem(Number(id)).then(d => { setItem(d); setLoading(false); }).catch(() => setLoading(false));
@@ -60,6 +62,21 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
     catch (e: unknown) {
       const ax = e as { response?: { data?: { erro?: string } } };
       setErroAcao(ax?.response?.data?.erro || 'Erro ao executar ação. Tente novamente.');
+    }
+    finally { setAtuando(false); }
+  }
+
+  async function aprovarQualidade() {
+    setAtuando(true);
+    setErroAcao('');
+    const destino = setorDestinoEnvio || item?.proximo_setor;
+    try {
+      await itemAcao(Number(id), 'finalizar');
+      await itemAcao(Number(id), 'enviar_tudo', { setor_destino: destino });
+      carregar();
+    } catch (e: unknown) {
+      const ax = e as { response?: { data?: { erro?: string } } };
+      setErroAcao(ax?.response?.data?.erro || 'Erro ao aprovar. Tente novamente.');
     }
     finally { setAtuando(false); }
   }
@@ -369,7 +386,39 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                   </button>
                 )}
 
-                {!entregue && item.status === 'em_andamento' && (
+                {!entregue && item.status === 'em_andamento' && item.setor_atual === 'qualidade' && (
+                  <>
+                    {!showDivergencia && (
+                      <>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Enviar para:</label>
+                          <select value={setorDestinoEnvio || item.proximo_setor || ''} onChange={e => setSetorDestinoEnvio(e.target.value)}
+                            className="w-full border rounded px-2 py-1.5 text-sm mb-2">
+                            {SETOR_CHOICES.filter(([cod]) => cod !== item.setor_atual).map(([cod, nome]) => (
+                              <option key={cod} value={cod}>
+                                {nome}{cod === item.proximo_setor ? ' (próximo no roteiro)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <button onClick={aprovarQualidade} disabled={atuando}
+                          className="w-full bg-[#1a3a5c] text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:opacity-90 disabled:opacity-60">
+                          {atuando ? '⏳ Enviando...' : '▶ Enviar tudo'}
+                        </button>
+                        <button onClick={() => setShowParcial(v => !v)}
+                          className="w-full bg-blue-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-blue-600">
+                          ▶ Enviar parcial
+                        </button>
+                      </>
+                    )}
+                    <button onClick={() => { setShowDivergencia(v => !v); setShowParcial(false); }} disabled={atuando}
+                      className="w-full bg-orange-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-orange-600 disabled:opacity-60">
+                      ⚠ Pedido com divergência
+                    </button>
+                  </>
+                )}
+
+                {!entregue && item.status === 'em_andamento' && item.setor_atual !== 'qualidade' && (
                   <>
                     <button onClick={() => setConfirmModal({
                       titulo: 'Finalizar Etapa',
@@ -395,25 +444,35 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
 
                 {!entregue && item.status === 'finalizado_setor' && item.setor_atual !== 'logistica' && (
                   <>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Enviar para:</label>
-                      <select value={setorDestinoEnvio || item.proximo_setor || ''} onChange={e => setSetorDestinoEnvio(e.target.value)}
-                        className="w-full border rounded px-2 py-1.5 text-sm mb-2">
-                        {SETOR_CHOICES.filter(([cod]) => cod !== item.setor_atual).map(([cod, nome]) => (
-                          <option key={cod} value={cod}>
-                            {nome}{cod === item.proximo_setor ? ' (próximo no roteiro)' : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <button onClick={() => acao('enviar_tudo', { setor_destino: setorDestinoEnvio || item.proximo_setor })} disabled={atuando}
-                      className="w-full bg-[#1a3a5c] text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:opacity-90 disabled:opacity-60">
-                      ▶ Enviar tudo
-                    </button>
-                    <button onClick={() => setShowParcial(v => !v)}
-                      className="w-full bg-blue-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-blue-600">
-                      ▶ Enviar parcial
-                    </button>
+                    {!showDivergencia && (
+                      <>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Enviar para:</label>
+                          <select value={setorDestinoEnvio || item.proximo_setor || ''} onChange={e => setSetorDestinoEnvio(e.target.value)}
+                            className="w-full border rounded px-2 py-1.5 text-sm mb-2">
+                            {SETOR_CHOICES.filter(([cod]) => cod !== item.setor_atual).map(([cod, nome]) => (
+                              <option key={cod} value={cod}>
+                                {nome}{cod === item.proximo_setor ? ' (próximo no roteiro)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <button onClick={() => acao('enviar_tudo', { setor_destino: setorDestinoEnvio || item.proximo_setor })} disabled={atuando}
+                          className="w-full bg-[#1a3a5c] text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:opacity-90 disabled:opacity-60">
+                          ▶ Enviar tudo
+                        </button>
+                        <button onClick={() => setShowParcial(v => !v)}
+                          className="w-full bg-blue-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-blue-600">
+                          ▶ Enviar parcial
+                        </button>
+                      </>
+                    )}
+                    {item.setor_atual === 'qualidade' && (
+                      <button onClick={() => { setShowDivergencia(v => !v); setShowParcial(false); }} disabled={atuando}
+                        className="w-full bg-orange-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-orange-600 disabled:opacity-60">
+                        ⚠ Pedido com divergência
+                      </button>
+                    )}
                     <button onClick={() => acao('retomar')} disabled={atuando}
                       className="w-full bg-yellow-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-yellow-600 disabled:opacity-60">
                       ↩ Retomar etapa
@@ -428,11 +487,19 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                   </button>
                 )}
 
-                {/* Devolver — admin only */}
-                {!entregue && isAdmin && ['aguardando','recebido','em_andamento','pausado','finalizado_setor'].includes(item.status) && (
+                {/* Devolver — admin only, oculto quando divergência aberta */}
+                {!entregue && isAdmin && !showDivergencia && ['aguardando','recebido','em_andamento','pausado','finalizado_setor'].includes(item.status) && (
                   <button onClick={() => setShowDevolver(v => !v)}
                     className="w-full bg-gray-100 text-gray-700 border border-gray-200 px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-gray-200">
                     <i className="bi bi-arrow-return-left mr-2" />Devolver para setor
+                  </button>
+                )}
+
+                {/* Sincronizar localização — admin only */}
+                {isAdmin && (
+                  <button onClick={() => acao('sync')}
+                    className="w-full bg-gray-50 text-gray-500 border border-dashed border-gray-300 px-4 py-2 rounded text-xs font-medium text-left hover:bg-gray-100">
+                    <i className="bi bi-arrow-repeat mr-2" />Sincronizar localização com parciais
                   </button>
                 )}
               </div>
@@ -451,8 +518,68 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                 </div>
               )}
 
+              {/* Painel divergência — qualidade */}
+              {showDivergencia && item.setor_atual === 'qualidade' && (
+                <div className="mt-3 space-y-2 border-t pt-3">
+                  <p className="text-xs font-semibold text-orange-700">⚠ Pedido com divergência</p>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1 font-medium">Motivo da divergência: <span className="text-red-500">*</span></label>
+                    <textarea value={motivoDivergencia} onChange={e => setMotivoDivergencia(e.target.value)}
+                      placeholder="Descreva o problema encontrado..."
+                      rows={3}
+                      className="border rounded px-3 py-2 text-sm w-full resize-none focus:outline-none focus:ring-1 focus:ring-orange-400" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={async () => {
+                      if (!motivoDivergencia.trim()) { setErroAcao('Informe o motivo da divergência.'); return; }
+                      setShowDivergencia(false);
+                      setAtuando(true);
+                      try {
+                        if (item.status === 'finalizado_setor') await itemAcao(Number(id), 'retomar');
+                        await itemAcao(Number(id), 'pausar', { observacao: motivoDivergencia });
+                        setMotivoDivergencia('');
+                        carregar();
+                      } catch (e: unknown) {
+                        const ax = e as { response?: { data?: { erro?: string } } };
+                        setErroAcao(ax?.response?.data?.erro || 'Erro ao segurar para revisão.');
+                      } finally { setAtuando(false); }
+                    }} disabled={atuando || !motivoDivergencia.trim()}
+                      className="bg-yellow-100 text-yellow-800 border border-yellow-300 px-3 py-3 rounded text-xs font-semibold text-center hover:bg-yellow-200 disabled:opacity-50">
+                      ⏸ Segurar<br/>para revisão
+                    </button>
+                    <button onClick={() => setShowDevolver(v => !v)} disabled={atuando || !motivoDivergencia.trim()}
+                      className="bg-orange-100 text-orange-800 border border-orange-300 px-3 py-3 rounded text-xs font-semibold text-center hover:bg-orange-200 disabled:opacity-50">
+                      ↩ Devolver para<br/>retrabalho
+                    </button>
+                  </div>
+                  {showDevolver && (
+                    <div className="space-y-2">
+                      <select value={setorDev} onChange={e => setSetorDev(e.target.value)}
+                        className="border rounded px-3 py-2 text-sm w-full">
+                        <option value="">Selecione o setor...</option>
+                        {SETOR_CHOICES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                      </select>
+                      <button onClick={() => {
+                        if (!motivoDivergencia.trim() || !setorDev) return;
+                        acao('devolver', { setor_destino: setorDev, observacao: motivoDivergencia });
+                        setMotivoDivergencia('');
+                        setShowDivergencia(false);
+                        setShowDevolver(false);
+                      }} disabled={atuando || !setorDev}
+                        className="w-full bg-orange-600 text-white px-4 py-2 rounded text-sm font-semibold disabled:opacity-50">
+                        Confirmar devolução
+                      </button>
+                    </div>
+                  )}
+                  <button onClick={() => { setShowDivergencia(false); setMotivoDivergencia(''); setShowDevolver(false); }}
+                    className="w-full text-center text-xs text-gray-400 hover:text-gray-600 py-1">
+                    Cancelar
+                  </button>
+                </div>
+              )}
+
               {/* Painel devolver — admin */}
-              {showDevolver && (
+              {showDevolver && !showDivergencia && (
                 <div className="mt-3 space-y-2 border-t pt-3">
                   <p className="text-xs font-semibold text-gray-600">Selecionar setor de destino:</p>
                   <select value={setorDev} onChange={e => setSetorDev(e.target.value)}
