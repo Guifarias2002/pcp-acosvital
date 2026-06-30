@@ -1,8 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
-import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
-import { getSetorPainel, itemAcao, loteAcao, parcialAcao, getCachedSync } from '@/lib/api';
+import { getSetorPainel, itemAcao, loteAcao, parcialAcao } from '@/lib/api';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
@@ -875,7 +874,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   let setor = params.setor;
   try { setor = decodeURIComponent(setor); } catch { /* já decodificado */ }
   const nomeSetor = NOMES[setor] || setor;
-  const [data, setData] = useState<SetorPainelData | null>(() => getCachedSync<SetorPainelData>(`setor:${setor}`));
+  const [data, setData] = useState<SetorPainelData | null>(null);
   const [loading, setLoading] = useState(false);
   const [filtroLog, setFiltroLog] = useState<FiltroLogistica>('todos');
 
@@ -884,15 +883,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   }, [setor]);
 
   useEffect(() => {
-    if (!data) setLoading(true); // Spinner só na primeira carga sem cache
+    setLoading(true);
     carregar();
   }, [setor]);
-
-  useRealtime(
-    ['producao_itempedido', 'producao_loteitem', 'producao_itemparcial'],
-    carregar,
-    [`setor:${setor}`, 'dashboard'],
-  );
 
   return (
     <AuthGuard>
@@ -963,7 +956,11 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
           {/* Parciais de outros setores chegando aqui */}
           {(() => {
             const itemIdsNoSetor = new Set(data.itens.map(i => i.id));
-            const parciaisExternas = (data.parciais || []).filter(p => !itemIdsNoSetor.has(p.item_pedido_id));
+            // Exclui parciais que já têm um lote chegando — o LoteCard acima já representa essa peça
+            const itemIdsComLote = new Set(data.lotes_chegando.map(l => (l as unknown as Record<string, unknown>).item_pedido_id as number));
+            const parciaisExternas = (data.parciais || []).filter(p =>
+              !itemIdsNoSetor.has(p.item_pedido_id) && !itemIdsComLote.has(p.item_pedido_id)
+            );
             if (parciaisExternas.length === 0) return null;
 
             return (

@@ -158,6 +158,8 @@ export interface ItemPedido {
   valor_unitario: string | null;
   lotes?: LoteItem[];
   movimentacoes?: MovimentacaoItem[];
+  parciais?: ItemParcial[];
+  rastreio?: RastreioItem;
 }
 
 export interface Pedido {
@@ -224,11 +226,17 @@ export interface ItemParcial {
   unidade?: string;
   setor_atual: string;
   setor_atual_nome: string;
-  status: 'em_aberto' | 'em_andamento' | 'concluida' | 'cancelada';
+  status: 'em_aberto' | 'em_andamento' | 'concluida' | 'cancelada' | 'pausado' | 'finalizado_setor';
   observacao: string | null;
   item_codigo?: string;
+  item_descricao?: string;
   numero_pedido_venda?: string;
   cliente?: string;
+  prioridade?: string;
+  pedido_prazo?: string;
+  quantidade_total_item?: string;
+  iniciado_em?: string | null;
+  concluido_em?: string | null;
   criado_em: string;
   atualizado_em: string;
 }

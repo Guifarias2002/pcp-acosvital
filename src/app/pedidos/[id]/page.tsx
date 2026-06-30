@@ -2,11 +2,12 @@
 import { useEffect, useState, useRef } from 'react';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedido, itemAcao } from '@/lib/api';
-import { Pedido, COR_STATUS, STATUS_LABELS, PRIORIDADE_COR, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR } from '@/lib/types';
+import { Pedido, ItemPedido, COR_STATUS, STATUS_LABELS, PRIORIDADE_COR, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR } from '@/lib/types';
 import { getUser } from '@/lib/auth';
 import Link from 'next/link';
 import ConfirmModal from '@/components/ConfirmModal';
 import ReceberModal from '@/components/ReceberModal';
+import LiberarSetorModal from '@/components/LiberarSetorModal';
 
 const NOMES = Object.fromEntries(SETOR_CHOICES);
 
@@ -46,21 +47,35 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const [fazendo, setFazendo] = useState<{ itemId: number; acao: string } | null>(null);
   const [envParcial, setEnvParcial] = useState<{ itemId: number; qtd: string } | null>(null);
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void; perigo?: boolean } | null>(null);
+  const [liberarModal, setLiberarModal] = useState<{ itemId: number; roteiro: string[]; setorAtual: string; proximoSetor: string | null; parcial?: boolean; qtdMax?: number; unidade?: string } | null>(null);
   const user = getUser();
   const isAdmin = user?.is_staff;
   const verFinanceiro = user?.is_staff && user?.perfil !== 'lider';
 
-  async function liberarItemConfirmado(itemId: number) {
+  async function liberarItemConfirmado(itemId: number, setorDestino?: string, quantidade?: number) {
     setLiberando(itemId);
-    setConfirm(null);
-    try { await itemAcao(itemId, 'liberar'); carregar(); }
-    catch (e: unknown) { alert((e as { response?: { data?: { erro?: string } } }).response?.data?.erro || 'Erro ao liberar'); }
+    setLiberarModal(null);
+    const acao = quantidade ? 'enviar_parcial' : 'liberar';
+    const body: Record<string, unknown> = {};
+    if (setorDestino) body.setor_destino = setorDestino;
+    if (quantidade) body.quantidade = quantidade;
+    try { await itemAcao(itemId, acao, body); carregar(); }
+    catch (e: unknown) {
+      const ax = e as { response?: { status?: number; data?: { erro?: string } }; message?: string };
+      const msg = ax?.response?.data?.erro || ax?.message || 'Erro ao liberar (sem detalhes)';
+      const status = ax?.response?.status ? ` [${ax.response.status}]` : '';
+      alert(`Erro ao liberar${status}: ${msg}`);
+    }
     finally { setLiberando(null); }
   }
 
-  function liberarItem(itemId: number) {
+  function liberarItem(item: ItemPedido, parcial = false) {
     if (liberando) return;
-    setConfirm({ titulo: 'Liberar para produção', mensagem: 'Liberar este item para o próximo setor?', acao: () => liberarItemConfirmado(itemId) });
+    const roteiro = item.roteiro_efetivo?.length > 0 ? item.roteiro_efetivo : (pedido?.roteiro_base || []);
+    setLiberarModal({
+      itemId: item.id, roteiro, setorAtual: item.setor_atual, proximoSetor: item.proximo_setor,
+      parcial, qtdMax: parcial ? Number(item.quantidade_pendente) : undefined, unidade: item.unidade,
+    });
   }
 
   async function liberarTodosConfirmado() {
@@ -129,6 +144,18 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
             onCancel={() => setConfirm(null)}
           />
         )}
+
+        {/* Modal de seleção de setor para Liberar */}
+        {liberarModal && <LiberarSetorModal
+          roteiro={liberarModal.roteiro}
+          setorAtual={liberarModal.setorAtual}
+          proximoSetor={liberarModal.proximoSetor}
+          parcial={liberarModal.parcial}
+          qtdMax={liberarModal.qtdMax}
+          unidade={liberarModal.unidade}
+          onConfirm={(setor, qtd) => liberarItemConfirmado(liberarModal.itemId, setor, qtd)}
+          onCancel={() => setLiberarModal(null)}
+        />}
 
         {/* Modal de recebimento */}
         {recebendo !== null && (() => {
@@ -335,10 +362,18 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                             <span style={{ fontSize: 11, color: '#1a3a5c', background: '#f0f7ff', border: '1px solid #b6d4fe', borderRadius: 5, padding: '3px 10px', fontWeight: 500 }}>
                               <i className="bi bi-arrow-right" /> {item.proximo_setor ? (NOMES[item.proximo_setor] || item.proximo_setor) : '—'}
                             </span>
-                            <button className="btn btn-success btn-sm"
-                              onClick={() => liberarItem(item.id)} disabled={liberando === item.id}>
-                              <i className="bi bi-send" /> {liberando === item.id ? 'Liberando...' : 'Liberar'}
-                            </button>
+                            <div className="flex gap-1">
+                              <button className="btn btn-success btn-sm"
+                                onClick={() => liberarItem(item)} disabled={liberando === item.id}>
+                                <i className="bi bi-send" /> {liberando === item.id ? 'Liberando...' : 'Liberar'}
+                              </button>
+                              {Number(item.quantidade_pendente) > 1 && (
+                                <button className="btn btn-sm" style={{ background: '#0d6efd', color: '#fff', border: 'none' }}
+                                  onClick={() => liberarItem(item, true)} disabled={liberando === item.id}>
+                                  <i className="bi bi-scissors" /> Parcial
+                                </button>
+                              )}
+                            </div>
                           </>
                         )}
 

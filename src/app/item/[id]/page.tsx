@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import AuthGuard from '@/components/AuthGuard';
-import { getItem, itemAcao, parcialAcao, getCachedSync } from '@/lib/api';
+import { getItem, itemAcao, parcialAcao } from '@/lib/api';
 import { ItemPedido, SETOR_CHOICES, STATUS_LABELS, PRIORIDADE_COR, NOMES } from '@/lib/types';
 import { getUser } from '@/lib/auth';
 import { fmtData, fmtQtd } from '@/lib/format';
@@ -11,6 +11,7 @@ import DespacharModal from '@/components/DespacharModal';
 import EntregarModal from '@/components/EntregarModal';
 import AnexarComprovanteModal from '@/components/AnexarComprovanteModal';
 import ConfirmModal from '@/components/ConfirmModal';
+import LiberarSetorModal from '@/components/LiberarSetorModal';
 import ProgressoRoteiro, { RoteiroCirculo } from '@/components/workspace/ProgressoRoteiro';
 import LinhaDoTempo from '@/components/workspace/LinhaDoTempo';
 import OndeEstaoPecas from '@/components/workspace/OndeEstaoPecas';
@@ -26,7 +27,7 @@ function corStatusClass(cor: string): string {
 
 export default function ItemDetalhePage({ params }: { params: { id: string } }) {
   const { id } = params;
-  const [item, setItem] = useState<ItemPedido | null>(() => getCachedSync<ItemPedido>(`item:${id}`));
+  const [item, setItem] = useState<ItemPedido | null>(null);
   const [loading, setLoading] = useState(false);
   const [atuando, setAtuando] = useState(false);
   const [qtdParcial, setQtdParcial] = useState('');
@@ -41,6 +42,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   const [setorDestinoEnvio, setSetorDestinoEnvio] = useState('');
   const [confirmModal, setConfirmModal] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
   const [erroAcao, setErroAcao] = useState('');
+  const [showLiberarModal, setShowLiberarModal] = useState<'completo' | 'parcial' | null>(null);
 
   function carregar() {
     getItem(Number(id)).then(d => { setItem(d); setLoading(false); }).catch(() => setLoading(false));
@@ -131,6 +133,24 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
             confirmLabel="Confirmar"
             onConfirm={() => { confirmModal.acao(); setConfirmModal(null); }}
             onCancel={() => setConfirmModal(null)}
+          />
+        )}
+        {showLiberarModal && (
+          <LiberarSetorModal
+            roteiro={item.roteiro_efetivo?.length > 0 ? item.roteiro_efetivo : []}
+            setorAtual={item.setor_atual}
+            proximoSetor={item.proximo_setor}
+            parcial={showLiberarModal === 'parcial'}
+            qtdMax={showLiberarModal === 'parcial' ? Number(item.quantidade_pendente) : undefined}
+            unidade={item.unidade}
+            onConfirm={(setor, qtd) => {
+              const acaoNome = qtd ? 'enviar_parcial' : 'liberar';
+              const body: Record<string, unknown> = { setor_destino: setor };
+              if (qtd) body.quantidade = qtd;
+              setShowLiberarModal(null);
+              acao(acaoNome, body);
+            }}
+            onCancel={() => setShowLiberarModal(null)}
           />
         )}
         {/* ── Header ──────────────────────────────────────────────────────── */}
@@ -250,6 +270,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                 qtdTotal={item.quantidade}
                 qtdEntregue={item.quantidade_entregue}
                 entregue={entregue}
+                parciais={parciais}
               />
             )}
           </div>
@@ -292,10 +313,18 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
               <div className="space-y-2">
 
                 {!entregue && item.status === 'emitido' && (
-                  <button onClick={() => acao('liberar')} disabled={atuando}
-                    className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
-                    ▶ Liberar para produção
-                  </button>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowLiberarModal('completo')} disabled={atuando}
+                      className="flex-1 bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
+                      <i className="bi bi-send mr-2" />Liberar
+                    </button>
+                    {Number(item.quantidade_pendente) > 1 && (
+                      <button onClick={() => setShowLiberarModal('parcial')} disabled={atuando}
+                        className="bg-blue-600 text-white px-4 py-2.5 rounded text-sm font-semibold hover:bg-blue-700 disabled:opacity-60">
+                        <i className="bi bi-scissors mr-1" />Parcial
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 {!entregue && item.status === 'aguardando' && !showReceber && (

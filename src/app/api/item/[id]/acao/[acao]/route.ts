@@ -16,7 +16,7 @@ const TRANSICOES: Record<string, string[]> = {
   retomar: ['pausado', 'finalizado_setor'],
   finalizar: ['em_andamento', 'pausado', 'finalizado_setor'],
   enviar_tudo: ['finalizado_setor', 'aguardando', 'recebido', 'em_andamento', 'pausado'],
-  enviar_parcial: ['finalizado_setor', 'aguardando', 'recebido', 'em_andamento', 'pausado'],
+  enviar_parcial: ['emitido', 'finalizado_setor', 'aguardando', 'recebido', 'em_andamento', 'pausado'],
   despachar: ['recebido'],
   devolver: ['aguardando', 'recebido', 'em_andamento', 'pausado', 'finalizado_setor', 'em_transito'],
   entregar: ['finalizado_setor', 'aguardando', 'recebido', 'em_andamento', 'em_transito'],
@@ -250,6 +250,61 @@ export async function POST(
     if (!proximoSetor)
       return NextResponse.json({ erro: 'Nao ha proximo setor no roteiro' }, { status: 400 });
 
+    // ── Caso especial: item ainda emitido (emissao) — liberar parcial sem mudar status do item
+    if (item.status === 'emitido') {
+      if (qtd >= qtdPendente)
+        return NextResponse.json({ erro: `Para liberar tudo use o botão Liberar. Quantidade maxima para parcial: ${qtdPendente - 1}` }, { status: 400 });
+
+      await sql.begin(async (tx) => {
+        // Garante que exista uma parcial principal em emissao (para o restante)
+        const [parcialEmissao] = await (tx as unknown as typeof sql)`
+          SELECT id FROM producao_itemparcial
+          WHERE item_pedido_id = ${item.id} AND setor_atual = ${item.setor_atual}
+            AND parcial_origem_id IS NULL AND status NOT IN ('cancelada')
+          LIMIT 1
+        `;
+        let parcialOrigemId: number;
+        if (parcialEmissao) {
+          parcialOrigemId = parcialEmissao.id as number;
+          // Reduz a qty da parcial principal pelo que foi enviado
+          await (tx as unknown as typeof sql)`
+            UPDATE producao_itemparcial
+            SET quantidade = quantidade - ${qtd}, atualizado_em = NOW()
+            WHERE id = ${parcialOrigemId}
+          `;
+        } else {
+          // Primeira parcialização — cria parcial principal com o restante
+          const [nova] = await (tx as unknown as typeof sql)`
+            INSERT INTO producao_itemparcial
+              (item_pedido_id, pedido_id, quantidade, setor_atual, status, observacao, criado_por_id, criado_em, atualizado_em)
+            VALUES (${item.id}, ${item.pedido_id}, ${qtdPendente - qtd}, ${item.setor_atual},
+                    'em_aberto', 'Saldo remanescente na emissão', ${user.id}, NOW(), NOW())
+            RETURNING id
+          `;
+          parcialOrigemId = nova.id as number;
+        }
+        // Cria parcial filha no setor destino
+        await (tx as unknown as typeof sql)`
+          INSERT INTO producao_itemparcial
+            (item_pedido_id, pedido_id, parcial_origem_id, quantidade, setor_atual, status, observacao, criado_por_id, criado_em, atualizado_em)
+          VALUES (${item.id}, ${item.pedido_id}, ${parcialOrigemId}, ${qtd}, ${proximoSetor},
+                  'em_aberto', ${obs || `Liberado parcialmente: ${qtd} ${item.unidade}`}, ${user.id}, NOW(), NOW())
+        `;
+        // Registra movimentação
+        await (tx as unknown as typeof sql)`
+          INSERT INTO producao_movimentacaoitem
+            (item_id, pedido_id, usuario_id, setor_origem, setor_destino, status_anterior, status_novo, observacao, criado_em)
+          VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${proximoSetor},
+                  'emitido', 'emitido', ${obs || `Parcial: ${qtd} ${item.unidade} → ${proximoSetor}`}, NOW())
+        `;
+        // Pedido passa a em_producao mas item permanece emitido em emissao
+        await (tx as unknown as typeof sql)`
+          UPDATE producao_pedido SET status = 'em_producao', atualizado_em = NOW() WHERE id = ${item.pedido_id}
+        `;
+      });
+      return NextResponse.json({ ok: true, status: 'emitido' });
+    }
+
     // Calcula total disponível no setor somando TODAS as parciais ativas.
     // Cenário típico: item foi split e há múltiplas parciais no mesmo setor
     // (ex: 25 un de envio anterior + 75 un da remessa principal = 100 un disponíveis).
@@ -321,10 +376,10 @@ export async function POST(
         `;
         if (concluidas.length > 0) {
           // Reativa as concluídas para permitir o split
-          const ids = concluidas.map((p: Record<string, unknown>) => p.id);
+          const ids = concluidas.map((p: Record<string, unknown>) => p.id) as number[];
           await (tx as unknown as typeof sql)`
             UPDATE producao_itemparcial SET status = 'em_andamento', atualizado_em = NOW()
-            WHERE id = ANY(${ids})
+            WHERE id = ANY(${ids as unknown as string[]})
           `;
           parciaisAtivas = concluidas;
         } else {

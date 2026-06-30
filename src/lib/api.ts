@@ -66,3 +66,13 @@ export const getEntregues = (params?: Record<string, string>) =>
 // ── Lotes ─────────────────────────────────────────────────────────────────────
 export const loteAcao = (loteId: number, acao: 'receber' | 'finalizar') =>
   api.post(`/api/lote/${loteId}/${acao}`).then(r => r.data);
+
+// ── Parciais ──────────────────────────────────────────────────────────────────
+export const getParcial = (id: number) =>
+  api.get(`/api/parcial/${id}`).then(r => r.data);
+
+export const parcialAcao = (id: number, acao: string, body?: Record<string, unknown>) =>
+  api.post(`/api/parcial/${id}/acao/${acao}`, body || {}).then(r => r.data);
+
+// ── Cache helpers (no-op sem implementação de cache) ─────────────────────────
+export const invalidateCache = (..._keys: string[]) => { /* sem cache no lado cliente */ };
