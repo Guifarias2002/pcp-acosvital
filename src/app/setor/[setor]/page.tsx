@@ -495,6 +495,7 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
   const [showDevolver, setShowDevolver] = useState(false);
   const [showNaoEntregue, setShowNaoEntregue] = useState(false);
   const [showDivQualidade, setShowDivQualidade] = useState(false);
+  const [showReceberOpcoes, setShowReceberOpcoes] = useState(false);
   const [qtdEnvio, setQtdEnvio] = useState('');
   const [setorDestino, setSetorDestino] = useState('');
   const [setorDev, setSetorDev] = useState('');
@@ -658,10 +659,22 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
         )}
 
         {/* ── Setores normais: fluxo de produção ─────────────────────────── */}
-        {!isLogistica && isAberto && (
-          <button onClick={() => acao('iniciar')} disabled={loading} style={btnStyle('#198754')}>
+        {!isLogistica && isAberto && !showReceberOpcoes && (
+          <button onClick={() => setShowReceberOpcoes(true)} disabled={loading} style={btnStyle('#198754')}>
             <i className="bi bi-box-arrow-in-down" style={{ marginRight: 5 }} />Receber
           </button>
+        )}
+        {!isLogistica && isAberto && showReceberOpcoes && (
+          <>
+            <button onClick={() => { acao('iniciar'); setShowReceberOpcoes(false); }} disabled={loading}
+              style={btnStyle('#198754')}>
+              <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Começar agora
+            </button>
+            <button onClick={() => setShowReceberOpcoes(false)} disabled={loading}
+              style={btnStyle('#6c757d')}>
+              <i className="bi bi-clock" style={{ marginRight: 5 }} />Começar depois
+            </button>
+          </>
         )}
 
         {!isLogistica && isAndamento && isQualidade && (
@@ -902,6 +915,7 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
   const [showEnviar, setShowEnviar] = useState(false);
   const [showEnviarParcial, setShowEnviarParcial] = useState(false);
   const [showDivQualidade, setShowDivQualidade] = useState(false);
+  const [showReceberOpcoes, setShowReceberOpcoes] = useState(false);
   const [qtdParcial, setQtdParcial] = useState('');
   const [showDevolver, setShowDevolver] = useState(false);
   const [setorDestino, setSetorDestino] = useState('');
@@ -1090,10 +1104,22 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
 
       {/* Ações combinadas */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {!isLogistica && isAberto && (
-          <button onClick={() => acaoTodos('iniciar')} disabled={loading} style={btnStyle('#198754')}>
+        {!isLogistica && isAberto && !showReceberOpcoes && (
+          <button onClick={() => setShowReceberOpcoes(true)} disabled={loading} style={btnStyle('#198754')}>
             <i className="bi bi-box-arrow-in-down" style={{ marginRight: 5 }} />Receber
           </button>
+        )}
+        {!isLogistica && isAberto && showReceberOpcoes && (
+          <>
+            <button onClick={() => { acaoTodos('iniciar'); setShowReceberOpcoes(false); }} disabled={loading}
+              style={btnStyle('#198754')}>
+              <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Começar agora
+            </button>
+            <button onClick={() => setShowReceberOpcoes(false)} disabled={loading}
+              style={btnStyle('#6c757d')}>
+              <i className="bi bi-clock" style={{ marginRight: 5 }} />Começar depois
+            </button>
+          </>
         )}
 
         {!isLogistica && isAndamento && isQualidadeGrupo && (
