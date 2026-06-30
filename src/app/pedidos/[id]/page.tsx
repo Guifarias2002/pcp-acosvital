@@ -320,36 +320,83 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                         </div>
                         <p className="font-semibold text-gray-800">{item.descricao}</p>
                         <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
-                          <span>🔢 {item.quantidade_pendente} {item.unidade}</span>
-                          <span>📍 {item.nome_setor_atual}</span>
+                          <span>🔢 {item.quantidade} {item.unidade} total</span>
                           <span>👤 {item.pedido_cliente}</span>
                         </div>
-                        {Number(item.quantidade_pendente) < Number(item.quantidade) && Number(item.quantidade_entregue || 0) === 0 && (
-                          <div style={{ marginTop: 6, background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 5, padding: '5px 10px', fontSize: 11, color: '#856404' }}>
-                            <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 5 }}></i>
-                            <strong>Atenção:</strong> Existem <strong>{Number(item.quantidade) - Number(item.quantidade_pendente)} {item.unidade}</strong> ainda em outros setores deste item. Total original: {item.quantidade} {item.unidade}.
-                          </div>
-                        )}
-                        {Number(item.quantidade_entregue || 0) > 0 && item.status !== 'entregue' && (
-                          <div style={{ marginTop: 6, background: '#cff4fc', border: '1px solid #0dcaf0', borderRadius: 5, padding: '5px 10px', fontSize: 11, color: '#055160' }}>
-                            <i className="bi bi-info-circle-fill" style={{ marginRight: 5 }}></i>
-                            <strong>Entrega parcial:</strong> {Number(item.quantidade_entregue)} {item.unidade} deste item já foram entregues. Aguardando chegada das demais {item.quantidade_pendente} {item.unidade} na Logística.
-                          </div>
-                        )}
-                        {/* Roteiro do item */}
-                        <div className="flex items-center gap-1 mt-2 flex-wrap">
-                          {item.roteiro_efetivo.map((setor, i) => {
-                            const idxAtual = item.roteiro_efetivo.indexOf(item.setor_atual);
-                            const done = i < idxAtual;
-                            const current = setor === item.setor_atual;
-                            return (
-                              <span key={setor}
-                                className={`text-xs px-1.5 py-0.5 rounded ${current ? 'bg-blue-700 text-white font-bold' : done ? 'text-gray-400' : 'text-gray-300'}`}>
-                                {current && '● '}{NOMES[setor] || setor}
-                              </span>
-                            );
-                          })}
-                        </div>
+
+                        {/* Rastreabilidade — onde estão as peças */}
+                        {(() => {
+                          const parciais = (item as Record<string, unknown>).parciais_por_setor as { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean; motivo_retrabalho: string | null }[] | undefined;
+                          const entregues = Number(item.quantidade_entregue || 0);
+                          const hasParciais = parciais && parciais.length > 0;
+                          const STATUS_COR: Record<string, { bg: string; txt: string; label: string }> = {
+                            em_aberto:        { bg: '#e2e8f0', txt: '#374151', label: 'Aguardando' },
+                            em_andamento:     { bg: '#fef9c3', txt: '#854d0e', label: 'Em Andamento' },
+                            pausado:          { bg: '#fee2e2', txt: '#991b1b', label: 'Pausado' },
+                            finalizado_setor: { bg: '#dcfce7', txt: '#14532d', label: 'Finalizado' },
+                          };
+                          return (
+                            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              {/* Linha de progresso visual */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                {item.roteiro_efetivo.map((setor: string, i: number) => {
+                                  const idxAtual = item.roteiro_efetivo.indexOf(item.setor_atual);
+                                  const done = i < idxAtual;
+                                  const current = setor === item.setor_atual;
+                                  const temParcial = hasParciais && parciais!.some(p => p.setor === setor);
+                                  return (
+                                    <span key={setor} style={{
+                                      fontSize: 11, padding: '2px 7px', borderRadius: 4, fontWeight: current || temParcial ? 700 : 400,
+                                      background: temParcial && !current ? '#dbeafe' : current ? '#1d4ed8' : done ? '#f1f5f9' : 'transparent',
+                                      color: temParcial && !current ? '#1d4ed8' : current ? '#fff' : done ? '#94a3b8' : '#cbd5e1',
+                                      border: temParcial && !current ? '1px solid #93c5fd' : current ? 'none' : 'none',
+                                    }}>
+                                      {done && !temParcial && <span style={{ marginRight: 3 }}>✓</span>}
+                                      {(current || temParcial) && <span style={{ marginRight: 3 }}>●</span>}
+                                      {NOMES[setor] || setor}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Distribuição detalhada por setor */}
+                              {hasParciais && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
+                                  {parciais!.map((p, pi) => {
+                                    const cor = STATUS_COR[p.status] || { bg: '#f1f5f9', txt: '#374151', label: p.status };
+                                    return (
+                                      <div key={pi} style={{ background: cor.bg, border: `1px solid ${p.retrabalho ? '#fbbf24' : '#e2e8f0'}`, borderRadius: 6, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: cor.txt }}>
+                                          {p.retrabalho && '⚠ '}{Number(p.quantidade)} {p.unidade}
+                                        </span>
+                                        <span style={{ fontSize: 11, color: cor.txt }}>em <strong>{p.setor_nome}</strong></span>
+                                        <span style={{ fontSize: 10, background: 'rgba(0,0,0,0.08)', borderRadius: 3, padding: '1px 5px', color: cor.txt }}>{cor.label}</span>
+                                        {p.retrabalho && p.motivo_retrabalho && (
+                                          <span style={{ fontSize: 10, color: '#92400e', fontStyle: 'italic' }}>"{p.motivo_retrabalho}"</span>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                  {entregues > 0 && (
+                                    <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 6, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d' }}>✓ {entregues} {item.unidade}</span>
+                                      <span style={{ fontSize: 11, color: '#15803d' }}>entregues ao cliente</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Sem parciais — item no setor principal */}
+                              {!hasParciais && item.status !== 'entregue' && item.status !== 'emitido' && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8' }}>{item.quantidade_pendente} {item.unidade}</span>
+                                  <span style={{ fontSize: 11, color: '#555' }}>em <strong>{item.nome_setor_atual}</strong></span>
+                                  {entregues > 0 && <span style={{ fontSize: 11, color: '#15803d' }}>· ✓ {entregues} entregues</span>}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div className="flex flex-col gap-2 ml-3 items-end">
                         <Link href={`/item/${item.id}`} className="btn btn-outline btn-sm">

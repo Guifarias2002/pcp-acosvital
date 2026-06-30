@@ -194,10 +194,45 @@ export async function getPedidoComItens(id: number) {
     }
   }
 
+  // Distribuição de parciais ativas por setor para cada item
+  let parciaisPorSetor: Record<number, { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean; motivo_retrabalho: string | null }[]> = {};
+  if (itemIds.length > 0) {
+    const parcialRows = await sql`
+      SELECT
+        pa.item_pedido_id,
+        pa.setor_atual,
+        pa.status,
+        pa.retrabalho,
+        pa.motivo_retrabalho,
+        SUM(pa.quantidade)::text AS quantidade,
+        i2.unidade
+      FROM producao_itemparcial pa
+      JOIN producao_itempedido i2 ON i2.id = pa.item_pedido_id
+      WHERE pa.item_pedido_id = ANY(${itemIds})
+        AND pa.status NOT IN ('cancelada', 'concluida')
+      GROUP BY pa.item_pedido_id, pa.setor_atual, pa.status, pa.retrabalho, pa.motivo_retrabalho, i2.unidade
+      ORDER BY pa.item_pedido_id, pa.setor_atual
+    `;
+    for (const p of parcialRows) {
+      const iid = Number(p.item_pedido_id);
+      if (!parciaisPorSetor[iid]) parciaisPorSetor[iid] = [];
+      parciaisPorSetor[iid].push({
+        setor: p.setor_atual as string,
+        setor_nome: nomeSector(p.setor_atual as string),
+        quantidade: p.quantidade as string,
+        unidade: p.unidade as string,
+        status: p.status as string,
+        retrabalho: Boolean(p.retrabalho),
+        motivo_retrabalho: p.motivo_retrabalho as string | null,
+      });
+    }
+  }
+
   const itensComDetalhe = itens.map(i => ({
     ...i,
     lotes: lotes[i.id] || [],
     movimentacoes: movs[i.id] || [],
+    parciais_por_setor: parciaisPorSetor[i.id] || [],
   }));
 
   return formatPedido(pedRow, itensComDetalhe);
