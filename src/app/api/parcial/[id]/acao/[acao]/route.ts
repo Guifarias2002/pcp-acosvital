@@ -136,15 +136,6 @@ export async function POST(
         `;
       }
 
-      // Cria lote de trânsito para compatibilidade com fluxo de "receber lote" no setor destino
-      await tx`
-        INSERT INTO producao_loteitem
-          (item_pedido_id, setor_origem, setor_destino, quantidade, status, observacao,
-           criado_por_id, criado_em, atualizado_em)
-        VALUES
-          (${parcial.item_id}, ${parcial.setor_atual}, ${setor_destino}, ${qtdMover},
-           'em_producao', ${obs || null}, ${user.id}, NOW(), NOW())
-      `;
 
       // Registra movimentação
       await tx`
