@@ -44,7 +44,7 @@ export function getEtapa(status: string, setorAtual?: string | null): Etapa {
 }
 
 // Para uso no pedido completo — verifica status real dos itens
-export function getPedidoEtapa(pedido: { status: string; setor_atual: string; itens?: { status: string }[] }): Etapa {
+export function getPedidoEtapa(pedido: { status: string; setor_atual: string; itens?: { status: string }[]; setores_parciais?: string[] }): Etapa {
   if (pedido.status === 'entregue') return 'entregue';
   // Entrega parcial: algum item já foi entregue mas pedido ainda está aberto
   if ((pedido.itens || []).some(i => i.status === 'entregue')) return 'entregue';
@@ -54,6 +54,8 @@ export function getPedidoEtapa(pedido: { status: string; setor_atual: string; it
     return 'mat_concluido';
   }
   if (pedido.status === 'emitido') return 'a_produzir';
+  // Se há parciais ativas em setores, está em produção independente do status dos itens
+  if (pedido.setores_parciais && pedido.setores_parciais.length > 0) return 'produzindo';
   const itensAtivos = (pedido.itens || []).filter(i => i.status !== 'entregue');
   if (itensAtivos.length > 0 && itensAtivos.every(i => ['aguardando', 'recebido'].includes(i.status))) {
     return 'ag_recebimento';
@@ -183,6 +185,7 @@ export interface Pedido {
   data_emissao: string;
   criado_em: string;
   valor_calculado: string | null;
+  setores_parciais?: string[];
   itens: ItemPedido[];
 }
 

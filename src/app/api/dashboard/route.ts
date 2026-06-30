@@ -64,27 +64,52 @@ export async function GET(req: Request) {
       LEFT JOIN item_status  ist ON ist.pedido_id = p.id
     `,
 
-    // Itens por setor agrupados no banco (não mais em memória JS)
+    // Itens por setor: itens diretos + itens com parciais ativas em outros setores
     sql`
-      SELECT i.setor_atual,
-             COUNT(*)                                                                  AS qtd,
+      WITH itens_diretos AS (
+        SELECT i.setor_atual AS setor,
+               i.id, i.codigo, i.descricao,
+               i.quantidade_pendente::text, i.unidade, i.status,
+               p.numero_pedido_venda, p.cliente,
+               p.prazo_entrega::text AS pedido_prazo, p.prioridade
+        FROM producao_itempedido i
+        JOIN producao_pedido p ON p.id = i.pedido_id
+        WHERE i.status != 'entregue'
+      ),
+      itens_via_parcial AS (
+        SELECT DISTINCT pa.setor_atual AS setor,
+               i.id, i.codigo, i.descricao,
+               i.quantidade_pendente::text, i.unidade, i.status,
+               p.numero_pedido_venda, p.cliente,
+               p.prazo_entrega::text AS pedido_prazo, p.prioridade
+        FROM producao_itemparcial pa
+        JOIN producao_itempedido i ON i.id = pa.item_pedido_id
+        JOIN producao_pedido p ON p.id = i.pedido_id
+        WHERE pa.status NOT IN ('cancelada', 'concluida')
+          AND pa.setor_atual != i.setor_atual
+      ),
+      todos AS (
+        SELECT * FROM itens_diretos
+        UNION
+        SELECT * FROM itens_via_parcial
+      )
+      SELECT setor AS setor_atual,
+             COUNT(*)  AS qtd,
              json_agg(json_build_object(
-               'id',               i.id,
-               'codigo',           i.codigo,
-               'descricao',        i.descricao,
-               'quantidade_pendente', i.quantidade_pendente::text,
-               'unidade',          i.unidade,
-               'status',           i.status,
-               'setor_atual',      i.setor_atual,
-               'pedido_numero',    p.numero_pedido_venda,
-               'pedido_cliente',   p.cliente,
-               'pedido_prazo',     p.prazo_entrega::text,
-               'pedido_prioridade',p.prioridade
-             ) ORDER BY p.numero_pedido_venda)                                         AS itens
-      FROM producao_itempedido i
-      JOIN producao_pedido p ON p.id = i.pedido_id
-      WHERE i.status != 'entregue'
-      GROUP BY i.setor_atual
+               'id',               id,
+               'codigo',           codigo,
+               'descricao',        descricao,
+               'quantidade_pendente', quantidade_pendente,
+               'unidade',          unidade,
+               'status',           status,
+               'setor_atual',      setor,
+               'pedido_numero',    numero_pedido_venda,
+               'pedido_cliente',   cliente,
+               'pedido_prazo',     pedido_prazo,
+               'pedido_prioridade',prioridade
+             ) ORDER BY numero_pedido_venda) AS itens
+      FROM todos
+      GROUP BY setor
     `,
 
     // Valor por setor
@@ -133,6 +158,13 @@ export async function GET(req: Request) {
              p.prazo_entrega::text, p.prioridade, p.status, p.setor_atual,
              COALESCE(iv.valor_total, 0)::text AS valor_calculado,
              p.prazo_entrega < NOW()::date     AS atrasado,
+             COALESCE((
+               SELECT json_agg(DISTINCT pa.setor_atual)
+               FROM producao_itemparcial pa
+               JOIN producao_itempedido ii ON ii.id = pa.item_pedido_id
+               WHERE ii.pedido_id = p.id
+                 AND pa.status NOT IN ('cancelada', 'concluida')
+             ), '[]'::json) AS setores_parciais,
              COALESCE(
                json_agg(
                  json_build_object(

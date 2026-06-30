@@ -4,7 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedidos } from '@/lib/api';
 import { getToken } from '@/lib/auth';
-import { Pedido, STATUS_LABELS, getPedidoEtapa, ETAPA_LABELS } from '@/lib/types';
+import { Pedido, STATUS_LABELS, getPedidoEtapa, ETAPA_LABELS, NOMES } from '@/lib/types';
 import { getUser } from '@/lib/auth';
 import Link from 'next/link';
 
@@ -328,9 +328,32 @@ function PedidosPageInner() {
                   <td style={{ padding: '8px 12px', color: '#666' }}>{p.numero_op}</td>
                   <td style={{ padding: '8px 12px', color: '#444' }}>{p.cliente}</td>
                   <td style={{ padding: '8px 12px' }}>
-                    <span style={{ background: '#343a40', color: '#fff', fontSize: 11, padding: '2px 8px', borderRadius: 4 }}>
-                      {p.nome_setor_atual}
-                    </span>
+                    {(() => {
+                      const setores: string[] = p.setores_parciais && p.setores_parciais.length > 0
+                        ? p.setores_parciais
+                        : [p.setor_atual];
+                      if (setores.length === 1) {
+                        return (
+                          <span style={{ background: '#343a40', color: '#fff', fontSize: 11, padding: '2px 8px', borderRadius: 4 }}>
+                            {NOMES[setores[0]] || p.nome_setor_atual}
+                          </span>
+                        );
+                      }
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          <span style={{ fontSize: 10, color: '#64748b', fontWeight: 600 }}>
+                            {setores.length} setores
+                          </span>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                            {setores.map((s: string) => (
+                              <span key={s} style={{ background: '#343a40', color: '#fff', fontSize: 10, padding: '1px 6px', borderRadius: 4, whiteSpace: 'nowrap' }}>
+                                {NOMES[s] || s}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td style={{ padding: '8px 12px' }}>
                     <span style={{

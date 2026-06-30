@@ -47,10 +47,34 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const [fazendo, setFazendo] = useState<{ itemId: number; acao: string } | null>(null);
   const [envParcial, setEnvParcial] = useState<{ itemId: number; qtd: string } | null>(null);
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void; perigo?: boolean } | null>(null);
+  const [uploadingAnexo, setUploadingAnexo] = useState<'nota' | 'canhoto' | null>(null);
+  const [anexoMsg, setAnexoMsg] = useState<string | null>(null);
   const [liberarModal, setLiberarModal] = useState<{ itemId: number; roteiro: string[]; setorAtual: string; proximoSetor: string | null; parcial?: boolean; qtdMax?: number; unidade?: string } | null>(null);
   const user = getUser();
   const isAdmin = user?.is_staff;
   const verFinanceiro = user?.is_staff && user?.perfil !== 'lider';
+
+  async function uploadAnexo(tipo: 'nota' | 'canhoto' | 'pendente', arquivo?: File) {
+    setUploadingAnexo(tipo === 'pendente' ? null : tipo);
+    setAnexoMsg(null);
+    try {
+      const token = localStorage.getItem('token') || '';
+      const fd = new FormData();
+      fd.append('tipo', tipo);
+      if (arquivo) fd.append('arquivo', arquivo);
+      const res = await fetch(`/api/pedidos/${id}/anexo`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+      const data = await res.json();
+      if (data.ok) { setAnexoMsg(tipo === 'pendente' ? 'Marcado para anexar depois.' : 'Anexo enviado!'); carregar(); }
+      else setAnexoMsg(data.erro || `Erro ${res.status}`);
+    } catch { setAnexoMsg('Erro ao enviar.'); }
+    finally { setUploadingAnexo(null); }
+  }
+
+  async function removerAnexo(tipo: 'nota' | 'canhoto') {
+    const token = localStorage.getItem('token') || '';
+    await fetch(`/api/pedidos/${id}/anexo`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ tipo }) });
+    carregar();
+  }
 
   async function liberarItemConfirmado(itemId: number, setorDestino?: string, quantidade?: number) {
     setLiberando(itemId);
@@ -177,26 +201,39 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
           );
         })()}
         {/* Header */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-3">
-            <Link href="/pedidos" className="text-gray-500 hover:text-gray-700 text-sm">← Pedidos</Link>
-            <h1 className="text-xl font-bold text-gray-800">{pedido.numero_pedido_venda}</h1>
-            {pedido.numero_op && <span className="text-gray-500 text-sm">· {pedido.numero_op}</span>}
-            {(() => {
-              const et = getPedidoEtapa(pedido);
-              const ec = ETAPA_COR[et];
-              return (
-                <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, fontWeight: 700, background: ec.bg, color: ec.text, whiteSpace: 'nowrap' }}>
-                  <i className={`bi ${ec.icon}`} style={{ marginRight: 4 }} />
-                  {ETAPA_LABELS[et]}
-                </span>
-              );
-            })()}
-            <span className={`text-xs px-2 py-1 rounded font-semibold ${PRIORIDADE_COR[pedido.prioridade]}`}>
-              {pedido.prioridade?.charAt(0).toUpperCase()+pedido.prioridade?.slice(1)}
-            </span>
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Link href="/pedidos" className="text-gray-400 hover:text-gray-600 text-sm">← Pedidos</Link>
+              <span className={`text-xs px-2 py-0.5 rounded font-semibold ${PRIORIDADE_COR[pedido.prioridade]}`}>
+                {pedido.prioridade?.charAt(0).toUpperCase()+pedido.prioridade?.slice(1)}
+              </span>
+              {pedido.atrasado && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold">ATRASADO</span>}
+            </div>
+            <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+              <div>
+                <span className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Pedido de Venda</span>
+                <p className="text-xl font-bold text-gray-900 leading-tight">{pedido.numero_pedido_venda}</p>
+              </div>
+              {pedido.numero_op && (
+                <div>
+                  <span className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Ordem de Produção</span>
+                  <p className="text-base font-semibold text-gray-700 leading-tight">{pedido.numero_op}</p>
+                </div>
+              )}
+              <div>
+                <span className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Cliente</span>
+                <p className="text-base font-semibold text-gray-700 leading-tight">{pedido.cliente}</p>
+              </div>
+              {pedido.vendedor && (
+                <div>
+                  <span className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Vendedor</span>
+                  <p className="text-base font-semibold text-gray-700 leading-tight">{pedido.vendedor}</p>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-shrink-0">
             <Link href={`/pedidos/${id}/editar`} className="btn btn-outline btn-sm">
               <i className="bi bi-pencil" /> Editar
             </Link>
@@ -208,11 +245,6 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
             </Link>
           </div>
         </div>
-
-        <p className="text-sm text-gray-500 mb-4">
-          {pedido.cliente}{pedido.vendedor ? ` · ${pedido.vendedor}` : ''} · Prazo: {pedido.prazo_entrega}
-          {pedido.atrasado && <span className="ml-2 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold">ATRASADO</span>}
-        </p>
 
         {/* Roteiro base */}
         <div className="bg-white rounded-xl border shadow-sm p-4 mb-4">
@@ -535,19 +567,89 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
 
           {/* Sidebar direita (1/3) */}
           <div className="space-y-4">
+
+            {/* Card de Anexos */}
+            {isAdmin && (
+              <div style={{ borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', padding: 16 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 12px' }}>
+                  📎 Documentos da Entrega
+                </p>
+
+                {/* Nota Fiscal */}
+                <div style={{ marginBottom: 10 }}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '0 0 4px' }}>Nota Fiscal</p>
+                  {(pedido as any).nota_url ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <a href={(pedido as any).nota_url} download="nota_fiscal"
+                        style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', flex: 1 }}>
+                        ✅ Baixar nota fiscal
+                      </a>
+                      <button onClick={() => removerAnexo('nota')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12 }}>✕</button>
+                    </div>
+                  ) : (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: '#6b7280', border: '1px dashed #d1d5db', borderRadius: 6, padding: '6px 10px' }}>
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadAnexo('nota', f); e.target.value = ''; }} />
+                      {uploadingAnexo === 'nota' ? '⏳ Enviando...' : '📤 Anexar nota fiscal'}
+                    </label>
+                  )}
+                </div>
+
+                {/* Canhoto */}
+                <div style={{ marginBottom: 12 }}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '0 0 4px' }}>Canhoto</p>
+                  {(pedido as any).canhoto_url ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <a href={(pedido as any).canhoto_url} download="canhoto"
+                        style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', flex: 1 }}>
+                        ✅ Baixar canhoto
+                      </a>
+                      <button onClick={() => removerAnexo('canhoto')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12 }}>✕</button>
+                    </div>
+                  ) : (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: '#6b7280', border: '1px dashed #d1d5db', borderRadius: 6, padding: '6px 10px' }}>
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadAnexo('canhoto', f); e.target.value = ''; }} />
+                      {uploadingAnexo === 'canhoto' ? '⏳ Enviando...' : '📤 Anexar canhoto'}
+                    </label>
+                  )}
+                </div>
+
+                {/* Anexar depois */}
+                {!(pedido as any).nota_url && !(pedido as any).canhoto_url && (
+                  <button onClick={() => uploadAnexo('pendente')}
+                    style={{ width: '100%', fontSize: 12, color: '#6b7280', background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 0', cursor: 'pointer' }}>
+                    🕐 Anexar depois
+                  </button>
+                )}
+
+                {/* Pendente aviso */}
+                {(pedido as any).anexo_pendente && !(pedido as any).nota_url && !(pedido as any).canhoto_url && (
+                  <p style={{ fontSize: 11, color: '#d97706', marginTop: 8, textAlign: 'center' }}>⚠ Documentos pendentes de anexo</p>
+                )}
+
+                {anexoMsg && <p style={{ fontSize: 11, color: '#16a34a', marginTop: 8, textAlign: 'center' }}>{anexoMsg}</p>}
+              </div>
+            )}
+
             {/* Card do pedido */}
             <div className={`rounded-xl border-2 p-4 ${pedido.atrasado ? 'border-red-300 bg-red-50' : 'border-yellow-300 bg-yellow-50'}`}>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center mb-2">Pedido</p>
               <p className="font-bold text-gray-800 text-center break-all" style={{ fontSize: 'clamp(13px, 3vw, 28px)', lineHeight: 1.2 }}>{pedido.numero_pedido_venda}</p>
-              <div className="text-center mt-2">
+              <div className="text-center mt-2 flex justify-center gap-2 flex-wrap">
                 {(() => {
-                  const et = getPedidoEtapa(pedido);
-                  const ec = ETAPA_COR[et];
+                  const totalItens = pedido.itens?.length ?? 0;
+                  const totalUn = pedido.itens?.reduce((acc, i) => acc + parseFloat(i.quantidade || '0'), 0) ?? 0;
+                  const unidade = pedido.itens?.[0]?.unidade || 'un';
                   return (
-                    <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, fontWeight: 700, background: ec.bg, color: ec.text }}>
-                      <i className={`bi ${ec.icon}`} style={{ marginRight: 4 }} />
-                      {ETAPA_LABELS[et]}
-                    </span>
+                    <>
+                      <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, fontWeight: 600, background: '#f1f5f9', color: '#475569' }}>
+                        {totalItens} {totalItens === 1 ? 'item' : 'itens'}
+                      </span>
+                      <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, fontWeight: 600, background: '#f1f5f9', color: '#475569' }}>
+                        {totalUn % 1 === 0 ? totalUn : totalUn.toFixed(2)} {unidade}
+                      </span>
+                    </>
                   );
                 })()}
               </div>

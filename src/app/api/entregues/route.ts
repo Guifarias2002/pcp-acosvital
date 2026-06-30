@@ -16,6 +16,7 @@ export async function GET(req: Request) {
       p.prazo_entrega::text, p.prioridade, p.status, p.setor_atual,
       COALESCE((SELECT SUM(i2.quantidade * COALESCE(i2.valor_unitario, 0)) FROM producao_itempedido i2 WHERE i2.pedido_id = p.id), 0)::text AS valor_calculado,
       p.criado_em, p.atualizado_em,
+      p.nota_url, p.canhoto_url, p.anexo_pendente,
       COALESCE(
         json_agg(
           json_build_object(
@@ -73,10 +74,15 @@ export async function GET(req: Request) {
       ${cliente ? sql`AND LOWER(p.cliente) LIKE ${'%' + cliente.toLowerCase() + '%'}` : sql``}
   `;
 
+  const comCanhoto = pedidos.filter((p: any) => p.canhoto_url).length;
+  const semCanhoto = Number(totais.total_pedidos) - comCanhoto;
+
   return NextResponse.json({
     pedidos,
     total_pedidos: Number(totais.total_pedidos),
     total_itens: Number(totais.total_itens),
     total_valor: totais.total_valor,
+    canhotos_assinados: comCanhoto,
+    canhotos_pendentes: semCanhoto,
   });
 }

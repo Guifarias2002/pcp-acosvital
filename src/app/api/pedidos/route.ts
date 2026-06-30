@@ -17,7 +17,14 @@ export async function GET(req: Request) {
   let rows = await sql`
     SELECT p.*, u.nome AS criado_por_nome,
            COALESCE((SELECT SUM(i2.quantidade * COALESCE(i2.valor_unitario,0)) FROM producao_itempedido i2 WHERE i2.pedido_id = p.id), 0)::text AS valor_calculado,
-           COALESCE((SELECT json_agg(json_build_object('id', i3.id, 'status', i3.status)) FROM producao_itempedido i3 WHERE i3.pedido_id = p.id), '[]'::json) AS itens
+           COALESCE((SELECT json_agg(json_build_object('id', i3.id, 'status', i3.status)) FROM producao_itempedido i3 WHERE i3.pedido_id = p.id), '[]'::json) AS itens,
+           COALESCE((
+             SELECT json_agg(DISTINCT pa.setor_atual)
+             FROM producao_itemparcial pa
+             JOIN producao_itempedido ii ON ii.id = pa.item_pedido_id
+             WHERE ii.pedido_id = p.id
+               AND pa.status NOT IN ('cancelada', 'concluida')
+           ), '[]'::json) AS setores_parciais
     FROM producao_pedido p
     LEFT JOIN usuarios_usuario u ON u.id = p.criado_por_id
     WHERE 1=1

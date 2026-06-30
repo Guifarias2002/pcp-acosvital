@@ -20,6 +20,9 @@ interface Comprovante {
 
 interface PedidoEntregue extends Pedido {
   comprovantes: Comprovante[];
+  nota_url?: string | null;
+  canhoto_url?: string | null;
+  anexo_pendente?: boolean;
 }
 
 function fmtHora(s: string) {
@@ -33,11 +36,12 @@ function isImagem(url: string) {
 }
 
 export default function EntreguesPage() {
-  const [data, setData] = useState<{ pedidos: PedidoEntregue[]; total_pedidos: number; total_itens: number; total_valor: string } | null>(null);
+  const [data, setData] = useState<{ pedidos: PedidoEntregue[]; total_pedidos: number; total_itens: number; total_valor: string; canhotos_assinados: number; canhotos_pendentes: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [fCliente, setFCliente] = useState('');
   const [expandido, setExpandido] = useState<number | null>(null);
   const [anexar, setAnexar] = useState<{ itemId: number; pedidoNumero: string } | null>(null);
+  const [modalCanhotos, setModalCanhotos] = useState(false);
   const [divergencia, setDivergencia] = useState<{ pedidoId: number; pedidoNumero: string; itens: PedidoEntregue['itens'] } | null>(null);
 
   function buscar() {
@@ -49,6 +53,71 @@ export default function EntreguesPage() {
 
   return (
     <AuthGuard>
+      {/* Modal Canhotos */}
+      {modalCanhotos && data && (
+        <div onClick={() => setModalCanhotos(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 780, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
+            {/* Header */}
+            <div style={{ padding: '18px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#1a3a5c' }}>✍ Canhotos Assinados</h3>
+                <p style={{ margin: 0, fontSize: 12, color: '#888' }}>{data.canhotos_assinados} com canhoto · {data.canhotos_pendentes} pendente{data.canhotos_pendentes !== 1 ? 's' : ''}</p>
+              </div>
+              <button onClick={() => setModalCanhotos(false)}
+                style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#999' }}>×</button>
+            </div>
+            {/* Body */}
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: '#f8faff', position: 'sticky', top: 0 }}>
+                    {['Pedido', 'Cliente', 'Vendedor', 'Material', 'Valor', 'Canhoto'].map(h => (
+                      <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: '1px solid #e5e7eb' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.pedidos.map(p => {
+                    const materiais = p.itens?.map(i => i.codigo).filter(Boolean).join(', ') || '—';
+                    return (
+                      <tr key={p.id} style={{ borderBottom: '1px solid #f5f5f5' }}>
+                        <td style={{ padding: '10px 14px' }}>
+                          <Link href={`/pedidos/${p.id}`} onClick={() => setModalCanhotos(false)}
+                            style={{ fontWeight: 700, color: '#1a3a5c', textDecoration: 'none', fontSize: 13 }}>
+                            {p.numero_pedido_venda}
+                          </Link>
+                          {p.numero_op && <span style={{ fontSize: 10, color: '#aaa', marginLeft: 6 }}>OP {p.numero_op}</span>}
+                        </td>
+                        <td style={{ padding: '10px 14px', color: '#444' }}>{p.cliente}</td>
+                        <td style={{ padding: '10px 14px', color: '#666' }}>{p.vendedor || '—'}</td>
+                        <td style={{ padding: '10px 14px', color: '#555', maxWidth: 180 }}>
+                          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{materiais}</span>
+                        </td>
+                        <td style={{ padding: '10px 14px', fontWeight: 600, color: '#16a34a', whiteSpace: 'nowrap' }}>
+                          {p.valor_calculado ? `R$ ${Number(p.valor_calculado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+                        </td>
+                        <td style={{ padding: '10px 14px' }}>
+                          {p.canhoto_url
+                            ? <a href={p.canhoto_url} download="canhoto"
+                                style={{ fontSize: 12, color: '#2563eb', fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, background: '#eff6ff', padding: '3px 10px', borderRadius: 6, border: '1px solid #bfdbfe' }}>
+                                ⬇ Baixar
+                              </a>
+                            : <span style={{ fontSize: 11, color: p.anexo_pendente ? '#d97706' : '#dc2626', fontWeight: 600 }}>
+                                {p.anexo_pendente ? '⏳ Pendente' : '✗ Não anexado'}
+                              </span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {divergencia && (
         <ReportarDivergenciaModal
           pedidoId={divergencia.pedidoId}
@@ -78,7 +147,7 @@ export default function EntreguesPage() {
       </div>
 
       {data && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 18 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 18 }}>
           {[
             { label: 'Pedidos Entregues', val: data.total_pedidos, icon: 'bi-box-seam', color: '#198754' },
             { label: 'Itens Entregues', val: data.total_itens, icon: 'bi-list-check', color: '#0d6efd' },
@@ -92,6 +161,24 @@ export default function EntreguesPage() {
               </div>
             </div>
           ))}
+          {/* Card Canhotos Assinados */}
+          <div className="card" onClick={() => setModalCanhotos(true)}
+            style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', transition: 'box-shadow .15s' }}
+            onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.10)')}
+            onMouseLeave={e => (e.currentTarget.style.boxShadow = '')}>
+            <i className="bi bi-pen" style={{ fontSize: 28, color: data.canhotos_assinados === data.total_pedidos ? '#198754' : '#f59e0b' }}></i>
+            <div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: data.canhotos_assinados === data.total_pedidos ? '#198754' : '#f59e0b' }}>
+                {data.canhotos_assinados}/{data.total_pedidos}
+              </div>
+              <div style={{ fontSize: 11, color: '#888' }}>Canhotos Assinados</div>
+              {data.canhotos_pendentes > 0 && (
+                <div style={{ fontSize: 10, color: '#dc2626', fontWeight: 600, marginTop: 2 }}>
+                  {data.canhotos_pendentes} pendente{data.canhotos_pendentes > 1 ? 's' : ''}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -119,13 +206,15 @@ export default function EntreguesPage() {
               <th style={{ padding: '9px 12px', textAlign: 'left' }}>Prioridade</th>
               <th style={{ padding: '9px 12px', textAlign: 'left' }}>Valor</th>
               <th style={{ padding: '9px 12px', textAlign: 'left' }}>Comprovantes</th>
+              <th style={{ padding: '9px 12px', textAlign: 'left' }}>Nota Fiscal</th>
+              <th style={{ padding: '9px 12px', textAlign: 'left' }}>Canhoto</th>
               <th style={{ padding: '9px 12px', textAlign: 'left' }}>Divergência</th>
               <th style={{ padding: '9px 12px', textAlign: 'left' }}>Ações</th>
             </tr>
           </thead>
           <tbody>
             {!loading && (!data || data.pedidos.length === 0) && (
-              <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum pedido entregue encontrado.</td></tr>
+              <tr><td colSpan={11} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum pedido entregue encontrado.</td></tr>
             )}
             {data?.pedidos.map(p => {
               const aberto = expandido === p.id;
@@ -166,6 +255,18 @@ export default function EntreguesPage() {
                         : <span style={{ fontSize: 11, color: '#aaa' }}>Sem comprovante</span>}
                     </td>
                     <td style={{ padding: '8px 12px' }}>
+                      {p.nota_url
+                        ? <a href={p.nota_url} download="nota_fiscal" style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, textDecoration: 'none' }}>✅ Sim</a>
+                        : <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>✗ Não</span>}
+                    </td>
+                    <td style={{ padding: '8px 12px' }}>
+                      {p.canhoto_url
+                        ? <a href={p.canhoto_url} download="canhoto" style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, textDecoration: 'none' }}>✅ Sim</a>
+                        : p.anexo_pendente
+                          ? <span style={{ fontSize: 11, color: '#d97706', fontWeight: 600 }}>⏳ Pendente</span>
+                          : <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>✗ Não</span>}
+                    </td>
+                    <td style={{ padding: '8px 12px' }}>
                       <button
                         onClick={() => setDivergencia({ pedidoId: p.id, pedidoNumero: p.numero_pedido_venda, itens: p.itens })}
                         style={{ fontSize: 11, background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontWeight: 700 }}>
@@ -183,7 +284,7 @@ export default function EntreguesPage() {
                   {/* Painel expandido */}
                   {aberto && (
                     <tr key={`${p.id}-detail`}>
-                      <td colSpan={9} style={{ padding: 0, background: '#f8fffe', borderBottom: '2px solid #d1fae5' }}>
+                      <td colSpan={11} style={{ padding: 0, background: '#f8fffe', borderBottom: '2px solid #d1fae5' }}>
                         <div style={{ padding: '16px 24px' }}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
                             <i className="bi bi-truck" style={{ marginRight: 6 }}></i>Registros de Entrega

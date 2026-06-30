@@ -144,8 +144,37 @@ const PRIORIDADE_BADGE: Record<string, string> = {
 
 function PedidoRow({ p, isAdmin }: { p: DashboardData['pendencias'][0]; isAdmin: boolean | undefined }) {
   const [aberto, setAberto] = useState(false);
+  const [setorModal, setSetorModal] = useState<string | null>(null);
+  const [modalItens, setModalItens] = useState<{ codigo: string; descricao: string; quantidade: string; unidade: string; status: string }[]>([]);
+  const [modalLoading, setModalLoading] = useState(false);
   const itens = p.itens || [];
   const cor = STATUS_COR[p.status] || { bg: '#f3f4f6', text: '#555' };
+
+  async function abrirSetorModal(setor: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setSetorModal(setor);
+    setModalLoading(true);
+    try {
+      const token = localStorage.getItem('token') || '';
+      const res = await fetch(`/api/pedidos/${p.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      const filtrados = (data.itens || []).flatMap((item: any) => {
+        const parciais = (item.parciais_por_setor || []).filter((ps: any) => setor === '__todos__' || ps.setor === setor);
+        return parciais.map((ps: any) => ({
+          setor: ps.setor,
+          codigo: item.codigo,
+          descricao: item.descricao,
+          quantidade: ps.quantidade,
+          unidade: ps.unidade,
+          status: ps.status,
+          retrabalho: ps.retrabalho,
+        }));
+      });
+      setModalItens(filtrados);
+    } finally {
+      setModalLoading(false);
+    }
+  }
 
   return (
     <>
@@ -163,12 +192,31 @@ function PedidoRow({ p, isAdmin }: { p: DashboardData['pendencias'][0]; isAdmin:
         </td>
         <td style={{ padding: '10px 12px', color: '#444', fontSize: 13 }}>{p.cliente}</td>
         <td style={{ padding: '10px 12px' }}>
-          {p.setor_atual
-            ? <span style={{ background: '#1a3a5c', color: '#fff', fontSize: 11, padding: '2px 8px', borderRadius: 4 }}>
-                {NOMES_SETOR[p.setor_atual] || p.setor_atual}
-              </span>
-            : <span style={{ color: '#ccc', fontSize: 11 }}>—</span>
-          }
+          {(() => {
+            const setores: string[] = (p as any).setores_parciais && (p as any).setores_parciais.length > 0
+              ? (p as any).setores_parciais
+              : p.setor_atual ? [p.setor_atual] : [];
+            if (setores.length === 0) return <span style={{ color: '#ccc', fontSize: 11 }}>—</span>;
+            if (setores.length === 1) return (
+              <button onClick={e => abrirSetorModal(setores[0], e)}
+                style={{ background: '#1a3a5c', color: '#fff', fontSize: 11, padding: '2px 8px', borderRadius: 4, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                {NOMES_SETOR[setores[0]] || setores[0]}
+              </button>
+            );
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button onClick={e => abrirSetorModal(setores[0], e)}
+                  style={{ background: '#1a3a5c', color: '#fff', fontSize: 11, padding: '2px 8px', borderRadius: 4, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  {NOMES_SETOR[setores[0]] || setores[0]}
+                </button>
+                <button onClick={e => abrirSetorModal('__todos__', e)}
+                  style={{ background: '#e2e8f0', color: '#475569', fontSize: 12, padding: '2px 7px', borderRadius: 4, border: 'none', cursor: 'pointer', fontWeight: 700, letterSpacing: 1 }}
+                  title={`+${setores.length - 1} setor${setores.length - 1 > 1 ? 'es' : ''}: ${setores.slice(1).map(s => NOMES_SETOR[s] || s).join(', ')}`}>
+                  ···
+                </button>
+              </div>
+            );
+          })()}
         </td>
         <td style={{ padding: '10px 12px' }}>
           {(() => {
@@ -208,10 +256,10 @@ function PedidoRow({ p, isAdmin }: { p: DashboardData['pendencias'][0]; isAdmin:
           <td colSpan={8} style={{ padding: '0 12px 10px 40px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 6 }}>
               <p style={{ fontSize: 10, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: 1, margin: '0 0 4px' }}>
-                Localização dos itens
+                Localização dos itens — clique no setor para ver os detalhes
               </p>
               {itens.map(item => {
-                const cor = STATUS_COR[item.status] || { bg: '#f3f4f6', text: '#555' };
+                const corItem = STATUS_COR[item.status] || { bg: '#f3f4f6', text: '#555' };
                 return (
                   <Link key={item.id} href={`/pedidos/${p.id}`}
                     style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 10px', background: '#fff', borderRadius: 6, border: '1px solid #e5e7eb', textDecoration: 'none' }}
@@ -222,13 +270,96 @@ function PedidoRow({ p, isAdmin }: { p: DashboardData['pendencias'][0]; isAdmin:
                     <span style={{ fontSize: 11, padding: '1px 8px', borderRadius: 4, background: '#1a3a5c', color: '#fff' }}>
                       {NOMES_SETOR[item.setor_atual] || item.setor_atual || '—'}
                     </span>
-                    <span style={{ fontSize: 11, padding: '1px 8px', borderRadius: 4, background: cor.bg, color: cor.text, fontWeight: 600 }}>
+                    <span style={{ fontSize: 11, padding: '1px 8px', borderRadius: 4, background: corItem.bg, color: corItem.text, fontWeight: 600 }}>
                       {STATUS_LABELS[item.status] || item.status}
                     </span>
                     <i className="bi bi-arrow-right" style={{ color: '#ccc', fontSize: 11 }} />
                   </Link>
                 );
               })}
+            </div>
+          </td>
+        </tr>
+      )}
+
+      {/* Modal de setor */}
+      {setorModal && (
+        <tr>
+          <td colSpan={8} style={{ padding: 0 }}>
+            <div onClick={() => setSetorModal(null)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div onClick={e => e.stopPropagation()}
+                style={{ background: '#fff', borderRadius: 12, padding: 24, minWidth: 420, maxWidth: 560, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <div>
+                    <p style={{ fontSize: 10, color: '#999', fontWeight: 700, textTransform: 'uppercase', margin: 0 }}>{p.numero_pedido_venda} · {p.cliente}</p>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#1a3a5c' }}>
+                      {setorModal === '__todos__' ? 'Todos os setores' : (NOMES_SETOR[setorModal] || setorModal)}
+                    </h3>
+                  </div>
+                  <button onClick={() => setSetorModal(null)}
+                    style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#999', lineHeight: 1 }}>×</button>
+                </div>
+                {modalLoading ? (
+                  <p style={{ color: '#999', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Carregando...</p>
+                ) : modalItens.length === 0 ? (
+                  <p style={{ color: '#999', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Nenhum item neste setor.</p>
+                ) : (() => {
+                  const stBg: Record<string, string> = { em_aberto: '#f3f4f6', em_andamento: '#dbeafe', finalizado_setor: '#dcfce7', pausado: '#fef9c3' };
+                  const stLabel: Record<string, string> = { em_aberto: 'Aguardando', em_andamento: 'Em Andamento', finalizado_setor: 'Finalizado', pausado: 'Pausado' };
+                  if (setorModal === '__todos__') {
+                    // Agrupa por setor
+                    const grupos: Record<string, any[]> = {};
+                    for (const item of modalItens as any[]) {
+                      if (!grupos[item.setor]) grupos[item.setor] = [];
+                      grupos[item.setor].push(item);
+                    }
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        {Object.entries(grupos).map(([setor, items]) => (
+                          <div key={setor}>
+                            <p style={{ fontSize: 11, fontWeight: 700, color: '#1a3a5c', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 6px', padding: '4px 8px', background: '#e8eef6', borderRadius: 4 }}>
+                              {NOMES_SETOR[setor] || setor}
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {items.map((item: any, i: number) => (
+                                <div key={i} style={{ padding: '8px 12px', background: '#f8faff', borderRadius: 8, border: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                  <strong style={{ color: '#1a3a5c', fontSize: 12 }}>{item.codigo}</strong>
+                                  <span style={{ color: '#555', fontSize: 12, flex: 1 }}>{item.descricao}</span>
+                                  <span style={{ fontWeight: 700, color: '#0d6efd', fontSize: 12 }}>{item.quantidade} {item.unidade}</span>
+                                  <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 4, background: stBg[item.status] || '#f3f4f6', fontWeight: 600 }}>{stLabel[item.status] || item.status}</span>
+                                  {item.retrabalho && <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 4, background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>⚠ Retrabalho</span>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {(modalItens as any[]).map((item: any, i: number) => (
+                        <div key={i} style={{ padding: '10px 14px', background: '#f8faff', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <strong style={{ color: '#1a3a5c', fontSize: 13 }}>{item.codigo}</strong>
+                            <span style={{ color: '#555', fontSize: 12, flex: 1 }}>{item.descricao}</span>
+                            <span style={{ fontWeight: 700, color: '#0d6efd', fontSize: 13 }}>{item.quantidade} {item.unidade}</span>
+                            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: stBg[item.status] || '#f3f4f6', fontWeight: 600 }}>{stLabel[item.status] || item.status}</span>
+                            {item.retrabalho && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>⚠ Retrabalho</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+                <div style={{ marginTop: 16, textAlign: 'right' }}>
+                  <Link href={`/pedidos/${p.id}`} onClick={() => setSetorModal(null)}
+                    style={{ fontSize: 12, color: '#1a3a5c', fontWeight: 600, textDecoration: 'none' }}>
+                    Ver pedido completo →
+                  </Link>
+                </div>
+              </div>
             </div>
           </td>
         </tr>
@@ -241,6 +372,9 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
+  const [buscaMov, setBuscaMov] = useState('');
+  const [showMovDropdown, setShowMovDropdown] = useState(false);
+  const [movFiltroItem, setMovFiltroItem] = useState<{ codigo: string; descricao: string; pv: string; op: string } | null>(null);
   const [fPrioridade, setFPrioridade] = useState('');
   const [filtroEtapa, setFiltroEtapa] = useState<string | null>(null);
   const pedidosRef = useRef<HTMLDivElement>(null);
@@ -470,18 +604,72 @@ export default function DashboardPage() {
 
           {/* Últimas Movimentações */}
           <div className="card">
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <strong style={{ fontSize: 13, color: '#333' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <strong style={{ fontSize: 13, color: '#333', whiteSpace: 'nowrap' }}>
                 <i className="bi bi-activity" style={{ marginRight: 6, color: '#0d6efd' }}></i>
                 Últimas Movimentações
                 <span style={{ fontSize: 11, color: '#888', fontWeight: 400, marginLeft: 8 }}>feed em tempo real</span>
               </strong>
+              <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
+                {movFiltroItem ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f0f4ff', border: '1px solid #c7d7f8', borderRadius: 6, padding: '3px 10px' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#1a3a5c' }}>{movFiltroItem.codigo}</span>
+                    <span style={{ fontSize: 11, color: '#555', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{movFiltroItem.pv}{movFiltroItem.op ? ` · OP ${movFiltroItem.op}` : ''}</span>
+                    <button onClick={() => { setMovFiltroItem(null); setBuscaMov(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', fontSize: 14, lineHeight: 1 }}>×</button>
+                  </div>
+                ) : (
+                  <input
+                    value={buscaMov}
+                    onChange={e => setBuscaMov(e.target.value)}
+                    onFocus={() => setShowMovDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowMovDropdown(false), 150)}
+                    placeholder="Buscar produto ou pedido..."
+                    style={{ width: '100%', fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid #e5e7eb', outline: 'none', color: '#333', boxSizing: 'border-box' }}
+                  />
+                )}
+                {showMovDropdown && !movFiltroItem && (() => {
+                  const q = buscaMov.toLowerCase();
+                  const opcoes: { codigo: string; descricao: string; pv: string; op: string }[] = [];
+                  const visto = new Set<string>();
+                  for (const p of data?.pendencias || []) {
+                    for (const item of p.itens || []) {
+                      const key = `${item.codigo}__${p.numero_pedido_venda}`;
+                      if (visto.has(key)) continue;
+                      visto.add(key);
+                      if (!q || item.codigo.toLowerCase().includes(q) || (item.descricao || '').toLowerCase().includes(q) || p.numero_pedido_venda.toLowerCase().includes(q) || (p.numero_op || '').toLowerCase().includes(q)) {
+                        opcoes.push({ codigo: item.codigo, descricao: item.descricao || '', pv: p.numero_pedido_venda, op: p.numero_op || '' });
+                      }
+                    }
+                  }
+                  if (opcoes.length === 0) return null;
+                  return (
+                    <div style={{ position: 'absolute', top: '110%', left: 0, right: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 200, maxHeight: 220, overflowY: 'auto' }}>
+                      {opcoes.map((op, i) => (
+                        <button key={i} onMouseDown={() => { setMovFiltroItem(op); setBuscaMov(op.codigo); setShowMovDropdown(false); }}
+                          style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', borderBottom: '1px solid #f5f5f5' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#f8faff')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                          <div style={{ fontWeight: 700, fontSize: 12, color: '#1a3a5c' }}>{op.codigo}</div>
+                          <div style={{ fontSize: 11, color: '#888' }}>PV {op.pv}{op.op ? ` · OP ${op.op}` : ''} {op.descricao ? `· ${op.descricao}` : ''}</div>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
             <div style={{ maxHeight: 280, overflowY: 'auto' }}>
               {data.ultimas_movimentacoes.length === 0 && (
                 <p style={{ color: '#999', fontSize: 13, padding: 16, margin: 0, textAlign: 'center' }}>Nenhuma movimentação registrada.</p>
               )}
-              {data.ultimas_movimentacoes.map((m, i) => {
+              {data.ultimas_movimentacoes.filter(m => {
+                if (movFiltroItem) {
+                  return m.item_codigo === movFiltroItem.codigo && m.numero_pedido_venda === movFiltroItem.pv;
+                }
+                if (!buscaMov.trim()) return true;
+                const q = buscaMov.toLowerCase();
+                return (m.numero_pedido_venda || '').toLowerCase().includes(q) || (m.item_codigo || '').toLowerCase().includes(q);
+              }).map((m, i) => {
                 const antCor = STATUS_COR[m.status_anterior] || { bg: '#f3f4f6', text: '#555' };
                 const novCor = STATUS_COR[m.status_novo] || { bg: '#dcfce7', text: '#166534' };
                 return (

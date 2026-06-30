@@ -135,6 +135,10 @@ export function formatPedido(row: any, itens: unknown[] = []) {
     data_emissao: row.data_emissao,
     criado_em: row.criado_em,
     valor_calculado: row.valor_calculado,
+    setores_parciais: (row.setores_parciais || []) as string[],
+    nota_url: row.nota_url || null,
+    canhoto_url: row.canhoto_url || null,
+    anexo_pendente: row.anexo_pendente || false,
     itens,
   };
 }
