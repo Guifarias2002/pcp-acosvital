@@ -44,7 +44,7 @@ export default function NovoPedidoPage() {
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
-    if (roteiro.length === 0) { setErro('Selecione pelo menos um setor no roteiro.'); return; }
+    if (roteiro.length < 3) { setErro('O roteiro precisa ter pelo menos 3 setores (incluindo Emissão de Ordens) para salvar o pedido. Selecione mais setores no painel à direita.'); return; }
     setErro('');
     setLoading(true);
     try {
