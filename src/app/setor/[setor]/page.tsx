@@ -545,7 +545,7 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
   });
 
   return (
-    <div style={{ opacity: loading ? .6 : 1 }}>
+    <div style={{ border: parcial.retrabalho ? '1.5px solid #fbbf24' : '1px solid #dde3f0', borderRadius: 10, overflow: 'hidden', background: '#fff', opacity: loading ? .6 : 1 }}>
       {confirm && (
         <ConfirmModal
           titulo={confirm.titulo}
@@ -557,16 +557,25 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
         />
       )}
 
-      {/* Cabeçalho */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#1a3a5c' }}>{parcial.numero_pedido_venda}</div>
-          <div style={{ fontSize: 13, color: '#555' }}>
-            <strong>{parcial.item_codigo}</strong>
-            {parcial.item_descricao && <span style={{ color: '#999', marginLeft: 6 }}>{parcial.item_descricao}</span>}
-          </div>
+      {/* Cabeçalho do pedido */}
+      <div style={{ background: parcial.retrabalho ? '#fffbeb' : '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#1a3a5c' }}>{parcial.numero_pedido_venda}</span>
+          <span style={{ fontSize: 12, color: '#555' }}>·</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>{parcial.item_codigo}</span>
+          {parcial.item_descricao && <span style={{ fontSize: 11, color: '#94a3b8' }}>{parcial.item_descricao}</span>}
+          {parcial.prioridade && (
+            <span className={`badge-${parcial.prioridade}`} style={{ fontSize: 10 }}>
+              {parcial.prioridade.charAt(0).toUpperCase() + parcial.prioridade.slice(1)}
+            </span>
+          )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {parcial.pedido_prazo && (
+            <span style={{ fontSize: 10, color: '#94a3b8' }}>
+              <i className="bi bi-calendar3" style={{ marginRight: 3 }} />{parcial.pedido_prazo}
+            </span>
+          )}
           <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: badge.bg, color: badge.color }}>
             {LABEL_PARCIAL[parcial.status] || parcial.status}
           </span>
@@ -576,61 +585,45 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
         </div>
       </div>
 
-      {/* Banner retrabalho */}
-      {parcial.retrabalho && (
-        <div style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 6, padding: '6px 10px', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#856404' }}>
-            ⚠ Retrabalho — devolvido da Inspeção de Qualidade
-          </div>
-          {parcial.motivo_retrabalho && (
-            <div style={{ fontSize: 11, color: '#664d03' }}>Motivo: {parcial.motivo_retrabalho}</div>
-          )}
-          <div style={{ fontSize: 11, color: '#664d03' }}>
-            Pedido: <strong>{parcial.numero_pedido_venda}</strong> · Item: <strong>{parcial.item_codigo}</strong>
-          </div>
-        </div>
-      )}
+      {/* Corpo */}
+      <div style={{ padding: '12px 14px' }}>
 
-      {/* Quantidade e prioridade */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <span style={{ fontSize: 16, fontWeight: 700, color: '#0d6efd' }}>
-          {fmtQtd(parcial.quantidade)} {parcial.unidade}
-        </span>
-        {parcial.quantidade_total_item && (
-          <span style={{ fontSize: 11, color: '#888' }}>de {fmtQtd(parcial.quantidade_total_item)} totais</span>
-        )}
-        {parcial.prioridade && (
-          <span className={`badge-${parcial.prioridade}`}>
-            {parcial.prioridade.charAt(0).toUpperCase() + parcial.prioridade.slice(1)}
-          </span>
-        )}
-      </div>
-
-      {/* Rastreabilidade — outras parciais do mesmo item */}
-      {parcial.outras_parciais && parcial.outras_parciais.length > 0 && (
-        <div style={{ background: '#f0f4ff', border: '1px solid #c7d2fe', borderRadius: 6, padding: '6px 10px', marginBottom: 8 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#3730a3', marginBottom: 4 }}>
-            📍 Outras peças deste item:
-          </div>
-          {parcial.outras_parciais.map((op, i) => (
-            <div key={i} style={{ fontSize: 11, color: '#4338ca', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-              <span style={{ fontWeight: 600 }}>{fmtQtd(op.quantidade)} {op.unidade}</span>
-              <span>→</span>
-              <span>{op.setor_nome}</span>
-              {op.retrabalho && <span style={{ color: '#b45309', fontWeight: 600 }}>⚠ Retrabalho</span>}
-              <span style={{ color: '#818cf8', fontSize: 10 }}>({op.status === 'em_aberto' ? 'Aguardando' : op.status === 'em_andamento' ? 'Em Andamento' : op.status === 'finalizado_setor' ? 'Finalizado' : op.status === 'pausado' ? 'Pausado' : op.status})</span>
+        {/* Banner retrabalho */}
+        {parcial.retrabalho && (
+          <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6, padding: '6px 10px', marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <span style={{ fontSize: 14 }}>⚠</span>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>Retrabalho — devolvido da Inspeção de Qualidade</div>
+              {parcial.motivo_retrabalho && <div style={{ fontSize: 11, color: '#78350f' }}>Motivo: {parcial.motivo_retrabalho}</div>}
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* Prazo */}
-      {parcial.pedido_prazo && (
-        <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>
-          <i className="bi bi-calendar3" style={{ marginRight: 4 }} />
-          Prazo: {parcial.pedido_prazo}
+        {/* Quantidade + rastreabilidade */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
+          <span style={{ fontSize: 20, fontWeight: 800, color: '#1d4ed8' }}>{fmtQtd(parcial.quantidade)}</span>
+          <span style={{ fontSize: 13, color: '#64748b' }}>{parcial.unidade}</span>
+          {parcial.quantidade_total_item && (
+            <span style={{ fontSize: 11, color: '#94a3b8' }}>de {fmtQtd(parcial.quantidade_total_item)} totais</span>
+          )}
         </div>
-      )}
+
+        {/* Outras parciais do mesmo item */}
+        {parcial.outras_parciais && parcial.outras_parciais.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+            {parcial.outras_parciais.map((op, i) => {
+              const stLabel: Record<string, string> = { em_aberto: 'Aguardando', em_andamento: 'Em Andamento', finalizado_setor: 'Finalizado', pausado: 'Pausado' };
+              const stColor: Record<string, string> = { em_aberto: '#64748b', em_andamento: '#854d0e', finalizado_setor: '#14532d', pausado: '#991b1b' };
+              const stBg: Record<string, string> = { em_aberto: '#f1f5f9', em_andamento: '#fef9c3', finalizado_setor: '#dcfce7', pausado: '#fee2e2' };
+              return (
+                <span key={i} style={{ fontSize: 11, background: stBg[op.status] || '#f1f5f9', border: op.retrabalho ? '1px solid #fbbf24' : '1px solid #e2e8f0', borderRadius: 5, padding: '3px 8px', color: stColor[op.status] || '#374151', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {op.retrabalho && '⚠ '}<strong>{fmtQtd(op.quantidade)} {op.unidade}</strong> em {op.setor_nome}
+                  <span style={{ opacity: 0.7 }}>· {stLabel[op.status] || op.status}</span>
+                </span>
+              );
+            })}
+          </div>
+        )}
 
       {/* Ações */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -898,6 +891,7 @@ function ParcialCard({ parcial, onRefresh }: { parcial: ItemParcial; onRefresh: 
           </div>
         </div>
       )}
+      </div>{/* fim corpo */}
     </div>
   );
 }
@@ -1545,9 +1539,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {grupos.map(grupo => (
-                    <div key={grupo[0].item_pedido_id} style={{ boxShadow: '0 1px 4px rgba(0,0,0,.06)' }}>
-                      <ParcialGrupoCard parciais={grupo} onRefresh={carregar} />
-                    </div>
+                    <ParcialGrupoCard key={grupo[0].item_pedido_id} parciais={grupo} onRefresh={carregar} />
                   ))}
                 </div>
               </section>
