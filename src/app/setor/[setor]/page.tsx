@@ -931,27 +931,6 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
       {data && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-          {/* Lotes chegando — exclui itens que já chegam como parcial individual */}
-          {(() => {
-            const itemIdsComParcial = new Set((data.parciais || []).map(p => p.item_pedido_id));
-            const lotesVisiveis = data.lotes_chegando.filter(
-              l => !itemIdsComParcial.has((l as unknown as Record<string, unknown>).item_pedido_id as number)
-            );
-            if (lotesVisiveis.length === 0) return null;
-            return (
-            <section>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#0d6efd', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-                <i className="bi bi-arrow-down-circle" style={{ marginRight: 6 }}></i>
-                Lotes Chegando ({lotesVisiveis.length})
-              </div>
-              <div className="grid-3">
-                {lotesVisiveis.map(l => (
-                  <LoteCard key={l.id} lote={l as LoteItem & Record<string, unknown>} tipo="chegando" onRefresh={carregar} />
-                ))}
-              </div>
-            </section>
-            );
-          })()}
 
 
           {/* Parciais chegando neste setor */}
