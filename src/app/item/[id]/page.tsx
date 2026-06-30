@@ -383,25 +383,6 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                       className="w-full bg-yellow-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-yellow-600 disabled:opacity-60">
                       ⏸ Pausar
                     </button>
-                    {item.setor_atual !== 'logistica' && (
-                      <>
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">Enviar parcial para:</label>
-                          <select value={setorDestinoEnvio || item.proximo_setor || ''} onChange={e => setSetorDestinoEnvio(e.target.value)}
-                            className="w-full border rounded px-2 py-1.5 text-sm mb-2">
-                            {SETOR_CHOICES.filter(([cod]) => cod !== item.setor_atual).map(([cod, nome]) => (
-                              <option key={cod} value={cod}>
-                                {nome}{cod === item.proximo_setor ? ' (próximo no roteiro)' : ''}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <button onClick={() => setShowParcial(v => !v)}
-                          className="w-full bg-blue-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-blue-600 disabled:opacity-60">
-                          ▶ Enviar parcial
-                        </button>
-                      </>
-                    )}
                   </>
                 )}
 
