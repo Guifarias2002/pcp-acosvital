@@ -30,7 +30,7 @@ function Toast({ toast, fechar }: { toast: { msg: string; tipo: 'erro' | 'ok' } 
   return (
     <>
     <style>{`@keyframes slideInRight{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}`}</style>
-    <div style={{
+    <div className="toast-fixed" style={{
       position: 'fixed', top: 20, right: 20, zIndex: 9999,
       background: isErro ? '#fee2e2' : '#dcfce7',
       border: `1.5px solid ${isErro ? '#fca5a5' : '#86efac'}`,
@@ -1777,7 +1777,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
       {loading && <p style={{ color: '#999', textAlign: 'center', padding: 40 }}>Carregando...</p>}
 
       {data && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div className="setor-conteudo" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
 
 
@@ -1828,9 +1828,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                     const itemGrupos = Array.from(itemCodigoMap.values());
 
                     return (
-                      <div key={pedido_id} style={{ border: '2px solid #dde3f0', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+                      <div key={pedido_id} className="setor-pedido-grupo" style={{ border: '2px solid #dde3f0', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
                         {/* Cabeçalho do pedido */}
-                        <div style={{ background: '#1a3a5c', color: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div className="setor-pedido-header" style={{ background: '#1a3a5c', color: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
                           <i className="bi bi-folder2-open" style={{ fontSize: 15 }} />
                           <span style={{ fontWeight: 700, fontSize: 15 }}>Pedido de Venda {numero_pedido_venda}</span>
                           <span style={{ fontSize: 11, opacity: 0.65, marginLeft: 4 }}>
@@ -1868,7 +1868,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                                   </span>
                                 </div>
                                 {/* Todas as parciais do item agrupadas em um único card */}
-                                <div style={{ padding: '12px 12px' }}>
+                                <div className="setor-parcial-area" style={{ padding: '12px 12px' }}>
                                   <ParcialGrupoCard parciais={grupo} onRefresh={carregar} />
                                 </div>
                               </div>
