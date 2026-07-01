@@ -4,31 +4,60 @@ import { autenticar } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
 
-const MAX_SIZE = 20 * 1024 * 1024; // 20 MB
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const BUCKET = 'desenhos';
+
+const MAX_SIZE = 20 * 1024 * 1024;
 const TIPOS_ACEITOS = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+
+async function uploadStorage(path: string, body: ArrayBuffer, contentType: string) {
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${SERVICE_KEY}`,
+      'Content-Type': contentType,
+      'x-upsert': 'true',
+    },
+    body,
+  });
+  if (!res.ok) throw new Error(`Storage upload failed: ${await res.text()}`);
+}
+
+async function deleteStorage(path: string) {
+  await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${SERVICE_KEY}` },
+  });
+}
+
+async function downloadStorage(path: string): Promise<Response> {
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, {
+    headers: { Authorization: `Bearer ${SERVICE_KEY}` },
+  });
+  return res;
+}
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
 
   const pedidoId = Number(params.id);
-
   const rows = await sql`SELECT desenho_url FROM producao_pedido WHERE id = ${pedidoId}`;
-  const dataUri: string | null = rows[0]?.desenho_url ?? null;
+  const storagePath: string | null = rows[0]?.desenho_url ?? null;
 
-  if (!dataUri) return new Response('Sem desenho', { status: 404 });
+  if (!storagePath) return new Response('Sem desenho', { status: 404 });
 
-  // Extrai tipo e bytes do data URI: "data:<mime>;base64,<data>"
-  const match = dataUri.match(/^data:([^;]+);base64,(.+)$/s);
-  if (!match) return new Response('Formato inválido', { status: 500 });
+  const fileRes = await downloadStorage(storagePath);
+  if (!fileRes.ok) return new Response('Erro ao buscar desenho', { status: 500 });
 
-  const [, mime, b64] = match;
-  const buffer = Buffer.from(b64, 'base64');
+  const contentType = fileRes.headers.get('content-type') || 'application/octet-stream';
+  const ext = contentType.split('/')[1] || 'bin';
 
-  return new Response(buffer, {
+  return new Response(await fileRes.arrayBuffer(), {
     headers: {
-      'Content-Type': mime,
-      'Content-Disposition': `inline; filename="desenho_${pedidoId}.${mime.split('/')[1]}"`,
+      'Content-Type': contentType,
+      'Content-Disposition': `inline; filename="desenho_${pedidoId}.${ext}"`,
       'Cache-Control': 'private, max-age=3600',
     },
   });
@@ -52,11 +81,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (arquivo.size > MAX_SIZE)
     return NextResponse.json({ erro: 'Arquivo muito grande (máx 20 MB)' }, { status: 400 });
 
-  const bytes = await arquivo.arrayBuffer();
-  const base64 = Buffer.from(bytes).toString('base64');
-  const dataUri = `data:${arquivo.type};base64,${base64}`;
+  const ext = arquivo.type.split('/')[1] || 'bin';
+  const storagePath = `pedido_${pedidoId}.${ext}`;
 
-  await sql`UPDATE producao_pedido SET desenho_url = ${dataUri} WHERE id = ${pedidoId}`;
+  const bytes = await arquivo.arrayBuffer();
+  await uploadStorage(storagePath, bytes, arquivo.type);
+
+  await sql`UPDATE producao_pedido SET desenho_url = ${storagePath} WHERE id = ${pedidoId}`;
 
   return NextResponse.json({ ok: true });
 }
@@ -67,6 +98,12 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   const pedidoId = Number(params.id);
+
+  const rows = await sql`SELECT desenho_url FROM producao_pedido WHERE id = ${pedidoId}`;
+  const storagePath: string | null = rows[0]?.desenho_url ?? null;
+
+  if (storagePath) await deleteStorage(storagePath);
+
   await sql`UPDATE producao_pedido SET desenho_url = NULL WHERE id = ${pedidoId}`;
 
   return NextResponse.json({ ok: true });
