@@ -245,7 +245,7 @@ function PedidosPageInner() {
             <option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</option>
           ))}
         </select>
-        <button onClick={buscar} style={{
+        <button onClick={() => buscar()} style={{
           background: '#1a3a5c', color: '#fff', border: 'none',
           borderRadius: 5, padding: '5px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600,
         }}>
