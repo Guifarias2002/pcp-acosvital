@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedidos } from '@/lib/api';
@@ -76,6 +76,8 @@ function PedidosPageInner() {
   const isAdmin = _u?.is_staff;
   const isSuperAdmin = _u?.perfil === 'administrador' || (_u?.is_staff && _u?.perfil !== 'pcp' && _u?.perfil !== 'lider');
 
+  const buscarRef = useRef<() => void>(() => {});
+
   function buscar() {
     setLoading(true);
     setSelectedIds(new Set());
@@ -83,8 +85,15 @@ function PedidosPageInner() {
     if (fEtapa === 'entregue') params.entregue = '1';
     getPedidos(params).then(setPedidos).catch(() => {}).finally(() => setLoading(false));
   }
+  buscarRef.current = buscar;
 
-  useEffect(() => { buscar(); }, []);
+  useEffect(() => { buscarRef.current(); }, []);
+
+  // Polling 10s — mantém lista sempre atualizada
+  useEffect(() => {
+    const t = setInterval(() => buscarRef.current(), 10_000);
+    return () => clearInterval(t);
+  }, []);
 
   const pedidosFiltrados = pedidos.filter(p => !fEtapa || getPedidoEtapa(p) === fEtapa);
   const todosSelected = pedidosFiltrados.length > 0 && pedidosFiltrados.every(p => selectedIds.has(p.id));
