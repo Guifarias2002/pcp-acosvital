@@ -27,7 +27,7 @@ function SetorRow({ s, isAdmin }: { s: DashboardData['por_setor'][0]; isAdmin: b
 
   // Agrupa itens por status
   const porStatus: Record<string, number> = {};
-  for (const item of s.itens) {
+  for (const item of (s.itens ?? [])) {
     porStatus[item.status] = (porStatus[item.status] || 0) + 1;
   }
 
@@ -76,7 +76,7 @@ function SetorRow({ s, isAdmin }: { s: DashboardData['por_setor'][0]; isAdmin: b
       {/* Itens expandidos */}
       {aberto && (
         <div style={{ paddingBottom: 6 }}>
-          {s.itens.map(item => {
+          {(s.itens ?? []).map(item => {
             const roteiro = item.roteiro_efetivo || [];
             const idxAtual = roteiro.indexOf(item.setor_atual);
             return (
