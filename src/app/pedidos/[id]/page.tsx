@@ -50,6 +50,8 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void; perigo?: boolean } | null>(null);
   const [uploadingAnexo, setUploadingAnexo] = useState<'nota' | 'canhoto' | null>(null);
   const [anexoMsg, setAnexoMsg] = useState<string | null>(null);
+  const [uploadingDesenho, setUploadingDesenho] = useState(false);
+  const [desenhoMsg, setDesenhoMsg] = useState<string | null>(null);
   const [liberarModal, setLiberarModal] = useState<{ itemId: number; roteiro: string[]; setorAtual: string; proximoSetor: string | null; parcial?: boolean; qtdMax?: number; unidade?: string } | null>(null);
   const user = getUser();
   const isAdmin = user?.is_staff;
@@ -74,6 +76,28 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   async function removerAnexo(tipo: 'nota' | 'canhoto') {
     const token = localStorage.getItem('token') || '';
     await fetch(`/api/pedidos/${id}/anexo`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ tipo }) });
+    carregar();
+  }
+
+  async function uploadDesenho(arquivo: File) {
+    setUploadingDesenho(true);
+    setDesenhoMsg(null);
+    try {
+      const token = localStorage.getItem('token') || '';
+      const fd = new FormData();
+      fd.append('arquivo', arquivo);
+      const res = await fetch(`/api/pedidos/${id}/desenho`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+      const data = await res.json();
+      if (data.ok) { setDesenhoMsg('Desenho anexado com sucesso!'); carregar(); }
+      else setDesenhoMsg(data.erro || `Erro ${res.status}`);
+    } catch { setDesenhoMsg('Erro ao enviar.'); }
+    finally { setUploadingDesenho(false); }
+  }
+
+  async function removerDesenho() {
+    const token = localStorage.getItem('token') || '';
+    await fetch(`/api/pedidos/${id}/desenho`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    setDesenhoMsg(null);
     carregar();
   }
 
@@ -582,6 +606,34 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
 
           {/* Sidebar direita (1/3) */}
           <div className="space-y-4">
+
+            {/* Card de Desenho Técnico */}
+            {isAdmin && (
+              <div style={{ borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', padding: 16 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 12px' }}>
+                  📐 Desenho Técnico
+                </p>
+                {(pedido as any).desenho_url ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <a href={(pedido as any).desenho_url} target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#2563eb', textDecoration: 'none', border: '1px solid #bfdbfe', borderRadius: 6, padding: '8px 10px', background: '#eff6ff' }}>
+                      📄 Visualizar Desenho
+                    </a>
+                    <button onClick={removerDesenho}
+                      style={{ fontSize: 11, color: '#dc2626', background: 'none', border: '1px solid #fecaca', borderRadius: 6, padding: '5px 10px', cursor: 'pointer' }}>
+                      ✕ Remover desenho
+                    </button>
+                  </div>
+                ) : (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: '#6b7280', border: '1px dashed #d1d5db', borderRadius: 6, padding: '8px 10px' }}>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadDesenho(f); e.target.value = ''; }} />
+                    {uploadingDesenho ? '⏳ Enviando...' : '📤 Anexar desenho técnico'}
+                  </label>
+                )}
+                {desenhoMsg && <p style={{ fontSize: 11, color: '#16a34a', marginTop: 8 }}>{desenhoMsg}</p>}
+              </div>
+            )}
 
             {/* Card de Anexos */}
             {isAdmin && (

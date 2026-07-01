@@ -27,7 +27,8 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     // Itens cujo setor_atual é este setor (visão tradicional)
     sql`
       SELECT i.*, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
-             p.prazo_entrega::text AS pedido_prazo, p.prioridade AS pedido_prioridade, p.roteiro_base
+             p.prazo_entrega::text AS pedido_prazo, p.prioridade AS pedido_prioridade, p.roteiro_base,
+             p.desenho_url IS NOT NULL AS tem_desenho, p.desenho_url AS desenho_url
       FROM producao_itempedido i JOIN producao_pedido p ON p.id = i.pedido_id
       WHERE i.setor_atual = ${setor} AND i.status != 'entregue'
       ORDER BY p.numero_pedido_venda, i.codigo
@@ -65,7 +66,8 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         pa.retrabalho, pa.motivo_retrabalho, pa.devolvido_de,
         i.id AS item_pedido_id, i.codigo AS item_codigo, i.unidade, i.descricao AS item_descricao,
         i.quantidade::text AS quantidade_total_item, i.roteiro_proprio,
-        p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade, p.roteiro_base, p.prazo_entrega::text AS pedido_prazo
+        p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade, p.roteiro_base, p.prazo_entrega::text AS pedido_prazo,
+        p.desenho_url IS NOT NULL AS tem_desenho, p.desenho_url AS desenho_url
       FROM producao_itemparcial pa
       JOIN producao_itempedido i ON i.id = pa.item_pedido_id
       JOIN producao_pedido p ON p.id = pa.pedido_id

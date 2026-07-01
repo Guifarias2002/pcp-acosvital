@@ -182,6 +182,14 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
         </div>
       )}
 
+      {/* Desenho técnico */}
+      {(item as any).desenho_url && (
+        <a href={(item as any).desenho_url} target="_blank" rel="noopener noreferrer"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#1d4ed8', textDecoration: 'none', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 5, padding: '4px 10px', marginBottom: 8 }}>
+          📐 Ver Desenho Técnico
+        </a>
+      )}
+
       {/* Ações */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
 
@@ -724,6 +732,14 @@ function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial;
             })}
           </div>
         )}
+
+      {/* Desenho técnico */}
+      {(parcial as any).desenho_url && (
+        <a href={(parcial as any).desenho_url} target="_blank" rel="noopener noreferrer"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#1d4ed8', textDecoration: 'none', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 5, padding: '4px 10px', marginBottom: 8 }}>
+          📐 Ver Desenho Técnico
+        </a>
+      )}
 
       {/* Ações */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
