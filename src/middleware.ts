@@ -23,7 +23,7 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Rotas públicas — deixa passar
-  if (pathname.startsWith('/login') || pathname.startsWith('/api/auth')) {
+  if (pathname.startsWith('/login') || pathname.startsWith('/api/auth') || pathname.startsWith('/tv')) {
     return NextResponse.next();
   }
 
