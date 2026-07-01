@@ -139,6 +139,7 @@ export function formatPedido(row: any, itens: unknown[] = []) {
     nota_url: row.nota_url || null,
     canhoto_url: row.canhoto_url || null,
     anexo_pendente: row.anexo_pendente || false,
+    desenho_url: row.desenho_url || null,
     itens,
   };
 }
