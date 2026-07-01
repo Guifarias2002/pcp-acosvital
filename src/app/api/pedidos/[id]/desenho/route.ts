@@ -7,21 +7,11 @@ export const dynamic = 'force-dynamic';
 const MAX_SIZE = 20 * 1024 * 1024; // 20 MB
 const TIPOS_ACEITOS = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
 
-// Garante coluna na primeira chamada
-let colunaCriada = false;
-async function garantirColuna() {
-  if (colunaCriada) return;
-  await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS desenho_url TEXT`).catch(() => {});
-  colunaCriada = true;
-}
-
 export async function GET(req: Request, { params }: { params: { id: string } }) {
-  // Qualquer usuario autenticado pode ver o desenho
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
 
   const pedidoId = Number(params.id);
-  await garantirColuna();
 
   const rows = await sql`SELECT desenho_url FROM producao_pedido WHERE id = ${pedidoId}`;
   const dataUri: string | null = rows[0]?.desenho_url ?? null;
@@ -62,8 +52,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (arquivo.size > MAX_SIZE)
     return NextResponse.json({ erro: 'Arquivo muito grande (máx 20 MB)' }, { status: 400 });
 
-  await garantirColuna();
-
   const bytes = await arquivo.arrayBuffer();
   const base64 = Buffer.from(bytes).toString('base64');
   const dataUri = `data:${arquivo.type};base64,${base64}`;
@@ -79,7 +67,6 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   const pedidoId = Number(params.id);
-  await garantirColuna();
   await sql`UPDATE producao_pedido SET desenho_url = NULL WHERE id = ${pedidoId}`;
 
   return NextResponse.json({ ok: true });
