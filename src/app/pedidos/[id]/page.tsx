@@ -631,7 +631,16 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                     {uploadingDesenho ? '⏳ Enviando...' : '📤 Anexar desenho técnico'}
                   </label>
                 )}
-                {desenhoMsg && <p style={{ fontSize: 11, color: '#16a34a', marginTop: 8 }}>{desenhoMsg}</p>}
+                {desenhoMsg && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                    <p style={{ fontSize: 11, color: '#16a34a', margin: 0 }}>{desenhoMsg}</p>
+                    {desenhoMsg.includes('sucesso') && (
+                      <a href={`/api/pedidos/${id}/desenho`} target="_blank" rel="noopener noreferrer"
+                        style={{ fontSize: 13, color: '#2563eb', textDecoration: 'none' }}
+                        title="Ver desenho">👁</a>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
