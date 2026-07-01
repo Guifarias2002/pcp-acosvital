@@ -1720,28 +1720,33 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const [data, setData] = useState<SetorPainelData | null>(null);
   const [loading, setLoading] = useState(false);
   const [filtroLog, setFiltroLog] = useState<FiltroLogistica>('todos');
+  const [ultimaAtt, setUltimaAtt] = useState<Date | null>(null);
 
   const carregar = useCallback(() => {
-    getSetorPainel(setor).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+    getSetorPainel(setor).then(d => { setData(d); setLoading(false); setUltimaAtt(new Date()); }).catch(() => setLoading(false));
   }, [setor]);
+
+  // Ref sempre aponta para a versão mais recente de carregar — evita closure stale no interval
+  const carregarRef = useRef(carregar);
+  carregarRef.current = carregar;
 
   useEffect(() => {
     setLoading(true);
-    carregar();
+    carregarRef.current();
   }, [setor]);
 
-  // Atualização em tempo real via Supabase WebSocket
+  // Atualização em tempo real via Supabase WebSocket (quando disponível)
   useRealtime(
     ['producao_itemparcial', 'producao_itempedido', 'producao_movimentacaoitem'],
     carregar,
     [`setor-${setor}`],
   );
 
-  // Polling a cada 30 s como fallback (funciona sempre, mesmo sem WebSocket)
+  // Polling a cada 10 s — garante atualização mesmo sem WebSocket
   useEffect(() => {
-    const id = setInterval(carregar, 30_000);
+    const id = setInterval(() => carregarRef.current(), 10_000);
     return () => clearInterval(id);
-  }, [carregar]);
+  }, []); // [] = inicia uma vez, usa sempre a ref mais recente
 
   return (
     <AuthGuard>
@@ -1751,10 +1756,18 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
           <i className={`bi ${setor === 'logistica' ? 'bi-truck' : 'bi-tools'}`} style={{ marginRight: 8 }}></i>
           {nomeSetor}
         </h4>
-        <button onClick={carregar}
-          style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 14px', fontSize: 13, color: '#0d6efd', cursor: 'pointer' }}>
-          <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }}></i>Atualizar
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {ultimaAtt && (
+            <span style={{ fontSize: 11, color: '#6b7280' }}>
+              <i className="bi bi-circle-fill" style={{ fontSize: 7, color: '#16a34a', marginRight: 4, verticalAlign: 'middle' }}></i>
+              Atualizado às {ultimaAtt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          )}
+          <button onClick={carregar}
+            style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 14px', fontSize: 13, color: '#0d6efd', cursor: 'pointer' }}>
+            <i className="bi bi-arrow-clockwise" style={{ marginRight: 4 }}></i>Atualizar
+          </button>
+        </div>
       </div>
 
       {/* Filtros da Logística */}
