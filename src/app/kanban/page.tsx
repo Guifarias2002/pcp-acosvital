@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { PRIORIDADE_COR, COR_STATUS, STATUS_LABELS } from '@/lib/types';
 import Link from 'next/link';
@@ -57,6 +58,20 @@ export default function KanbanPage() {
     const t = setInterval(carregar, 30_000);
     return () => clearInterval(t);
   }, []);
+
+  const carregarRef = useRef<() => void>(() => {});
+  carregarRef.current = carregar;
+
+  useEffect(() => {
+    const t = setInterval(() => carregarRef.current(), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const carregarCallback = useCallback(() => carregarRef.current(), []);
+  useRealtime(
+    ['producao_itemparcial', 'producao_itempedido', 'producao_movimentacaoitem'],
+    carregarCallback,
+  );
 
   const total = setores.reduce((s, x) => s + x.itens.length, 0);
   const totalChegando = setores.reduce((s, x) => s + x.chegando.length, 0);

@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useRealtime } from '@/hooks/useRealtime';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import AuthGuard from '@/components/AuthGuard';
@@ -108,6 +109,20 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
   }, [parcialId]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  const carregarRef = useRef<() => void>(() => {});
+  carregarRef.current = carregar;
+
+  useEffect(() => {
+    const t = setInterval(() => carregarRef.current(), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const carregarCallback = useCallback(() => carregarRef.current(), []);
+  useRealtime(
+    ['producao_itemparcial', 'producao_itempedido', 'producao_movimentacaoitem'],
+    carregarCallback,
+  );
 
   async function executarAcao(a: string, body?: Record<string, unknown>) {
     if (atuando) return;

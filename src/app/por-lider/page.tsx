@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { api } from '@/lib/api';
 import Link from 'next/link';
@@ -34,9 +35,27 @@ export default function PorLiderPage() {
   const [lideres, setLideres] = useState<LiderData[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  function buscar() {
     api.get('/api/por-lider').then(r => setLideres(r.data)).finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    buscar();
   }, []);
+
+  const buscarRef = useRef<() => void>(() => {});
+  buscarRef.current = buscar;
+
+  useEffect(() => {
+    const t = setInterval(() => buscarRef.current(), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const buscarCallback = useCallback(() => buscarRef.current(), []);
+  useRealtime(
+    ['producao_itemparcial', 'producao_itempedido', 'producao_movimentacaoitem'],
+    buscarCallback,
+  );
 
   const totalItens = lideres.reduce((a, l) => a + l.total_itens, 0);
 

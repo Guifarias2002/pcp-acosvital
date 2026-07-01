@@ -1,5 +1,6 @@
 ﻿'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import Link from 'next/link';
 import { getToken } from '@/lib/auth';
@@ -78,6 +79,20 @@ export default function DivergenciasPage() {
   }
 
   useEffect(() => { buscar(); }, []);
+
+  const buscarRef = useRef<() => void>(() => {});
+  buscarRef.current = buscar;
+
+  useEffect(() => {
+    const t = setInterval(() => buscarRef.current(), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const buscarCallback = useCallback(() => buscarRef.current(), []);
+  useRealtime(
+    ['producao_itemparcial', 'producao_itempedido', 'producao_movimentacaoitem'],
+    buscarCallback,
+  );
 
   async function atualizarStatus(id: number, status: string, obs?: string) {
     setAtualizando(true);
