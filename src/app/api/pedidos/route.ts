@@ -1,8 +1,10 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
 import { formatPedido } from '@/lib/queries';
 import { SETOR_CHOICES } from '@/lib/types';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   const user = await autenticar(req);
@@ -61,11 +63,11 @@ export async function POST(req: Request) {
     const { numero_pedido_venda, numero_op, cliente, vendedor, prazo_entrega,
             prioridade, roteiro_base, observacoes, itens } = body;
 
-    // Validação de campos obrigatórios
+    // ValidaÃ§Ã£o de campos obrigatÃ³rios
     if (!numero_pedido_venda?.toString().trim())
       return NextResponse.json({ erro: 'Numero do pedido obrigatorio' }, { status: 400 });
     if (!numero_op?.toString().trim())
-      return NextResponse.json({ erro: 'Numero da Ordem de Producao (OP) obrigatorio — ele identifica e agrupa todas as parciais deste pedido ao longo dos setores' }, { status: 400 });
+      return NextResponse.json({ erro: 'Numero da Ordem de Producao (OP) obrigatorio â€” ele identifica e agrupa todas as parciais deste pedido ao longo dos setores' }, { status: 400 });
     if (!cliente?.toString().trim())
       return NextResponse.json({ erro: 'Cliente obrigatorio' }, { status: 400 });
     if (!prazo_entrega || !/^\d{4}-\d{2}-\d{2}$/.test(prazo_entrega))
@@ -133,3 +135,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ erro: 'Erro ao criar pedido' }, { status: 500 });
   }
 }
+

@@ -1,14 +1,16 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { SETOR_CHOICES } from '@/lib/types';
 import { nomeSector } from '@/lib/queries';
 
+export const dynamic = 'force-dynamic';
+
 function statusDisplay(s: string): string {
   const m: Record<string, string> = {
     emitido: 'Emitido', aguardando: 'Aguardando', recebido: 'Recebido',
     em_andamento: 'Em Andamento', pausado: 'Pausado',
-    finalizado_setor: 'Finalizado no Setor', em_transito: 'Em Trânsito', bloqueado: 'Bloqueado',
+    finalizado_setor: 'Finalizado no Setor', em_transito: 'Em TrÃ¢nsito', bloqueado: 'Bloqueado',
     reprovado: 'Reprovado', aprovado: 'Aprovado', entregue: 'Entregue',
   };
   return m[s] || s;
@@ -138,7 +140,7 @@ export async function GET(req: Request) {
       LIMIT 10
     `,
 
-    // Últimas movimentações
+    // Ãšltimas movimentaÃ§Ãµes
     sql`
       SELECT m.id, m.setor_origem, m.setor_destino, m.status_anterior, m.status_novo,
              m.observacao, m.criado_em,
@@ -152,7 +154,7 @@ export async function GET(req: Request) {
       LIMIT 15
     `,
 
-    // Últimos pedidos com itens — valor via JOIN, não subquery correlacionada
+    // Ãšltimos pedidos com itens â€” valor via JOIN, nÃ£o subquery correlacionada
     sql`
       SELECT p.id, p.numero_pedido_venda, p.numero_op, p.cliente, p.vendedor,
              p.prazo_entrega::text, p.prioridade, p.status, p.setor_atual,
@@ -191,7 +193,7 @@ export async function GET(req: Request) {
       LIMIT 100
     `,
 
-    // Divergências (tabela pode não existir)
+    // DivergÃªncias (tabela pode nÃ£o existir)
     sql`
       SELECT
         COUNT(*) FILTER (WHERE status IN ('aberta','em_analise'))                          AS abertas,
@@ -260,3 +262,4 @@ export async function GET(req: Request) {
     divergencias_urgentes: Number(divCounts.urgentes),
   });
 }
+

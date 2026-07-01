@@ -4,6 +4,8 @@ import { autenticar } from '@/lib/middleware';
 import { formatItem, nomeSector } from '@/lib/queries';
 import { SETOR_CHOICES } from '@/lib/types';
 
+export const dynamic = 'force-dynamic';
+
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
 
 export async function GET(req: Request, { params }: { params: { setor: string } }) {

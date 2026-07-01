@@ -1,6 +1,8 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
+
+export const dynamic = 'force-dynamic';
 
 const ISO_RE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/;
 
@@ -31,3 +33,4 @@ export async function GET(req: Request) {
 
   return NextResponse.json({ movimentacoes: rows });
 }
+
