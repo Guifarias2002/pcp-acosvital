@@ -392,11 +392,7 @@ export default function DashboardPage() {
       router.replace(`/setor/${_user.setor}`);
       return;
     }
-    const carregar = () => getDashboard().then(d => { setData(d); setErro(false); }).catch(() => setErro(true)).finally(() => setLoading(false));
-    carregar();
-    // Polling a cada 10s — fallback enquanto WebSocket não conecta
-    const t = setInterval(() => getDashboard().then(d => { setData(d); setErro(false); }).catch(() => {}), 10_000);
-    return () => clearInterval(t);
+    getDashboard().then(d => { setData(d); setErro(false); }).catch(() => setErro(true)).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
