@@ -372,6 +372,7 @@ function PedidoRow({ p, isAdmin }: { p: DashboardData['pendencias'][0]; isAdmin:
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState(false);
   const [pedidosData, setPedidosData] = useState<DashboardData['pendencias'] | null>(null);
   const [busca, setBusca] = useState('');
   const [buscaMov, setBuscaMov] = useState('');
@@ -391,9 +392,10 @@ export default function DashboardPage() {
       router.replace(`/setor/${_user.setor}`);
       return;
     }
-    getDashboard().then(setData).finally(() => setLoading(false));
+    const carregar = () => getDashboard().then(d => { setData(d); setErro(false); }).catch(() => setErro(true)).finally(() => setLoading(false));
+    carregar();
     // Fallback: recarrega a cada 60s caso o WebSocket caia
-    const t = setInterval(() => getDashboard().then(setData), 60_000);
+    const t = setInterval(() => getDashboard().then(d => { setData(d); setErro(false); }).catch(() => {}), 60_000);
     return () => clearInterval(t);
   }, []);
 
@@ -443,6 +445,15 @@ export default function DashboardPage() {
       </div>
 
       {loading && <p style={{ color: '#999', textAlign: 'center', padding: '60px 0' }}>Carregando dashboard...</p>}
+      {!loading && erro && (
+        <div style={{ textAlign: 'center', padding: '60px 0', color: '#666' }}>
+          <p style={{ marginBottom: 12 }}>Não foi possível carregar o dashboard. Verifique a conexão e tente novamente.</p>
+          <button onClick={() => { setLoading(true); setErro(false); getDashboard().then(d => { setData(d); setErro(false); }).catch(() => setErro(true)).finally(() => setLoading(false)); }}
+            style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', cursor: 'pointer', fontWeight: 600 }}>
+            Tentar novamente
+          </button>
+        </div>
+      )}
 
       {data && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
