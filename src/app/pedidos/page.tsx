@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { Suspense, useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import { useSearchParams } from 'next/navigation';
@@ -94,7 +94,7 @@ function PedidosPageInner() {
 
   // Polling 10s — mantém lista sempre atualizada
   useEffect(() => {
-    const t = setInterval(() => buscarRef.current(), 5_000);
+    const t = setInterval(() => buscarRef.current(), 20 * 60 * 1000);
     return () => clearInterval(t);
   }, []);
 
@@ -676,3 +676,4 @@ function PedidosPageInner() {
     </AuthGuard>
   );
 }
+

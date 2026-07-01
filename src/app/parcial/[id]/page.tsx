@@ -114,7 +114,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
   carregarRef.current = carregar;
 
   useEffect(() => {
-    const t = setInterval(() => carregarRef.current(), 5_000);
+    const t = setInterval(() => carregarRef.current(), 20 * 60 * 1000);
     return () => clearInterval(t);
   }, []);
 

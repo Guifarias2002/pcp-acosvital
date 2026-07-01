@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
@@ -47,7 +47,7 @@ export default function PorLiderPage() {
   buscarRef.current = buscar;
 
   useEffect(() => {
-    const t = setInterval(() => buscarRef.current(), 5_000);
+    const t = setInterval(() => buscarRef.current(), 20 * 60 * 1000);
     return () => clearInterval(t);
   }, []);
 
@@ -149,3 +149,4 @@ export default function PorLiderPage() {
     </AuthGuard>
   );
 }
+

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
@@ -63,7 +63,7 @@ export default function KanbanPage() {
   carregarRef.current = carregar;
 
   useEffect(() => {
-    const t = setInterval(() => carregarRef.current(), 5_000);
+    const t = setInterval(() => carregarRef.current(), 20 * 60 * 1000);
     return () => clearInterval(t);
   }, []);
 
@@ -190,3 +190,4 @@ export default function KanbanPage() {
     </AuthGuard>
   );
 }
+

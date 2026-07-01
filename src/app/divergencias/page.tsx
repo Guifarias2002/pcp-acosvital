@@ -84,7 +84,7 @@ export default function DivergenciasPage() {
   buscarRef.current = buscar;
 
   useEffect(() => {
-    const t = setInterval(() => buscarRef.current(), 5_000);
+    const t = setInterval(() => buscarRef.current(), 20 * 60 * 1000);
     return () => clearInterval(t);
   }, []);
 
@@ -293,3 +293,4 @@ export default function DivergenciasPage() {
     </AuthGuard>
   );
 }
+

@@ -60,7 +60,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   }, [id]);
 
   useEffect(() => {
-    const t = setInterval(() => carregarRef.current(), 5_000);
+    const t = setInterval(() => carregarRef.current(), 20 * 60 * 1000);
     return () => clearInterval(t);
   }, []);
 
