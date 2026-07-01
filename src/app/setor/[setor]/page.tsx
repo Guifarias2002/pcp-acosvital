@@ -208,7 +208,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
           </button>
         )}
 
-        {item.status === 'em_andamento' && (
+        {item.status === 'em_andamento' && item.setor_atual !== 'logistica' && (
           <>
             <button onClick={() => !loading && setConfirm({ titulo: 'Finalizar etapa', mensagem: `Confirma que a etapa de ${item.nome_setor_atual} foi concluída para este item?`, acao: () => acao('finalizar') })} disabled={loading}
               style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
@@ -230,7 +230,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
           </button>
         )}
 
-        {item.status === 'finalizado_setor' && (
+        {item.status === 'finalizado_setor' && item.setor_atual !== 'logistica' && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 12, color: '#666', whiteSpace: 'nowrap' }}>Enviar para:</span>
