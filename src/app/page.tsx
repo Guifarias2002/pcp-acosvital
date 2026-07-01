@@ -391,7 +391,8 @@ export default function DashboardPage() {
       return;
     }
     getDashboard().then(setData).finally(() => setLoading(false));
-    const t = setInterval(() => getDashboard().then(setData), 15_000);
+    // Fallback: recarrega a cada 60s caso o WebSocket caia
+    const t = setInterval(() => getDashboard().then(setData), 60_000);
     return () => clearInterval(t);
   }, []);
 
