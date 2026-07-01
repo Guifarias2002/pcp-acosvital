@@ -390,7 +390,7 @@ export default function DashboardPage() {
       return;
     }
     getDashboard().then(setData).finally(() => setLoading(false));
-    const t = setInterval(() => getDashboard().then(setData), 30_000);
+    const t = setInterval(() => getDashboard().then(setData), 10_000);
     return () => clearInterval(t);
   }, []);
 

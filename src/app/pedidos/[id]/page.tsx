@@ -138,12 +138,20 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
     }
   }
 
+  const carregarRef = useRef<() => void>(() => {});
+
   function carregar() {
-    setLoading(true);
     getPedido(Number(id)).then(setPedido).finally(() => setLoading(false));
   }
+  carregarRef.current = carregar;
 
-  useEffect(() => { carregar(); }, [id]);
+  useEffect(() => { setLoading(true); carregarRef.current(); }, [id]);
+
+  // Polling a cada 10s — atualiza automático para todos os usuários
+  useEffect(() => {
+    const id_interval = setInterval(() => carregarRef.current(), 10_000);
+    return () => clearInterval(id_interval);
+  }, []);
 
   if (loading || !pedido) return (
     <AuthGuard><div className="p-8 text-gray-400">Carregando...</div></AuthGuard>
