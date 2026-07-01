@@ -3,6 +3,8 @@ import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { formatItem, nomeSector } from '@/lib/queries';
 
+export const dynamic = 'force-dynamic';
+
 function statusDisplay(s: string): string {
   const m: Record<string, string> = {
     emitido: 'Emitido', aguardando: 'Aguardando', recebido: 'Recebido',

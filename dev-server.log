@@ -1,0 +1,439 @@
+
+> acosvital-pcp@1.0.0 dev
+> next dev
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 82.9s
+ ✓ Compiled /src/middleware in 8.7s
+ ✓ Compiled (150 modules)
+ ○ Compiling /api/auth/token ...
+ ✓ Compiled /api/auth/token in 7.2s (163 modules)
+ POST /api/auth/token 401 in 10169ms
+ POST /api/auth/token 200 in 1300ms
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '//server/REDE/Ordens de Serviço - IAPP/sistema_pcp/node_modules/typescript/lib/typescript' in Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build for build dependencies doesn't lead to expected result '\\server\REDE\Ordens de Serviço - IAPP\sistema_pcp\node_modules\typescript\lib\typescript.js', but to 'Error: Can't resolve '//server/REDE/Ordens de Serviço - IAPP/sistema_pcp/node_modules/typescript/lib/typescript' in 'Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file //server/REDE/Ordens de Serviço - IAPP/sistema_pcp/node_modules/typescript/lib/typescript (expected \\server\REDE\Ordens de Serviço - IAPP\sistema_pcp\node_modules\typescript\lib\typescript.js)
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+ ○ Compiling /api/pedidos ...
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '//server/REDE/Ordens de Serviço - IAPP/sistema_pcp/node_modules/typescript/lib/typescript' in Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build for build dependencies doesn't lead to expected result '\\server\REDE\Ordens de Serviço - IAPP\sistema_pcp\node_modules\typescript\lib\typescript.js', but to 'Error: Can't resolve '//server/REDE/Ordens de Serviço - IAPP/sistema_pcp/node_modules/typescript/lib/typescript' in 'Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file //server/REDE/Ordens de Serviço - IAPP/sistema_pcp/node_modules/typescript/lib/typescript (expected \\server\REDE\Ordens de Serviço - IAPP\sistema_pcp\node_modules\typescript\lib\typescript.js)
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+ ✓ Compiled /api/pedidos in 18.6s (168 modules)
+ GET /api/pedidos 200 in 20026ms
+ ○ Compiling /api/pedidos/[id] ...
+ ✓ Compiled /api/pedidos/[id] in 1537ms (170 modules)
+ GET /api/pedidos/1 404 in 18992ms
+ ○ Compiling /api/item/[id] ...
+ ✓ Compiled /api/item/[id] in 1639ms (172 modules)
+ GET /api/item/1 404 in 19699ms
+ ○ Compiling /api/item/[id]/acao/[acao] ...
+ ✓ Compiled /api/item/[id]/acao/[acao] in 2.1s (172 modules)
+ GET /api/item/1/acao/liberar 405 in 24261ms
+ ○ Compiling /api/setor/[setor] ...
+ ✓ Compiled /api/setor/[setor] in 1688ms (170 modules)
+(node:19776) TimeoutNegativeWarning: -88735.61019218108 is a negative number.
+Timeout duration was set to 1.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ GET /api/setor/usinagem 200 in 24099ms
+ ○ Compiling /api/dashboard ...
+ ✓ Compiled /api/dashboard in 2.4s (170 modules)
+ GET /api/dashboard 200 in 3473ms
+ ○ Compiling /api/auth/token ...
+ ✓ Compiled /api/auth/token in 1764ms (173 modules)
+ POST /api/auth/token 400 in 2662ms
+ POST /api/auth/token 400 in 65ms
+ POST /api/auth/token 401 in 126ms
+ POST /api/auth/token 200 in 265ms
+ ○ Compiling /api/pedidos ...
+ ✓ Compiled /api/pedidos in 2.1s (175 modules)
+ GET /api/pedidos 401 in 2581ms
+ GET /api/pedidos 401 in 101ms
+ ○ Compiling /api/auth/logout ...
+ ✓ Compiled /api/auth/logout in 2.3s (177 modules)
+ POST /api/auth/logout 200 in 2802ms
+ ○ Compiling /api/usuarios ...
+ ✓ Compiled /api/usuarios in 2.2s (179 modules)
+ GET /api/usuarios 200 in 2898ms
+ GET /api/pedidos 200 in 126ms
+ POST /api/pedidos 400 in 67ms
+ POST /api/pedidos 400 in 63ms
+ POST /api/pedidos 400 in 79ms
+ POST /api/pedidos 400 in 61ms
+ POST /api/pedidos 400 in 60ms
+ ○ Compiling /api/pedidos/[id] ...
+ ✓ Compiled /api/pedidos/[id] in 2.1s (178 modules)
+ GET /api/pedidos/0 400 in 2415ms
+ GET /api/pedidos/-1 400 in 60ms
+ GET /api/pedidos/abc 400 in 62ms
+ ○ Compiling /api/item/[id]/acao/[acao] ...
+ ✓ Compiled /api/item/[id]/acao/[acao] in 2.3s (181 modules)
+ POST /api/item/1/acao/DROP_TABLE 400 in 2835ms
+ ○ Compiling /api/lote/[id]/[acao] ...
+ ✓ Compiled /api/lote/[id]/[acao] in 2.6s (183 modules)
+ POST /api/lote/1/deletar 400 in 14299ms
+ GET /api/pedidos/999999 404 in 401ms
+ POST /api/pedidos 201 in 356ms
+ GET /api/pedidos/91 200 in 167ms
+ POST /api/item/92/acao/liberar 200 in 348ms
+ GET /api/pedidos/91 200 in 187ms
+ POST /api/item/92/acao/liberar 400 in 97ms
+ POST /api/item/92/acao/receber 200 in 215ms
+ POST /api/item/92/acao/iniciar 200 in 181ms
+ POST /api/item/92/acao/pausar 200 in 140ms
+ POST /api/item/92/acao/retomar 200 in 108ms
+ POST /api/item/92/acao/finalizar 200 in 187ms
+ POST /api/item/92/acao/enviar_tudo 200 in 245ms
+ GET /api/pedidos/91 200 in 120ms
+ POST /api/item/92/acao/receber 200 in 174ms
+ POST /api/item/92/acao/iniciar 200 in 156ms
+ POST /api/item/92/acao/aprovar 200 in 141ms
+ POST /api/item/92/acao/enviar_tudo 200 in 205ms
+ GET /api/pedidos/91 200 in 119ms
+ POST /api/item/92/acao/receber 200 in 211ms
+ POST /api/item/92/acao/entregar 200 in 277ms
+ GET /api/pedidos/91 200 in 127ms
+ POST /api/pedidos 201 in 140ms
+ GET /api/pedidos/92 200 in 117ms
+ POST /api/item/93/acao/liberar 200 in 185ms
+ POST /api/item/93/acao/receber 200 in 157ms
+ POST /api/item/93/acao/iniciar 200 in 180ms
+ POST /api/item/93/acao/finalizar 200 in 158ms
+ POST /api/item/93/acao/devolver 200 in 400ms
+ GET /api/pedidos/92 200 in 121ms
+ POST /api/item/93/acao/receber 200 in 170ms
+ POST /api/item/93/acao/iniciar 200 in 145ms
+ POST /api/item/93/acao/finalizar 200 in 148ms
+ POST /api/item/93/acao/devolver 200 in 153ms
+ DELETE /api/pedidos/92 409 in 113ms
+ POST /api/pedidos 201 in 101ms
+ GET /api/pedidos/93 200 in 113ms
+ POST /api/item/94/acao/liberar 200 in 199ms
+ POST /api/item/94/acao/receber 200 in 204ms
+ POST /api/item/94/acao/iniciar 200 in 220ms
+ POST /api/item/94/acao/finalizar 200 in 187ms
+ POST /api/item/94/acao/enviar_parcial 400 in 139ms
+ POST /api/item/94/acao/enviar_parcial 400 in 91ms
+ POST /api/item/94/acao/enviar_parcial 200 in 269ms
+ GET /api/pedidos/93 200 in 141ms
+ ○ Compiling /api/kanban ...
+ ✓ Compiled /api/kanban in 3s (183 modules)
+ GET /api/kanban 200 in 3381ms
+ POST /api/item/94/acao/enviar_parcial 200 in 315ms
+ GET /api/pedidos/93 200 in 452ms
+ POST /api/pedidos 201 in 220ms
+ GET /api/pedidos/94 200 in 138ms
+ POST /api/item/95/acao/liberar 200 in 225ms
+ POST /api/item/95/acao/receber 200 in 219ms
+ POST /api/item/95/acao/iniciar 200 in 165ms
+ POST /api/item/95/acao/finalizar 200 in 175ms
+ POST /api/item/95/acao/enviar_tudo 200 in 181ms
+ POST /api/item/95/acao/receber 200 in 156ms
+ POST /api/item/95/acao/iniciar 200 in 141ms
+ POST /api/item/95/acao/reprovar 200 in 153ms
+ ○ Compiling /api/divergencias ...
+ ✓ Compiled /api/divergencias in 2.7s (183 modules)
+ GET /api/divergencias?pedido_id=94 200 in 3412ms
+ POST /api/item/95/acao/reprovar 400 in 235ms
+ POST /api/pedidos 201 in 186ms
+ GET /api/pedidos/95 200 in 215ms
+ POST /api/item/96/acao/liberar 200 in 258ms
+ POST /api/item/96/acao/receber 200 in 421ms
+ POST /api/item/96/acao/iniciar 200 in 182ms
+ POST /api/item/96/acao/reprovar 200 in 167ms
+ POST /api/item/95/acao/retrabalho 400 in 95ms
+ POST /api/item/95/acao/retrabalho 200 in 272ms
+ GET /api/pedidos/94 200 in 125ms
+ POST /api/item/96/acao/resolver 200 in 176ms
+ POST /api/pedidos 201 in 137ms
+ GET /api/pedidos/96 200 in 109ms
+ POST /api/item/97/acao/liberar 200 in 192ms
+ POST /api/item/97/acao/receber 200 in 158ms
+ POST /api/item/97/acao/iniciar 200 in 140ms
+ POST /api/item/97/acao/reprovar 200 in 165ms
+ POST /api/item/97/acao/cancelar_item 200 in 252ms
+ POST /api/divergencias 201 in 161ms
+ POST /api/divergencias 400 in 132ms
+ POST /api/divergencias 400 in 91ms
+ ○ Compiling /api/dashboard ...
+ ✓ Compiled /api/dashboard in 3s (182 modules)
+ GET /api/dashboard 200 in 3562ms
+ GET /api/kanban 200 in 423ms
+ ○ Compiling /api/setores ...
+ ✓ Compiled /api/setores in 2.9s (180 modules)
+ GET /api/setores 200 in 3371ms
+ ○ Compiling /api/emitidos ...
+ ✓ Compiled /api/emitidos in 2.7s (182 modules)
+ GET /api/emitidos 200 in 3562ms
+ ○ Compiling /api/entregues ...
+ ✓ Compiled /api/entregues in 3.1s (184 modules)
+ GET /api/entregues 200 in 3753ms
+ GET /api/divergencias 200 in 173ms
+ ○ Compiling /api/notificacoes ...
+ ✓ Compiled /api/notificacoes in 2.9s (184 modules)
+ GET /api/notificacoes 200 in 3527ms
+ ○ Compiling /api/relatorios ...
+ ✓ Compiled /api/relatorios in 3.8s (186 modules)
+ GET /api/relatorios 200 in 4783ms
+ ○ Compiling /api/auditoria ...
+ ✓ Compiled /api/auditoria in 4s (188 modules)
+ GET /api/auditoria 200 in 4754ms
+ ○ Compiling /api/setor/[setor] ...
+ ✓ Compiled /api/setor/[setor] in 3.7s (190 modules)
+ GET /api/setor/usinagem 200 in 4467ms
+ GET /api/setor/SETOR_INVALIDO 400 in 93ms
+ ○ Compiling /api/por-lider ...
+ ✓ Compiled /api/por-lider in 3.5s (192 modules)
+ GET /api/por-lider 200 in 4052ms
+ GET /api/pedidos 401 in 199ms
+ POST /api/pedidos 201 in 262ms
+ DELETE /api/pedidos/97 200 in 306ms
+ GET /api/pedidos/97 404 in 101ms
+ ○ Compiling /api/auth/token ...
+ ✓ Compiled /api/auth/token in 3.5s (195 modules)
+ POST /api/auth/token 401 in 3945ms
+ POST /api/auth/token 401 in 133ms
+ POST /api/auth/token 400 in 62ms
+ PUT /api/pedidos 405 in 125ms
+ DELETE /api/pedidos/91 200 in 332ms
+ DELETE /api/pedidos/93 409 in 123ms
+ DELETE /api/pedidos/94 409 in 114ms
+ DELETE /api/pedidos/95 409 in 88ms
+ DELETE /api/pedidos/96 409 in 99ms
+ ✓ Compiled in 1207ms
+ ○ Compiling /login ...
+ ✓ Compiled /login in 68.3s (632 modules)
+ ○ Compiling /_not-found ...
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '//server/REDE/Ordens de Serviço - IAPP/sistema_pcp/node_modules/typescript/lib/typescript' in Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build for build dependencies doesn't lead to expected result '\\server\REDE\Ordens de Serviço - IAPP\sistema_pcp\node_modules\typescript\lib\typescript.js', but to 'Error: Can't resolve '//server/REDE/Ordens de Serviço - IAPP/sistema_pcp/node_modules/typescript/lib/typescript' in 'Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file //server/REDE/Ordens de Serviço - IAPP/sistema_pcp/node_modules/typescript/lib/typescript (expected \\server\REDE\Ordens de Serviço - IAPP\sistema_pcp\node_modules\typescript\lib\typescript.js)
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\loader-runner\LoaderRunner.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\loader-runner\LoaderRunner.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\webpack\bundle5.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\webpack\bundle5.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\webpack\webpack.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\webpack\webpack.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\plugins\define-env-plugin.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\plugins\define-env-plugin.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\swc\index.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\swc\index.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\analysis\parse-module.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\analysis\parse-module.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\analysis\get-page-static-info.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\analysis\get-page-static-info.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-flight-client-module-loader.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-flight-client-module-loader.js
+<w>  at resolve commonjs Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-flight-client-module-loader.js
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat 'Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/api/pedidos/[id]/route' in Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server for build dependencies doesn't lead to expected result 'Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api\pedidos\[id]\route.js', but to 'Error: Can't resolve '../../../../.next/server/app/api/pedidos/[id]/route' in 'Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/api/pedidos/[id]/route (expected Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api\pedidos\[id]\route.js)
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\require.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\require.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\load-components.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\utils.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\utils.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\handle-externals.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\handle-externals.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/api/pedidos/route' in Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server for build dependencies doesn't lead to expected result 'Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api\pedidos\route.js', but to 'Error: Can't resolve '../../../../.next/server/app/api/pedidos/route' in 'Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/api/pedidos/route (expected Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api\pedidos\route.js)
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\require.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\require.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\load-components.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\utils.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\utils.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\handle-externals.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\handle-externals.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat 'Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/api/pedidos/[id]/route' in Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server for build dependencies doesn't lead to expected result 'Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api\pedidos\[id]\route.js', but to 'Error: Can't resolve '../../../../.next/server/app/api/pedidos/[id]/route' in 'Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/api/pedidos/[id]/route (expected Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api\pedidos\[id]\route.js)
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\require.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\require.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\load-components.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\utils.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\utils.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\plugins\flight-client-entry-plugin.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\plugins\flight-client-entry-plugin.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\loader-runner\LoaderRunner.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\loader-runner\LoaderRunner.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\webpack\bundle5.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\webpack\bundle5.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\webpack\webpack.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\webpack\webpack.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\plugins\define-env-plugin.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\plugins\define-env-plugin.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\swc\index.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\swc\index.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\analysis\parse-module.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\analysis\parse-module.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\analysis\get-page-static-info.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\analysis\get-page-static-info.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-flight-client-module-loader.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-flight-client-module-loader.js
+<w>  at resolve commonjs Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-flight-client-module-loader.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/api/pedidos/route' in Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server for build dependencies doesn't lead to expected result 'Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api\pedidos\route.js', but to 'Error: Can't resolve '../../../../.next/server/app/api/pedidos/route' in 'Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/api/pedidos/route (expected Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api\pedidos\route.js)
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\require.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\require.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\load-components.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\utils.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\utils.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\plugins\flight-client-entry-plugin.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\plugins\flight-client-entry-plugin.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\loader-runner\LoaderRunner.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\loader-runner\LoaderRunner.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\webpack\bundle5.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\webpack\bundle5.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\webpack\webpack.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\compiled\webpack\webpack.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\plugins\define-env-plugin.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\plugins\define-env-plugin.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\swc\index.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\swc\index.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\analysis\parse-module.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\analysis\parse-module.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\analysis\get-page-static-info.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\analysis\get-page-static-info.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-flight-client-module-loader.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-flight-client-module-loader.js
+<w>  at resolve commonjs Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-flight-client-module-loader.js
+ ✓ Compiled /_not-found in 18.3s (621 modules)
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 6.9s (848 modules)
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '//server/REDE/Ordens de Serviço - IAPP/sistema_pcp/node_modules/typescript/lib/typescript' in Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build for build dependencies doesn't lead to expected result '\\server\REDE\Ordens de Serviço - IAPP\sistema_pcp\node_modules\typescript\lib\typescript.js', but to 'Error: Can't resolve '//server/REDE/Ordens de Serviço - IAPP/sistema_pcp/node_modules/typescript/lib/typescript' in 'Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file //server/REDE/Ordens de Serviço - IAPP/sistema_pcp/node_modules/typescript/lib/typescript (expected \\server\REDE\Ordens de Serviço - IAPP\sistema_pcp\node_modules\typescript\lib\typescript.js)
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat 'Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/api/pedidos/[id]/route' in Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server for build dependencies doesn't lead to expected result 'Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api\pedidos\[id]\route.js', but to 'Error: Can't resolve '../../../../.next/server/app/api/pedidos/[id]/route' in 'Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/api/pedidos/[id]/route (expected Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api\pedidos\[id]\route.js)
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\require.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\require.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\load-components.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\utils.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\utils.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at resolve commonjs Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat 'Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/api/pedidos/[id]/route' in Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server for build dependencies doesn't lead to expected result 'Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api\pedidos\[id]\route.js', but to 'Error: Can't resolve '../../../../.next/server/app/api/pedidos/[id]/route' in 'Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/api/pedidos/[id]/route (expected Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api\pedidos\[id]\route.js)
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\require.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\require.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\load-components.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\utils.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\utils.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\entries.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\entries.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\plugins\next-types-plugin\index.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\plugins\next-types-plugin\index.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/api/pedidos/route' in Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server for build dependencies doesn't lead to expected result 'Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api\pedidos\route.js', but to 'Error: Can't resolve '../../../../.next/server/app/api/pedidos/route' in 'Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/api/pedidos/route (expected Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api\pedidos\route.js)
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\require.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\require.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\load-components.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\utils.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\utils.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\entries.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\entries.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\plugins\next-types-plugin\index.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\plugins\next-types-plugin\index.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/api/auth/token/route' in Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server for build dependencies doesn't lead to expected result 'Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api\auth\token\route.js', but to 'Error: Can't resolve '../../../../.next/server/app/api/auth/token/route' in 'Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/api/auth/token/route (expected Z:\Ordens de Serviço - IAPP\sistema_pcp\.next\server\app\api\auth\token\route.js)
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\require.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\require.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\load-components.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\utils.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\utils.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-route-loader\index.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\entries.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\entries.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\plugins\next-types-plugin\index.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\plugins\next-types-plugin\index.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+ ✓ Compiled in 2.9s (539 modules)
+ ⚠ Found a change in next.config.js. Restarting the server to apply the changes...
+ ⚠ Port 3000 is in use, trying 3001 instead.
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3001
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 71s
+ ✓ Compiled /src/middleware in 6.9s
+ ✓ Compiled (150 modules)
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '//server/REDE/Ordens de Serviço - IAPP/sistema_pcp/node_modules/typescript/lib/typescript' in Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build for build dependencies doesn't lead to expected result '\\server\REDE\Ordens de Serviço - IAPP\sistema_pcp\node_modules\typescript\lib\typescript.js', but to 'Error: Can't resolve '//server/REDE/Ordens de Serviço - IAPP/sistema_pcp/node_modules/typescript/lib/typescript' in 'Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file //server/REDE/Ordens de Serviço - IAPP/sistema_pcp/node_modules/typescript/lib/typescript (expected \\server\REDE\Ordens de Serviço - IAPP\sistema_pcp\node_modules\typescript\lib\typescript.js)
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\load-jsconfig.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack-config.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\handle-externals.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\handle-externals.js
+<w>  at file dependencies Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs Z:\Ordens de Serviço - IAPP\sistema_pcp\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js

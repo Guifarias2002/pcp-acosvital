@@ -150,7 +150,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
 
   // Polling a cada 10s — atualiza automático para todos os usuários
   useEffect(() => {
-    const id_interval = setInterval(() => carregarRef.current(), 10_000);
+    const id_interval = setInterval(() => carregarRef.current(), 60_000);
     return () => clearInterval(id_interval);
   }, []);
 
