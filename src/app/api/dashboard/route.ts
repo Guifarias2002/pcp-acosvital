@@ -29,7 +29,6 @@ export async function GET(req: Request) {
     lotesChegandoRows,
     pedidosAtrasados,
     ultMovs,
-    pedidosPendencia,
     divCountsRows,
   ] = await Promise.all([
     // Contadores com CTE para evitar subquery correlacionada por pedido
@@ -66,27 +65,17 @@ export async function GET(req: Request) {
       LEFT JOIN item_status  ist ON ist.pedido_id = p.id
     `,
 
-    // Itens por setor: itens diretos + itens com parciais ativas em outros setores
+    // Itens por setor: contagem simples sem json_agg
     sql`
       WITH itens_diretos AS (
-        SELECT i.setor_atual AS setor,
-               i.id, i.codigo, i.descricao,
-               i.quantidade_pendente::text, i.unidade, i.status,
-               p.numero_pedido_venda, p.cliente,
-               p.prazo_entrega::text AS pedido_prazo, p.prioridade
+        SELECT i.setor_atual AS setor, i.id
         FROM producao_itempedido i
-        JOIN producao_pedido p ON p.id = i.pedido_id
         WHERE i.status != 'entregue'
       ),
       itens_via_parcial AS (
-        SELECT DISTINCT pa.setor_atual AS setor,
-               i.id, i.codigo, i.descricao,
-               i.quantidade_pendente::text, i.unidade, i.status,
-               p.numero_pedido_venda, p.cliente,
-               p.prazo_entrega::text AS pedido_prazo, p.prioridade
+        SELECT DISTINCT pa.setor_atual AS setor, i.id
         FROM producao_itemparcial pa
         JOIN producao_itempedido i ON i.id = pa.item_pedido_id
-        JOIN producao_pedido p ON p.id = i.pedido_id
         WHERE pa.status NOT IN ('cancelada', 'concluida')
           AND pa.setor_atual != i.setor_atual
       ),
@@ -95,21 +84,7 @@ export async function GET(req: Request) {
         UNION
         SELECT * FROM itens_via_parcial
       )
-      SELECT setor AS setor_atual,
-             COUNT(*)  AS qtd,
-             json_agg(json_build_object(
-               'id',               id,
-               'codigo',           codigo,
-               'descricao',        descricao,
-               'quantidade_pendente', quantidade_pendente,
-               'unidade',          unidade,
-               'status',           status,
-               'setor_atual',      setor,
-               'pedido_numero',    numero_pedido_venda,
-               'pedido_cliente',   cliente,
-               'pedido_prazo',     pedido_prazo,
-               'pedido_prioridade',prioridade
-             ) ORDER BY numero_pedido_venda) AS itens
+      SELECT setor AS setor_atual, COUNT(*) AS qtd
       FROM todos
       GROUP BY setor
     `,
@@ -154,48 +129,6 @@ export async function GET(req: Request) {
       LIMIT 15
     `,
 
-    // Pedidos com itens — subquery correlacionada substituída por JOIN lateral
-    sql`
-      WITH sp AS (
-        SELECT ii.pedido_id, json_agg(DISTINCT pa.setor_atual) AS setores_parciais
-        FROM producao_itemparcial pa
-        JOIN producao_itempedido ii ON ii.id = pa.item_pedido_id
-        WHERE pa.status NOT IN ('cancelada', 'concluida')
-        GROUP BY ii.pedido_id
-      ),
-      iv AS (
-        SELECT pedido_id, SUM(quantidade * COALESCE(valor_unitario, 0)) AS valor_total
-        FROM producao_itempedido
-        GROUP BY pedido_id
-      )
-      SELECT p.id, p.numero_pedido_venda, p.numero_op, p.cliente, p.vendedor,
-             p.prazo_entrega::text, p.prioridade, p.status, p.setor_atual,
-             COALESCE(iv.valor_total, 0)::text AS valor_calculado,
-             p.prazo_entrega < NOW()::date     AS atrasado,
-             COALESCE(sp.setores_parciais, '[]'::json) AS setores_parciais,
-             COALESCE(
-               json_agg(
-                 json_build_object(
-                   'id',                i.id,
-                   'codigo',            i.codigo,
-                   'descricao',         i.descricao,
-                   'quantidade_pendente', i.quantidade_pendente::text,
-                   'unidade',           i.unidade,
-                   'status',            i.status,
-                   'setor_atual',       i.setor_atual
-                 ) ORDER BY i.codigo
-               ) FILTER (WHERE i.id IS NOT NULL),
-               '[]'
-             ) AS itens
-      FROM producao_pedido p
-      LEFT JOIN producao_itempedido i ON i.pedido_id = p.id
-      LEFT JOIN iv ON iv.pedido_id = p.id
-      LEFT JOIN sp ON sp.pedido_id = p.id
-      GROUP BY p.id, iv.valor_total, sp.setores_parciais
-      ORDER BY (p.status = 'entregue') ASC, p.prazo_entrega ASC, p.criado_em DESC
-      LIMIT 100
-    `,
-
     // DivergÃªncias (tabela pode nÃ£o existir)
     sql`
       SELECT
@@ -215,22 +148,18 @@ export async function GET(req: Request) {
   const chegandoMap: Record<string, number> = {};
   for (const l of lotesChegandoRows) chegandoMap[l.setor_destino] = Number(l.qtd_chegando);
 
-  const setorItemMap: Record<string, { qtd: number; itens: unknown[] }> = {};
-  for (const row of porSetorRows) setorItemMap[row.setor_atual] = { qtd: Number(row.qtd), itens: row.itens };
+  const setorQtdMap: Record<string, number> = {};
+  for (const row of porSetorRows) setorQtdMap[row.setor_atual] = Number(row.qtd);
 
   const verFinanceiro = user.is_staff;
 
   const porSetor = SETOR_CHOICES
-    .map(([cod, nome]) => {
-      const s = setorItemMap[cod] ?? { qtd: 0, itens: [] };
-      return {
-        cod, nome,
-        qtd: s.qtd,
-        qtd_chegando: chegandoMap[cod] || 0,
-        valor: verFinanceiro ? (valorMap[cod] || '0') : null,
-        itens: s.itens,
-      };
-    })
+    .map(([cod, nome]) => ({
+      cod, nome,
+      qtd: setorQtdMap[cod] ?? 0,
+      qtd_chegando: chegandoMap[cod] || 0,
+      valor: verFinanceiro ? (valorMap[cod] || '0') : null,
+    }))
     .filter(s => s.qtd > 0 || s.qtd_chegando > 0);
 
   return NextResponse.json({
@@ -260,7 +189,6 @@ export async function GET(req: Request) {
       usuario_nome: m.usuario_nome || 'Sistema',
       criado_em: m.criado_em,
     })),
-    pendencias: pedidosPendencia,
     divergencias_abertas:  Number(divCounts.abertas),
     divergencias_urgentes: Number(divCounts.urgentes),
   });

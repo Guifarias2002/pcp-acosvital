@@ -5,7 +5,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { getDashboard } from '@/lib/api';
 import { useRealtime } from '@/hooks/useRealtime';
 import { DashboardData, STATUS_LABELS, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR } from '@/lib/types';
-import { getUser } from '@/lib/auth';
+import { getUser, getToken } from '@/lib/auth';
 import Link from 'next/link';
 import NotificacoesLive from '@/components/NotificacoesLive';
 
@@ -372,6 +372,7 @@ function PedidoRow({ p, isAdmin }: { p: DashboardData['pendencias'][0]; isAdmin:
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pedidosData, setPedidosData] = useState<DashboardData['pendencias'] | null>(null);
   const [busca, setBusca] = useState('');
   const [buscaMov, setBuscaMov] = useState('');
   const [showMovDropdown, setShowMovDropdown] = useState(false);
@@ -396,13 +397,22 @@ export default function DashboardPage() {
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    if (!data) return;
+    const token = getToken() || '';
+    fetch('/api/dashboard/pedidos', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(j => setPedidosData(j.pedidos ?? []))
+      .catch(() => setPedidosData([]));
+  }, [data]);
+
   const carregarDashboard = useCallback(() => { getDashboard().then(setData); }, []);
   useRealtime(
     ['producao_itemparcial', 'producao_itempedido', 'producao_movimentacaoitem'],
     carregarDashboard,
   );
 
-  const ultimosPedidos = data?.pendencias ?? [];
+  const ultimosPedidos = pedidosData ?? [];
   const pedidosFiltrados = ultimosPedidos.filter(p => {
     if (busca && !p.numero_pedido_venda?.toLowerCase().includes(busca.toLowerCase()) && !p.cliente?.toLowerCase().includes(busca.toLowerCase())) return false;
     if (fPrioridade && p.prioridade !== fPrioridade) return false;
@@ -639,7 +649,7 @@ export default function DashboardPage() {
                   const q = buscaMov.toLowerCase();
                   const opcoes: { codigo: string; descricao: string; pv: string; op: string }[] = [];
                   const visto = new Set<string>();
-                  for (const p of data?.pendencias || []) {
+                  for (const p of pedidosData || []) {
                     for (const item of p.itens || []) {
                       const key = `${item.codigo}__${p.numero_pedido_venda}`;
                       if (visto.has(key)) continue;
