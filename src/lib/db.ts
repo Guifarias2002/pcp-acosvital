@@ -6,17 +6,19 @@ declare global {
   var _sql: postgres.Sql | undefined;
 }
 
+const isProd = process.env.NODE_ENV === 'production';
+
 const sql = global._sql ?? postgres({
   host: process.env.DB_HOST!,
-  port: 6543,                  // transaction mode pooler — suporta centenas de conexões simultâneas
+  port: 6543,          // transaction pooler — suporta centenas de conexões simultâneas
   database: process.env.DB_NAME!,
   username: process.env.DB_USER!,
   password: process.env.DB_PASSWORD!,
   ssl: 'require',
-  max: 3,
+  max: isProd ? 1 : 3, // Vercel: cada função é isolada, 1 conexão por instância é suficiente
   idle_timeout: 20,
   connect_timeout: 10,
-  prepare: false,              // obrigatório no transaction mode
+  prepare: false,       // obrigatório no transaction mode pooler
 });
 
 if (process.env.NODE_ENV !== 'production') global._sql = sql;
