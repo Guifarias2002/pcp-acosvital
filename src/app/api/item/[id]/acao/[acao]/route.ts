@@ -500,6 +500,15 @@ export async function POST(
                 ${item.status}, 'aguardando', ${obs || 'Devolucao'}, NOW())
       `;
       await tx`UPDATE producao_itempedido SET status='aguardando', setor_atual=${destino}, atualizado_em=NOW() WHERE id=${item.id}`;
+      // Cancela todas as parciais filhas (enviadas parcialmente) que ainda estão ativas
+      // para evitar que a soma ultrapasse a quantidade total do item ao reenviar
+      await tx`
+        UPDATE producao_itemparcial
+        SET status = 'cancelada', atualizado_em = NOW()
+        WHERE item_pedido_id = ${item.id}
+          AND parcial_origem_id IS NOT NULL
+          AND status NOT IN ('cancelada', 'concluida')
+      `;
       await moverParcialInteira(
         tx as unknown as typeof sql,
         item.id, item.pedido_id,
