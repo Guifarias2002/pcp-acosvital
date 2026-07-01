@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getItem, itemAcao, parcialAcao } from '@/lib/api';
 import { ItemPedido, SETOR_CHOICES, STATUS_LABELS, PRIORIDADE_COR, NOMES } from '@/lib/types';
@@ -46,14 +47,27 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   const [showDivergencia, setShowDivergencia] = useState(false);
   const [motivoDivergencia, setMotivoDivergencia] = useState('');
 
+  const carregarRef = useRef<() => void>(() => {});
   function carregar() {
     getItem(Number(id)).then(d => { setItem(d); setLoading(false); }).catch(() => setLoading(false));
   }
+  carregarRef.current = carregar;
 
   useEffect(() => {
     if (!item) setLoading(true);
-    carregar();
+    carregarRef.current();
   }, [id]);
+
+  useEffect(() => {
+    const t = setInterval(() => carregarRef.current(), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const carregarCallback = useCallback(() => carregarRef.current(), []);
+  useRealtime(
+    ['producao_itemparcial', 'producao_itempedido', 'producao_movimentacaoitem'],
+    carregarCallback,
+  );
 
   async function acao(a: string, body?: Record<string, unknown>) {
     setAtuando(true);
