@@ -878,8 +878,19 @@ function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial;
           </>
         )}
 
-        {/* Devolver — disponível em todos os setores */}
-        {(isAberto || isAndamento || isPausado || isFinalizado) && !isLogistica && (
+        {/* DESPACHAR — logística only */}
+        {isLogistica && isFinalizado && (
+          <button onClick={() => setConfirm({
+            titulo: 'Despachar',
+            mensagem: 'Confirma o despacho desta parcial para o cliente?',
+            acao: () => acao('concluir'),
+          })} disabled={loading} style={btnStyle('#fd7e14')}>
+            🚚 Despachar
+          </button>
+        )}
+
+        {/* Devolver — disponível em todos os setores incluindo logística */}
+        {(isAberto || isAndamento || isPausado || isFinalizado) && (
           <button onClick={() => { setShowDevolver(v => !v); setShowNaoEntregue(false); }} disabled={loading} style={btnStyle('#dc3545', true)}>
             <i className="bi bi-arrow-return-left" style={{ marginRight: 5 }} />Devolver
           </button>
