@@ -1,5 +1,6 @@
 'use client';
-import { Suspense, useEffect, useState, useRef } from 'react';
+import { Suspense, useEffect, useState, useRef, useCallback } from 'react';
+import { useRealtime } from '@/hooks/useRealtime';
 import { useSearchParams } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedidos } from '@/lib/api';
@@ -94,6 +95,12 @@ function PedidosPageInner() {
     const t = setInterval(() => buscarRef.current(), 10_000);
     return () => clearInterval(t);
   }, []);
+
+  const buscarCallback = useCallback(() => buscarRef.current(), []);
+  useRealtime(
+    ['producao_itemparcial', 'producao_itempedido', 'producao_movimentacaoitem'],
+    buscarCallback,
+  );
 
   const pedidosFiltrados = pedidos.filter(p => !fEtapa || getPedidoEtapa(p) === fEtapa);
   const todosSelected = pedidosFiltrados.length > 0 && pedidosFiltrados.every(p => selectedIds.has(p.id));

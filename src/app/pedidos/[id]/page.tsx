@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedido, itemAcao } from '@/lib/api';
 import { Pedido, ItemPedido, COR_STATUS, STATUS_LABELS, PRIORIDADE_COR, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR } from '@/lib/types';
@@ -152,6 +153,12 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
     const id_interval = setInterval(() => carregarRef.current(), 10_000);
     return () => clearInterval(id_interval);
   }, []);
+
+  const carregarCallback = useCallback(() => carregarRef.current(), []);
+  useRealtime(
+    ['producao_itemparcial', 'producao_itempedido', 'producao_movimentacaoitem'],
+    carregarCallback,
+  );
 
   if (loading || !pedido) return (
     <AuthGuard><div className="p-8 text-gray-400">Carregando...</div></AuthGuard>

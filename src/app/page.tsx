@@ -1,8 +1,9 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { getDashboard } from '@/lib/api';
+import { useRealtime } from '@/hooks/useRealtime';
 import { DashboardData, STATUS_LABELS, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR } from '@/lib/types';
 import { getUser } from '@/lib/auth';
 import Link from 'next/link';
@@ -393,6 +394,12 @@ export default function DashboardPage() {
     const t = setInterval(() => getDashboard().then(setData), 10_000);
     return () => clearInterval(t);
   }, []);
+
+  const carregarDashboard = useCallback(() => { getDashboard().then(setData); }, []);
+  useRealtime(
+    ['producao_itemparcial', 'producao_itempedido', 'producao_movimentacaoitem'],
+    carregarDashboard,
+  );
 
   const ultimosPedidos = data?.pendencias ?? [];
   const pedidosFiltrados = ultimosPedidos.filter(p => {
