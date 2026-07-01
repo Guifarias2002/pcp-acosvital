@@ -219,6 +219,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
   const isFinalizado = parcial.status === 'finalizado_setor';
   const isConcluida = parcial.status === 'concluida';
   const isCancelada = parcial.status === 'cancelada';
+  const isLogistica = parcial.setor_atual === 'logistica';
   const isAtiva     = isAberto || isAndamento || isPausado || isFinalizado;
   const duracao     = fmtDuracao(parcial.iniciado_em, parcial.concluido_em);
 
@@ -503,8 +504,8 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                 </button>
               )}
 
-              {/* ENVIAR AO PRÓXIMO SETOR — quando finalizado_setor */}
-              {isFinalizado && !showDivQualidade && (
+              {/* ENVIAR AO PRÓXIMO SETOR — quando finalizado_setor, exceto logística */}
+              {isFinalizado && !showDivQualidade && !isLogistica && (
                 <button onClick={() => { setShowSplit(v => !v); setShowDevolver(false); }} disabled={!!atuando}
                   className="w-full bg-[#1a3a5c] text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:opacity-90 disabled:opacity-60">
                   ↗ Enviar ao próximo setor
@@ -519,16 +520,16 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                 </button>
               )}
 
-              {/* RETOMAR ETAPA — quando finalizado_setor */}
-              {isFinalizado && (
+              {/* RETOMAR ETAPA — quando finalizado_setor, exceto logística */}
+              {isFinalizado && !isLogistica && (
                 <button onClick={() => executarAcao('retomar')} disabled={!!atuando}
                   className="w-full bg-yellow-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-yellow-600 disabled:opacity-60">
                   {atuando === 'retomar' ? '⏳ Retomando...' : '↩ Retomar etapa'}
                 </button>
               )}
 
-              {/* ENCERRAR — quando finalizado_setor, marca como concluída definitivamente */}
-              {isFinalizado && (
+              {/* ENCERRAR — quando finalizado_setor, exceto logística */}
+              {isFinalizado && !isLogistica && (
                 <button onClick={() => setConfirmModal({
                   titulo: 'Encerrar Parcial',
                   mensagem: 'As peças já foram processadas e não precisam ir a outro setor. Deseja encerrar esta parcial como concluída?',
@@ -536,6 +537,19 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                 })} disabled={!!atuando}
                   className="w-full border border-green-500 text-green-700 px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-50 disabled:opacity-60">
                   {atuando === 'concluir' ? '⏳ Encerrando...' : '✓ Encerrar (concluído)'}
+                </button>
+              )}
+
+              {/* DESPACHAR — logística only */}
+              {isLogistica && isFinalizado && (
+                <button onClick={() => setConfirmModal({
+                  titulo: 'Despachar',
+                  mensagem: 'Confirma o despacho desta parcial para o cliente?',
+                  acao: () => executarAcao('concluir'),
+                })} disabled={!!atuando}
+                  className="w-full text-white px-4 py-2.5 rounded text-sm font-semibold text-left disabled:opacity-60"
+                  style={{ background: '#fd7e14' }}>
+                  {atuando === 'concluir' ? '⏳ Despachando...' : '🚚 Despachar'}
                 </button>
               )}
 
