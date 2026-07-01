@@ -614,15 +614,12 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                   📐 Desenho Técnico
                 </p>
                 {(pedido as any).tem_desenho ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <a href={`/api/pedidos/${id}/desenho`} target="_blank" rel="noopener noreferrer"
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#2563eb', textDecoration: 'none', border: '1px solid #bfdbfe', borderRadius: 6, padding: '8px 10px', background: '#eff6ff' }}>
-                      📄 Visualizar Desenho
+                      style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', flex: 1 }}>
+                      ✅ Ver desenho técnico
                     </a>
-                    <button onClick={removerDesenho}
-                      style={{ fontSize: 11, color: '#dc2626', background: 'none', border: '1px solid #fecaca', borderRadius: 6, padding: '5px 10px', cursor: 'pointer' }}>
-                      ✕ Remover desenho
-                    </button>
+                    <button onClick={removerDesenho} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12 }}>✕</button>
                   </div>
                 ) : (
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: '#6b7280', border: '1px dashed #d1d5db', borderRadius: 6, padding: '8px 10px' }}>
@@ -631,16 +628,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                     {uploadingDesenho ? '⏳ Enviando...' : '📤 Anexar desenho técnico'}
                   </label>
                 )}
-                {desenhoMsg && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                    <p style={{ fontSize: 11, color: '#16a34a', margin: 0 }}>{desenhoMsg}</p>
-                    {desenhoMsg.includes('sucesso') && (
-                      <a href={`/api/pedidos/${id}/desenho`} target="_blank" rel="noopener noreferrer"
-                        style={{ fontSize: 13, color: '#2563eb', textDecoration: 'none' }}
-                        title="Ver desenho">👁</a>
-                    )}
-                  </div>
-                )}
+                {desenhoMsg && <p style={{ fontSize: 11, color: desenhoMsg.includes('sucesso') ? '#16a34a' : '#dc2626', marginTop: 6 }}>{desenhoMsg}</p>}
               </div>
             )}
 
