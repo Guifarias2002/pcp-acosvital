@@ -79,7 +79,7 @@ function PedidosPageInner() {
   const isAdmin = _u?.is_staff;
   const isSuperAdmin = _u?.perfil === 'administrador' || (_u?.is_staff && _u?.perfil !== 'pcp' && _u?.perfil !== 'lider');
 
-  const buscarRef = useRef<() => void>(() => {});
+  const buscarRef = useRef<(p?: number) => void>(() => {});
 
   function buscar(p = page) {
     setLoading(true);
