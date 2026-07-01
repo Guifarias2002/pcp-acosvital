@@ -25,14 +25,27 @@ function clearRateLimit(ip: string) {
   loginAttempts.delete(ip);
 }
 
-async function verifyDjangoPassword(password: string, encoded: string): Promise<boolean> {
+const TARGET_ITER = 260_000;
+
+async function verifyDjangoPassword(password: string, encoded: string): Promise<{ valid: boolean; needsRehash: boolean }> {
   const parts = encoded.split('$');
-  if (parts.length !== 4 || parts[0] !== 'pbkdf2_sha256') return false;
+  if (parts.length !== 4 || parts[0] !== 'pbkdf2_sha256') return { valid: false, needsRehash: false };
   const iterations = parseInt(parts[1]);
   const salt = parts[2];
   const storedHash = Buffer.from(parts[3], 'base64');
   const derived = await pbkdf2Async(password, salt, iterations, storedHash.length, 'sha256');
-  return timingSafeEqual(derived, storedHash);
+  const valid = timingSafeEqual(derived, storedHash);
+  return { valid, needsRehash: valid && iterations > TARGET_ITER };
+}
+
+async function rehash(userId: number, password: string) {
+  try {
+    const { randomBytes } = await import('crypto');
+    const salt = randomBytes(8).toString('hex');
+    const h = await pbkdf2Async(password, salt, TARGET_ITER, 32, 'sha256');
+    const enc = `pbkdf2_sha256$${TARGET_ITER}$${salt}$${h.toString('base64')}`;
+    await sql`UPDATE usuarios_usuario SET password = ${enc} WHERE id = ${userId}`;
+  } catch {}
 }
 
 async function registrarAuditoria(username: string, ip: string, sucesso: boolean) {
@@ -70,11 +83,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: 'Usuario ou senha invalidos' }, { status: 401 });
     }
 
-    const valid = await verifyDjangoPassword(String(password), user.password);
+    const { valid, needsRehash } = await verifyDjangoPassword(String(password), user.password);
     if (!valid) {
       await registrarAuditoria(username, ip, false);
       return NextResponse.json({ erro: 'Usuario ou senha invalidos' }, { status: 401 });
     }
+    if (needsRehash) rehash(user.id, String(password));
 
     clearRateLimit(ip);
     await registrarAuditoria(username, ip, true);
