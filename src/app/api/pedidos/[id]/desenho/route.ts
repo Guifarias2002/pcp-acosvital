@@ -85,7 +85,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const storagePath = `pedido_${pedidoId}.${ext}`;
 
   const bytes = await arquivo.arrayBuffer();
-  await uploadStorage(storagePath, bytes, arquivo.type);
+
+  try {
+    await uploadStorage(storagePath, bytes, arquivo.type);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('Storage upload error:', msg);
+    return NextResponse.json({ erro: `Falha no storage: ${msg}` }, { status: 500 });
+  }
 
   await sql`UPDATE producao_pedido SET desenho_url = ${storagePath} WHERE id = ${pedidoId}`;
 
