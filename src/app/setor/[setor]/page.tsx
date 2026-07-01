@@ -547,6 +547,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial;
   const [setorRetrabalho, setSetorRetrabalho] = useState('');
   const [motivoDiv, setMotivoDiv] = useState('');
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void; perigo?: boolean } | null>(null);
+  const [showDespacharParcial, setShowDespacharParcial] = useState(false);
   const isLogistica = parcial.setor_atual === 'logistica';
   const isQualidade = parcial.setor_atual === 'qualidade';
 
@@ -880,13 +881,18 @@ function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial;
 
         {/* DESPACHAR — logística only */}
         {isLogistica && isFinalizado && (
-          <button onClick={() => setConfirm({
-            titulo: 'Despachar',
-            mensagem: 'Confirma o despacho desta parcial para o cliente?',
-            acao: () => acao('concluir'),
-          })} disabled={loading} style={btnStyle('#fd7e14')}>
+          <button onClick={() => setShowDespacharParcial(true)} disabled={loading} style={btnStyle('#fd7e14')}>
             🚚 Despachar
           </button>
+        )}
+        {showDespacharParcial && (
+          <DespacharModal
+            itemId={parcial.item_pedido_id as number}
+            itemCodigo={parcial.item_codigo}
+            pedidoNumero={parcial.numero_pedido_venda}
+            onClose={() => setShowDespacharParcial(false)}
+            onSuccess={() => { setShowDespacharParcial(false); onRefresh(); }}
+          />
         )}
 
         {/* Devolver — disponível em todos os setores incluindo logística */}
