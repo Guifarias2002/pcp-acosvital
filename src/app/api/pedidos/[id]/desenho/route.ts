@@ -39,7 +39,13 @@ async function downloadStorage(path: string): Promise<Response> {
 }
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
-  const user = await autenticar(req);
+  // Aceita token via query param para uso em <img> e <iframe>
+  const url = new URL(req.url);
+  const queryToken = url.searchParams.get('token');
+  const reqComToken = queryToken
+    ? new Request(req.url, { headers: { ...Object.fromEntries(req.headers), Authorization: `Bearer ${queryToken}` } })
+    : req;
+  const user = await autenticar(reqComToken);
   if (user instanceof NextResponse) return user;
 
   const pedidoId = Number(params.id);

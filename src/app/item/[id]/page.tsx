@@ -46,7 +46,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   const [showLiberarModal, setShowLiberarModal] = useState<'completo' | 'parcial' | null>(null);
   const [showDivergencia, setShowDivergencia] = useState(false);
   const [motivoDivergencia, setMotivoDivergencia] = useState('');
-  const [desenhoBlob, setDesenhoBlob] = useState<{ url: string; tipo: string } | null>(null);
+  const [desenhoUrl, setDesenhoUrl] = useState<string | null>(null);
 
   const carregarRef = useRef<() => void>(() => {});
   function carregar() {
@@ -65,17 +65,12 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   }, []);
 
   useEffect(() => {
-    if (!item || !(item as any).tem_desenho) { setDesenhoBlob(null); return; }
+    if (!item) return;
+    const temDesenho = (item as any).tem_desenho;
+    if (!temDesenho) { setDesenhoUrl(null); return; }
     const token = localStorage.getItem('token') || '';
-    fetch(`/api/pedidos/${item.pedido_id}/desenho`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(async r => {
-        if (!r.ok) return;
-        const tipo = r.headers.get('content-type') || '';
-        const blob = await r.blob();
-        setDesenhoBlob({ url: URL.createObjectURL(blob), tipo });
-      }).catch(() => {});
-    return () => { setDesenhoBlob(b => { if (b) URL.revokeObjectURL(b.url); return null; }); };
-  }, [item?.pedido_id, (item as any)?.tem_desenho]);
+    setDesenhoUrl(`/api/pedidos/${item.pedido_id}/desenho?token=${encodeURIComponent(token)}`);
+  }, [item]);
 
   const carregarCallback = useCallback(() => carregarRef.current(), []);
   useRealtime(
@@ -541,14 +536,10 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
               </div>
 
               {/* Prévia do desenho técnico */}
-              {desenhoBlob && (
+              {desenhoUrl && (
                 <div className="mt-4 border-t pt-4">
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">📐 Desenho Técnico</p>
-                  {desenhoBlob.tipo.startsWith('image/') ? (
-                    <img src={desenhoBlob.url} alt="Desenho técnico" className="w-full rounded border" />
-                  ) : (
-                    <iframe src={desenhoBlob.url} className="w-full rounded border" style={{ height: 500 }} />
-                  )}
+                  <iframe src={desenhoUrl} className="w-full rounded border" style={{ height: 500 }} title="Desenho técnico" />
                 </div>
               )}
 
