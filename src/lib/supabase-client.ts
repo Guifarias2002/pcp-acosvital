@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Remove BOM (﻿) that can appear when env vars are pasted from certain editors
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/^﻿/, '');
+const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.replace(/^﻿/, '');
 
 // null quando as env vars não estão configuradas — páginas degradam para polling
 export const supabase = url && key

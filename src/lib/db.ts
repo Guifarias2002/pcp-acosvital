@@ -15,9 +15,9 @@ const sql = global._sql ?? postgres({
   username: process.env.DB_USER!,
   password: process.env.DB_PASSWORD!,
   ssl: 'require',
-  max: isProd ? 1 : 3, // Vercel: cada função é isolada, 1 conexão por instância é suficiente
+  max: isProd ? 5 : 3, // permite até 5 queries paralelas por instância Vercel
   idle_timeout: 20,
-  connect_timeout: 10,
+  connect_timeout: 5, // falha rápido se o DB não responder (Vercel timeout = 10s)
   prepare: false,       // obrigatório no transaction mode pooler
 });
 
