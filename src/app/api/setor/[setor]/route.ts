@@ -12,7 +12,8 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
 
-  const setor = params.setor;
+  let setor = params.setor;
+  try { setor = decodeURIComponent(setor); } catch { /* já decodificado */ }
   if (!SETORES_VALIDOS.includes(setor))
     return NextResponse.json({ erro: 'Setor invalido' }, { status: 400 });
 
