@@ -615,7 +615,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                 </p>
                 {(pedido as any).desenho_url ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <a href={(pedido as any).desenho_url} target="_blank" rel="noopener noreferrer"
+                    <a href={`/api/pedidos/${id}/desenho`} target="_blank" rel="noopener noreferrer"
                       style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#2563eb', textDecoration: 'none', border: '1px solid #bfdbfe', borderRadius: 6, padding: '8px 10px', background: '#eff6ff' }}>
                       📄 Visualizar Desenho
                     </a>

@@ -183,8 +183,8 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
       )}
 
       {/* Desenho técnico */}
-      {(item as any).desenho_url && (
-        <a href={(item as any).desenho_url} target="_blank" rel="noopener noreferrer"
+      {(item as any).tem_desenho && (
+        <a href={`/api/pedidos/${item.pedido_id}/desenho`} target="_blank" rel="noopener noreferrer"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#1d4ed8', textDecoration: 'none', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 5, padding: '4px 10px', marginBottom: 8 }}>
           📐 Ver Desenho Técnico
         </a>
@@ -734,8 +734,8 @@ function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial;
         )}
 
       {/* Desenho técnico */}
-      {(parcial as any).desenho_url && (
-        <a href={(parcial as any).desenho_url} target="_blank" rel="noopener noreferrer"
+      {(parcial as any).tem_desenho && (
+        <a href={`/api/pedidos/${parcial.pedido_id}/desenho`} target="_blank" rel="noopener noreferrer"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#1d4ed8', textDecoration: 'none', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 5, padding: '4px 10px', marginBottom: 8 }}>
           📐 Ver Desenho Técnico
         </a>

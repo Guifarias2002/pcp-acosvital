@@ -15,6 +15,35 @@ async function garantirColuna() {
   colunaCriada = true;
 }
 
+export async function GET(req: Request, { params }: { params: { id: string } }) {
+  // Qualquer usuario autenticado pode ver o desenho
+  const user = await autenticar(req);
+  if (user instanceof NextResponse) return user;
+
+  const pedidoId = Number(params.id);
+  await garantirColuna();
+
+  const rows = await sql`SELECT desenho_url FROM producao_pedido WHERE id = ${pedidoId}`;
+  const dataUri: string | null = rows[0]?.desenho_url ?? null;
+
+  if (!dataUri) return new Response('Sem desenho', { status: 404 });
+
+  // Extrai tipo e bytes do data URI: "data:<mime>;base64,<data>"
+  const match = dataUri.match(/^data:([^;]+);base64,(.+)$/s);
+  if (!match) return new Response('Formato inválido', { status: 500 });
+
+  const [, mime, b64] = match;
+  const buffer = Buffer.from(b64, 'base64');
+
+  return new Response(buffer, {
+    headers: {
+      'Content-Type': mime,
+      'Content-Disposition': `inline; filename="desenho_${pedidoId}.${mime.split('/')[1]}"`,
+      'Cache-Control': 'private, max-age=3600',
+    },
+  });
+}
+
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
