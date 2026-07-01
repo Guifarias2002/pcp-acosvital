@@ -56,7 +56,7 @@ export default function EntreguesPage() {
   buscarRef.current = buscar;
 
   useEffect(() => {
-    const t = setInterval(() => buscarRef.current(), 60_000);
+    const t = setInterval(() => buscarRef.current(), 5_000);
     return () => clearInterval(t);
   }, []);
 

@@ -1744,7 +1744,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
 
   // Polling a cada 10 s — garante atualização mesmo sem WebSocket
   useEffect(() => {
-    const id = setInterval(() => carregarRef.current(), 60_000);
+    const id = setInterval(() => carregarRef.current(), 5_000);
     return () => clearInterval(id);
   }, []); // [] = inicia uma vez, usa sempre a ref mais recente
 

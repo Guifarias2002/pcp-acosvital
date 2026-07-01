@@ -94,7 +94,7 @@ function PedidosPageInner() {
 
   // Polling 10s — mantém lista sempre atualizada
   useEffect(() => {
-    const t = setInterval(() => buscarRef.current(), 60_000);
+    const t = setInterval(() => buscarRef.current(), 5_000);
     return () => clearInterval(t);
   }, []);
 
