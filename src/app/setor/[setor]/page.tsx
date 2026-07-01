@@ -7,6 +7,7 @@ import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
 import NotificacoesLive from '@/components/NotificacoesLive';
+import { useRealtime } from '@/hooks/useRealtime';
 import ConfirmModal from '@/components/ConfirmModal';
 import EntregarModal from '@/components/EntregarModal';
 import DespacharModal from '@/components/DespacharModal';
@@ -1728,6 +1729,19 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
     setLoading(true);
     carregar();
   }, [setor]);
+
+  // Atualização em tempo real via Supabase WebSocket
+  useRealtime(
+    ['producao_itemparcial', 'producao_itempedido', 'producao_movimentacaoitem'],
+    carregar,
+    [`setor-${setor}`],
+  );
+
+  // Polling a cada 30 s como fallback (funciona sempre, mesmo sem WebSocket)
+  useEffect(() => {
+    const id = setInterval(carregar, 30_000);
+    return () => clearInterval(id);
+  }, [carregar]);
 
   return (
     <AuthGuard>
