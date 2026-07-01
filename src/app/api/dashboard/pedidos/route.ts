@@ -31,8 +31,9 @@ export async function GET(req: Request) {
     `,
   ]);
 
+  type ItemRow = (typeof itens)[0];
   // Agrupa itens por pedido no JS (evita json_agg no DB)
-  const itensPorPedido: Record<number, typeof itens> = {};
+  const itensPorPedido: Record<number, ItemRow[]> = {};
   for (const item of itens) {
     const pid = Number(item.pedido_id);
     if (!itensPorPedido[pid]) itensPorPedido[pid] = [];

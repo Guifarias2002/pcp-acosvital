@@ -14,7 +14,6 @@ interface DashboardTV {
     id: number;
     item_codigo: string;
     numero_pedido_venda: string;
-    setor_origem_nome: string;
     setor_destino_nome: string;
     status_anterior_display: string;
     status_novo_display: string;
@@ -36,7 +35,7 @@ export default function TVPage() {
   const [agora, setAgora] = useState('');
 
   const carregar = useCallback(() => {
-    fetch('/api/dashboard')
+    fetch('/api/tv')
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setData(d); })
       .catch(() => {});
