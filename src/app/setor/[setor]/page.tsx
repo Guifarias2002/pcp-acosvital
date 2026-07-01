@@ -1,6 +1,27 @@
 'use client';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import AuthGuard from '@/components/AuthGuard';
+
+function Cronometro({ desde }: { desde: string }) {
+  const [seg, setSeg] = useState(0);
+  const ref = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    const inicio = new Date(desde).getTime();
+    function tick() { setSeg(Math.floor((Date.now() - inicio) / 1000)); }
+    tick();
+    ref.current = setInterval(tick, 1000);
+    return () => { if (ref.current) clearInterval(ref.current); };
+  }, [desde]);
+  const h = Math.floor(seg / 3600);
+  const m = Math.floor((seg % 3600) / 60);
+  const s = seg % 60;
+  const txt = h > 0 ? `${h}h ${String(m).padStart(2,'0')}m` : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return (
+    <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#1d4ed8', background: '#dbeafe', borderRadius: 5, padding: '2px 7px' }}>
+      ⏱ {txt}
+    </span>
+  );
+}
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao } from '@/lib/api';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
@@ -646,11 +667,14 @@ function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial;
             <span style={{ fontWeight: 800, color: '#475569', fontSize: 15 }}>{parcial.item_codigo}</span>
           </span>
         </div>
-        {/* Linha 3: status + link */}
+        {/* Linha 3: status + cronômetro + link */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
           <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: badge.bg, color: badge.color }}>
             {LABEL_PARCIAL[parcial.status] || parcial.status}
           </span>
+          {isAndamento && parcial.atualizado_em && (
+            <Cronometro desde={parcial.atualizado_em} />
+          )}
           <Link href={`/parcial/${parcial.id}`} title="Ver detalhe" style={{ color: '#0d6efd', fontSize: 14, textDecoration: 'none' }}>
             <i className="bi bi-eye" />
           </Link>
