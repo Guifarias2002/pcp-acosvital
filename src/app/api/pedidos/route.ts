@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
 import { formatPedido } from '@/lib/queries';
@@ -6,47 +6,91 @@ import { SETOR_CHOICES } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
+const PER_PAGE = 50;
+
 export async function GET(req: Request) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
 
   const { searchParams } = new URL(req.url);
-  const cliente = searchParams.get('cliente') || '';
-  const status = searchParams.get('status') || '';
+  const cliente    = searchParams.get('cliente') || '';
+  const status     = searchParams.get('status') || '';
   const prioridade = searchParams.get('prioridade') || '';
-  const entregue = searchParams.get('entregue') === '1';
+  const entregue   = searchParams.get('entregue') === '1';
+  const page       = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+  const offset     = (page - 1) * PER_PAGE;
 
-  let rows = await sql`
-    SELECT p.*, u.nome AS criado_por_nome,
-           COALESCE((SELECT SUM(i2.quantidade * COALESCE(i2.valor_unitario,0)) FROM producao_itempedido i2 WHERE i2.pedido_id = p.id), 0)::text AS valor_calculado,
-           COALESCE((SELECT json_agg(json_build_object('id', i3.id, 'status', i3.status)) FROM producao_itempedido i3 WHERE i3.pedido_id = p.id), '[]'::json) AS itens,
-           COALESCE((
-             SELECT json_agg(DISTINCT pa.setor_atual)
-             FROM producao_itemparcial pa
-             JOIN producao_itempedido ii ON ii.id = pa.item_pedido_id
-             WHERE ii.pedido_id = p.id
-               AND pa.status NOT IN ('cancelada', 'concluida')
-           ), '[]'::json) AS setores_parciais
+  // 1. Busca apenas os IDs da página corrente — query leve, usa índices
+  const baseRows = await sql`
+    SELECT p.id, p.criado_por_id, p.numero_pedido_venda, p.numero_op, p.cliente,
+           p.vendedor, p.prazo_entrega::text, p.prioridade, p.status, p.setor_atual,
+           p.roteiro_base, p.observacoes, p.data_emissao::text, p.criado_em, p.atualizado_em,
+           p.valor_total::text,
+           u.nome AS criado_por_nome
     FROM producao_pedido p
     LEFT JOIN usuarios_usuario u ON u.id = p.criado_por_id
     WHERE 1=1
       AND (${cliente} = '' OR p.cliente ILIKE ${'%' + cliente + '%'})
-      AND (${status} = '' OR p.status = ${status} OR (
-        ${status} = 'entregue' AND EXISTS (
-          SELECT 1 FROM producao_itempedido ix WHERE ix.pedido_id = p.id AND ix.status = 'entregue'
-        )
-      ))
+      AND (${status}  = '' OR p.status = ${status})
       AND (${prioridade} = '' OR p.prioridade = ${prioridade})
-      AND (${entregue} = TRUE OR (p.status != 'entregue' AND NOT EXISTS (
-        SELECT 1 FROM producao_itempedido ix WHERE ix.pedido_id = p.id AND ix.status = 'entregue'
-      )))
+      AND (${entregue} = TRUE OR p.status != 'entregue')
     ORDER BY
       CASE p.prioridade WHEN 'urgente' THEN 1 WHEN 'alta' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
-      p.prazo_entrega ASC
+      p.prazo_entrega ASC NULLS LAST,
+      p.id DESC
+    LIMIT ${PER_PAGE} OFFSET ${offset}
   `;
 
-  const pedidos = rows.map(r => formatPedido(r, r.itens || []));
-  return NextResponse.json(pedidos);
+  if (baseRows.length === 0) {
+    return NextResponse.json({ pedidos: [], page, per_page: PER_PAGE, total: 0, pages: 0 });
+  }
+
+  const ids = baseRows.map(r => r.id as number);
+
+  // 2. Agrega itens e parciais apenas para os pedidos da página — 2 queries flat
+  const [itemRows, parcialRows, [{ total }]] = await Promise.all([
+    sql`
+      SELECT pedido_id,
+             SUM(quantidade * COALESCE(valor_unitario, 0))::text AS valor_calculado,
+             json_agg(json_build_object('id', id, 'status', status)) AS itens
+      FROM producao_itempedido
+      WHERE pedido_id = ANY(${ids})
+      GROUP BY pedido_id
+    `,
+    sql`
+      SELECT ii.pedido_id, json_agg(DISTINCT pa.setor_atual) AS setores_parciais
+      FROM producao_itemparcial pa
+      JOIN producao_itempedido ii ON ii.id = pa.item_pedido_id
+      WHERE ii.pedido_id = ANY(${ids})
+        AND pa.status NOT IN ('cancelada', 'concluida')
+      GROUP BY ii.pedido_id
+    `,
+    sql`
+      SELECT COUNT(*)::int AS total
+      FROM producao_pedido p
+      WHERE 1=1
+        AND (${cliente} = '' OR p.cliente ILIKE ${'%' + cliente + '%'})
+        AND (${status}  = '' OR p.status = ${status})
+        AND (${prioridade} = '' OR p.prioridade = ${prioridade})
+        AND (${entregue} = TRUE OR p.status != 'entregue')
+    `,
+  ]);
+
+  // 3. Monta lookup por pedido_id e formata
+  const itemMap    = new Map(itemRows.map(r => [r.pedido_id as number, r]));
+  const parcialMap = new Map(parcialRows.map(r => [r.pedido_id as number, r]));
+
+  const pedidos = baseRows.map(r => {
+    const im = itemMap.get(r.id as number);
+    const pm = parcialMap.get(r.id as number);
+    return formatPedido(
+      { ...r, valor_calculado: im?.valor_calculado ?? '0', setores_parciais: pm?.setores_parciais ?? [] },
+      im?.itens ?? [],
+    );
+  });
+
+  const pages = Math.ceil((total as number) / PER_PAGE);
+  return NextResponse.json({ pedidos, page, per_page: PER_PAGE, total, pages });
 }
 
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
@@ -63,11 +107,10 @@ export async function POST(req: Request) {
     const { numero_pedido_venda, numero_op, cliente, vendedor, prazo_entrega,
             prioridade, roteiro_base, observacoes, itens } = body;
 
-    // ValidaÃ§Ã£o de campos obrigatÃ³rios
     if (!numero_pedido_venda?.toString().trim())
       return NextResponse.json({ erro: 'Numero do pedido obrigatorio' }, { status: 400 });
     if (!numero_op?.toString().trim())
-      return NextResponse.json({ erro: 'Numero da Ordem de Producao (OP) obrigatorio â€” ele identifica e agrupa todas as parciais deste pedido ao longo dos setores' }, { status: 400 });
+      return NextResponse.json({ erro: 'Numero da Ordem de Producao (OP) obrigatorio' }, { status: 400 });
     if (!cliente?.toString().trim())
       return NextResponse.json({ erro: 'Cliente obrigatorio' }, { status: 400 });
     if (!prazo_entrega || !/^\d{4}-\d{2}-\d{2}$/.test(prazo_entrega))
@@ -95,31 +138,24 @@ export async function POST(req: Request) {
       RETURNING *
     `;
 
-    if (itens && itens.length > 0) {
-      for (const item of itens) {
-        const rotProprio = item.roteiro_proprio && item.roteiro_proprio.length > 0
-          ? item.roteiro_proprio
-          : [];
-        const primeiroSetor = (item.roteiro_proprio && item.roteiro_proprio.length > 0)
-          ? item.roteiro_proprio[0]
-          : roteiro_base[0];
-        await sql`
-          INSERT INTO producao_itempedido
-            (pedido_id, codigo, descricao, quantidade, unidade, valor_unitario,
-             roteiro_proprio, setor_atual, status, quantidade_pendente, criado_em)
-          VALUES (
-            ${pedido.id}, ${item.codigo}, ${item.descricao || ''},
-            ${item.quantidade}, ${item.unidade || 'un'},
-            ${item.valor_unitario || null},
-            ${rotProprio as string[]},
-            ${primeiroSetor}, 'emitido',
-            ${item.quantidade}, NOW()
-          )
-        `;
-      }
+    for (const item of itens) {
+      const rotProprio = item.roteiro_proprio?.length > 0 ? item.roteiro_proprio : [];
+      const primeiroSetor = rotProprio.length > 0 ? rotProprio[0] : roteiro_base[0];
+      await sql`
+        INSERT INTO producao_itempedido
+          (pedido_id, codigo, descricao, quantidade, unidade, valor_unitario,
+           roteiro_proprio, setor_atual, status, quantidade_pendente, criado_em)
+        VALUES (
+          ${pedido.id}, ${item.codigo}, ${item.descricao || ''},
+          ${item.quantidade}, ${item.unidade || 'un'},
+          ${item.valor_unitario || null},
+          ${rotProprio as string[]},
+          ${primeiroSetor}, 'emitido',
+          ${item.quantidade}, NOW()
+        )
+      `;
     }
 
-    // Recalcula valor_total do pedido com base nos itens
     await sql`
       UPDATE producao_pedido
       SET valor_total = (
@@ -135,4 +171,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ erro: 'Erro ao criar pedido' }, { status: 500 });
   }
 }
-

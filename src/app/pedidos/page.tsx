@@ -41,6 +41,8 @@ function PedidosPageInner() {
   const etapaParam = searchParams.get('etapa');
 
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [paginacao, setPaginacao] = useState({ page: 1, pages: 1, total: 0 });
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [fBusca, setFBusca] = useState('');
   const [fStatus, setFStatus] = useState('');
@@ -79,20 +81,20 @@ function PedidosPageInner() {
 
   const buscarRef = useRef<() => void>(() => {});
 
-  function buscar() {
+  function buscar(p = page) {
     setLoading(true);
     setSelectedIds(new Set());
-    const params: Record<string, string> = { cliente: fBusca, status: fStatus, prioridade: fPrioridade, entregue: '1' };
+    const params: Record<string, string> = { cliente: fBusca, status: fStatus, prioridade: fPrioridade, entregue: '1', page: String(p) };
     if (fEtapa === 'entregue') params.entregue = '1';
-    getPedidos(params).then(setPedidos).catch(() => {}).finally(() => setLoading(false));
+    getPedidos(params).then(r => { setPedidos(r.pedidos); setPaginacao({ page: r.page, pages: r.pages, total: r.total }); }).catch(() => {}).finally(() => setLoading(false));
   }
   buscarRef.current = buscar;
 
-  useEffect(() => { buscarRef.current(); }, []);
+  useEffect(() => { setPage(1); buscarRef.current(1); }, []);
 
   // Polling 10s — mantém lista sempre atualizada
   useEffect(() => {
-    const t = setInterval(() => buscarRef.current(), 10_000);
+    const t = setInterval(() => buscarRef.current(), 60_000);
     return () => clearInterval(t);
   }, []);
 
@@ -413,6 +415,29 @@ function PedidosPageInner() {
           </tbody>
         </table>
       </div>
+
+      {/* Paginação */}
+      {paginacao.pages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 4px', marginTop: 8 }}>
+          <span style={{ fontSize: 13, color: '#666' }}>
+            Mostrando {pedidos.length} de <strong>{paginacao.total}</strong> pedidos — página {paginacao.page} de {paginacao.pages}
+          </span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              disabled={paginacao.page <= 1 || loading}
+              onClick={() => { const p = paginacao.page - 1; setPage(p); buscarRef.current(p); }}
+              style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 14px', fontSize: 13, cursor: paginacao.page <= 1 ? 'not-allowed' : 'pointer', background: paginacao.page <= 1 ? '#f8f9fa' : '#fff', color: paginacao.page <= 1 ? '#aaa' : '#1a3a5c', fontWeight: 600 }}>
+              ← Anterior
+            </button>
+            <button
+              disabled={paginacao.page >= paginacao.pages || loading}
+              onClick={() => { const p = paginacao.page + 1; setPage(p); buscarRef.current(p); }}
+              style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 14px', fontSize: 13, cursor: paginacao.page >= paginacao.pages ? 'not-allowed' : 'pointer', background: paginacao.page >= paginacao.pages ? '#f8f9fa' : '#1a3a5c', color: paginacao.page >= paginacao.pages ? '#aaa' : '#fff', fontWeight: 600 }}>
+              Próxima →
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal excluir individual */}
       {modalExcluir && (

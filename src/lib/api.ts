@@ -27,7 +27,11 @@ export default api;
 
 // ── Pedidos ───────────────────────────────────────────────────────────────────
 export const getPedidos = (params?: Record<string, string>) =>
-  api.get('/api/pedidos', { params }).then(r => r.data);
+  api.get('/api/pedidos', { params }).then(r => {
+    // suporta resposta paginada { pedidos, page, total, pages } e legacy array
+    const d = r.data;
+    return Array.isArray(d) ? { pedidos: d, page: 1, total: d.length, pages: 1 } : d;
+  });
 
 export const getPedido = (id: number) =>
   api.get(`/api/pedidos/${id}`).then(r => r.data);
