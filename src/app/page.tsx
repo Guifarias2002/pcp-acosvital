@@ -394,8 +394,8 @@ export default function DashboardPage() {
     }
     const carregar = () => getDashboard().then(d => { setData(d); setErro(false); }).catch(() => setErro(true)).finally(() => setLoading(false));
     carregar();
-    // Fallback: recarrega a cada 60s caso o WebSocket caia
-    const t = setInterval(() => getDashboard().then(d => { setData(d); setErro(false); }).catch(() => {}), 60_000);
+    // Polling a cada 10s — fallback enquanto WebSocket não conecta
+    const t = setInterval(() => getDashboard().then(d => { setData(d); setErro(false); }).catch(() => {}), 10_000);
     return () => clearInterval(t);
   }, []);
 
