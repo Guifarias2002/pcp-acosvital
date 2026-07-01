@@ -196,13 +196,21 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
               {STATUS_LABELS[item.status]}
             </span>
           </div>
-          {isAdmin && (
-            <button onClick={() => setShowDevolver(v => !v)}
-              title="Mover o item para qualquer setor, fora da ordem normal do roteiro."
-              className="border border-yellow-400 text-yellow-700 text-xs px-3 py-1.5 rounded hover:bg-yellow-50">
-              ✏ Alterar caminho
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {(item as any).tem_desenho && (
+              <a href={`/api/pedidos/${item.pedido_id}/desenho`} target="_blank" rel="noreferrer"
+                className="border border-blue-400 text-blue-700 text-xs px-3 py-1.5 rounded hover:bg-blue-50">
+                📐 Ver Desenho
+              </a>
+            )}
+            {isAdmin && (
+              <button onClick={() => setShowDevolver(v => !v)}
+                title="Mover o item para qualquer setor, fora da ordem normal do roteiro."
+                className="border border-yellow-400 text-yellow-700 text-xs px-3 py-1.5 rounded hover:bg-yellow-50">
+                ✏ Alterar caminho
+              </button>
+            )}
+          </div>
         </div>
 
         <p className="text-sm text-gray-500 mb-4">

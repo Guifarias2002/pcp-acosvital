@@ -34,7 +34,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const [row] = await sql`
     SELECT i.*, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
            p.prazo_entrega::text AS pedido_prazo, p.prioridade AS pedido_prioridade,
-           p.roteiro_base
+           p.roteiro_base, p.desenho_url IS NOT NULL AS tem_desenho
     FROM producao_itempedido i
     JOIN producao_pedido p ON p.id = i.pedido_id
     WHERE i.id = ${itemId}
@@ -69,6 +69,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   const verFinanceiro = user.is_staff && user.perfil !== 'lider';
   const itemSanitizado = verFinanceiro ? item : { ...item, valor_unitario: null };
+  const temDesenho = Boolean(row.tem_desenho);
 
   // ── Rastreio por setor ────────────────────────────────────────────────────
   const porSetor: Record<string, { setor: string; setor_nome: string; quantidade: number; status: string }> = {};
@@ -109,6 +110,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   return NextResponse.json({
     ...itemSanitizado,
+    tem_desenho: temDesenho,
     lotes: loteRows.map(l => ({
       id: l.id, quantidade: l.quantidade_str, status: l.status,
       setor_origem: l.setor_origem, setor_origem_nome: nomeSector(l.setor_origem as string),
