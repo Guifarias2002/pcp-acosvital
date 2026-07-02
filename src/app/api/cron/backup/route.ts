@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
 
 export async function GET(req: Request) {
   // Vercel envia este header para proteger rotas de cron
