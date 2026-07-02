@@ -699,13 +699,35 @@ function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial;
       {/* Corpo */}
       <div style={{ padding: '12px 14px' }}>
 
-        {/* Banner retrabalho */}
+        {/* Banner retrabalho — esta parcial está em retrabalho (foi rejeitada pela qualidade) */}
         {parcial.retrabalho && (
           <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6, padding: '6px 10px', marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
             <span style={{ fontSize: 14 }}>⚠</span>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>Retrabalho — devolvido da Inspeção de Qualidade</div>
               {parcial.motivo_retrabalho && <div style={{ fontSize: 11, color: '#78350f' }}>Motivo: {parcial.motivo_retrabalho}</div>}
+            </div>
+          </div>
+        )}
+
+        {/* Banner retorno de retrabalho — chegou aqui após ser retrabalhado em outro setor */}
+        {!parcial.retrabalho && parcial.origem_retrabalho && (
+          <div style={{ background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: 6, padding: '6px 10px', marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <span style={{ fontSize: 14 }}>🔄</span>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#065f46' }}>
+                Retornou de retrabalho — inspecionar novamente
+              </div>
+              {parcial.origem_motivo_retrabalho && (
+                <div style={{ fontSize: 11, color: '#047857' }}>
+                  Problema original: {parcial.origem_motivo_retrabalho}
+                </div>
+              )}
+              {parcial.origem_devolvido_de && (
+                <div style={{ fontSize: 11, color: '#6b7280' }}>
+                  Retrabalho realizado em: {NOMES[parcial.origem_devolvido_de] || parcial.origem_devolvido_de}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1235,6 +1257,25 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
           <div style={{ fontSize: 11, color: '#664d03' }}>
             Pedido: <strong>{p0.numero_pedido_venda}</strong> · Item: <strong>{p0.item_codigo}</strong>
           </div>
+        </div>
+      )}
+
+      {/* Banner retorno de retrabalho (grupo) */}
+      {!parciais.some(p => p.retrabalho) && parciais.some(p => p.origem_retrabalho) && (
+        <div style={{ background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: 6, padding: '6px 10px', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#065f46' }}>
+            🔄 Retornou de retrabalho — inspecionar novamente
+          </div>
+          {parciais.find(p => p.origem_motivo_retrabalho)?.origem_motivo_retrabalho && (
+            <div style={{ fontSize: 11, color: '#047857' }}>
+              Problema original: {parciais.find(p => p.origem_motivo_retrabalho)?.origem_motivo_retrabalho}
+            </div>
+          )}
+          {parciais.find(p => p.origem_devolvido_de)?.origem_devolvido_de && (
+            <div style={{ fontSize: 11, color: '#6b7280' }}>
+              Retrabalho realizado em: {NOMES[parciais.find(p => p.origem_devolvido_de)?.origem_devolvido_de as string] || parciais.find(p => p.origem_devolvido_de)?.origem_devolvido_de}
+            </div>
+          )}
         </div>
       )}
 
