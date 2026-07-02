@@ -17,8 +17,11 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const user = await login(username, password);
-      if (user?.perfil === 'lider' && user?.setor) {
-        router.replace(`/setor/${user.setor}`);
+      // Operadores e líderes vão para tela de descanso do setor
+      if (user?.setor && !user?.is_staff) {
+        router.replace('/tela');
+      } else if (user?.perfil === 'lider' && user?.setor) {
+        router.replace('/tela');
       } else {
         router.replace('/');
       }
