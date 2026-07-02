@@ -56,6 +56,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const [erroAcao, setErroAcao] = useState<string | null>(null);
   const [itemDesenhoAberto, setItemDesenhoAberto] = useState<number | null>(null);
   const [uploadingItemDesenho, setUploadingItemDesenho] = useState<number | null>(null);
+  const [erroItemDesenho, setErroItemDesenho] = useState<string | null>(null);
   const user = getUser();
   const isAdmin = user?.is_staff;
   const verFinanceiro = user?.is_staff && user?.perfil !== 'lider';
@@ -84,9 +85,9 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
       fd.append('arquivo', arquivo);
       const res = await fetch(`/api/itens/${itemId}/desenho`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
       const data = await res.json();
-      if (data.ok) carregar();
-      else alert(data.erro || 'Erro ao enviar desenho');
-    } catch { alert('Erro ao enviar.'); }
+      if (data.ok) { setErroItemDesenho(null); carregar(); }
+      else setErroItemDesenho(data.erro || 'Erro ao enviar desenho');
+    } catch { setErroItemDesenho('Erro ao enviar.'); }
     finally { setUploadingItemDesenho(null); }
   }
 
@@ -662,6 +663,9 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                                 onChange={e => { const f = e.target.files?.[0]; if (f) { uploadDesenhoItem(item.id, f); e.target.value = ''; } }} />
                             </label>
                           </div>
+                          {erroItemDesenho && (
+                            <p style={{ fontSize: 12, color: '#92400e', background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: 4, padding: '4px 8px', marginBottom: 6 }}>{erroItemDesenho}</p>
+                          )}
                           {desenhos.length === 0 && (
                             <p style={{ fontSize: 12, color: '#b45309', margin: 0 }}>Nenhum desenho anexado ainda.</p>
                           )}
@@ -676,7 +680,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                                     {nome}
                                   </a>
                                   <button onClick={() => removerDesenhoItem(item.id, path)}
-                                    style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 13, padding: '0 2px' }}
+                                    style={{ background: 'none', border: 'none', color: '#b45309', cursor: 'pointer', fontSize: 13, padding: '0 2px' }}
                                     title="Remover">
                                     <i className="bi bi-trash" />
                                   </button>
