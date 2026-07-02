@@ -15,10 +15,11 @@ const sql = global._sql ?? postgres({
   username: process.env.DB_USER!,
   password: process.env.DB_PASSWORD!,
   ssl: 'require',
-  max: isProd ? 5 : 3, // permite até 5 queries paralelas por instância Vercel
-  idle_timeout: 20,
-  connect_timeout: 5, // falha rápido se o DB não responder (Vercel timeout = 10s)
-  prepare: false,       // obrigatório no transaction mode pooler
+  max: isProd ? 3 : 2,     // conservador: Supabase free tem limite de conexões
+  idle_timeout: 10,         // libera conexões ociosas mais rápido
+  connect_timeout: 8,       // 8s (Vercel tem limite de 10s na rota)
+  max_lifetime: 60 * 10,    // recicla conexões a cada 10 min — evita conexões mortas
+  prepare: false,           // obrigatório no transaction mode pooler
 });
 
 if (process.env.NODE_ENV !== 'production') global._sql = sql;

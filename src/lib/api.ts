@@ -13,10 +13,21 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (r) => r,
-  (error) => {
+  async (error) => {
     if (error.response?.status === 401 && typeof window !== 'undefined') {
       clearToken();
       window.location.href = '/login';
+      return Promise.reject(error);
+    }
+    // Retry automático em erros 5xx ou timeout de rede (1 tentativa extra)
+    const cfg = error.config;
+    if (!cfg || cfg._retried) return Promise.reject(error);
+    const status = error.response?.status;
+    const isNetworkErr = !error.response;
+    if (isNetworkErr || (status && status >= 500)) {
+      cfg._retried = true;
+      await new Promise(r => setTimeout(r, 1200));
+      return api(cfg);
     }
     return Promise.reject(error);
   }

@@ -5,6 +5,7 @@ import { autenticar } from '@/lib/middleware';
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  try {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
@@ -44,19 +45,27 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json({ erro: e instanceof Error ? e.message : 'Erro interno' }, { status: 500 });
+  }
 }
 
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
-  const user = await autenticar(req);
-  if (user instanceof NextResponse) return user;
-  if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  try {
+    const user = await autenticar(req);
+    if (user instanceof NextResponse) return user;
+    if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
-  const pedidoId = Number(params.id);
-  const { tipo } = await req.json();
-  if (tipo === 'nota') {
-    await sql`UPDATE producao_pedido SET nota_url = NULL WHERE id = ${pedidoId}`;
-  } else {
-    await sql`UPDATE producao_pedido SET canhoto_url = NULL WHERE id = ${pedidoId}`;
+    const pedidoId = Number(params.id);
+    const body = await req.json().catch(() => ({}));
+    const { tipo } = body;
+    if (tipo === 'nota') {
+      await sql`UPDATE producao_pedido SET nota_url = NULL WHERE id = ${pedidoId}`;
+    } else if (tipo === 'canhoto') {
+      await sql`UPDATE producao_pedido SET canhoto_url = NULL WHERE id = ${pedidoId}`;
+    }
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json({ erro: e instanceof Error ? e.message : 'Erro interno' }, { status: 500 });
   }
-  return NextResponse.json({ ok: true });
 }

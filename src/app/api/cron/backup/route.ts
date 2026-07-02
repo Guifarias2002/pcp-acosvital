@@ -4,6 +4,7 @@ import sql from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
+  try {
   // Vercel envia este header para proteger rotas de cron
   const auth = req.headers.get('authorization');
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -68,4 +69,8 @@ export async function GET(req: Request) {
 
   console.log(`[cron/backup] Backup ${hoje} salvo — ${pedidos.length} pedidos, ${itens.length} itens`);
   return NextResponse.json({ ok: true, data: hoje, totais: snapshot.totais });
+  } catch (e) {
+    console.error('[cron/backup] erro:', e);
+    return NextResponse.json({ erro: e instanceof Error ? e.message : 'Erro interno' }, { status: 500 });
+  }
 }
