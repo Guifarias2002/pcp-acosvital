@@ -3,6 +3,15 @@
     {
       "path": "/api/cron/backup",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/keepalive",
+      "schedule": "*/10 * * * *"
     }
-  ]
+  ],
+  "functions": {
+    "src/app/api/**/*.ts": {
+      "maxDuration": 10
+    }
+  }
 }
