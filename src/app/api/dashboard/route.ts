@@ -86,7 +86,7 @@ export async function GET(req: Request) {
     `.catch(() => [{ abertas: 0, urgentes: 0 }]),
   ]), 7500); // 7.5s — Vercel mata em 10s, deixa margem para serializar resposta
 
-  const counts = countsRows[0] ?? {};
+  const counts = (countsRows[0] ?? {}) as Record<string, unknown>;
   const divCounts = divCountsRows[0] ?? { abertas: 0, urgentes: 0 };
 
   const setorQtdMap: Record<string, number> = {};
