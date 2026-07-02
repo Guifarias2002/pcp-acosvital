@@ -200,15 +200,22 @@ export async function POST(
       mensagem: `${qtdMover} ${parcial.unidade} movidos de ${nomeSector(parcial.setor_atual)} → ${nomeSector(setor_destino)}`,
     });
 
-  // ── receber ── reconhece o recebimento sem iniciar (em_aberto → em_aberto) ─
+  // ── receber ── reconhece o recebimento e inicia a etapa (em_aberto → em_andamento) ─
   } else if (acao === 'receber') {
     if (parcial.status !== 'em_aberto')
       return NextResponse.json({ erro: 'Parcial não está em aberto para recebimento' }, { status: 400 });
     await sql`
       UPDATE producao_itemparcial
-      SET atualizado_em = NOW(),
+      SET status = 'em_andamento',
+          iniciado_em = COALESCE(iniciado_em, NOW()),
+          atualizado_em = NOW(),
           observacao = CASE WHEN ${obs} != '' THEN ${obs} ELSE observacao END
       WHERE id = ${parcialId}
+    `;
+    await sql`
+      UPDATE producao_itempedido
+      SET status = 'em_andamento', atualizado_em = NOW()
+      WHERE id = ${parcial.item_id} AND status IN ('aguardando', 'recebido', 'emitido')
     `;
     await sql`
       INSERT INTO producao_movimentacaoitem
@@ -216,10 +223,10 @@ export async function POST(
          status_anterior, status_novo, observacao, criado_em)
       VALUES (${parcial.item_id}, ${parcial.pedido_id}, ${user.id},
               ${parcial.setor_atual}, ${parcial.setor_atual},
-              ${parcial.item_status}, ${parcial.item_status},
-              ${obs || `Parcial #${parcialId} recebida em ${nomeSector(parcial.setor_atual)} — aguardando início`}, NOW())
+              ${parcial.item_status}, 'em_andamento',
+              ${obs || `Parcial #${parcialId} recebida e iniciada em ${nomeSector(parcial.setor_atual)}`}, NOW())
     `;
-    return NextResponse.json({ ok: true, mensagem: 'Parcial recebida — aguardando início da produção' });
+    return NextResponse.json({ ok: true, status: 'em_andamento', mensagem: 'Parcial recebida — produção iniciada' });
 
   // ── iniciar ───────────────────────────────────────────────────────────────
   } else if (acao === 'iniciar') {
