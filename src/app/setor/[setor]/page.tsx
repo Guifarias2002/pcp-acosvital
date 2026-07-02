@@ -205,7 +205,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
 
       {/* Desenho técnico */}
       {(item as any).tem_desenho && (
-        <a href={`/api/pedidos/${item.pedido_id}/desenho`} target="_blank" rel="noopener noreferrer"
+        <a href={getDesenhoUrl(item.pedido_id)} target="_blank" rel="noopener noreferrer"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#1d4ed8', textDecoration: 'none', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 5, padding: '4px 10px', marginBottom: 8 }}>
           📐 Ver Desenho Técnico
         </a>
@@ -769,36 +769,12 @@ function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial;
       {/* Ações */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
 
-        {/* ── Logística: fluxo de entrega ─────────────────────────────────── */}
+        {/* ── Iniciar ─────────────────────────────────────────────────────── */}
         {isLogistica && isAberto && (
           <button onClick={() => acao('iniciar')} disabled={loading} style={btnStyle('#0d6efd')}>
             <i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar entrega
           </button>
         )}
-
-        {isLogistica && isAndamento && (
-          <>
-            <button onClick={() => setConfirm({
-              titulo: 'Confirmar Entrega',
-              mensagem: `Confirma que as ${fmtQtd(parcial.quantidade)} ${parcial.unidade} do pedido ${parcial.numero_pedido_venda} foram entregues ao cliente?`,
-              acao: () => acao('concluir'),
-            })} disabled={loading} style={btnStyle('#198754')}>
-              <i className="bi bi-check-circle-fill" style={{ marginRight: 5 }} />Pedido entregue
-            </button>
-            <button onClick={() => { setShowNaoEntregue(v => !v); setShowDevolver(false); }} disabled={loading}
-              style={btnStyle('#dc3545', !showNaoEntregue)}>
-              <i className="bi bi-x-circle" style={{ marginRight: 5 }} />Não entregue
-            </button>
-          </>
-        )}
-
-        {isLogistica && isPausado && (
-          <button onClick={() => acao('retomar')} disabled={loading} style={btnStyle('#0d6efd')}>
-            <i className="bi bi-truck" style={{ marginRight: 5 }} />Tentar entrega novamente
-          </button>
-        )}
-
-        {/* ── Setores normais: fluxo de produção ─────────────────────────── */}
         {!isLogistica && isAberto && !recebidoSemIniciar && (
           <button onClick={() => setShowReceberModal(true)} disabled={loading} style={btnStyle('#d97706')}>
             <i className="bi bi-box-arrow-in-down" style={{ marginRight: 5 }} />Receber
@@ -810,46 +786,22 @@ function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial;
           </button>
         )}
 
-        {!isLogistica && isAndamento && isQualidade && (
-          <>
-            {!showDivQualidade && (
-              <>
-                <select value={setorDestino || parcial.proximo_setor || ''} onChange={e => setSetorDestino(e.target.value)}
-                  style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
-                  {!parcial.proximo_setor && !setorDestino && <option value="">Selecione o setor...</option>}
-                  {SETOR_CHOICES.filter(([cod]) => cod !== parcial.setor_atual).map(([cod, nome]) => (
-                    <option key={cod} value={cod}>{nome}{cod === parcial.proximo_setor ? ' ✓' : ''}</option>
-                  ))}
-                </select>
-                <button onClick={aprovarQualidadeParcial} disabled={loading} style={btnStyle('#1a3a5c')}>
-                  <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar tudo
-                </button>
-                <button onClick={() => setShowEnviar(v => !v)} disabled={loading} style={btnStyle('#0d6efd')}>
-                  <i className="bi bi-send" style={{ marginRight: 5 }} />Enviar parcial
-                </button>
-              </>
-            )}
-            <button onClick={() => { setShowDivQualidade(v => !v); setShowEnviar(false); }} disabled={loading} style={btnStyle('#f97316')}>
-              ⚠ Divergência
-            </button>
-          </>
-        )}
-
-        {!isLogistica && isAndamento && !isQualidade && (
+        {/* ── Em andamento: botões iguais em todos os setores ─────────────── */}
+        {isAndamento && (
           <>
             <button onClick={() => setConfirm({
               titulo: 'Finalizar etapa',
-              mensagem: `Confirma que a etapa de ${NOMES[parcial.setor_atual] || parcial.setor_atual} foi concluída?`,
+              mensagem: 'Deseja finalizar o processo neste setor? A parcial ficará disponível para envio ao próximo setor.',
               acao: () => acao('finalizar'),
             })} disabled={loading} style={btnStyle('#198754')}>
-              <i className="bi bi-check-lg" style={{ marginRight: 5 }} />Finalizar etapa
+              ✓ Finalizar etapa
             </button>
             <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
               <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
             </button>
             <button onClick={() => setConfirm({
-              titulo: 'Encerrar Parcial',
-              mensagem: 'As peças já foram processadas e não precisam ir a outro setor. Deseja encerrar esta parcial como concluída?',
+              titulo: 'Encerrar parcial',
+              mensagem: 'A parcial não irá para nenhum outro setor. Deseja encerrá-la como concluída?',
               acao: () => acao('concluir'),
             })} disabled={loading} style={btnStyle('#198754', true)}>
               ✓ Encerrar
@@ -857,10 +809,22 @@ function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial;
             <button onClick={() => acao('pausar')} disabled={loading} style={btnStyle('#fd7e14')}>
               <i className="bi bi-pause-fill" style={{ marginRight: 5 }} />Pausar
             </button>
+            {isLogistica && (
+              <button onClick={() => { setShowNaoEntregue(v => !v); setShowDevolver(false); }} disabled={loading}
+                style={btnStyle('#dc3545', !showNaoEntregue)}>
+                <i className="bi bi-x-circle" style={{ marginRight: 5 }} />Não entregue
+              </button>
+            )}
+            {isQualidade && (
+              <button onClick={() => { setShowDivQualidade(v => !v); setShowEnviar(false); }} disabled={loading} style={btnStyle('#f97316')}>
+                ⚠ Divergência
+              </button>
+            )}
           </>
         )}
 
-        {!isLogistica && isPausado && (
+        {/* ── Pausado ──────────────────────────────────────────────────────── */}
+        {isPausado && (
           <>
             <button onClick={() => acao('retomar')} disabled={loading} style={btnStyle('#198754')}>
               <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Retomar
@@ -869,16 +833,22 @@ function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial;
               <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
             </button>
             <button onClick={() => setConfirm({
-              titulo: 'Encerrar Parcial',
-              mensagem: 'As peças já foram processadas e não precisam ir a outro setor. Deseja encerrar esta parcial como concluída?',
+              titulo: 'Encerrar parcial',
+              mensagem: 'A parcial não irá para nenhum outro setor. Deseja encerrá-la como concluída?',
               acao: () => acao('concluir'),
             })} disabled={loading} style={btnStyle('#198754', true)}>
               ✓ Encerrar
             </button>
+            {isLogistica && (
+              <button onClick={() => acao('retomar')} disabled={loading} style={btnStyle('#0d6efd')}>
+                <i className="bi bi-truck" style={{ marginRight: 5 }} />Tentar entrega novamente
+              </button>
+            )}
           </>
         )}
 
-        {!isLogistica && isFinalizado && (
+        {/* ── Finalizado no setor ──────────────────────────────────────────── */}
+        {isFinalizado && (
           <>
             {!showDivQualidade && (
               <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
@@ -894,11 +864,11 @@ function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial;
               <i className="bi bi-arrow-counterclockwise" style={{ marginRight: 5 }} />Retomar etapa
             </button>
             <button onClick={() => setConfirm({
-              titulo: 'Encerrar Parcial',
-              mensagem: 'As peças já foram processadas e não precisam ir a outro setor. Deseja encerrar esta parcial como concluída?',
+              titulo: 'Encerrar definitivamente',
+              mensagem: 'A parcial não irá para nenhum outro setor. Deseja encerrá-la como concluída?',
               acao: () => acao('concluir'),
             })} disabled={loading} style={btnStyle('#198754', true)}>
-              ✓ Encerrar
+              ✓ Encerrar definitivamente
             </button>
           </>
         )}
@@ -912,8 +882,8 @@ function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial;
         {showDespacharParcial && (
           <DespacharModal
             itemId={parcial.item_pedido_id as number}
-            itemCodigo={parcial.item_codigo}
-            pedidoNumero={parcial.numero_pedido_venda}
+            itemCodigo={parcial.item_codigo ?? ''}
+            pedidoNumero={parcial.numero_pedido_venda ?? ''}
             onClose={() => setShowDespacharParcial(false)}
             onSuccess={() => { setShowDespacharParcial(false); onRefresh(); }}
           />
@@ -1767,6 +1737,11 @@ const FILTROS_LOGISTICA: { key: FiltroLogistica; label: string; icon: string; co
   { key: 'em_transito', label: 'Em Trânsito',  icon: 'bi-truck',            cor: '#fd7e14' },
 ];
 
+function getDesenhoUrl(pedidoId: number) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '';
+  return `/api/pedidos/${pedidoId}/desenho?token=${encodeURIComponent(token)}`;
+}
+
 export default function SetorPainelPage({ params }: { params: { setor: string } }) {
   // Navegação client-side (Link) pode entregar o segmento dinâmico ainda
   // percent-encoded quando contém acentos (ex: "maçarico" -> "ma%C3%A7arico").
@@ -1809,10 +1784,15 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
     <AuthGuard>
       <NotificacoesLive filtroSetor={setor} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: setor === 'logistica' ? 12 : 18, flexWrap: 'wrap', gap: 10 }}>
-        <h4 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c', fontSize: 20 }}>
-          <i className={`bi ${setor === 'logistica' ? 'bi-truck' : 'bi-tools'}`} style={{ marginRight: 8 }}></i>
-          {nomeSetor}
-        </h4>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Link href="/" style={{ fontSize: 12, color: '#6b7280', textDecoration: 'none', border: '1px solid #d1d5db', borderRadius: 5, padding: '4px 10px', background: '#f9fafb', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            ← Início
+          </Link>
+          <h4 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c', fontSize: 20 }}>
+            <i className={`bi ${setor === 'logistica' ? 'bi-truck' : 'bi-tools'}`} style={{ marginRight: 8 }}></i>
+            {nomeSetor}
+          </h4>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {ultimaAtt && (
             <span style={{ fontSize: 11, color: '#6b7280' }}>

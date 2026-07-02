@@ -205,11 +205,11 @@ function PedidosPageInner() {
   return (
     <AuthGuard>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
         <h4 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c' }}>
           <i className="bi bi-list-ul" style={{ marginRight: 8 }}></i>Pedidos de Venda
         </h4>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button style={{
             border: '1px solid #198754', color: '#198754', background: 'none',
             borderRadius: 5, padding: '5px 14px', fontSize: 12, cursor: 'pointer',
@@ -228,18 +228,18 @@ function PedidosPageInner() {
       </div>
 
       {/* Filtros */}
-      <div className="card" style={{ padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div className="card" style={{ padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <input value={fBusca} onChange={e => setFBusca(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && buscar()}
           placeholder="Buscar por pedido, cliente, OP..."
-          style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 10px', fontSize: 13, flex: 1 }} />
+          style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 10px', fontSize: 13, flex: '1 1 160px', minWidth: 0 }} />
         <select value={fStatus} onChange={e => setFStatus(e.target.value)}
-          style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 13 }}>
+          style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13, flex: '1 1 140px' }}>
           <option value="">Todos os status</option>
           {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
         <select value={fPrioridade} onChange={e => setFPrioridade(e.target.value)}
-          style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 13 }}>
+          style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13, flex: '1 1 130px' }}>
           <option value="">Todas prioridades</option>
           {['baixa','normal','alta','urgente'].map(p => (
             <option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</option>
@@ -247,12 +247,12 @@ function PedidosPageInner() {
         </select>
         <button onClick={() => buscar()} style={{
           background: '#1a3a5c', color: '#fff', border: 'none',
-          borderRadius: 5, padding: '5px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600,
+          borderRadius: 5, padding: '6px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap',
         }}>
           <i className="bi bi-search" style={{ marginRight: 4 }}></i>Filtrar
         </button>
         <button onClick={() => { setFBusca(''); setFStatus(''); setFPrioridade(''); setFEtapa(''); }}
-          style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 5, padding: '5px 12px', fontSize: 13, cursor: 'pointer', color: '#666' }}>
+          style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 5, padding: '6px 12px', fontSize: 13, cursor: 'pointer', color: '#666', whiteSpace: 'nowrap' }}>
           Limpar
         </button>
       </div>

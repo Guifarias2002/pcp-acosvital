@@ -70,8 +70,8 @@ export async function POST(
   if (['concluida', 'cancelada'].includes(parcial.status) && !['apontar', 'retomar'].includes(acao))
     return NextResponse.json({ erro: `Parcial já está "${parcial.status}" e não pode ser alterada` }, { status: 400 });
 
-  // Parciais pausadas só aceitam retomar, devolver ou apontar
-  if (parcial.status === 'pausado' && !['retomar', 'devolver', 'apontar'].includes(acao))
+  // Parciais pausadas só aceitam retomar, devolver, mover, concluir ou apontar
+  if (parcial.status === 'pausado' && !['retomar', 'devolver', 'mover', 'concluir', 'apontar'].includes(acao))
     return NextResponse.json({ erro: 'Parcial está pausada. Use "retomar" para continuar.' }, { status: 400 });
 
   // Parciais em finalizado_setor só aceitam mover, retomar, concluir, cancelar, devolver, apontar

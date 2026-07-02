@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { logout, getUser } from '@/lib/auth';
 import { SETOR_CHOICES, NOMES } from '@/lib/types';
 import { useEffect, useState } from 'react';
@@ -157,6 +157,7 @@ interface TopBarProps {
 export function TopBar({ onHamburger, colapsada, onExpandir }: TopBarProps) {
   const [user, setUser] = useState<JWTPayload | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => { setUser(getUser()); }, []);
 
@@ -173,10 +174,11 @@ export function TopBar({ onHamburger, colapsada, onExpandir }: TopBarProps) {
     '/exportar': 'Exportar Excel',
     '/excluidos': 'Pedidos Excluídos',
   };
-  // Detecta /setor/[setor] e /pedidos/[id] e /item/[id] direto pela URL
+  // Detecta /setor/[setor] e /pedidos/[id] e /item/[id] e /parcial/[id] pela URL
   const setorMatch = pathname.match(/^\/setor\/([^/]+)/);
   const pedidoMatch = pathname.match(/^\/pedidos\/(\d+)/);
   const itemMatch = pathname.match(/^\/item\/(\d+)/);
+  const parcialMatch = pathname.match(/^\/parcial\/(\d+)/);
   // usePathname() não decodifica segmentos com acentos (ex: "ma%C3%A7arico")
   let setorNome = setorMatch?.[1] || '';
   try { setorNome = decodeURIComponent(setorNome); } catch { /* já decodificado */ }
@@ -186,7 +188,12 @@ export function TopBar({ onHamburger, colapsada, onExpandir }: TopBarProps) {
     ? `Pedido ${pedidoMatch[1]}`
     : itemMatch
     ? `Item ${itemMatch[1]}`
+    : parcialMatch
+    ? `Parcial ${parcialMatch[1]}`
     : (titles[pathname] || '');
+
+  // Páginas de sub-nível que precisam de botão voltar
+  const temVoltar = !!(setorMatch || pedidoMatch || itemMatch || parcialMatch);
 
   return (
     <div className="topbar">
@@ -198,6 +205,20 @@ export function TopBar({ onHamburger, colapsada, onExpandir }: TopBarProps) {
       <button className="btn-hamburger" onClick={onHamburger} aria-label="Menu">
         <i className="bi bi-list"></i>
       </button>
+      {temVoltar && (
+        <button
+          onClick={() => router.back()}
+          style={{
+            background: 'none', border: '1px solid #d1d5db', borderRadius: 6,
+            padding: '4px 10px', fontSize: 13, color: '#374151', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
+          }}
+          aria-label="Voltar"
+        >
+          <i className="bi bi-arrow-left" style={{ fontSize: 14 }}></i>
+          <span className="topbar-nome">Voltar</span>
+        </button>
+      )}
       <span className="topbar-titulo">{title}</span>
       <div className="topbar-usuario">
         {user && (

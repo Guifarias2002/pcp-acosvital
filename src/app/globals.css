@@ -381,7 +381,7 @@ body {
 /* Nova Ordem — layout desktop: info+itens à esquerda, roteiro à direita */
 .novo-pedido-grid {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 1fr 300px;
   gap: 16px;
   align-items: start;
 }
@@ -407,6 +407,9 @@ body {
 @media (max-width: 1024px) {
   .content {
     padding: 16px;
+  }
+  .novo-pedido-grid {
+    grid-template-columns: 1fr 260px;
   }
   .grid-6 {
     grid-template-columns: repeat(3, 1fr);
@@ -454,23 +457,36 @@ body {
    RESPONSIVO — MOBILE (≤ 768px)
    ===================================================== */
 @media (max-width: 768px) {
-  /* Sidebar vira gaveta lateral */
+  /* Sidebar vira gaveta lateral — largura 80% da tela no mobile */
   #sidebar {
+    width: min(80vw, 300px) !important;
     transform: translateX(-100%);
   }
   #sidebar.aberto {
     transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0,0,0,.35);
   }
 
   /* Main ocupa tela toda */
   #main {
-    margin-left: 0;
+    margin-left: 0 !important;
   }
 
   /* Hamburger visível */
   .btn-hamburger {
     display: inline-flex;
     align-items: center;
+  }
+
+  /* Links do nav no mobile — toque mais fácil */
+  #sidebar .nav-link {
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+
+  /* Botão de colapsar escondido no mobile (fechar via overlay) */
+  .btn-colapsar {
+    display: none;
   }
 
   /* Topbar usuário — esconde nome no celular pequeno */
@@ -655,5 +671,104 @@ body {
   /* Área das parciais: padding menor */
   .setor-parcial-area {
     padding: 10px 8px !important;
+  }
+}
+
+/* =====================================================
+   PEDIDOS — lista responsiva
+   ===================================================== */
+@media (max-width: 768px) {
+  /* Filtros do topo empilham verticalmente */
+  .pedidos-filtros {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .pedidos-filtros input,
+  .pedidos-filtros select {
+    width: 100% !important;
+  }
+  /* Cabeçalho de página: título+botão ficam em linha */
+  .page-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+/* =====================================================
+   PEDIDO DETALHE — layout responsivo
+   ===================================================== */
+.pedido-detalhe-grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1024px) {
+  .pedido-detalhe-grid {
+    grid-template-columns: 1fr 280px;
+  }
+}
+@media (max-width: 768px) {
+  .pedido-detalhe-grid {
+    grid-template-columns: 1fr;
+  }
+  /* Informações do pedido: 2 col → 1 col */
+  .pedido-info-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+@media (max-width: 480px) {
+  .pedido-info-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* =====================================================
+   USUÁRIOS — tabela responsiva
+   ===================================================== */
+@media (max-width: 768px) {
+  .usuarios-table th:nth-child(5),
+  .usuarios-table td:nth-child(5) {
+    display: none;
+  }
+}
+
+/* =====================================================
+   PARCIAL / ITEM — botões de ação responsivos
+   ===================================================== */
+@media (max-width: 768px) {
+  .acoes-parcial {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .acoes-parcial button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+  /* Cabeçalho do parcial/item empilha no mobile */
+  .parcial-header-row {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+}
+
+/* =====================================================
+   MODAL — centralizado e responsivo
+   ===================================================== */
+@media (max-width: 600px) {
+  /* Modais inline (não Bootstrap) */
+  .modal-inline {
+    padding: 16px !important;
+    border-radius: 0 !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+  }
+  /* Fixed modal overlay: modal ocupa tela toda */
+  .modal-overlay > div {
+    width: 100% !important;
+    max-width: 100vw !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    overflow-y: auto !important;
   }
 }

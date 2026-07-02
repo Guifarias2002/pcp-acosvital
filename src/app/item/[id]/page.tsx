@@ -47,6 +47,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   const [showDivergencia, setShowDivergencia] = useState(false);
   const [motivoDivergencia, setMotivoDivergencia] = useState('');
   const [desenhoUrl, setDesenhoUrl] = useState<string | null>(null);
+  const [desenhoTipo, setDesenhoTipo] = useState<'img' | 'pdf' | null>(null);
 
   const carregarRef = useRef<() => void>(() => {});
   function carregar() {
@@ -67,9 +68,17 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   useEffect(() => {
     if (!item) return;
     const temDesenho = (item as any).tem_desenho;
-    if (!temDesenho) { setDesenhoUrl(null); return; }
+    if (!temDesenho) { setDesenhoUrl(null); setDesenhoTipo(null); return; }
     const token = localStorage.getItem('token') || '';
-    setDesenhoUrl(`/api/pedidos/${item.pedido_id}/desenho?token=${encodeURIComponent(token)}`);
+    const url = `/api/pedidos/${item.pedido_id}/desenho?token=${encodeURIComponent(token)}`;
+    setDesenhoUrl(url);
+    // Detecta se é imagem ou PDF via HEAD para escolher renderização
+    fetch(url, { method: 'HEAD' })
+      .then(r => {
+        const ct = r.headers.get('content-type') || '';
+        setDesenhoTipo(ct.includes('pdf') ? 'pdf' : 'img');
+      })
+      .catch(() => setDesenhoTipo('pdf'));
   }, [item]);
 
   const carregarCallback = useCallback(() => carregarRef.current(), []);
@@ -196,10 +205,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3 flex-wrap">
-            {isAdmin
-              ? <Link href={`/pedidos/${item.pedido_id}`} className="border border-gray-300 text-gray-600 text-xs px-3 py-1.5 rounded hover:bg-gray-50">← Pedido {item.pedido_numero}</Link>
-              : <span className="border border-gray-200 text-gray-500 text-xs px-3 py-1.5 rounded">Pedido {item.pedido_numero}</span>
-            }
+            <Link href={`/pedidos/${item.pedido_id}`} className="border border-gray-300 text-gray-600 text-xs px-3 py-1.5 rounded hover:bg-gray-50">← Pedido {item.pedido_numero}</Link>
             <span className="text-gray-500 font-semibold">{item.codigo}</span>
             <span className={`text-xs px-2 py-1 rounded font-bold ${corStatusClass(item.cor_status)}`}>
               {STATUS_LABELS[item.status]}
@@ -207,7 +213,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
           </div>
           <div className="flex items-center gap-2">
             {(item as any).tem_desenho && (
-              <a href={`/api/pedidos/${item.pedido_id}/desenho`} target="_blank" rel="noreferrer"
+              <a href={desenhoUrl || `/api/pedidos/${item.pedido_id}/desenho`} target="_blank" rel="noreferrer"
                 className="border border-blue-400 text-blue-700 text-xs px-3 py-1.5 rounded hover:bg-blue-50">
                 📐 Ver Desenho
               </a>
@@ -536,10 +542,19 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
               </div>
 
               {/* Prévia do desenho técnico */}
-              {desenhoUrl && (
+              {desenhoUrl && desenhoTipo && (
                 <div className="mt-4 border-t pt-4">
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">📐 Desenho Técnico</p>
-                  <iframe src={desenhoUrl} className="w-full rounded border" style={{ height: 500 }} title="Desenho técnico" />
+                  {desenhoTipo === 'img' ? (
+                    <img src={desenhoUrl} alt="Desenho técnico" className="w-full rounded border" style={{ maxHeight: 600, objectFit: 'contain', background: '#f8fafc' }} />
+                  ) : (
+                    <a href={desenhoUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-3 rounded border border-blue-300 bg-blue-50 text-blue-700 font-semibold py-8 hover:bg-blue-100"
+                      style={{ textDecoration: 'none', fontSize: 16 }}>
+                      <i className="bi bi-file-earmark-pdf-fill" style={{ fontSize: 28 }}></i>
+                      Toque para abrir o Desenho Técnico (PDF)
+                    </a>
+                  )}
                 </div>
               )}
 

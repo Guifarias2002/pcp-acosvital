@@ -10,6 +10,15 @@ interface ItemForm { codigo: string; descricao: string; quantidade: string; unid
 
 const UNIDADES = ['un', 'kg', 'm', 'pc', 'jg', 'cx', 'lt'];
 
+function fmtBRL(n: number) {
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function parseVal(s: string) {
+  const n = parseFloat(s.replace(',', '.'));
+  return isNaN(n) ? 0 : n;
+}
+
 export default function NovoPedidoPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -26,7 +35,7 @@ export default function NovoPedidoPage() {
   const [itens, setItens] = useState<ItemForm[]>([{ codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', roteiro_proprio: [] }]);
 
   function toggleSetor(cod: string) {
-    if (cod === 'emissao') return; // Emissão de Ordens sempre fixo no início
+    if (cod === 'emissao') return;
     setRoteiro(prev => prev.includes(cod) ? prev.filter(s => s !== cod) : [...prev, cod]);
   }
 
@@ -42,10 +51,15 @@ export default function NovoPedidoPage() {
     setItens(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: val } : it));
   }
 
+  const totalGeral = itens.reduce((acc, it) => {
+    const qty = parseFloat(it.quantidade) || 0;
+    const val = parseVal(it.valor_unitario);
+    return acc + qty * val;
+  }, 0);
+
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
-    if (!op.trim()) { setErro('O Número da Ordem de Produção (OP) é obrigatório. Ele identifica e agrupa todas as peças deste pedido ao longo dos setores.'); return; }
-    if (roteiro.length < 3) { setErro('O roteiro precisa ter pelo menos 3 setores (incluindo Emissão de Ordens) para salvar o pedido. Selecione mais setores no painel à direita.'); return; }
+    if (!op.trim()) { setErro('O Número da Ordem de Produção (OP) é obrigatório.'); return; }
     setErro('');
     setLoading(true);
     try {
@@ -61,7 +75,8 @@ export default function NovoPedidoPage() {
       });
       router.push(`/pedidos/${id}`);
     } catch (e: unknown) {
-      setErro((e as {response?:{data?:{erro?:string}}}).response?.data?.erro || 'Erro ao salvar');
+      const msg = (e as {response?:{data?:{erro?:string}}}).response?.data?.erro;
+      setErro(msg || 'Erro ao salvar pedido.');
     } finally {
       setLoading(false);
     }
@@ -72,22 +87,75 @@ export default function NovoPedidoPage() {
 
   return (
     <AuthGuard adminOnly>
+      <style>{`
+        .np-ident-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+        .np-item-grid {
+          display: grid;
+          grid-template-columns: 1fr 2fr 90px 90px 110px;
+          gap: 8px;
+        }
+        @media (max-width: 1024px) {
+          .np-item-grid {
+            grid-template-columns: 1fr 1fr 80px 80px 100px;
+          }
+        }
+        @media (max-width: 768px) {
+          .np-ident-grid {
+            grid-template-columns: 1fr;
+          }
+          .np-item-grid {
+            grid-template-columns: 1fr 1fr;
+          }
+          .np-item-grid .np-col-descricao {
+            grid-column: 1 / -1;
+          }
+          .np-item-grid .np-col-qty { }
+          .np-item-grid .np-col-un { }
+          .np-item-grid .np-col-val {
+            grid-column: 1 / -1;
+          }
+          .np-topo-actions {
+            width: 100%;
+            justify-content: stretch;
+          }
+          .np-topo-actions a,
+          .np-topo-actions button {
+            flex: 1;
+            text-align: center;
+            justify-content: center;
+          }
+        }
+        @media (max-width: 480px) {
+          .np-item-grid {
+            grid-template-columns: 1fr;
+          }
+          .np-item-grid .np-col-descricao,
+          .np-item-grid .np-col-val {
+            grid-column: 1;
+          }
+        }
+      `}</style>
+
       <form onSubmit={salvar}>
         {/* Barra de topo */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, flexWrap:'wrap', gap:10 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
             <a href="/pedidos" style={{ color:'#888', fontSize:13, textDecoration:'none' }}>← Pedidos</a>
-            <h1 style={{ margin:0, fontSize:20, fontWeight:800, color:'#1a3a5c' }}>
+            <h1 style={{ margin:0, fontSize:18, fontWeight:800, color:'#1a3a5c' }}>
               <i className="bi bi-file-earmark-plus" style={{ marginRight:8 }} />
               Nova Ordem de Produção
             </h1>
           </div>
-          <div style={{ display:'flex', gap:8 }}>
-            <a href="/pedidos" style={{ padding:'8px 18px', borderRadius:8, border:'1px solid #dee2e6', fontSize:13, color:'#555', textDecoration:'none', fontWeight:600 }}>
+          <div className="np-topo-actions" style={{ display:'flex', gap:8 }}>
+            <a href="/pedidos" style={{ padding:'9px 18px', borderRadius:8, border:'1px solid #dee2e6', fontSize:13, color:'#555', textDecoration:'none', fontWeight:600, display:'inline-flex', alignItems:'center' }}>
               Cancelar
             </a>
             <button type="submit" disabled={loading}
-              style={{ padding:'8px 24px', borderRadius:8, background:'#1a3a5c', color:'#fff', fontSize:13, fontWeight:700, border:'none', cursor:'pointer', opacity:loading?0.6:1 }}>
+              style={{ padding:'9px 24px', borderRadius:8, background:'#1a3a5c', color:'#fff', fontSize:13, fontWeight:700, border:'none', cursor:'pointer', opacity:loading?0.6:1 }}>
               <i className="bi bi-check-lg" style={{ marginRight:6 }} />
               {loading ? 'Salvando...' : 'Salvar Pedido'}
             </button>
@@ -100,10 +168,10 @@ export default function NovoPedidoPage() {
           </div>
         )}
 
-        {/* Layout desktop: 2 colunas — esquerda info, direita roteiro */}
+        {/* Layout: 2 colunas no desktop, 1 no mobile */}
         <div className="novo-pedido-grid">
 
-          {/* COLUNA ESQUERDA — Informações */}
+          {/* COLUNA ESQUERDA */}
           <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
 
             {/* Identificação */}
@@ -111,26 +179,22 @@ export default function NovoPedidoPage() {
               <div style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
                 <i className="bi bi-card-heading" style={{ marginRight:6 }} />Identificação
               </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <div className="np-ident-grid">
                 <div>
                   <label className={labelCls}>Nº PV *</label>
                   <input value={pv} onChange={e => setPv(e.target.value)} required placeholder="PV-001" className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    Nº OP <span style={{ color: '#dc2626' }}>*</span>
-                    <span title="Número da Ordem de Produção — identifica e agrupa todas as peças deste pedido ao longo de todos os setores. Cada parcial criada herda este código automaticamente."
-                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, height: 14, borderRadius: '50%', background: '#e0e7ff', color: '#3730a3', fontSize: 9, fontWeight: 800, cursor: 'help', marginLeft: 2 }}>
-                      ?
-                    </span>
+                  <label className={labelCls} style={{ display:'flex', alignItems:'center', gap:4 }}>
+                    Nº OP <span style={{ color:'#dc2626' }}>*</span>
+                    <span title="Número da Ordem de Produção — identifica e agrupa todas as peças deste pedido ao longo de todos os setores."
+                      style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:14, height:14, borderRadius:'50%', background:'#e0e7ff', color:'#3730a3', fontSize:9, fontWeight:800, cursor:'help', marginLeft:2 }}>?</span>
                   </label>
                   <input value={op} onChange={e => setOp(e.target.value)} placeholder="OP-001" required
                     style={{ borderColor: op.trim() ? undefined : '#fca5a5' }}
                     className={inputCls} />
                   {!op.trim() && (
-                    <p style={{ fontSize: 10, color: '#dc2626', margin: '3px 0 0', lineHeight: 1.3 }}>
-                      Obrigatório — identifica todas as peças deste pedido nos setores
-                    </p>
+                    <p style={{ fontSize:10, color:'#dc2626', margin:'3px 0 0', lineHeight:1.3 }}>Obrigatório</p>
                   )}
                 </div>
                 <div>
@@ -168,55 +232,77 @@ export default function NovoPedidoPage() {
                   <i className="bi bi-list-ul" style={{ marginRight:6 }} />Itens do Pedido
                 </span>
                 <button type="button" onClick={addItem}
-                  style={{ background:'#198754', color:'#fff', border:'none', borderRadius:6, padding:'5px 12px', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  style={{ background:'#198754', color:'#fff', border:'none', borderRadius:6, padding:'6px 14px', fontSize:12, fontWeight:700, cursor:'pointer' }}>
                   <i className="bi bi-plus-lg" style={{ marginRight:4 }} />Adicionar Item
                 </button>
               </div>
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {itens.map((item, i) => (
-                  <div key={i} style={{ border:'1px solid #e9ecef', borderRadius:8, padding:12, background:'#f8faff' }}>
-                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
-                      <span style={{ fontSize:11, fontWeight:700, color:'#1a3a5c' }}>
-                        <i className="bi bi-box" style={{ marginRight:5 }} />Item {i + 1}
-                      </span>
-                      {itens.length > 1 && (
-                        <button type="button" onClick={() => remItem(i)}
-                          style={{ background:'#fee2e2', color:'#dc2626', border:'none', borderRadius:5, padding:'3px 8px', fontSize:11, fontWeight:600, cursor:'pointer' }}>
-                          <i className="bi bi-trash" style={{ marginRight:3 }} />Remover
-                        </button>
-                      )}
+                {itens.map((item, i) => {
+                  const subTotal = (parseFloat(item.quantidade) || 0) * parseVal(item.valor_unitario);
+                  return (
+                    <div key={i} style={{ border:'1px solid #e9ecef', borderRadius:8, padding:12, background:'#f8faff' }}>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+                        <span style={{ fontSize:11, fontWeight:700, color:'#1a3a5c' }}>
+                          <i className="bi bi-box" style={{ marginRight:5 }} />Item {i + 1}
+                        </span>
+                        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                          {subTotal > 0 && (
+                            <span style={{ fontSize:12, fontWeight:700, color:'#198754' }}>
+                              R$ {fmtBRL(subTotal)}
+                            </span>
+                          )}
+                          {itens.length > 1 && (
+                            <button type="button" onClick={() => remItem(i)}
+                              style={{ background:'#fee2e2', color:'#dc2626', border:'none', borderRadius:5, padding:'3px 8px', fontSize:11, fontWeight:600, cursor:'pointer' }}>
+                              <i className="bi bi-trash" style={{ marginRight:3 }} />Remover
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="np-item-grid">
+                        <div>
+                          <label className={labelCls}>Código *</label>
+                          <input value={item.codigo} onChange={e => setItemField(i, 'codigo', e.target.value)}
+                            placeholder="COD-001" className={inputCls} />
+                        </div>
+                        <div className="np-col-descricao">
+                          <label className={labelCls}>Descrição</label>
+                          <input value={item.descricao} onChange={e => setItemField(i, 'descricao', e.target.value)}
+                            placeholder="Descrição do item" className={inputCls} />
+                        </div>
+                        <div className="np-col-qty">
+                          <label className={labelCls}>Qtd</label>
+                          <input type="number" min="1" value={item.quantidade} onChange={e => setItemField(i, 'quantidade', e.target.value)}
+                            className={inputCls} />
+                        </div>
+                        <div className="np-col-un">
+                          <label className={labelCls}>Un.</label>
+                          <select value={item.unidade} onChange={e => setItemField(i, 'unidade', e.target.value)} className={inputCls}>
+                            {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+                          </select>
+                        </div>
+                        <div className="np-col-val">
+                          <label className={labelCls}>Valor Unit. (R$)</label>
+                          <input value={item.valor_unitario} onChange={e => setItemField(i, 'valor_unitario', e.target.value)}
+                            placeholder="0,00" className={inputCls} />
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr 1fr 1fr 1fr', gap:8 }}>
-                      <div>
-                        <label className={labelCls}>Código *</label>
-                        <input value={item.codigo} onChange={e => setItemField(i, 'codigo', e.target.value)}
-                          placeholder="COD-001" className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Descrição</label>
-                        <input value={item.descricao} onChange={e => setItemField(i, 'descricao', e.target.value)}
-                          placeholder="Descrição do item" className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Quantidade</label>
-                        <input type="number" min="1" value={item.quantidade} onChange={e => setItemField(i, 'quantidade', e.target.value)}
-                          className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Unidade</label>
-                        <select value={item.unidade} onChange={e => setItemField(i, 'unidade', e.target.value)} className={inputCls}>
-                          {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className={labelCls}>Valor Unit. (R$)</label>
-                        <input value={item.valor_unitario} onChange={e => setItemField(i, 'valor_unitario', e.target.value)}
-                          placeholder="0,00" className={inputCls} />
-                      </div>
+                  );
+                })}
+              </div>
+
+              {/* Total geral */}
+              {totalGeral > 0 && (
+                <div style={{ marginTop:14, display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e9ecef', paddingTop:12 }}>
+                  <div style={{ background:'#f0f4ff', borderRadius:8, padding:'10px 18px', textAlign:'right' }}>
+                    <div style={{ fontSize:11, color:'#888', fontWeight:600, textTransform:'uppercase', letterSpacing:.5 }}>Valor Total do Pedido</div>
+                    <div style={{ fontSize:22, fontWeight:800, color:'#1a3a5c', marginTop:2 }}>
+                      R$ {fmtBRL(totalGeral)}
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -224,7 +310,7 @@ export default function NovoPedidoPage() {
           <div>
             <div className="card" style={{ padding:20, position:'sticky', top:66 }}>
               <div style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
-                <i className="bi bi-arrow-right-circle" style={{ marginRight:6 }} />Roteiro de Produção *
+                <i className="bi bi-arrow-right-circle" style={{ marginRight:6 }} />Roteiro de Produção
               </div>
               <p style={{ fontSize:12, color:'#888', margin:'0 0 12px' }}>
                 Clique nos setores na ordem em que o pedido deve passar:
@@ -236,49 +322,49 @@ export default function NovoPedidoPage() {
                 const naoSelecionados = SETOR_CHOICES.filter(([c]) => !roteiro.includes(c));
                 const lista = [...selecionados, ...naoSelecionados];
                 return (
-              <div style={{ display:'flex', flexDirection:'column', gap:6, paddingLeft:14, maxHeight:'calc(100vh - 350px)', overflowY:'auto' }}>
-                {lista.map(([cod, nome]) => {
-                  const selecionado = roteiro.includes(cod);
-                  const fixo = cod === 'emissao';
-                  const pos = roteiro.indexOf(cod);
-                  return (
-                    <div key={cod} style={{ position:'relative' }}>
-                      {selecionado && (
-                        <span style={{
-                          position:'absolute', left:-14, top:'50%', transform:'translateY(-50%)',
-                          width:24, height:24, borderRadius:'50%',
-                          background: fixo ? '#fff' : '#1a3a5c',
-                          color: fixo ? '#1a3a5c' : '#fff',
-                          border: '2px solid #1a3a5c',
-                          display:'flex', alignItems:'center', justifyContent:'center',
-                          fontSize:11, fontWeight:800, zIndex:1,
-                        }}>
-                          {pos + 1}
-                        </span>
-                      )}
-                      <button type="button" onClick={() => toggleSetor(cod)}
-                        disabled={fixo}
-                        style={{
-                          width:'100%', display:'flex', alignItems:'center', gap:10,
-                          padding:'9px 12px', borderRadius:8, border:'1px solid',
-                          borderColor: selecionado ? '#1a3a5c' : '#e5e7eb',
-                          background: fixo ? '#1a3a5c' : selecionado ? '#eef2ff' : '#fff',
-                          color: fixo ? '#fff' : selecionado ? '#1a3a5c' : '#666',
-                          cursor: fixo ? 'default' : 'pointer',
-                          fontWeight: selecionado ? 700 : 400,
-                          fontSize:13, textAlign:'left', transition:'all .15s',
-                        }}>
-                        {!selecionado && (
-                          <span style={{ width:16, height:16, borderRadius:'50%', border:'1px dashed #ccc', flexShrink:0 }} />
-                        )}
-                        <span style={{ flex:1 }}>{nome}</span>
-                        {fixo && <i className="bi bi-lock-fill" style={{ fontSize:11, opacity:.6 }} />}
-                        {selecionado && !fixo && <i className="bi bi-check2" style={{ color:'#1a3a5c', fontSize:14 }} />}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:6, paddingLeft:14, maxHeight:'calc(100vh - 350px)', overflowY:'auto' }}>
+                    {lista.map(([cod, nome]) => {
+                      const selecionado = roteiro.includes(cod);
+                      const fixo = cod === 'emissao';
+                      const pos = roteiro.indexOf(cod);
+                      return (
+                        <div key={cod} style={{ position:'relative' }}>
+                          {selecionado && (
+                            <span style={{
+                              position:'absolute', left:-14, top:'50%', transform:'translateY(-50%)',
+                              width:24, height:24, borderRadius:'50%',
+                              background: fixo ? '#fff' : '#1a3a5c',
+                              color: fixo ? '#1a3a5c' : '#fff',
+                              border:'2px solid #1a3a5c',
+                              display:'flex', alignItems:'center', justifyContent:'center',
+                              fontSize:11, fontWeight:800, zIndex:1,
+                            }}>
+                              {pos + 1}
+                            </span>
+                          )}
+                          <button type="button" onClick={() => toggleSetor(cod)}
+                            disabled={fixo}
+                            style={{
+                              width:'100%', display:'flex', alignItems:'center', gap:10,
+                              padding:'9px 12px', borderRadius:8, border:'1px solid',
+                              borderColor: selecionado ? '#1a3a5c' : '#e5e7eb',
+                              background: fixo ? '#1a3a5c' : selecionado ? '#eef2ff' : '#fff',
+                              color: fixo ? '#fff' : selecionado ? '#1a3a5c' : '#666',
+                              cursor: fixo ? 'default' : 'pointer',
+                              fontWeight: selecionado ? 700 : 400,
+                              fontSize:13, textAlign:'left', transition:'all .15s',
+                            }}>
+                            {!selecionado && (
+                              <span style={{ width:16, height:16, borderRadius:'50%', border:'1px dashed #ccc', flexShrink:0 }} />
+                            )}
+                            <span style={{ flex:1 }}>{nome}</span>
+                            {fixo && <i className="bi bi-lock-fill" style={{ fontSize:11, opacity:.6 }} />}
+                            {selecionado && !fixo && <i className="bi bi-check2" style={{ color:'#1a3a5c', fontSize:14 }} />}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 );
               })()}
               {roteiro.length > 1 && (

@@ -2,6 +2,16 @@
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { NOMES } from '@/lib/types';
+import { pbkdf2, randomBytes } from 'crypto';
+import { promisify } from 'util';
+
+const pbkdf2Async = promisify(pbkdf2);
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(8).toString('hex');
+  const h = await pbkdf2Async(password, salt, 260_000, 32, 'sha256');
+  return `pbkdf2_sha256$260000$${salt}$${h.toString('base64')}`;
+}
 
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
@@ -25,4 +35,31 @@ export async function GET(req: Request) {
     setor: u.setor || null,
     setor_nome: u.setor ? (NOMES[u.setor] || u.setor) : null,
   })));
+}
+
+export async function POST(req: Request) {
+  const user = await autenticar(req);
+  if (user instanceof NextResponse) return user;
+  if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+
+  const { username, nome, senha, perfil, setor } = await req.json();
+
+  if (!username || !nome || !senha || !perfil)
+    return NextResponse.json({ erro: 'Preencha todos os campos obrigatórios.' }, { status: 400 });
+  if (senha.length < 4)
+    return NextResponse.json({ erro: 'Senha deve ter pelo menos 4 caracteres.' }, { status: 400 });
+
+  const existe = await sql`SELECT id FROM usuarios_usuario WHERE username = ${username}`;
+  if (existe.length > 0)
+    return NextResponse.json({ erro: 'Nome de usuário já existe.' }, { status: 409 });
+
+  const hashed = await hashPassword(senha);
+  const is_staff = perfil === 'administrador' || perfil === 'pcp';
+
+  await sql`
+    INSERT INTO usuarios_usuario (username, nome, password, perfil, setor, is_staff, is_active, is_superuser, date_joined)
+    VALUES (${username}, ${nome}, ${hashed}, ${perfil}, ${setor || null}, ${is_staff}, true, false, NOW())
+  `;
+
+  return NextResponse.json({ ok: true });
 }

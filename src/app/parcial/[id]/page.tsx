@@ -281,6 +281,9 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
               Split de #{parcial.parcial_origem_id}
             </span>
           )}
+          <Link href={`/setor/${parcial.setor_atual}`} style={{ fontSize: 12, color: '#6b7280', textDecoration: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '2px 8px', background: '#f9fafb' }}>
+            ← Voltar ao setor
+          </Link>
           {isAdmin && (
             <Link href={`/pedidos/${parcial.pedido_id}`} style={{ fontSize: 12, color: '#6b7280', textDecoration: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '2px 8px' }}>
               ← Pedido {parcial.numero_pedido_venda}
@@ -442,115 +445,105 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                 </button>
               )}
 
-              {/* QUALIDADE: Enviar tudo / parcial / divergência */}
-              {isAndamento && parcial.setor_atual === 'qualidade' && (() => {
-                const rot = item?.roteiro_efetivo || [];
-                const idx = rot.indexOf(parcial.setor_atual);
-                const proxSetor = idx !== -1 && idx < rot.length - 1 ? rot[idx + 1] : null;
-                return (
-                  <>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Enviar para:</label>
-                      <select value={setorDestino || proxSetor || ''} onChange={e => setSetorDestino(e.target.value)}
-                        className="w-full border rounded px-2 py-1.5 text-sm mb-2">
-                        {SETOR_CHOICES.filter(([cod]) => cod !== parcial.setor_atual).map(([cod, nome]) => (
-                          <option key={cod} value={cod}>
-                            {nome}{cod === proxSetor ? ' (próximo no roteiro)' : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <button onClick={aprovarParcialQualidade} disabled={!!atuando}
-                      className="w-full bg-[#1a3a5c] text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:opacity-90 disabled:opacity-60">
-                      {atuando === 'aprovar' ? '⏳ Enviando...' : '▶ Enviar tudo'}
-                    </button>
-                    <button onClick={() => { setShowSplit(v => !v); setShowDivQualidade(false); }} disabled={!!atuando}
-                      className="w-full bg-blue-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-blue-600 disabled:opacity-60">
-                      ▶ Enviar parcial
-                    </button>
+              {/* EM ANDAMENTO — mesmos botões em todos os setores */}
+              {isAndamento && (
+                <>
+                  <button onClick={() => setConfirmModal({
+                    titulo: 'Finalizar etapa',
+                    mensagem: 'Deseja finalizar o processo neste setor? A parcial ficará disponível para envio ao próximo setor.',
+                    acao: () => executarAcao('finalizar'),
+                  })} disabled={!!atuando}
+                    className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
+                    {atuando === 'finalizar' ? '⏳ Finalizando...' : '✓ Finalizar etapa'}
+                  </button>
+                  <button onClick={() => { setShowSplit(v => !v); setShowDevolver(false); }} disabled={!!atuando}
+                    className="w-full bg-[#1a3a5c] text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:opacity-90 disabled:opacity-60">
+                    ↗ Enviar ao próximo setor
+                  </button>
+                  <button onClick={() => setConfirmModal({
+                    titulo: 'Encerrar parcial',
+                    mensagem: 'A parcial não irá para nenhum outro setor. Deseja encerrá-la como concluída?',
+                    acao: () => executarAcao('concluir'),
+                  })} disabled={!!atuando}
+                    className="w-full border border-green-500 text-green-700 px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-50 disabled:opacity-60">
+                    {atuando === 'concluir' ? '⏳ Encerrando...' : '✓ Encerrar'}
+                  </button>
+                  <button onClick={() => executarAcao('pausar')} disabled={!!atuando}
+                    className="w-full bg-orange-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-orange-600 disabled:opacity-60">
+                    {atuando === 'pausar' ? '⏳ Pausando...' : '⏸ Pausar'}
+                  </button>
+                  {parcial.setor_atual === 'qualidade' && (
                     <button onClick={() => { setShowDivQualidade(v => !v); setShowSplit(false); }} disabled={!!atuando}
                       className="w-full bg-orange-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-orange-600 disabled:opacity-60">
-                      ⚠ Pedido com divergência
+                      ⚠ Divergência
                     </button>
-                  </>
-                );
-              })()}
-
-              {/* FINALIZAR — quando em andamento (setores normais) */}
-              {isAndamento && parcial.setor_atual !== 'qualidade' && (
-                <button onClick={() => setConfirmModal({
-                  titulo: 'Finalizar Etapa',
-                  mensagem: `Confirma que a etapa de ${parcial.setor_atual_nome} foi concluída para esta parcial?`,
-                  acao: () => executarAcao('finalizar'),
-                })} disabled={!!atuando}
-                  className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
-                  {atuando === 'finalizar' ? '⏳ Finalizando...' : '✓ Finalizar etapa'}
-                </button>
-              )}
-
-              {/* PAUSAR — quando em andamento (setores normais) */}
-              {isAndamento && parcial.setor_atual !== 'qualidade' && (
-                <button onClick={() => executarAcao('pausar')} disabled={!!atuando}
-                  className="w-full bg-orange-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-orange-600 disabled:opacity-60">
-                  {atuando === 'pausar' ? '⏳ Pausando...' : '⏸ Pausar'}
-                </button>
+                  )}
+                </>
               )}
 
               {/* RETOMAR — quando pausado */}
               {isPausado && (
-                <button onClick={() => executarAcao('retomar')} disabled={!!atuando}
-                  className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
-                  {atuando === 'retomar' ? '⏳ Retomando...' : '▶ Retomar produção'}
-                </button>
+                <>
+                  <button onClick={() => executarAcao('retomar')} disabled={!!atuando}
+                    className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
+                    {atuando === 'retomar' ? '⏳ Retomando...' : '▶ Retomar produção'}
+                  </button>
+                  <button onClick={() => { setShowSplit(v => !v); setShowDevolver(false); }} disabled={!!atuando}
+                    className="w-full bg-[#1a3a5c] text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:opacity-90 disabled:opacity-60">
+                    ↗ Enviar ao próximo setor
+                  </button>
+                  <button onClick={() => setConfirmModal({
+                    titulo: 'Encerrar parcial',
+                    mensagem: 'A parcial não irá para nenhum outro setor. Deseja encerrá-la como concluída?',
+                    acao: () => executarAcao('concluir'),
+                  })} disabled={!!atuando}
+                    className="w-full border border-green-500 text-green-700 px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-50 disabled:opacity-60">
+                    {atuando === 'concluir' ? '⏳ Encerrando...' : '✓ Encerrar'}
+                  </button>
+                </>
               )}
 
-              {/* ENVIAR AO PRÓXIMO SETOR — quando finalizado_setor, exceto logística */}
-              {isFinalizado && !showDivQualidade && !isLogistica && (
-                <button onClick={() => { setShowSplit(v => !v); setShowDevolver(false); }} disabled={!!atuando}
-                  className="w-full bg-[#1a3a5c] text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:opacity-90 disabled:opacity-60">
-                  ↗ Enviar ao próximo setor
-                </button>
-              )}
-
-              {/* DIVERGÊNCIA — qualidade, quando finalizado */}
-              {isFinalizado && parcial.setor_atual === 'qualidade' && (
-                <button onClick={() => { setShowDivQualidade(v => !v); setShowSplit(false); setShowDevolver(false); }} disabled={!!atuando}
-                  className="w-full bg-orange-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-orange-600 disabled:opacity-60">
-                  ⚠ Pedido com divergência
-                </button>
-              )}
-
-              {/* RETOMAR ETAPA — quando finalizado_setor, exceto logística */}
-              {isFinalizado && !isLogistica && (
-                <button onClick={() => executarAcao('retomar')} disabled={!!atuando}
-                  className="w-full bg-yellow-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-yellow-600 disabled:opacity-60">
-                  {atuando === 'retomar' ? '⏳ Retomando...' : '↩ Retomar etapa'}
-                </button>
-              )}
-
-              {/* ENCERRAR — quando finalizado_setor, exceto logística */}
-              {isFinalizado && !isLogistica && (
-                <button onClick={() => setConfirmModal({
-                  titulo: 'Encerrar Parcial',
-                  mensagem: 'As peças já foram processadas e não precisam ir a outro setor. Deseja encerrar esta parcial como concluída?',
-                  acao: () => executarAcao('concluir'),
-                })} disabled={!!atuando}
-                  className="w-full border border-green-500 text-green-700 px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-50 disabled:opacity-60">
-                  {atuando === 'concluir' ? '⏳ Encerrando...' : '✓ Encerrar (concluído)'}
-                </button>
-              )}
-
-              {/* DESPACHAR — logística only */}
-              {isLogistica && isFinalizado && (
-                <button onClick={() => setConfirmModal({
-                  titulo: 'Despachar',
-                  mensagem: 'Confirma o despacho desta parcial para o cliente?',
-                  acao: () => executarAcao('concluir'),
-                })} disabled={!!atuando}
-                  className="w-full text-white px-4 py-2.5 rounded text-sm font-semibold text-left disabled:opacity-60"
-                  style={{ background: '#fd7e14' }}>
-                  {atuando === 'concluir' ? '⏳ Despachando...' : '🚚 Despachar'}
-                </button>
+              {/* FINALIZADO NO SETOR */}
+              {isFinalizado && (
+                <>
+                  {!showDivQualidade && (
+                    <button onClick={() => { setShowSplit(v => !v); setShowDevolver(false); }} disabled={!!atuando}
+                      className="w-full bg-[#1a3a5c] text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:opacity-90 disabled:opacity-60">
+                      ↗ Enviar ao próximo setor
+                    </button>
+                  )}
+                  {parcial.setor_atual === 'qualidade' && (
+                    <button onClick={() => { setShowDivQualidade(v => !v); setShowSplit(false); setShowDevolver(false); }} disabled={!!atuando}
+                      className="w-full bg-orange-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-orange-600 disabled:opacity-60">
+                      ⚠ Divergência
+                    </button>
+                  )}
+                  {isLogistica && (
+                    <button onClick={() => setConfirmModal({
+                      titulo: 'Despachar',
+                      mensagem: 'Confirma o despacho desta parcial para o cliente?',
+                      acao: () => executarAcao('concluir'),
+                    })} disabled={!!atuando}
+                      className="w-full text-white px-4 py-2.5 rounded text-sm font-semibold text-left disabled:opacity-60"
+                      style={{ background: '#fd7e14' }}>
+                      {atuando === 'concluir' ? '⏳ Despachando...' : '🚚 Despachar'}
+                    </button>
+                  )}
+                  <button onClick={() => executarAcao('retomar')} disabled={!!atuando}
+                    className="w-full bg-yellow-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-yellow-600 disabled:opacity-60">
+                    {atuando === 'retomar' ? '⏳ Retomando...' : '↩ Retomar etapa'}
+                  </button>
+                  {!isLogistica && (
+                    <button onClick={() => setConfirmModal({
+                      titulo: 'Encerrar definitivamente',
+                      mensagem: 'A parcial não irá para nenhum outro setor. Deseja encerrá-la como concluída?',
+                      acao: () => executarAcao('concluir'),
+                    })} disabled={!!atuando}
+                      className="w-full border border-green-500 text-green-700 px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-50 disabled:opacity-60">
+                      {atuando === 'concluir' ? '⏳ Encerrando...' : '✓ Encerrar definitivamente'}
+                    </button>
+                  )}
+                </>
               )}
 
               {/* DEVOLVER — quando em andamento, pausado ou finalizado */}

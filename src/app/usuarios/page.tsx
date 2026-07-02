@@ -1,7 +1,8 @@
-﻿'use client';
+'use client';
 import { useEffect, useState } from 'react';
 import AuthGuard from '@/components/AuthGuard';
 import { getUser, getToken } from '@/lib/auth';
+import { SETOR_CHOICES, NOMES } from '@/lib/types';
 
 interface Usuario {
   id: number;
@@ -21,19 +22,29 @@ const PERFIL_BADGE: Record<string, { bg: string; cor: string }> = {
   operador:      { bg: '#6c757d', cor: '#fff' },
 };
 
+const PERFIS = ['administrador', 'pcp', 'lider', 'operador'];
+
 export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiadoId, setCopiadoId] = useState<number | null>(null);
   const [copiadoLogin, setCopiadoLogin] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setor: '' });
+  const [salvando, setSalvando] = useState(false);
+  const [formMsg, setFormMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const isAdmin = getUser()?.is_staff;
 
-  useEffect(() => {
-    if (!isAdmin) { setLoading(false); return; }
+  function carregarUsuarios() {
     fetch('/api/usuarios', { headers: { Authorization: `Bearer ${getToken() || ''}` } })
       .then(r => r.json())
       .then(setUsuarios)
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    if (!isAdmin) { setLoading(false); return; }
+    carregarUsuarios();
   }, []);
 
   function copiarLink(u: Usuario) {
@@ -53,6 +64,32 @@ export default function UsuariosPage() {
     });
   }
 
+  async function criarUsuario(e: React.FormEvent) {
+    e.preventDefault();
+    setSalvando(true);
+    setFormMsg(null);
+    try {
+      const res = await fetch('/api/usuarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
+        body: JSON.stringify({ ...form, setor: form.setor || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFormMsg({ tipo: 'erro', texto: data.erro || 'Erro ao criar usuário.' });
+      } else {
+        setFormMsg({ tipo: 'ok', texto: 'Usuário criado com sucesso!' });
+        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setor: '' });
+        setShowForm(false);
+        carregarUsuarios();
+      }
+    } catch {
+      setFormMsg({ tipo: 'erro', texto: 'Erro de conexão.' });
+    } finally {
+      setSalvando(false);
+    }
+  }
+
   if (!isAdmin) {
     return (
       <AuthGuard>
@@ -67,11 +104,125 @@ export default function UsuariosPage() {
   return (
     <AuthGuard>
       {/* Cabeçalho */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
         <h4 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c' }}>
           <i className="bi bi-people" style={{ marginRight: 8 }}></i>Usuários do Sistema
         </h4>
+        <button onClick={() => { setShowForm(true); setFormMsg(null); }} style={{
+          background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6,
+          padding: '8px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+        }}>
+          <i className="bi bi-person-plus" style={{ marginRight: 6 }}></i>Novo Usuário
+        </button>
       </div>
+
+      {/* Modal criar usuário */}
+      {showForm && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: '100%', maxWidth: 440, boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h5 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c' }}>
+                <i className="bi bi-person-plus" style={{ marginRight: 8 }}></i>Criar Usuário
+              </h5>
+              <button onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#888' }}>✕</button>
+            </div>
+
+            <form onSubmit={criarUsuario}>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>Nome completo *</label>
+                <input
+                  value={form.nome}
+                  onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
+                  placeholder="Ex: João da Silva"
+                  required
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>Username *</label>
+                <input
+                  value={form.username}
+                  onChange={e => setForm(f => ({ ...f, username: e.target.value.toLowerCase().replace(/\s/g, '') }))}
+                  placeholder="Ex: joao.silva"
+                  required
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13, fontFamily: 'monospace', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>Senha *</label>
+                <input
+                  type="password"
+                  value={form.senha}
+                  onChange={e => setForm(f => ({ ...f, senha: e.target.value }))}
+                  placeholder="Mínimo 4 caracteres"
+                  required
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>Perfil *</label>
+                <select
+                  value={form.perfil}
+                  onChange={e => setForm(f => ({ ...f, perfil: e.target.value }))}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13, boxSizing: 'border-box' }}
+                >
+                  {PERFIS.map(p => (
+                    <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>
+                  Setor {form.perfil === 'lider' || form.perfil === 'operador' ? '*' : '(opcional)'}
+                </label>
+                <select
+                  value={form.setor}
+                  onChange={e => setForm(f => ({ ...f, setor: e.target.value }))}
+                  required={form.perfil === 'lider' || form.perfil === 'operador'}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13, boxSizing: 'border-box' }}
+                >
+                  <option value="">— Sem setor —</option>
+                  {SETOR_CHOICES.map(([key, nome]) => (
+                    <option key={key} value={key}>{nome}</option>
+                  ))}
+                </select>
+              </div>
+
+              {formMsg && (
+                <div style={{
+                  marginBottom: 14, padding: '8px 12px', borderRadius: 6, fontSize: 13,
+                  background: formMsg.tipo === 'ok' ? '#d1e7dd' : '#f8d7da',
+                  color: formMsg.tipo === 'ok' ? '#0a3622' : '#842029',
+                }}>
+                  {formMsg.texto}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setShowForm(false)} style={{
+                  background: '#f0f0f0', color: '#333', border: 'none', borderRadius: 6,
+                  padding: '8px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                }}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={salvando} style={{
+                  background: salvando ? '#aaa' : '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6,
+                  padding: '8px 20px', fontSize: 13, fontWeight: 600, cursor: salvando ? 'not-allowed' : 'pointer',
+                }}>
+                  {salvando ? 'Salvando...' : 'Criar Usuário'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Card: link de login */}
       <div className="card" style={{ padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
