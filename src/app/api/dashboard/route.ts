@@ -16,20 +16,27 @@ function statusDisplay(s: string): string {
   return m[s] || s;
 }
 
+// Timeout server-side: garante resposta antes do Vercel matar a função (10s limit)
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ]);
+}
+
 export async function GET(req: Request) {
   try {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
-  // Queries simples, sem JOINs pesados — cada uma é rápida isoladamente
   const [
     countsRows,
     porSetorRows,
     pedidosAtrasados,
     ultMovs,
     divCountsRows,
-  ] = await Promise.all([
+  ] = await withTimeout(Promise.all([
     sql`
       SELECT
         COUNT(*) FILTER (WHERE status != 'entregue')                                   AS total,
@@ -77,7 +84,7 @@ export async function GET(req: Request) {
         COUNT(*) FILTER (WHERE status IN ('aberta','em_analise') AND prioridade = 'urgente') AS urgentes
       FROM producao_divergencia
     `.catch(() => [{ abertas: 0, urgentes: 0 }]),
-  ]);
+  ]), 7500); // 7.5s — Vercel mata em 10s, deixa margem para serializar resposta
 
   const counts = countsRows[0] ?? {};
   const divCounts = divCountsRows[0] ?? { abertas: 0, urgentes: 0 };
