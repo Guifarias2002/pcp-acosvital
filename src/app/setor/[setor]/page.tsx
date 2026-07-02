@@ -881,7 +881,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
         )}
 
         {/* ── Finalizado no setor ──────────────────────────────────────────── */}
-        {isFinalizado && (
+        {isFinalizado && !isLogistica && (
           <>
             {!showDivQualidade && (
               <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
@@ -904,6 +904,11 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
               ✓ Encerrar definitivamente
             </button>
           </>
+        )}
+        {isFinalizado && isLogistica && (
+          <button onClick={() => acao('retomar')} disabled={loading} style={btnStyle('#fd7e14')}>
+            <i className="bi bi-arrow-counterclockwise" style={{ marginRight: 5 }} />Retomar etapa
+          </button>
         )}
 
         {/* DESPACHAR — logística only */}
