@@ -572,48 +572,50 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                 )}
               </div>
 
-              {/* Prévia do desenho técnico */}
-              {desenhoUrl && desenhoTipo && (
-                <div className="mt-4 border-t pt-4">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">📐 Desenho Técnico</p>
-                  {desenhoTipo === 'img' ? (
-                    <img src={desenhoUrl} alt="Desenho técnico" className="w-full rounded border" style={{ maxHeight: 600, objectFit: 'contain', background: '#f8fafc' }} />
+              {/* Desenho técnico — preview + upload (admin) */}
+              <div className="mt-4 border-t pt-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">📐 Desenho Técnico</p>
+                {isAdmin ? (
+                  <>
+                    {(item as any).tem_desenho ? (
+                      <div className="flex items-center gap-2 mb-3">
+                        <a href={desenhoUrl || `/api/pedidos/${item.pedido_id}/desenho`} target="_blank" rel="noreferrer"
+                          className="flex-1 text-center rounded border border-green-300 bg-green-50 text-green-700 font-semibold py-2 text-sm hover:bg-green-100" style={{ textDecoration: 'none' }}>
+                          ✅ Ver desenho técnico
+                        </a>
+                        <button onClick={excluirDesenho}
+                          className="rounded border border-red-300 bg-red-50 text-red-600 px-3 py-2 text-sm hover:bg-red-100">
+                          🗑
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="block cursor-pointer rounded border-2 border-dashed border-gray-300 p-4 text-center text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 mb-2">
+                        {uploadingDesenho ? 'Enviando…' : '➕ Anexar desenho (PDF, JPG, PNG)'}
+                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                          onChange={e => { const f = e.target.files?.[0]; if (f) uploadDesenho(f); }} />
+                      </label>
+                    )}
+                    {desenhoMsg && <p className="text-xs text-blue-600">{desenhoMsg}</p>}
+                  </>
+                ) : desenhoUrl && desenhoTipo ? (
+                  desenhoTipo === 'img' ? (
+                    <img src={desenhoUrl} alt="Desenho técnico" className="w-full rounded border" style={{ maxHeight: 400, objectFit: 'contain', background: '#f8fafc' }} />
                   ) : (
                     <a href={desenhoUrl} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-3 rounded border border-blue-300 bg-blue-50 text-blue-700 font-semibold py-8 hover:bg-blue-100"
-                      style={{ textDecoration: 'none', fontSize: 16 }}>
-                      <i className="bi bi-file-earmark-pdf-fill" style={{ fontSize: 28 }}></i>
-                      Toque para abrir o Desenho Técnico (PDF)
+                      className="flex items-center justify-center gap-3 rounded border border-blue-300 bg-blue-50 text-blue-700 font-semibold py-6 hover:bg-blue-100"
+                      style={{ textDecoration: 'none', fontSize: 15 }}>
+                      <i className="bi bi-file-earmark-pdf-fill" style={{ fontSize: 24 }}></i>
+                      Abrir Desenho Técnico (PDF)
                     </a>
-                  )}
-                </div>
-              )}
-
-              {/* Upload de desenho — apenas admin */}
-              {isAdmin && (
-                <div className="mt-4 border-t pt-4">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">📐 Desenho Técnico</p>
-                  {(item as any).tem_desenho ? (
-                    <div className="flex items-center gap-2">
-                      <a href={desenhoUrl || `/api/pedidos/${item.pedido_id}/desenho`} target="_blank" rel="noreferrer"
-                        className="flex-1 text-center rounded border border-green-300 bg-green-50 text-green-700 font-semibold py-2 text-sm hover:bg-green-100" style={{ textDecoration: 'none' }}>
-                        ✅ Ver desenho técnico
-                      </a>
-                      <button onClick={excluirDesenho}
-                        className="rounded border border-red-300 bg-red-50 text-red-600 px-3 py-2 text-sm hover:bg-red-100">
-                        🗑
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="block cursor-pointer rounded border-2 border-dashed border-gray-300 p-4 text-center text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500">
-                      {uploadingDesenho ? 'Enviando…' : '➕ Anexar desenho (PDF, JPG, PNG)'}
-                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
-                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadDesenho(f); }} />
-                    </label>
-                  )}
-                  {desenhoMsg && <p className="text-xs mt-1 text-blue-600">{desenhoMsg}</p>}
-                </div>
-              )}
+                  )
+                ) : (
+                  <p className="text-xs text-gray-400 italic">Nenhum desenho anexado</p>
+                )}
+                {/* Preview da imagem para admin também */}
+                {isAdmin && desenhoUrl && desenhoTipo === 'img' && (
+                  <img src={desenhoUrl} alt="Desenho técnico" className="w-full rounded border mt-3" style={{ maxHeight: 400, objectFit: 'contain', background: '#f8fafc' }} />
+                )}
+              </div>
 
               {/* Painel enviar parcial */}
               {showParcial && (
