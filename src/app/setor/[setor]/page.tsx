@@ -1764,6 +1764,8 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const [loading, setLoading] = useState(false);
   const [filtroLog, setFiltroLog] = useState<FiltroLogistica>('todos');
   const [ultimaAtt, setUltimaAtt] = useState<Date | null>(null);
+  const [pedidosColapsados, setPedidosColapsados] = useState<Set<number>>(new Set());
+  const [recebendoTudo, setRecebendoTudo] = useState<Set<number>>(new Set());
 
   const carregar = useCallback(() => {
     getSetorPainel(setor).then(d => { setData(d); setLoading(false); setUltimaAtt(new Date()); }).catch(() => setLoading(false));
@@ -1904,17 +1906,53 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
 
                     return (
                       <div key={pedido_id} className="setor-pedido-grupo" style={{ border: '2px solid #dde3f0', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
-                        {/* Cabeçalho do pedido */}
-                        <div className="setor-pedido-header" style={{ background: '#1a3a5c', color: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {/* Cabeçalho do pedido — clicável para colapsar/expandir */}
+                        <div
+                          className="setor-pedido-header"
+                          onClick={() => setPedidosColapsados(prev => {
+                            const next = new Set(prev);
+                            if (next.has(pedido_id)) next.delete(pedido_id); else next.add(pedido_id);
+                            return next;
+                          })}
+                          style={{ background: '#1a3a5c', color: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}
+                        >
                           <i className="bi bi-folder2-open" style={{ fontSize: 15 }} />
                           <span style={{ fontWeight: 700, fontSize: 15 }}>Pedido de Venda {numero_pedido_venda}</span>
                           <span style={{ fontSize: 11, opacity: 0.65, marginLeft: 4 }}>
                             {parciais.length} parcial{parciais.length > 1 ? 'is' : ''}
                             {itemGrupos.length > 1 ? ` · ${itemGrupos.length} produtos` : ''}
                           </span>
+                          {(() => {
+                            const recebiveis = parciais.filter(p => p.status === 'em_aberto' && p.setor_atual !== 'logistica');
+                            if (recebiveis.length === 0) return null;
+                            const carregando = recebendoTudo.has(pedido_id);
+                            return (
+                              <button
+                                disabled={carregando}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  setRecebendoTudo(prev => new Set(prev).add(pedido_id));
+                                  try {
+                                    for (const p of recebiveis) await parcialAcao(p.id, 'receber');
+                                    carregar();
+                                  } catch { /* carregar mesmo assim */ carregar(); }
+                                  finally { setRecebendoTudo(prev => { const s = new Set(prev); s.delete(pedido_id); return s; }); }
+                                }}
+                                style={{ marginLeft: 'auto', background: carregando ? '#4a6fa5' : '#f59e0b', color: carregando ? '#fff' : '#1a1a1a', border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: carregando ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                              >
+                                {carregando
+                                  ? <><i className="bi bi-hourglass-split" /> Recebendo...</>
+                                  : <><i className="bi bi-box-arrow-in-down-left" /> Receber Tudo ({recebiveis.length})</>}
+                              </button>
+                            );
+                          })()}
+                          <i
+                            className={pedidosColapsados.has(pedido_id) ? 'bi bi-chevron-right' : 'bi bi-chevron-down'}
+                            style={{ marginLeft: recebendoTudo.has(pedido_id) || parciais.every(p => p.status !== 'em_aberto' || p.setor_atual === 'logistica') ? 'auto' : '0', fontSize: 13, opacity: 0.8 }}
+                          />
                         </div>
                         {/* Produtos do pedido */}
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        {!pedidosColapsados.has(pedido_id) && <div style={{ display: 'flex', flexDirection: 'column' }}>
                           {itemGrupos.map((grupo, itemIdx) => {
                             const p0 = grupo[0];
                             const totalQtd = grupo.reduce((s, p) => s + Number(p.quantidade), 0);
@@ -1949,7 +1987,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                               </div>
                             );
                           })}
-                        </div>
+                        </div>}
                       </div>
                     );
                   })}

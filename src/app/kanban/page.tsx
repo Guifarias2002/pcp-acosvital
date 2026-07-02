@@ -45,6 +45,15 @@ export default function KanbanPage() {
   const [setores, setSetores] = useState<SetorKanban[]>([]);
   const [loading, setLoading] = useState(true);
   const [ultimaAtt, setUltimaAtt] = useState('');
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+
+  function toggleGrupo(key: string) {
+    setExpandidos(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
 
   function carregar() {
     api.get('/api/kanban')
@@ -152,31 +161,67 @@ export default function KanbanPage() {
                   </div>
                 )}
 
-                {/* Itens no setor */}
+                {/* Itens no setor — agrupados por pedido */}
                 {s.itens.length === 0 && s.chegando.length === 0 && (
                   <p className="text-gray-300 text-xs text-center py-4">Vazio</p>
                 )}
-                {s.itens.map(item => (
-                  <Link key={item.id} href={`/pedidos/${item.pedido_id}`}
-                    className="bg-white rounded-lg p-3 shadow-sm border block hover:border-blue-300 hover:shadow-md transition-all">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-bold text-sm text-gray-800">{item.pedido_numero}</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${PRIORIDADE_COR[item.pedido_prioridade]}`}>
-                        {item.pedido_prioridade?.charAt(0).toUpperCase() + item.pedido_prioridade?.slice(1)}
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-500 mb-1.5 truncate">{item.pedido_cliente}</div>
-                    <div className="border-t pt-1.5 flex items-center justify-between">
-                      <div className="text-xs text-gray-600">
-                        <span className="font-medium">{item.quantidade_pendente}</span>
-                        <span className="text-gray-400 ml-1">{item.codigo}</span>
+                {(() => {
+                  const pedidoMap = new Map<number, ItemKanban[]>();
+                  for (const item of s.itens) {
+                    if (!pedidoMap.has(item.pedido_id)) pedidoMap.set(item.pedido_id, []);
+                    pedidoMap.get(item.pedido_id)!.push(item);
+                  }
+                  return Array.from(pedidoMap.values()).map(grupo => {
+                    const p0 = grupo[0];
+                    const key = `${s.cod}-${p0.pedido_id}`;
+                    const aberto = expandidos.has(key);
+                    return (
+                      <div key={key} className="rounded-lg border shadow-sm overflow-hidden" style={{ background: '#fff' }}>
+                        {/* Cabeçalho do grupo — clicável */}
+                        <div
+                          onClick={() => toggleGrupo(key)}
+                          className="flex items-center justify-between px-3 py-2 cursor-pointer select-none hover:bg-gray-50"
+                          style={{ borderBottom: aberto ? '1px solid #e5e7eb' : 'none' }}
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-sm text-gray-800">{p0.pedido_numero}</span>
+                              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${PRIORIDADE_COR[p0.pedido_prioridade]}`}>
+                                {p0.pedido_prioridade?.charAt(0).toUpperCase() + p0.pedido_prioridade?.slice(1)}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-400 truncate mt-0.5">{p0.pedido_cliente}</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0 ml-1">
+                            <span className="bg-blue-100 text-blue-700 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                              {grupo.length}
+                            </span>
+                            <i className={`bi ${aberto ? 'bi-chevron-down' : 'bi-chevron-right'} text-gray-400`} style={{ fontSize: 11 }} />
+                          </div>
+                        </div>
+                        {/* Itens do grupo */}
+                        {aberto && (
+                          <div className="p-2 space-y-1.5">
+                            {grupo.map(item => (
+                              <Link key={item.id} href={`/pedidos/${item.pedido_id}`}
+                                className="block rounded-md p-2 border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-all">
+                                <div className="flex items-center justify-between">
+                                  <div className="text-xs text-gray-600">
+                                    <span className="font-medium">{item.quantidade_pendente}</span>
+                                    <span className="text-gray-400 ml-1">{item.codigo}</span>
+                                  </div>
+                                  <span className={`text-xs px-1.5 py-0.5 rounded ${COR_STATUS[item.cor_status]}`}>
+                                    {STATUS_LABELS[item.status]}
+                                  </span>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${COR_STATUS[item.cor_status]}`}>
-                        {STATUS_LABELS[item.status]}
-                      </span>
-                    </div>
-                  </Link>
-                ))}
+                    );
+                  });
+                })()}
               </div>
             </div>
           ))}
