@@ -17,6 +17,7 @@ function statusDisplay(s: string): string {
 }
 
 export async function GET(req: Request) {
+  try {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
@@ -29,7 +30,6 @@ export async function GET(req: Request) {
     ultMovs,
     divCountsRows,
   ] = await Promise.all([
-    // Contadores simples — só producao_pedido, sem JOIN
     sql`
       SELECT
         COUNT(*) FILTER (WHERE status != 'entregue')                                   AS total,
@@ -41,26 +41,23 @@ export async function GET(req: Request) {
         COUNT(*) FILTER (WHERE prioridade = 'urgente' AND status != 'entregue')        AS urgentes,
         COUNT(*) FILTER (WHERE status = 'bloqueado')                                   AS bloqueados
       FROM producao_pedido
-    `,
+    `.catch(() => [{}]),
 
-    // Itens por setor — query direta sem UNION
     sql`
       SELECT setor_atual, COUNT(*) AS qtd
       FROM producao_itempedido
       WHERE status NOT IN ('entregue', 'cancelado')
       GROUP BY setor_atual
-    `,
+    `.catch(() => []),
 
-    // Pedidos atrasados — simples
     sql`
       SELECT id, numero_pedido_venda, cliente, prazo_entrega::text, prioridade, status
       FROM producao_pedido
       WHERE prazo_entrega < NOW()::date AND status != 'entregue'
       ORDER BY prazo_entrega ASC
       LIMIT 10
-    `,
+    `.catch(() => []),
 
-    // Últimas movimentações
     sql`
       SELECT m.id, m.setor_origem, m.setor_destino, m.status_anterior, m.status_novo,
              m.observacao, m.criado_em,
@@ -72,9 +69,8 @@ export async function GET(req: Request) {
       LEFT JOIN usuarios_usuario u ON u.id = m.usuario_id
       ORDER BY m.criado_em DESC
       LIMIT 15
-    `,
+    `.catch(() => []),
 
-    // Divergências
     sql`
       SELECT
         COUNT(*) FILTER (WHERE status IN ('aberta','em_analise'))                            AS abertas,
@@ -83,7 +79,7 @@ export async function GET(req: Request) {
     `.catch(() => [{ abertas: 0, urgentes: 0 }]),
   ]);
 
-  const counts = countsRows[0];
+  const counts = countsRows[0] ?? {};
   const divCounts = divCountsRows[0] ?? { abertas: 0, urgentes: 0 };
 
   const setorQtdMap: Record<string, number> = {};
@@ -129,4 +125,8 @@ export async function GET(req: Request) {
     divergencias_abertas:  Number(divCounts.abertas),
     divergencias_urgentes: Number(divCounts.urgentes),
   });
+  } catch (e) {
+    console.error('[dashboard] erro:', e);
+    return NextResponse.json({ erro: 'Erro ao carregar dashboard' }, { status: 500 });
+  }
 }
