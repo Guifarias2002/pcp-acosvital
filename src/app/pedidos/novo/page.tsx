@@ -1,10 +1,12 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 
 import { criarPedido } from '@/lib/api';
 import { SETOR_CHOICES } from '@/lib/types';
+
+const SS_KEY = 'nova_ordem_rascunho';
 
 interface ItemForm { codigo: string; descricao: string; quantidade: string; unidade: string; valor_unitario: string; roteiro_proprio: string[]; }
 
@@ -77,15 +79,27 @@ export default function NovoPedidoPage() {
     }
   }
 
-  const [pv, setPv] = useState('');
-  const [op, setOp] = useState('');
-  const [cliente, setCliente] = useState('');
-  const [vendedor, setVendedor] = useState('');
-  const [prazo, setPrazo] = useState('');
-  const [prioridade, setPrioridade] = useState('normal');
-  const [obs, setObs] = useState('');
-  const [roteiro, setRoteiro] = useState<string[]>(['emissao']);
-  const [itens, setItens] = useState<ItemForm[]>([{ codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', roteiro_proprio: [] }]);
+  // Restaura rascunho do sessionStorage (persiste F5)
+  const rascunho = typeof window !== 'undefined'
+    ? (() => { try { return JSON.parse(sessionStorage.getItem(SS_KEY) || 'null'); } catch { return null; } })()
+    : null;
+
+  const [pv, setPv] = useState<string>(rascunho?.pv ?? '');
+  const [op, setOp] = useState<string>(rascunho?.op ?? '');
+  const [cliente, setCliente] = useState<string>(rascunho?.cliente ?? '');
+  const [vendedor, setVendedor] = useState<string>(rascunho?.vendedor ?? '');
+  const [prazo, setPrazo] = useState<string>(rascunho?.prazo ?? '');
+  const [prioridade, setPrioridade] = useState<string>(rascunho?.prioridade ?? 'normal');
+  const [obs, setObs] = useState<string>(rascunho?.obs ?? '');
+  const [roteiro, setRoteiro] = useState<string[]>(rascunho?.roteiro ?? ['emissao']);
+  const [itens, setItens] = useState<ItemForm[]>(rascunho?.itens ?? [{ codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', roteiro_proprio: [] }]);
+
+  // Salva rascunho no sessionStorage sempre que o formulário mudar
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SS_KEY, JSON.stringify({ pv, op, cliente, vendedor, prazo, prioridade, obs, roteiro, itens }));
+    } catch { /* quota exceeded */ }
+  }, [pv, op, cliente, vendedor, prazo, prioridade, obs, roteiro, itens]);
 
   function toggleSetor(cod: string) {
     if (cod === 'emissao') return;
@@ -116,6 +130,7 @@ export default function NovoPedidoPage() {
     setErro('');
     setLoading(true);
     try {
+      sessionStorage.removeItem(SS_KEY);
       const { id } = await criarPedido({
         numero_pedido_venda: pv, numero_op: op, cliente, vendedor,
         prazo_entrega: prazo, prioridade, roteiro_base: roteiro,
