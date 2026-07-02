@@ -553,7 +553,7 @@ const LABEL_PARCIAL: Record<string, string> = {
   cancelada:        'Cancelada',
 };
 
-function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial; onRefresh: () => void; hideHeader?: boolean }) {
+function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemParcial; onRefresh: () => void; hideHeader?: boolean; setor?: string }) {
   const { toast: toastParcial, mostrar: mostrarErroParcial, fechar: fecharToastParcial } = useToast();
   const [loading, setLoading] = useState(false);
   const [showEnviar, setShowEnviar] = useState(false);
@@ -699,18 +699,36 @@ function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial;
       {/* Corpo */}
       <div style={{ padding: '12px 14px' }}>
 
-        {/* Banner retrabalho — esta parcial está em retrabalho (foi rejeitada pela qualidade) */}
+        {/* Banner retrabalho / retorno de retrabalho */}
         {parcial.retrabalho && (
-          <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6, padding: '6px 10px', marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-            <span style={{ fontSize: 14 }}>⚠</span>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>Retrabalho — devolvido da Inspeção de Qualidade</div>
-              {parcial.motivo_retrabalho && <div style={{ fontSize: 11, color: '#78350f' }}>Motivo: {parcial.motivo_retrabalho}</div>}
+          parcial.devolvido_de && setor && parcial.devolvido_de === setor ? (
+            /* Peça voltou para este setor após retrabalho — inspecionar novamente */
+            <div style={{ background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: 6, padding: '6px 10px', marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <span style={{ fontSize: 14 }}>🔄</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#065f46' }}>
+                  Retornou de retrabalho — inspecionar novamente
+                </div>
+                {parcial.motivo_retrabalho && (
+                  <div style={{ fontSize: 11, color: '#047857' }}>Problema original: {parcial.motivo_retrabalho}</div>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            /* Peça está aqui para retrabalho (recebida de outro setor) */
+            <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6, padding: '6px 10px', marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <span style={{ fontSize: 14 }}>⚠</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>
+                  Retrabalho — devolvido da Inspeção de Qualidade
+                </div>
+                {parcial.motivo_retrabalho && <div style={{ fontSize: 11, color: '#78350f' }}>Motivo: {parcial.motivo_retrabalho}</div>}
+              </div>
+            </div>
+          )
         )}
 
-        {/* Banner retorno de retrabalho — chegou aqui após ser retrabalhado em outro setor */}
+        {/* Banner retorno via parcial-pai (caso de divisão: nova parcial criada no destino) */}
         {!parcial.retrabalho && parcial.origem_retrabalho && (
           <div style={{ background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: 6, padding: '6px 10px', marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
             <span style={{ fontSize: 14 }}>🔄</span>
@@ -719,14 +737,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial;
                 Retornou de retrabalho — inspecionar novamente
               </div>
               {parcial.origem_motivo_retrabalho && (
-                <div style={{ fontSize: 11, color: '#047857' }}>
-                  Problema original: {parcial.origem_motivo_retrabalho}
-                </div>
-              )}
-              {parcial.origem_devolvido_de && (
-                <div style={{ fontSize: 11, color: '#6b7280' }}>
-                  Retrabalho realizado em: {NOMES[parcial.origem_devolvido_de] || parcial.origem_devolvido_de}
-                </div>
+                <div style={{ fontSize: 11, color: '#047857' }}>Problema original: {parcial.origem_motivo_retrabalho}</div>
               )}
             </div>
           </div>
@@ -1111,7 +1122,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader }: { parcial: ItemParcial;
   );
 }
 
-function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; onRefresh: () => void }) {
+function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcial[]; onRefresh: () => void; setor?: string }) {
   const { toast: toastGrupo, mostrar: mostrarErroGrupo, fechar: fecharToastGrupo } = useToast();
   const [loading, setLoading] = useState(false);
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
@@ -1128,7 +1139,7 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
   const [motivoDivGrupo, setMotivoDivGrupo] = useState('');
   const [expandido, setExpandido] = useState(false);
 
-  if (parciais.length === 1) return <ParcialCard parcial={parciais[0]} onRefresh={onRefresh} />;
+  if (parciais.length === 1) return <ParcialCard parcial={parciais[0]} onRefresh={onRefresh} setor={setor} />;
 
   const p0 = parciais[0];
   const totalQtd = parciais.reduce((sum, p) => sum + Number(p.quantidade), 0);
@@ -1200,7 +1211,7 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
                   {LABEL_PARCIAL[p.status] || p.status}
                 </span>
               </div>
-              <ParcialCard parcial={p} onRefresh={onRefresh} />
+              <ParcialCard parcial={p} onRefresh={onRefresh} setor={setor} />
             </div>
           ))}
         </div>
@@ -1243,37 +1254,33 @@ function ParcialGrupoCard({ parciais, onRefresh }: { parciais: ItemParcial[]; on
         </div>
       </div>
 
-      {/* Banner retrabalho (grupo) */}
-      {parciais.some(p => p.retrabalho) && (
-        <div style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 6, padding: '6px 10px', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#856404' }}>
-            ⚠ Retrabalho — devolvido da Inspeção de Qualidade
-          </div>
-          {parciais.find(p => p.motivo_retrabalho)?.motivo_retrabalho && (
-            <div style={{ fontSize: 11, color: '#664d03' }}>
-              Motivo: {parciais.find(p => p.motivo_retrabalho)?.motivo_retrabalho}
+      {/* Banner retrabalho / retorno de retrabalho (grupo) */}
+      {parciais.some(p => p.retrabalho) && (() => {
+        const voltou = parciais.some(p => p.retrabalho && p.devolvido_de && setor && p.devolvido_de === setor);
+        const motivo = parciais.find(p => p.motivo_retrabalho)?.motivo_retrabalho;
+        if (voltou) {
+          return (
+            <div style={{ background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: 6, padding: '6px 10px', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#065f46' }}>🔄 Retornou de retrabalho — inspecionar novamente</div>
+              {motivo && <div style={{ fontSize: 11, color: '#047857' }}>Problema original: {motivo}</div>}
             </div>
-          )}
-          <div style={{ fontSize: 11, color: '#664d03' }}>
-            Pedido: <strong>{p0.numero_pedido_venda}</strong> · Item: <strong>{p0.item_codigo}</strong>
+          );
+        }
+        return (
+          <div style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 6, padding: '6px 10px', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#856404' }}>⚠ Retrabalho — devolvido da Inspeção de Qualidade</div>
+            {motivo && <div style={{ fontSize: 11, color: '#664d03' }}>Motivo: {motivo}</div>}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      {/* Banner retorno de retrabalho (grupo) */}
+      {/* Banner retorno via parcial-pai (divisão) */}
       {!parciais.some(p => p.retrabalho) && parciais.some(p => p.origem_retrabalho) && (
         <div style={{ background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: 6, padding: '6px 10px', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#065f46' }}>
-            🔄 Retornou de retrabalho — inspecionar novamente
-          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#065f46' }}>🔄 Retornou de retrabalho — inspecionar novamente</div>
           {parciais.find(p => p.origem_motivo_retrabalho)?.origem_motivo_retrabalho && (
             <div style={{ fontSize: 11, color: '#047857' }}>
               Problema original: {parciais.find(p => p.origem_motivo_retrabalho)?.origem_motivo_retrabalho}
-            </div>
-          )}
-          {parciais.find(p => p.origem_devolvido_de)?.origem_devolvido_de && (
-            <div style={{ fontSize: 11, color: '#6b7280' }}>
-              Retrabalho realizado em: {NOMES[parciais.find(p => p.origem_devolvido_de)?.origem_devolvido_de as string] || parciais.find(p => p.origem_devolvido_de)?.origem_devolvido_de}
             </div>
           )}
         </div>
@@ -1974,7 +1981,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                                 </div>
                                 {/* Todas as parciais do item agrupadas em um único card */}
                                 <div className="setor-parcial-area" style={{ padding: '12px 12px' }}>
-                                  <ParcialGrupoCard parciais={grupo} onRefresh={carregar} />
+                                  <ParcialGrupoCard parciais={grupo} onRefresh={carregar} setor={setor} />
                                 </div>
                               </div>
                             );
