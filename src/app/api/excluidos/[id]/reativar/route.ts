@@ -34,7 +34,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const roteiro_base = (dados.roteiro_base as string[]) || ['emissao'];
   const criado_por = user.id;
 
-  let novoPedidoId: number;
+  let novoPedidoId = 0;
 
   await sql.begin(async (tx) => {
     if (modo === 'original') {
