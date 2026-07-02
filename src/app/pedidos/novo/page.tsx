@@ -14,8 +14,23 @@ function fmtBRL(n: number) {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function parseVal(s: string) {
-  const n = parseFloat(s.replace(/\./g, '').replace(',', '.'));
+function parseVal(s: string): number {
+  const str = String(s ?? '').trim();
+  if (!str) return 0;
+  const hasComma = str.includes(',');
+  const hasDot   = str.includes('.');
+  let norm: string;
+  if (hasComma && hasDot) {
+    // ambos presentes: o que vier por último é o decimal
+    norm = str.lastIndexOf(',') > str.lastIndexOf('.')
+      ? str.replace(/\./g, '').replace(',', '.')   // 6.569,61  → 6569.61
+      : str.replace(/,/g, '');                     // 6,569.61  → 6569.61
+  } else if (hasComma) {
+    norm = str.replace(',', '.');                  // 6569,61   → 6569.61
+  } else {
+    norm = str;                                    // 6569.61   → 6569.61
+  }
+  const n = parseFloat(norm);
   return isNaN(n) ? 0 : n;
 }
 
@@ -51,7 +66,7 @@ export default function NovoPedidoPage() {
         descricao:     String(r[1] ?? '').trim(),
         quantidade:    String(Number(r[2]) || 1),
         unidade:       'pc',
-        valor_unitario: r[5] != null && r[5] !== '' ? String(r[5]).replace('.', ',') : '',
+        valor_unitario: r[5] != null && r[5] !== '' ? String(r[5]) : '',
         roteiro_proprio: [],
       }));
       setItens(novosItens);
@@ -108,7 +123,7 @@ export default function NovoPedidoPage() {
         itens: itens.filter(i => i.codigo).map(i => ({
           ...i,
           quantidade: Number(i.quantidade),
-          valor_unitario: i.valor_unitario ? Number(i.valor_unitario.replace(/\./g, '').replace(',', '.')) : null,
+          valor_unitario: i.valor_unitario ? parseVal(i.valor_unitario) : null,
         })),
       });
       router.push(`/pedidos/${id}`);
