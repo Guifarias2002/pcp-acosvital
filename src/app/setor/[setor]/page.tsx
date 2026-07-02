@@ -832,13 +832,6 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
               <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
             </button>
-            <button onClick={() => setConfirm({
-              titulo: 'Encerrar parcial',
-              mensagem: 'A parcial não irá para nenhum outro setor. Deseja encerrá-la como concluída?',
-              acao: () => acao('concluir'),
-            })} disabled={loading} style={btnStyle('#198754', true)}>
-              ✓ Encerrar
-            </button>
             <button onClick={() => acao('pausar')} disabled={loading} style={btnStyle('#fd7e14')}>
               <i className="bi bi-pause-fill" style={{ marginRight: 5 }} />Pausar
             </button>
@@ -865,13 +858,6 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
               <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
             </button>
-            <button onClick={() => setConfirm({
-              titulo: 'Encerrar parcial',
-              mensagem: 'A parcial não irá para nenhum outro setor. Deseja encerrá-la como concluída?',
-              acao: () => acao('concluir'),
-            })} disabled={loading} style={btnStyle('#198754', true)}>
-              ✓ Encerrar
-            </button>
             {isLogistica && (
               <button onClick={() => acao('retomar')} disabled={loading} style={btnStyle('#0d6efd')}>
                 <i className="bi bi-truck" style={{ marginRight: 5 }} />Tentar entrega novamente
@@ -895,13 +881,6 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             )}
             <button onClick={() => acao('retomar')} disabled={loading} style={btnStyle('#fd7e14')}>
               <i className="bi bi-arrow-counterclockwise" style={{ marginRight: 5 }} />Retomar etapa
-            </button>
-            <button onClick={() => setConfirm({
-              titulo: 'Encerrar definitivamente',
-              mensagem: 'A parcial não irá para nenhum outro setor. Deseja encerrá-la como concluída?',
-              acao: () => acao('concluir'),
-            })} disabled={loading} style={btnStyle('#198754', true)}>
-              ✓ Encerrar definitivamente
             </button>
           </>
         )}
@@ -1416,13 +1395,6 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             <button onClick={() => { setShowEnviarParcial(v => !v); setShowEnviar(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#0d6efd')}>
               <i className="bi bi-send" style={{ marginRight: 5 }} />Enviar parcial
             </button>
-            <button onClick={() => setConfirm({
-              titulo: 'Encerrar Parciais',
-              mensagem: `As ${fmtQtd(String(totalQtd))} ${p0.unidade} já foram processadas e não precisam ir a outro setor. Deseja encerrar todas as parciais?`,
-              acao: () => acaoTodos('concluir'),
-            })} disabled={loading} style={btnStyle('#198754', true)}>
-              ✓ Encerrar
-            </button>
             <button onClick={() => acaoTodos('pausar')} disabled={loading} style={btnStyle('#fd7e14')}>
               <i className="bi bi-pause-fill" style={{ marginRight: 5 }} />Pausar
             </button>
@@ -1439,13 +1411,6 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             </button>
             <button onClick={() => { setShowEnviarParcial(v => !v); setShowEnviar(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#0d6efd')}>
               <i className="bi bi-send" style={{ marginRight: 5 }} />Enviar parcial
-            </button>
-            <button onClick={() => setConfirm({
-              titulo: 'Encerrar Parciais',
-              mensagem: `As ${fmtQtd(String(totalQtd))} ${p0.unidade} já foram processadas e não precisam ir a outro setor. Deseja encerrar todas as parciais?`,
-              acao: () => acaoTodos('concluir'),
-            })} disabled={loading} style={btnStyle('#198754', true)}>
-              ✓ Encerrar
             </button>
           </>
         )}
@@ -1469,13 +1434,6 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             )}
             <button onClick={() => acaoTodos('retomar')} disabled={loading} style={btnStyle('#fd7e14')}>
               <i className="bi bi-arrow-counterclockwise" style={{ marginRight: 5 }} />Retomar etapa
-            </button>
-            <button onClick={() => setConfirm({
-              titulo: 'Encerrar Parciais',
-              mensagem: `As ${fmtQtd(String(totalQtd))} ${p0.unidade} já foram processadas e não precisam ir a outro setor. Deseja encerrar todas as parciais?`,
-              acao: () => acaoTodos('concluir'),
-            })} disabled={loading} style={btnStyle('#198754', true)}>
-              ✓ Encerrar
             </button>
           </>
         )}
