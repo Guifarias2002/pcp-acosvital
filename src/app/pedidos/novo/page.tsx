@@ -79,20 +79,33 @@ export default function NovoPedidoPage() {
     }
   }
 
-  // Restaura rascunho do sessionStorage (persiste F5)
-  const rascunho = typeof window !== 'undefined'
-    ? (() => { try { return JSON.parse(sessionStorage.getItem(SS_KEY) || 'null'); } catch { return null; } })()
-    : null;
+  const [pv, setPv] = useState<string>('');
+  const [op, setOp] = useState<string>('');
+  const [cliente, setCliente] = useState<string>('');
+  const [vendedor, setVendedor] = useState<string>('');
+  const [prazo, setPrazo] = useState<string>('');
+  const [prioridade, setPrioridade] = useState<string>('normal');
+  const [obs, setObs] = useState<string>('');
+  const [roteiro, setRoteiro] = useState<string[]>(['emissao']);
+  const [itens, setItens] = useState<ItemForm[]>([{ codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', roteiro_proprio: [] }]);
 
-  const [pv, setPv] = useState<string>(rascunho?.pv ?? '');
-  const [op, setOp] = useState<string>(rascunho?.op ?? '');
-  const [cliente, setCliente] = useState<string>(rascunho?.cliente ?? '');
-  const [vendedor, setVendedor] = useState<string>(rascunho?.vendedor ?? '');
-  const [prazo, setPrazo] = useState<string>(rascunho?.prazo ?? '');
-  const [prioridade, setPrioridade] = useState<string>(rascunho?.prioridade ?? 'normal');
-  const [obs, setObs] = useState<string>(rascunho?.obs ?? '');
-  const [roteiro, setRoteiro] = useState<string[]>(rascunho?.roteiro ?? ['emissao']);
-  const [itens, setItens] = useState<ItemForm[]>(rascunho?.itens ?? [{ codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', roteiro_proprio: [] }]);
+  // Restaura rascunho após montar no cliente (evita problema SSR do Next.js)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(SS_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d.pv !== undefined) setPv(d.pv);
+      if (d.op !== undefined) setOp(d.op);
+      if (d.cliente !== undefined) setCliente(d.cliente);
+      if (d.vendedor !== undefined) setVendedor(d.vendedor);
+      if (d.prazo !== undefined) setPrazo(d.prazo);
+      if (d.prioridade !== undefined) setPrioridade(d.prioridade);
+      if (d.obs !== undefined) setObs(d.obs);
+      if (d.roteiro?.length) setRoteiro(d.roteiro);
+      if (d.itens?.length) setItens(d.itens);
+    } catch { /* ignore */ }
+  }, []);
 
   // Salva rascunho no sessionStorage sempre que o formulário mudar
   useEffect(() => {
