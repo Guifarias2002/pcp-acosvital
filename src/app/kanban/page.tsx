@@ -62,11 +62,6 @@ export default function KanbanPage() {
   const carregarRef = useRef<() => void>(() => {});
   carregarRef.current = carregar;
 
-  useEffect(() => {
-    const t = setInterval(() => carregarRef.current(), 20 * 60 * 1000);
-    return () => clearInterval(t);
-  }, []);
-
   const carregarCallback = useCallback(() => carregarRef.current(), []);
   useRealtime(
     ['producao_itemparcial', 'producao_itempedido', 'producao_movimentacaoitem'],

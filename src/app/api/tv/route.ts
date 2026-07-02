@@ -2,10 +2,13 @@ import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { SETOR_CHOICES } from '@/lib/types';
 import { nomeSector } from '@/lib/queries';
+import { autenticar } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const user = await autenticar(req);
+  if (user instanceof NextResponse) return user;
   const [countsRows, porSetorRows, ultMovs] = await Promise.all([
     sql`
       SELECT

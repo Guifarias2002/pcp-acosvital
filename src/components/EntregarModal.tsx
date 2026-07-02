@@ -20,6 +20,7 @@ export default function EntregarModal({ itemId, pedidoNumero, descricao, quantid
   const [preview, setPreview] = useState<string | null>(null);
   const [tipo, setTipo] = useState<'foto' | 'canhoto' | null>(null);
   const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
 
@@ -52,7 +53,7 @@ export default function EntregarModal({ itemId, pedidoNumero, descricao, quantid
       if (!res.ok) { const d = await res.json(); throw new Error(d.erro || 'Erro'); }
       onConfirm();
     } catch (e: unknown) {
-      alert((e as Error).message || 'Erro ao confirmar entrega');
+      setErro((e as Error).message || 'Erro ao confirmar entrega');
     } finally {
       setLoading(false);
     }
@@ -88,6 +89,14 @@ export default function EntregarModal({ itemId, pedidoNumero, descricao, quantid
             {descricao} · <strong>{quantidade} {unidade}</strong>
           </div>
         </div>
+
+        {erro && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16 }}>
+            <i className="bi bi-exclamation-triangle" style={{ marginRight: 6 }} />
+            {erro}
+            <button onClick={() => setErro(null)} style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontWeight: 700 }}>×</button>
+          </div>
+        )}
 
         {/* Indicador de passos */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>

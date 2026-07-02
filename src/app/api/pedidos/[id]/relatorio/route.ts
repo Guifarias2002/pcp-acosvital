@@ -5,6 +5,7 @@ import { autenticar } from '@/lib/middleware';
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
+  if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   const pedidoId = Number(params.id);
   if (!Number.isInteger(pedidoId) || pedidoId <= 0)

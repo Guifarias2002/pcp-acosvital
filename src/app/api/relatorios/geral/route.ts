@@ -12,9 +12,15 @@ export async function GET(req: Request) {
   const de = url.searchParams.get('de');   // YYYY-MM-DD
   const ate = url.searchParams.get('ate'); // YYYY-MM-DD
 
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  if (de && !DATE_RE.test(de)) return NextResponse.json({ erro: 'Parâmetro "de" inválido (use YYYY-MM-DD)' }, { status: 400 });
+  if (ate && !DATE_RE.test(ate)) return NextResponse.json({ erro: 'Parâmetro "ate" inválido (use YYYY-MM-DD)' }, { status: 400 });
+
   // Filtro de período — aplica nas movimentações e pedidos
   const deFiltro  = de  ? new Date(de + 'T00:00:00') : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   const ateFiltro = ate ? new Date(ate + 'T23:59:59') : new Date();
+  if (isNaN(deFiltro.getTime()) || isNaN(ateFiltro.getTime()))
+    return NextResponse.json({ erro: 'Data inválida' }, { status: 400 });
 
   const [
     pedidos,

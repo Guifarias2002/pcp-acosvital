@@ -13,11 +13,13 @@ export async function GET(req: Request) {
   const hoje = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
   // Busca todos os pedidos com itens e parciais
+  // Movimentações limitadas a 90 dias para evitar payload gigante
+  const noventa = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
   const [pedidos, itens, parciais, movimentacoes] = await Promise.all([
     sql`SELECT * FROM producao_pedido ORDER BY id`,
     sql`SELECT * FROM producao_itempedido ORDER BY id`,
     sql`SELECT * FROM producao_itemparcial ORDER BY id`,
-    sql`SELECT * FROM producao_movimentacaoitem ORDER BY id`,
+    sql`SELECT * FROM producao_movimentacaoitem WHERE criado_em >= ${noventa} ORDER BY id`,
   ]);
 
   const snapshot = {

@@ -28,6 +28,7 @@ export default function NotificacoesLive({ filtroSetor }: { filtroSetor?: string
   const [toasts, setToasts] = useState<(Notificacao & { key: number })[]>([]);
   const desdeRef = useRef<string>('');
   const keyRef = useRef(0);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
     if (!desdeRef.current) desdeRef.current = new Date().toISOString();
@@ -58,15 +59,20 @@ export default function NotificacoesLive({ filtroSetor }: { filtroSetor?: string
         setToasts(prev => [...novos, ...prev].slice(0, 5));
 
         novos.forEach((_: unknown, i: number) => {
-          setTimeout(() => {
+          const t = setTimeout(() => {
             setToasts(prev => prev.filter(t => t.key !== novos[i].key));
           }, 6000);
+          timersRef.current.push(t);
         });
       } catch {}
     }
 
     const intervalo = setInterval(verificar, 30000);
-    return () => clearInterval(intervalo);
+    return () => {
+      clearInterval(intervalo);
+      timersRef.current.forEach(clearTimeout);
+      timersRef.current = [];
+    };
   }, [filtroSetor]);
 
   if (toasts.length === 0) return null;

@@ -625,7 +625,8 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                     placeholder={`Max: ${fmtQtd(qtdNoSetorAtual)}`}
                     className="border rounded px-3 py-2 text-sm w-full" />
                   <button onClick={() => { acao('enviar_parcial', { quantidade: Number(qtdParcial), setor_destino: setorDestinoEnvio || item.proximo_setor }); setShowParcial(false); }}
-                    className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-semibold w-full">
+                    disabled={atuando}
+                    className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-semibold w-full disabled:opacity-60">
                     Confirmar envio parcial
                   </button>
                 </div>

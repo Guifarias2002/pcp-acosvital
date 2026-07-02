@@ -36,41 +36,40 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   let novoPedidoId: number;
 
-  if (modo === 'original') {
-    // Restaura como estava: usa status/setor originais
-    const statusOriginal = (dados.status as string) || 'emitido';
-    const setorOriginal = (dados.setor_atual as string) || 'emissao';
+  await sql.begin(async (tx) => {
+    if (modo === 'original') {
+      const statusOriginal = (dados.status as string) || 'emitido';
+      const setorOriginal = (dados.setor_atual as string) || 'emissao';
 
-    const [novo] = await sql`
-      INSERT INTO producao_pedido
-        (numero_pedido_venda, numero_op, cliente, vendedor, prioridade, status,
-         setor_atual, roteiro_base, valor_total, prazo_entrega, observacoes, criado_por_id, criado_em, atualizado_em)
-      VALUES (
-        ${pv}, ${op}, ${cliente}, ${vendedor}, ${prioridade}, ${statusOriginal},
-        ${setorOriginal}, ${JSON.stringify(roteiro_base)}, ${valor || null}, ${prazo || null},
-        ${observacoes}, ${criado_por}, NOW(), NOW()
-      )
-      RETURNING id
-    `;
-    novoPedidoId = novo.id;
-  } else {
-    // Começar do zero: status emitido, setor emissao
-    const [novo] = await sql`
-      INSERT INTO producao_pedido
-        (numero_pedido_venda, numero_op, cliente, vendedor, prioridade, status,
-         setor_atual, roteiro_base, valor_total, prazo_entrega, observacoes, criado_por_id, criado_em, atualizado_em)
-      VALUES (
-        ${pv}, ${op}, ${cliente}, ${vendedor}, ${prioridade}, 'emitido',
-        'emissao', ${JSON.stringify(roteiro_base)}, ${valor || null}, ${prazo || null},
-        ${observacoes}, ${criado_por}, NOW(), NOW()
-      )
-      RETURNING id
-    `;
-    novoPedidoId = novo.id;
-  }
+      const [novo] = await tx`
+        INSERT INTO producao_pedido
+          (numero_pedido_venda, numero_op, cliente, vendedor, prioridade, status,
+           setor_atual, roteiro_base, valor_total, prazo_entrega, observacoes, criado_por_id, criado_em, atualizado_em)
+        VALUES (
+          ${pv}, ${op}, ${cliente}, ${vendedor}, ${prioridade}, ${statusOriginal},
+          ${setorOriginal}, ${JSON.stringify(roteiro_base)}, ${valor || null}, ${prazo || null},
+          ${observacoes}, ${criado_por}, NOW(), NOW()
+        )
+        RETURNING id
+      `;
+      novoPedidoId = novo.id;
+    } else {
+      const [novo] = await tx`
+        INSERT INTO producao_pedido
+          (numero_pedido_venda, numero_op, cliente, vendedor, prioridade, status,
+           setor_atual, roteiro_base, valor_total, prazo_entrega, observacoes, criado_por_id, criado_em, atualizado_em)
+        VALUES (
+          ${pv}, ${op}, ${cliente}, ${vendedor}, ${prioridade}, 'emitido',
+          'emissao', ${JSON.stringify(roteiro_base)}, ${valor || null}, ${prazo || null},
+          ${observacoes}, ${criado_por}, NOW(), NOW()
+        )
+        RETURNING id
+      `;
+      novoPedidoId = novo.id;
+    }
 
-  // Remove do log de excluídos após reativação
-  await sql`DELETE FROM producao_pedido_excluido WHERE id = ${id}`;
+    await tx`DELETE FROM producao_pedido_excluido WHERE id = ${id}`;
+  });
 
   return NextResponse.json({
     ok: true,

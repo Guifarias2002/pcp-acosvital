@@ -18,7 +18,7 @@ export default function EmitidosPage() {
   function buscar() {
     setLoading(true);
     getEmitidos({ cliente: fCliente, prioridade: fPrioridade, setor: fSetor })
-      .then(setData).finally(() => setLoading(false));
+      .then(setData).catch(() => {}).finally(() => setLoading(false));
   }
 
   useEffect(() => { buscar(); }, []);

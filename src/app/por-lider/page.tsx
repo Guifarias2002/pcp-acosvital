@@ -36,7 +36,7 @@ export default function PorLiderPage() {
   const [loading, setLoading] = useState(true);
 
   function buscar() {
-    api.get('/api/por-lider').then(r => setLideres(r.data)).finally(() => setLoading(false));
+    api.get('/api/por-lider').then(r => setLideres(r.data)).catch(() => {}).finally(() => setLoading(false));
   }
 
   useEffect(() => {

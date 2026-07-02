@@ -1,7 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
-import { formatPedido, queryItens } from '@/lib/queries';
+import { formatPedido, formatItem } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
@@ -24,11 +24,40 @@ export async function GET(req: Request) {
     ORDER BY p.criado_em DESC
   `;
 
-  const pedidos = await Promise.all(rows.map(async (r) => {
-    const itens = await queryItens(r.id);
+  const ids = rows.map(r => r.id as number);
+  let itensPorPedido: Record<number, ReturnType<typeof formatItem>[]> = {};
+
+  if (ids.length > 0) {
+    const itenRows = await sql`
+      SELECT
+        i.id, i.pedido_id, i.codigo, i.descricao,
+        i.quantidade::text, i.unidade,
+        i.roteiro_proprio, i.setor_atual, i.status,
+        i.quantidade_pendente::text,
+        i.quantidade_entregue::text,
+        i.valor_unitario::text,
+        p.numero_pedido_venda AS pedido_numero,
+        p.cliente AS pedido_cliente,
+        p.prazo_entrega::text AS pedido_prazo,
+        p.prioridade AS pedido_prioridade,
+        p.roteiro_base
+      FROM producao_itempedido i
+      JOIN producao_pedido p ON p.id = i.pedido_id
+      WHERE i.pedido_id = ANY(${ids})
+      ORDER BY p.numero_pedido_venda, i.codigo
+    `;
+    for (const row of itenRows) {
+      const pid = Number(row.pedido_id);
+      if (!itensPorPedido[pid]) itensPorPedido[pid] = [];
+      itensPorPedido[pid].push(formatItem(row));
+    }
+  }
+
+  const pedidos = rows.map(r => {
+    const itens = itensPorPedido[Number(r.id)] || [];
     if (setor && !itens.some(i => i.setor_atual === setor)) return null;
     return formatPedido(r, itens);
-  }));
+  });
 
   const result = pedidos.filter(Boolean);
   const total_valor = result.reduce((s, p) => s + Number(p!.valor_calculado || 0), 0);

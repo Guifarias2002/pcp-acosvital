@@ -65,6 +65,7 @@ export default function DivergenciasPage() {
   const [resolvendo, setResolvendo] = useState<number | null>(null);
   const [obsResolucao, setObsResolucao] = useState('');
   const [atualizando, setAtualizando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
 
   function buscar() {
     setLoading(true);
@@ -96,19 +97,36 @@ export default function DivergenciasPage() {
 
   async function atualizarStatus(id: number, status: string, obs?: string) {
     setAtualizando(true);
-    await fetch(`/api/divergencias/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
-      body: JSON.stringify({ status, observacao_resolucao: obs || undefined }),
-    });
-    setResolvendo(null);
-    setObsResolucao('');
-    setAtualizando(false);
-    buscar();
+    try {
+      const res = await fetch(`/api/divergencias/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
+        body: JSON.stringify({ status, observacao_resolucao: obs || undefined }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setErro(d.erro || 'Erro ao atualizar divergência');
+        return;
+      }
+      setResolvendo(null);
+      setObsResolucao('');
+      buscar();
+    } catch {
+      setErro('Erro de rede ao atualizar divergência');
+    } finally {
+      setAtualizando(false);
+    }
   }
 
   return (
     <AuthGuard>
+      {erro && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '12px 16px', fontSize: 13, marginBottom: 16 }}>
+          <i className="bi bi-exclamation-triangle" style={{ marginRight: 6 }} />
+          {erro}
+          <button onClick={() => setErro(null)} style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontWeight: 700 }}>×</button>
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <h4 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c', fontSize: 20 }}>

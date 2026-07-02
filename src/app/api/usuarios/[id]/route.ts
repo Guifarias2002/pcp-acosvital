@@ -25,21 +25,23 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (Object.keys(campos).length === 0)
     return NextResponse.json({ erro: 'Nenhum campo para atualizar' }, { status: 400 });
 
-  if (campos.nome !== undefined) {
-    await sql`UPDATE usuarios_usuario SET nome = ${campos.nome as string} WHERE id = ${targetId}`;
-  }
-  if (campos.setor !== undefined) {
-    await sql`UPDATE usuarios_usuario SET setor = ${campos.setor as string | null} WHERE id = ${targetId}`;
-  }
-  if (campos.perfil !== undefined) {
-    await sql`UPDATE usuarios_usuario SET perfil = ${campos.perfil as string | null} WHERE id = ${targetId}`;
-  }
-  if (campos.is_active !== undefined) {
-    await sql`UPDATE usuarios_usuario SET is_active = ${campos.is_active as boolean} WHERE id = ${targetId}`;
-  }
-  if (campos.is_staff !== undefined) {
-    await sql`UPDATE usuarios_usuario SET is_staff = ${campos.is_staff as boolean} WHERE id = ${targetId}`;
-  }
+  await sql.begin(async (tx) => {
+    if (campos.nome !== undefined) {
+      await tx`UPDATE usuarios_usuario SET nome = ${campos.nome as string} WHERE id = ${targetId}`;
+    }
+    if (campos.setor !== undefined) {
+      await tx`UPDATE usuarios_usuario SET setor = ${campos.setor as string | null} WHERE id = ${targetId}`;
+    }
+    if (campos.perfil !== undefined) {
+      await tx`UPDATE usuarios_usuario SET perfil = ${campos.perfil as string | null} WHERE id = ${targetId}`;
+    }
+    if (campos.is_active !== undefined) {
+      await tx`UPDATE usuarios_usuario SET is_active = ${campos.is_active as boolean} WHERE id = ${targetId}`;
+    }
+    if (campos.is_staff !== undefined) {
+      await tx`UPDATE usuarios_usuario SET is_staff = ${campos.is_staff as boolean} WHERE id = ${targetId}`;
+    }
+  });
 
   return NextResponse.json({ ok: true });
 }
