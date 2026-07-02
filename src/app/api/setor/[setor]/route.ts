@@ -24,13 +24,21 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
 
   // Rodar as queries em paralelo
   const [itens, lotes_chegando, lotes_trabalho, parciais, outras_parciais, resumo] = await Promise.all([
-    // Itens cujo setor_atual é este setor (visão tradicional)
+    // Itens cujo setor_atual é este setor (visão tradicional).
+    // Exclui itens que tenham parciais ativas em outro setor — esses já se moveram
+    // (divergência/devolver) mas o setor_atual do item ficou desatualizado.
     sql`
       SELECT i.*, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
              p.prazo_entrega::text AS pedido_prazo, p.prioridade AS pedido_prioridade, p.roteiro_base,
              p.desenho_url IS NOT NULL AS tem_desenho, p.desenho_url AS desenho_url
       FROM producao_itempedido i JOIN producao_pedido p ON p.id = i.pedido_id
       WHERE i.setor_atual = ${setor} AND i.status != 'entregue'
+        AND NOT EXISTS (
+          SELECT 1 FROM producao_itemparcial pa
+          WHERE pa.item_pedido_id = i.id
+            AND pa.setor_atual != ${setor}
+            AND pa.status NOT IN ('cancelada', 'concluida')
+        )
       ORDER BY p.numero_pedido_venda, i.codigo
     `,
 
