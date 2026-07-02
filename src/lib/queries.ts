@@ -54,6 +54,7 @@ export async function queryItens(pedidoId: number) {
       i.quantidade_pendente::text,
       i.quantidade_entregue::text,
       i.valor_unitario::text,
+      COALESCE(i.desenhos, '{}') AS desenhos,
       p.numero_pedido_venda AS pedido_numero,
       p.cliente AS pedido_cliente,
       p.prazo_entrega::text AS pedido_prazo,
@@ -107,6 +108,7 @@ export function formatItem(row: any) {
     valor_unitario: row.valor_unitario,
     proximo_setor: prox,
     proximo_setor_nome: prox ? nomeSector(prox) : '',
+    desenhos: (row.desenhos as string[]) || [],
   };
 }
 

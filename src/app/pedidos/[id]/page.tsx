@@ -54,6 +54,8 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const [desenhoMsg, setDesenhoMsg] = useState<string | null>(null);
   const [liberarModal, setLiberarModal] = useState<{ itemId: number; roteiro: string[]; setorAtual: string; proximoSetor: string | null; parcial?: boolean; qtdMax?: number; unidade?: string } | null>(null);
   const [erroAcao, setErroAcao] = useState<string | null>(null);
+  const [itemDesenhoAberto, setItemDesenhoAberto] = useState<number | null>(null);
+  const [uploadingItemDesenho, setUploadingItemDesenho] = useState<number | null>(null);
   const user = getUser();
   const isAdmin = user?.is_staff;
   const verFinanceiro = user?.is_staff && user?.perfil !== 'lider';
@@ -72,6 +74,26 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
       else setAnexoMsg(data.erro || `Erro ${res.status}`);
     } catch { setAnexoMsg('Erro ao enviar.'); }
     finally { setUploadingAnexo(null); }
+  }
+
+  async function uploadDesenhoItem(itemId: number, arquivo: File) {
+    setUploadingItemDesenho(itemId);
+    try {
+      const token = localStorage.getItem('token') || localStorage.getItem('access_token') || '';
+      const fd = new FormData();
+      fd.append('arquivo', arquivo);
+      const res = await fetch(`/api/itens/${itemId}/desenho`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+      const data = await res.json();
+      if (data.ok) carregar();
+      else alert(data.erro || 'Erro ao enviar desenho');
+    } catch { alert('Erro ao enviar.'); }
+    finally { setUploadingItemDesenho(null); }
+  }
+
+  async function removerDesenhoItem(itemId: number, path: string) {
+    const token = localStorage.getItem('token') || localStorage.getItem('access_token') || '';
+    await fetch(`/api/itens/${itemId}/desenho`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
+    carregar();
   }
 
   async function removerAnexo(tipo: 'nota' | 'canhoto') {
@@ -482,6 +504,22 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                           <i className="bi bi-eye" /> Ver
                         </Link>
 
+                        {/* Botão anexar desenho por item */}
+                        {isAdmin && (() => {
+                          const desenhos: string[] = (item as unknown as Record<string, unknown>).desenhos as string[] || [];
+                          const aberto = itemDesenhoAberto === item.id;
+                          return (
+                            <button
+                              onClick={() => setItemDesenhoAberto(aberto ? null : item.id)}
+                              title="Desenhos técnicos"
+                              style={{ background: aberto ? '#1d4ed8' : desenhos.length > 0 ? '#fef9c3' : '#f8fafc', color: aberto ? '#fff' : desenhos.length > 0 ? '#92400e' : '#64748b', border: `1px solid ${aberto ? '#1d4ed8' : desenhos.length > 0 ? '#fbbf24' : '#e2e8f0'}`, borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                            >
+                              <i className="bi bi-paperclip" />
+                              {desenhos.length > 0 ? `${desenhos.length} desenho${desenhos.length > 1 ? 's' : ''}` : 'Desenho'}
+                            </button>
+                          );
+                        })()}
+
                         {/* Liberar (admin, emitido) */}
                         {isAdmin && item.status === 'emitido' && (
                           <>
@@ -606,6 +644,49 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                         </button>
                       </div>
                     )}
+
+                    {/* Painel de desenhos por item */}
+                    {isAdmin && itemDesenhoAberto === item.id && (() => {
+                      const desenhos: string[] = (item as unknown as Record<string, unknown>).desenhos as string[] || [];
+                      const token = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('access_token') || '') : '';
+                      return (
+                        <div style={{ marginTop: 10, background: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '12px 14px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>
+                              <i className="bi bi-paperclip" style={{ marginRight: 5 }} />Desenhos Técnicos
+                            </span>
+                            <label style={{ background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 5, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                              {uploadingItemDesenho === item.id ? '⏳ Enviando...' : '+ Anexar'}
+                              <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" style={{ display: 'none' }}
+                                disabled={uploadingItemDesenho === item.id}
+                                onChange={e => { const f = e.target.files?.[0]; if (f) { uploadDesenhoItem(item.id, f); e.target.value = ''; } }} />
+                            </label>
+                          </div>
+                          {desenhos.length === 0 && (
+                            <p style={{ fontSize: 12, color: '#b45309', margin: 0 }}>Nenhum desenho anexado ainda.</p>
+                          )}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {desenhos.map((path, di) => {
+                              const nome = path.split('/').pop() || `Desenho ${di + 1}`;
+                              return (
+                                <div key={di} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 5, border: '1px solid #fde68a', padding: '5px 10px' }}>
+                                  <i className="bi bi-file-earmark" style={{ color: '#b45309', fontSize: 13 }} />
+                                  <a href={`/api/itens/${item.id}/desenho?idx=${di}&token=${token}`} target="_blank" rel="noopener noreferrer"
+                                    style={{ fontSize: 12, color: '#1d4ed8', textDecoration: 'underline', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {nome}
+                                  </a>
+                                  <button onClick={() => removerDesenhoItem(item.id, path)}
+                                    style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 13, padding: '0 2px' }}
+                                    title="Remover">
+                                    <i className="bi bi-trash" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
