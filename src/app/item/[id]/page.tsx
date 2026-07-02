@@ -123,7 +123,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
         setAtuando(true);
         try { await parcialAcao(parcialId, 'retomar'); carregar(); }
         catch (e: unknown) {
-          alert((e as { response?: { data?: { erro?: string } } }).response?.data?.erro || 'Erro');
+          setErroAcao((e as { response?: { data?: { erro?: string } } }).response?.data?.erro || 'Erro ao reativar parcial');
         }
         finally { setAtuando(false); }
       },

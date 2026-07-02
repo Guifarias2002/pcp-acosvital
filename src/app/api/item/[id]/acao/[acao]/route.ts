@@ -646,10 +646,16 @@ export async function POST(
 
   // ── reprovar ──────────────────────────────────────────────────────────────
   } else if (acao === 'reprovar') {
-    await registrarMovItem(item.id, item.pedido_id, user.id, item.setor_atual, item.setor_atual, item.status, 'reprovado', obs || 'Reprovado na inspeção');
-    await sql`UPDATE producao_itempedido SET status='reprovado', atualizado_em=NOW() WHERE id=${item.id}`;
-    try {
-      await sql`
+    await sql.begin(async (tx) => {
+      await tx`
+        INSERT INTO producao_movimentacaoitem
+          (item_id, pedido_id, usuario_id, setor_origem, setor_destino,
+           status_anterior, status_novo, observacao, criado_em)
+        VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${item.setor_atual},
+                ${item.status}, 'reprovado', ${obs || 'Reprovado na inspeção'}, NOW())
+      `;
+      await tx`UPDATE producao_itempedido SET status='reprovado', atualizado_em=NOW() WHERE id=${item.id}`;
+      await tx`
         INSERT INTO producao_divergencia
           (pedido_id, item_id, usuario_id, tipo, descricao, setor_responsavel, status, prioridade, criado_em, atualizado_em)
         VALUES (
@@ -657,8 +663,9 @@ export async function POST(
           ${obs || 'Item reprovado na inspeção de qualidade'},
           ${item.setor_atual}, 'aberta', 'alta', NOW(), NOW()
         )
+        ON CONFLICT DO NOTHING
       `;
-    } catch { /* tabela pode não existir ainda */ }
+    });
 
   // ── retrabalho ────────────────────────────────────────────────────────────
   } else if (acao === 'retrabalho') {
@@ -682,26 +689,30 @@ export async function POST(
         Number(item.quantidade_pendente), user.id, obsRet
       );
     });
-    try {
-      await sql`
-        UPDATE producao_divergencia SET status='em_analise',
-          observacao_resolucao=${`Encaminhado para retrabalho: ${destino}`}, atualizado_em=NOW()
-        WHERE item_id=${item.id} AND status='aberta'
-      `;
-    } catch { /* ok */ }
+    await sql`
+      UPDATE producao_divergencia SET status='em_analise',
+        observacao_resolucao=${`Encaminhado para retrabalho: ${destino}`}, atualizado_em=NOW()
+      WHERE item_id=${item.id} AND status='aberta'
+    `;
 
   // ── resolver ──────────────────────────────────────────────────────────────
   } else if (acao === 'resolver') {
     const obsRes = obs || 'Resolvido internamente pela qualidade';
-    await registrarMovItem(item.id, item.pedido_id, user.id, item.setor_atual, item.setor_atual, item.status, 'finalizado_setor', obsRes);
-    await sql`UPDATE producao_itempedido SET status='finalizado_setor', atualizado_em=NOW() WHERE id=${item.id}`;
-    try {
-      await sql`
+    await sql.begin(async (tx) => {
+      await tx`
+        INSERT INTO producao_movimentacaoitem
+          (item_id, pedido_id, usuario_id, setor_origem, setor_destino,
+           status_anterior, status_novo, observacao, criado_em)
+        VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${item.setor_atual},
+                ${item.status}, 'finalizado_setor', ${obsRes}, NOW())
+      `;
+      await tx`UPDATE producao_itempedido SET status='finalizado_setor', atualizado_em=NOW() WHERE id=${item.id}`;
+      await tx`
         UPDATE producao_divergencia SET status='resolvida', resolvido_em=NOW(),
           resolvido_por_id=${user.id}, observacao_resolucao=${obsRes}, atualizado_em=NOW()
         WHERE item_id=${item.id} AND status IN ('aberta','em_analise')
       `;
-    } catch { /* ok */ }
+    });
 
   // ── cancelar_item ─────────────────────────────────────────────────────────
   } else if (acao === 'cancelar_item') {
@@ -722,13 +733,11 @@ export async function POST(
         WHERE item_pedido_id = ${item.id} AND status IN ('em_aberto', 'em_andamento')
       `;
     });
-    try {
-      await sql`
-        UPDATE producao_divergencia SET status='cancelada', resolvido_em=NOW(),
-          resolvido_por_id=${user.id}, observacao_resolucao=${obsCan}, atualizado_em=NOW()
-        WHERE item_id=${item.id} AND status IN ('aberta','em_analise')
-      `;
-    } catch { /* ok */ }
+    await sql`
+      UPDATE producao_divergencia SET status='cancelada', resolvido_em=NOW(),
+        resolvido_por_id=${user.id}, observacao_resolucao=${obsCan}, atualizado_em=NOW()
+      WHERE item_id=${item.id} AND status IN ('aberta','em_analise')
+    `;
 
   // ── iniciar ───────────────────────────────────────────────────────────────
   } else if (acao === 'iniciar') {
@@ -810,8 +819,16 @@ export async function POST(
 
   // ── demais ações (pausar, aprovar, despachar) ─────────────────────────────
   } else {
-    await registrarMovItem(item.id, item.pedido_id, user.id, item.setor_atual, item.setor_atual, item.status, novoStatus, obs);
-    await sql`UPDATE producao_itempedido SET status=${novoStatus}, atualizado_em=NOW() WHERE id=${item.id}`;
+    await sql.begin(async (tx) => {
+      await tx`
+        INSERT INTO producao_movimentacaoitem
+          (item_id, pedido_id, usuario_id, setor_origem, setor_destino,
+           status_anterior, status_novo, observacao, criado_em)
+        VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${item.setor_atual},
+                ${item.status}, ${novoStatus}, ${obs || ''}, NOW())
+      `;
+      await tx`UPDATE producao_itempedido SET status=${novoStatus}, atualizado_em=NOW() WHERE id=${item.id}`;
+    });
   }
 
   return NextResponse.json({ ok: true, status: novoStatus });

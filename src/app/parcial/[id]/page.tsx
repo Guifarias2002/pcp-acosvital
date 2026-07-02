@@ -73,6 +73,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
   const [erro, setErro] = useState('');
   const [loading, setLoading] = useState(true);
   const [atuando, setAtuando] = useState('');
+  const [erroAcao, setErroAcao] = useState('');
 
   // Split form state
   const [showSplit, setShowSplit] = useState(false);
@@ -127,8 +128,9 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
   async function executarAcao(a: string, body?: Record<string, unknown>) {
     if (atuando) return;
     setAtuando(a);
+    setErroAcao('');
     try { await parcialAcao(parcialId, a, body); await carregar(); }
-    catch (e: unknown) { alert(erroMsg(e)); }
+    catch (e: unknown) { setErroAcao(erroMsg(e)); }
     finally { setAtuando(''); }
   }
 
@@ -136,25 +138,27 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
     const rot = item?.roteiro_efetivo || [];
     const idx = rot.indexOf(parcial?.setor_atual || '');
     const proxSetor = setorDestino || (idx !== -1 && idx < rot.length - 1 ? rot[idx + 1] : null);
-    if (!proxSetor) { alert('Selecione o setor destino'); return; }
+    if (!proxSetor) { setErroAcao('Selecione o setor destino'); return; }
     setAtuando('aprovar');
+    setErroAcao('');
     try {
       await parcialAcao(parcialId, 'finalizar');
       await parcialAcao(parcialId, 'mover', { setor_destino: proxSetor, quantidade: Number(parcial!.quantidade) });
       await carregar();
-    } catch (e: unknown) { alert(erroMsg(e)); }
+    } catch (e: unknown) { setErroAcao(erroMsg(e)); }
     finally { setAtuando(''); }
   }
 
   async function enviarParaSetor() {
-    if (!setorDestino) { alert('Selecione o setor destino'); return; }
+    if (!setorDestino) { setErroAcao('Selecione o setor destino'); return; }
     const qtd = Number(qtdEnvio);
-    if (!qtd || qtd <= 0) { alert('Informe uma quantidade válida'); return; }
+    if (!qtd || qtd <= 0) { setErroAcao('Informe uma quantidade válida'); return; }
     if (parcial && qtd > Number(parcial.quantidade)) {
-      alert(`Quantidade máxima disponível: ${fmtQtd(parcial.quantidade)} ${parcial.unidade}`);
+      setErroAcao(`Quantidade máxima disponível: ${fmtQtd(parcial.quantidade)} ${parcial.unidade}`);
       return;
     }
     setAtuando('mover');
+    setErroAcao('');
     try {
       await parcialAcao(parcialId, 'mover', { setor_destino: setorDestino, quantidade: qtd });
       setShowSplit(false);
@@ -162,7 +166,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
       setQtdEnvio('');
       await carregar();
     } catch (e: unknown) {
-      alert(erroMsg(e));
+      setErroAcao(erroMsg(e));
     } finally {
       setAtuando('');
     }
@@ -435,6 +439,13 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
 
           <div className="bg-white rounded-xl border shadow-sm p-4">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Ações</p>
+            {erroAcao && (
+              <div className="mb-3 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 flex items-start gap-2">
+                <span className="text-red-500 text-sm font-bold flex-shrink-0">⚠</span>
+                <p className="text-red-700 text-xs flex-1">{erroAcao}</p>
+                <button onClick={() => setErroAcao('')} className="text-red-400 hover:text-red-600 text-xs flex-shrink-0">✕</button>
+              </div>
+            )}
             <div className="space-y-2">
 
               {/* INICIAR */}
@@ -626,7 +637,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={async () => {
-                    if (!motivoDiv.trim()) { alert('Informe o motivo da divergência.'); return; }
+                    if (!motivoDiv.trim()) { setErroAcao('Informe o motivo da divergência.'); return; }
                     if (parcial.status === 'finalizado_setor') await executarAcao('retomar');
                     await executarAcao('pausar', { observacao: motivoDiv });
                     setMotivoDiv('');
@@ -651,7 +662,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                       ))}
                     </select>
                     <button onClick={() => {
-                      if (!motivoDiv.trim()) { alert('Informe o motivo da divergência.'); return; }
+                      if (!motivoDiv.trim()) { setErroAcao('Informe o motivo da divergência.'); return; }
                       const dest = setorRetrabalho === '__open__' ? '' : setorRetrabalho;
                       if (!dest) return;
                       executarAcao('devolver', { setor_destino: dest, observacao: motivoDiv });
@@ -684,7 +695,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                 </select>
                 <button
                   onClick={() => {
-                    if (!setorDevolver) { alert('Selecione o setor de destino'); return; }
+                    if (!setorDevolver) { setErroAcao('Selecione o setor de destino'); return; }
                     setConfirmModal({
                       titulo: 'Devolver Parcial',
                       mensagem: `Deseja devolver esta parcial para ${NOMES[setorDevolver] || setorDevolver}?`,
@@ -750,7 +761,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
             acao: async () => {
               setAtuando('retomar_' + pid);
               try { await parcialAcao(pid, 'retomar'); await carregar(); }
-              catch (e) { alert(erroMsg(e)); }
+              catch (e) { setErroAcao(erroMsg(e)); }
               finally { setAtuando(''); }
             },
           });
