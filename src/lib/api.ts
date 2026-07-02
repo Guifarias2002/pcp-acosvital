@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { getToken, clearToken } from './auth';
 
-const api = axios.create({ baseURL: '', withCredentials: true });
+const api = axios.create({ baseURL: '', withCredentials: true, timeout: 12000 });
 
 api.interceptors.request.use((config) => {
   // Cookie HttpOnly é enviado automaticamente via withCredentials

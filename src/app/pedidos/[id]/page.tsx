@@ -43,6 +43,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const { id } = params;
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [loading, setLoading] = useState(true);
+  const [erroCarregar, setErroCarregar] = useState<string | null>(null);
   const [liberando, setLiberando] = useState<number | null>(null);
   const [recebendo, setRecebendo] = useState<number | null>(null);
   const [fazendo, setFazendo] = useState<{ itemId: number; acao: string } | null>(null);
@@ -190,7 +191,15 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const carregarRef = useRef<() => void>(() => {});
 
   function carregar() {
-    getPedido(Number(id)).then(setPedido).finally(() => setLoading(false));
+    setErroCarregar(null);
+    const tmo = setTimeout(() => {
+      setLoading(false);
+      setErroCarregar('O servidor demorou demais para responder. Tente novamente.');
+    }, 12000);
+    getPedido(Number(id))
+      .then(data => { clearTimeout(tmo); setPedido(data); })
+      .catch(() => { clearTimeout(tmo); setErroCarregar('Erro ao carregar pedido. Verifique sua conexão.'); })
+      .finally(() => setLoading(false));
   }
   carregarRef.current = carregar;
 
@@ -206,6 +215,19 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   useRealtime(
     ['producao_itemparcial', 'producao_itempedido', 'producao_movimentacaoitem'],
     carregarCallback,
+  );
+
+  if (erroCarregar) return (
+    <AuthGuard>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
+        <div style={{ fontSize: 40 }}>⚠️</div>
+        <div style={{ color: '#92400e', fontWeight: 600, fontSize: 16, textAlign: 'center' }}>{erroCarregar}</div>
+        <button onClick={() => { setLoading(true); carregarRef.current(); }}
+          style={{ background: '#d97706', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 28px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
+          Tentar novamente
+        </button>
+      </div>
+    </AuthGuard>
   );
 
   if (loading || !pedido) return (
