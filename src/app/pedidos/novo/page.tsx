@@ -130,21 +130,34 @@ export default function NovoPedidoPage() {
     setErro('');
     setLoading(true);
     try {
+      const controller = new AbortController();
+      const tmo = setTimeout(() => controller.abort(), 15000); // 15s timeout
+      let id: number;
+      try {
+        const res = await criarPedido({
+          numero_pedido_venda: pv, numero_op: op, cliente, vendedor,
+          prazo_entrega: prazo, prioridade, roteiro_base: roteiro,
+          observacoes: obs,
+          itens: itens.filter(i => i.codigo).map(i => ({
+            ...i,
+            quantidade: Number(i.quantidade),
+            valor_unitario: i.valor_unitario ? parseVal(i.valor_unitario) : null,
+          })),
+        });
+        id = res.id;
+      } finally {
+        clearTimeout(tmo);
+      }
       sessionStorage.removeItem(SS_KEY);
-      const { id } = await criarPedido({
-        numero_pedido_venda: pv, numero_op: op, cliente, vendedor,
-        prazo_entrega: prazo, prioridade, roteiro_base: roteiro,
-        observacoes: obs,
-        itens: itens.filter(i => i.codigo).map(i => ({
-          ...i,
-          quantidade: Number(i.quantidade),
-          valor_unitario: i.valor_unitario ? parseVal(i.valor_unitario) : null,
-        })),
-      });
       router.push(`/pedidos/${id}`);
     } catch (e: unknown) {
-      const msg = (e as {response?:{data?:{erro?:string}}}).response?.data?.erro;
-      setErro(msg || 'Erro ao salvar pedido.');
+      const isAbort = (e as Error)?.name === 'AbortError' || (e as Error)?.message?.includes('aborted');
+      if (isAbort) {
+        setErro('A requisição demorou demais. Verifique sua conexão e tente novamente.');
+      } else {
+        const msg = (e as {response?:{data?:{erro?:string}}}).response?.data?.erro;
+        setErro(msg || 'Erro ao salvar pedido. Tente novamente.');
+      }
     } finally {
       setLoading(false);
     }
