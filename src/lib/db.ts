@@ -17,7 +17,7 @@ const sql = global._sql ?? postgres({
   ssl: 'require',
   max: isProd ? 3 : 2,     // conservador: Supabase free tem limite de conexões
   idle_timeout: 10,         // libera conexões ociosas mais rápido
-  connect_timeout: 8,       // 8s (Vercel tem limite de 10s na rota)
+  connect_timeout: 5,       // 5s — falha rápido para o Vercel poder retornar erro antes de timeout
   max_lifetime: 60 * 10,    // recicla conexões a cada 10 min — evita conexões mortas
   prepare: false,           // obrigatório no transaction mode pooler
 });
