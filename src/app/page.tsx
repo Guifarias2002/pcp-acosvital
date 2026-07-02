@@ -392,7 +392,13 @@ export default function DashboardPage() {
       router.replace(`/setor/${_user.setor}`);
       return;
     }
-    getDashboard().then(d => { setData(d); setErro(false); }).catch(() => setErro(true)).finally(() => setLoading(false));
+    // Aquece a conexão com o banco antes de carregar os dados
+    fetch('/api/health').catch(() => {});
+    const tmo = setTimeout(() => { setErro(true); setLoading(false); }, 14000);
+    getDashboard()
+      .then(d => { clearTimeout(tmo); setData(d); setErro(false); })
+      .catch(() => { clearTimeout(tmo); setErro(true); })
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
