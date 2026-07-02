@@ -185,6 +185,8 @@ export interface Pedido {
   data_emissao: string;
   criado_em: string;
   valor_calculado: string | null;
+  valor_total?: string | null;
+  atualizado_em?: string;
   setores_parciais?: string[];
   itens: ItemPedido[];
 }

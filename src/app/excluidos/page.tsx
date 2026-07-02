@@ -76,13 +76,13 @@ export default function ExcluidosPage() {
         body: JSON.stringify({ modo: modal.modo }),
       });
       const data = await res.json();
-      if (!res.ok) { alert(data.erro || 'Erro ao reativar'); return; }
+      if (!res.ok) { setErro(data.erro || 'Erro ao reativar'); return; }
       setModal(null);
       setSucesso(`${data.mensagem} (Pedido #${data.pedido_id})`);
       carregar(busca);
       setTimeout(() => setSucesso(''), 8000);
     } catch {
-      alert('Erro ao reativar pedido.');
+      setErro('Erro ao reativar pedido.');
     } finally {
       setModal(m => m ? { ...m, loading: false } : null);
     }

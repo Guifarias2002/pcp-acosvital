@@ -124,48 +124,52 @@ export async function POST(req: Request) {
     if (!Array.isArray(itens) || itens.length === 0)
       return NextResponse.json({ erro: 'Pelo menos um item obrigatorio' }, { status: 400 });
 
-    const [pedido] = await sql`
-      INSERT INTO producao_pedido
-        (numero_pedido_venda, numero_op, cliente, vendedor, prazo_entrega,
-         prioridade, roteiro_base, observacoes, status, setor_atual,
-         data_emissao, criado_por_id, criado_em, atualizado_em)
-      VALUES (
-        ${numero_pedido_venda}, ${numero_op.toString().trim()}, ${cliente}, ${vendedor || ''},
-        ${prazo_entrega}, ${prioridade}, ${roteiro_base},
-        ${observacoes || ''}, 'emitido', ${roteiro_base[0] || ''},
-        NOW()::date, ${user.id}, NOW(), NOW()
-      )
-      RETURNING *
-    `;
-
-    for (const item of itens) {
-      const rotProprio = item.roteiro_proprio?.length > 0 ? item.roteiro_proprio : [];
-      const primeiroSetor = rotProprio.length > 0 ? rotProprio[0] : roteiro_base[0];
-      await sql`
-        INSERT INTO producao_itempedido
-          (pedido_id, codigo, descricao, quantidade, unidade, valor_unitario,
-           roteiro_proprio, setor_atual, status, quantidade_pendente, criado_em)
+    const pedidoId = await sql.begin(async (tx) => {
+      const [pedido] = await tx`
+        INSERT INTO producao_pedido
+          (numero_pedido_venda, numero_op, cliente, vendedor, prazo_entrega,
+           prioridade, roteiro_base, observacoes, status, setor_atual,
+           data_emissao, criado_por_id, criado_em, atualizado_em)
         VALUES (
-          ${pedido.id}, ${item.codigo}, ${item.descricao || ''},
-          ${item.quantidade}, ${item.unidade || 'un'},
-          ${item.valor_unitario || null},
-          ${rotProprio as string[]},
-          ${primeiroSetor}, 'emitido',
-          ${item.quantidade}, NOW()
+          ${numero_pedido_venda}, ${numero_op.toString().trim()}, ${cliente}, ${vendedor || ''},
+          ${prazo_entrega}, ${prioridade}, ${roteiro_base},
+          ${observacoes || ''}, 'emitido', ${roteiro_base[0] || ''},
+          NOW()::date, ${user.id}, NOW(), NOW()
         )
+        RETURNING id
       `;
-    }
 
-    await sql`
-      UPDATE producao_pedido
-      SET valor_total = (
-        SELECT COALESCE(SUM(quantidade * COALESCE(valor_unitario, 0)), 0)
-        FROM producao_itempedido WHERE pedido_id = ${pedido.id}
-      )
-      WHERE id = ${pedido.id}
-    `;
+      for (const item of itens) {
+        const rotProprio = item.roteiro_proprio?.length > 0 ? item.roteiro_proprio : [];
+        const primeiroSetor = rotProprio.length > 0 ? rotProprio[0] : roteiro_base[0];
+        await tx`
+          INSERT INTO producao_itempedido
+            (pedido_id, codigo, descricao, quantidade, unidade, valor_unitario,
+             roteiro_proprio, setor_atual, status, quantidade_pendente, criado_em)
+          VALUES (
+            ${pedido.id}, ${item.codigo}, ${item.descricao || ''},
+            ${item.quantidade}, ${item.unidade || 'un'},
+            ${item.valor_unitario || null},
+            ${rotProprio as string[]},
+            ${primeiroSetor}, 'emitido',
+            ${item.quantidade}, NOW()
+          )
+        `;
+      }
 
-    return NextResponse.json({ id: pedido.id }, { status: 201 });
+      await tx`
+        UPDATE producao_pedido
+        SET valor_total = (
+          SELECT COALESCE(SUM(quantidade * COALESCE(valor_unitario, 0)), 0)
+          FROM producao_itempedido WHERE pedido_id = ${pedido.id}
+        )
+        WHERE id = ${pedido.id}
+      `;
+
+      return pedido.id;
+    });
+
+    return NextResponse.json({ id: pedidoId }, { status: 201 });
   } catch (e: unknown) {
     console.error('[POST /api/pedidos]', e);
     return NextResponse.json({ erro: 'Erro ao criar pedido' }, { status: 500 });

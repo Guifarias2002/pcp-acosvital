@@ -88,7 +88,7 @@ export async function POST(req: Request) {
       await registrarAuditoria(username, ip, false);
       return NextResponse.json({ erro: 'Usuario ou senha invalidos' }, { status: 401 });
     }
-    if (needsRehash) rehash(user.id, String(password));
+    if (needsRehash) await rehash(user.id, String(password));
 
     clearRateLimit(ip);
     await registrarAuditoria(username, ip, true);

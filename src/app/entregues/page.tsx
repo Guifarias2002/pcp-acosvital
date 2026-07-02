@@ -44,6 +44,7 @@ export default function EntreguesPage() {
   const [anexar, setAnexar] = useState<{ itemId: number; pedidoNumero: string } | null>(null);
   const [modalCanhotos, setModalCanhotos] = useState(false);
   const [divergencia, setDivergencia] = useState<{ pedidoId: number; pedidoNumero: string; itens: PedidoEntregue['itens'] } | null>(null);
+  const [mensagem, setMensagem] = useState('');
 
   function buscar() {
     setLoading(true);
@@ -139,7 +140,7 @@ export default function EntreguesPage() {
           pedidoNumero={divergencia.pedidoNumero}
           itens={divergencia.itens?.map(i => ({ id: i.id, codigo: i.codigo, descricao: i.descricao }))}
           onClose={() => setDivergencia(null)}
-          onSuccess={() => { setDivergencia(null); alert('Divergência registrada!'); }}
+          onSuccess={() => { setDivergencia(null); setMensagem('Divergência registrada com sucesso!'); setTimeout(() => setMensagem(''), 6000); }}
         />
       )}
       {anexar && (
@@ -149,6 +150,12 @@ export default function EntreguesPage() {
           onClose={() => setAnexar(null)}
           onSuccess={() => { setAnexar(null); buscar(); }}
         />
+      )}
+
+      {mensagem && (
+        <div style={{ marginBottom: 12, padding: '10px 16px', borderRadius: 8, background: '#d1fae5', color: '#065f46', border: '1px solid #a7f3d0', fontSize: 13, fontWeight: 500 }}>
+          ✅ {mensagem}
+        </div>
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>

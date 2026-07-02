@@ -49,22 +49,25 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   let comprovanteUrl: string | null = null;
 
-  if (arquivo && arquivo.size > 0 && process.env.SUPABASE_SERVICE_KEY && process.env.SUPABASE_URL) {
+  const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/^﻿/, '');
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+  if (arquivo && arquivo.size > 0 && serviceKey && supabaseUrl) {
     try {
       const ext = arquivo.name.split('.').pop() || 'jpg';
       const path = `entregas/${item.pedido_id}/${itemId}_${Date.now()}.${ext}`;
       const buffer = await arquivo.arrayBuffer();
-      const uploadRes = await fetch(`${process.env.SUPABASE_URL}/storage/v1/object/comprovantes/${path}`, {
+      const uploadRes = await fetch(`${supabaseUrl}/storage/v1/object/comprovantes/${path}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
+          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
           'Content-Type': arquivo.type || 'application/octet-stream',
           'x-upsert': 'true',
         },
         body: buffer,
       });
       if (uploadRes.ok) {
-        comprovanteUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/comprovantes/${path}`;
+        comprovanteUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/comprovantes/${path}`;
       }
     } catch { /* upload failed, continue without file */ }
   }
@@ -135,22 +138,25 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   let comprovanteUrl: string | null = null;
 
-  if (process.env.SUPABASE_SERVICE_KEY && process.env.SUPABASE_URL) {
+  const supabaseUrlPatch = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/^﻿/, '');
+  const serviceKeyPatch = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+  if (serviceKeyPatch && supabaseUrlPatch) {
     try {
       const ext = arquivo.name.split('.').pop() || 'jpg';
       const path = `entregas/${entrega.pedido_id}/${itemId}_${Date.now()}.${ext}`;
       const buffer = await arquivo.arrayBuffer();
-      const uploadRes = await fetch(`${process.env.SUPABASE_URL}/storage/v1/object/comprovantes/${path}`, {
+      const uploadRes = await fetch(`${supabaseUrlPatch}/storage/v1/object/comprovantes/${path}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
+          'Authorization': `Bearer ${serviceKeyPatch}`,
           'Content-Type': arquivo.type || 'application/octet-stream',
           'x-upsert': 'true',
         },
         body: buffer,
       });
       if (uploadRes.ok) {
-        comprovanteUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/comprovantes/${path}`;
+        comprovanteUrl = `${supabaseUrlPatch}/storage/v1/object/public/comprovantes/${path}`;
       }
     } catch { /* upload failed */ }
   } else {

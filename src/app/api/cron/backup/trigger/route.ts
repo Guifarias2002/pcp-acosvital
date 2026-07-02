@@ -11,7 +11,8 @@ export async function POST(req: Request) {
 
   // Chama o próprio endpoint de cron internamente com o secret
   const base = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  const secret = process.env.CRON_SECRET || '';
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return NextResponse.json({ erro: 'CRON_SECRET nao configurado no servidor' }, { status: 500 });
 
   const r = await fetch(`${base}/api/cron/backup`, {
     headers: { Authorization: `Bearer ${secret}` },

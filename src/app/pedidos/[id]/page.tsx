@@ -53,6 +53,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const [uploadingDesenho, setUploadingDesenho] = useState(false);
   const [desenhoMsg, setDesenhoMsg] = useState<string | null>(null);
   const [liberarModal, setLiberarModal] = useState<{ itemId: number; roteiro: string[]; setorAtual: string; proximoSetor: string | null; parcial?: boolean; qtdMax?: number; unidade?: string } | null>(null);
+  const [erroAcao, setErroAcao] = useState<string | null>(null);
   const user = getUser();
   const isAdmin = user?.is_staff;
   const verFinanceiro = user?.is_staff && user?.perfil !== 'lider';
@@ -113,7 +114,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
       const ax = e as { response?: { status?: number; data?: { erro?: string } }; message?: string };
       const msg = ax?.response?.data?.erro || ax?.message || 'Erro ao liberar (sem detalhes)';
       const status = ax?.response?.status ? ` [${ax.response.status}]` : '';
-      alert(`Erro ao liberar${status}: ${msg}`);
+      setErroAcao(`Erro ao liberar${status}: ${msg}`);
     }
     finally { setLiberando(null); }
   }
@@ -140,7 +141,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   async function acaoSimples(itemId: number, acao: string, body?: Record<string, unknown>) {
     setFazendo({ itemId, acao });
     try { await itemAcao(itemId, acao, body); carregar(); }
-    catch (e: unknown) { alert((e as { response?: { data?: { erro?: string } } }).response?.data?.erro || 'Erro'); }
+    catch (e: unknown) { setErroAcao((e as { response?: { data?: { erro?: string } } }).response?.data?.erro || 'Erro ao executar ação'); }
     finally { setFazendo(null); }
   }
 
@@ -157,7 +158,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
       }
       carregar();
     } catch (e: unknown) {
-      alert((e as { response?: { data?: { erro?: string } } }).response?.data?.erro || 'Erro ao receber item');
+      setErroAcao((e as { response?: { data?: { erro?: string } } }).response?.data?.erro || 'Erro ao receber item');
     } finally {
       setRecebendo(null);
     }
@@ -239,6 +240,13 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
             />
           );
         })()}
+        {erroAcao && (
+          <div className="mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-50 text-red-700 border border-red-200 flex items-center justify-between">
+            <span>⚠ {erroAcao}</span>
+            <button onClick={() => setErroAcao(null)} className="ml-4 text-red-400 hover:text-red-600 font-bold">×</button>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div>

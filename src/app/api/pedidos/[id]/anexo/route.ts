@@ -31,12 +31,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const base64 = Buffer.from(bytes).toString('base64');
   const dataUri = `data:${arquivo.type};base64,${base64}`;
 
-  const col = tipo === 'nota' ? 'nota_url' : 'canhoto_url';
   try {
-    await sql.unsafe(
-      `UPDATE producao_pedido SET ${col} = $1, anexo_pendente = FALSE WHERE id = $2`,
-      [dataUri, pedidoId]
-    );
+    if (tipo === 'nota') {
+      await sql`UPDATE producao_pedido SET nota_url = ${dataUri}, anexo_pendente = FALSE WHERE id = ${pedidoId}`;
+    } else {
+      await sql`UPDATE producao_pedido SET canhoto_url = ${dataUri}, anexo_pendente = FALSE WHERE id = ${pedidoId}`;
+    }
   } catch (dbErr: unknown) {
     console.error('[anexo db error]', dbErr);
     const msg = dbErr instanceof Error ? dbErr.message : String(dbErr);
@@ -53,7 +53,10 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
 
   const pedidoId = Number(params.id);
   const { tipo } = await req.json();
-  const col = tipo === 'nota' ? 'nota_url' : 'canhoto_url';
-  await sql.unsafe(`UPDATE producao_pedido SET ${col} = NULL WHERE id = $1`, [pedidoId]);
+  if (tipo === 'nota') {
+    await sql`UPDATE producao_pedido SET nota_url = NULL WHERE id = ${pedidoId}`;
+  } else {
+    await sql`UPDATE producao_pedido SET canhoto_url = NULL WHERE id = ${pedidoId}`;
+  }
   return NextResponse.json({ ok: true });
 }
