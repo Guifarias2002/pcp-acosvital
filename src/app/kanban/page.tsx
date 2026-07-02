@@ -166,14 +166,15 @@ export default function KanbanPage() {
                   <p className="text-gray-300 text-xs text-center py-4">Vazio</p>
                 )}
                 {(() => {
-                  const pedidoMap = new Map<number, ItemKanban[]>();
+                  const pedidoMap = new Map<string, ItemKanban[]>();
                   for (const item of s.itens) {
-                    if (!pedidoMap.has(item.pedido_id)) pedidoMap.set(item.pedido_id, []);
-                    pedidoMap.get(item.pedido_id)!.push(item);
+                    const pkey = String(item.pedido_numero || item.pedido_id);
+                    if (!pedidoMap.has(pkey)) pedidoMap.set(pkey, []);
+                    pedidoMap.get(pkey)!.push(item);
                   }
                   return Array.from(pedidoMap.values()).map(grupo => {
                     const p0 = grupo[0];
-                    const key = `${s.cod}-${p0.pedido_id}`;
+                    const key = `${s.cod}-${p0.pedido_numero || p0.pedido_id}`;
                     const aberto = expandidos.has(key);
                     return (
                       <div key={key} className="rounded-lg border shadow-sm overflow-hidden" style={{ background: '#fff' }}>
