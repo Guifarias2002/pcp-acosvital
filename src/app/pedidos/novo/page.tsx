@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 
@@ -23,6 +23,44 @@ export default function NovoPedidoPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
+  const [importando, setImportando] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function importarExcel(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!fileInputRef.current) return;
+    fileInputRef.current.value = '';
+    if (!file) return;
+    setImportando(true);
+    setErro('');
+    try {
+      const { read, utils } = await import('xlsx');
+      const buffer = await file.arrayBuffer();
+      const wb = read(buffer, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      // Lê a partir da linha 4 (índice 3), colunas A,B,C,F
+      const rows: unknown[][] = utils.sheet_to_json(ws, { header: 1, defval: '' });
+      // Linha 3 (índice 2) é o cabeçalho — dados começam no índice 3
+      const dataRows = rows.slice(3).filter((r: unknown[]) => r[0]);
+      if (dataRows.length === 0) {
+        setErro('Nenhum item encontrado na planilha. Verifique se os dados começam na linha 4.');
+        return;
+      }
+      const novosItens: ItemForm[] = dataRows.map((r: unknown[]) => ({
+        codigo:        String(r[0] ?? '').trim(),
+        descricao:     String(r[1] ?? '').trim(),
+        quantidade:    String(Number(r[2]) || 1),
+        unidade:       'pc',
+        valor_unitario: r[5] != null && r[5] !== '' ? String(r[5]).replace('.', ',') : '',
+        roteiro_proprio: [],
+      }));
+      setItens(novosItens);
+    } catch {
+      setErro('Erro ao ler o arquivo. Certifique-se de que é um .xlsx válido.');
+    } finally {
+      setImportando(false);
+    }
+  }
 
   const [pv, setPv] = useState('');
   const [op, setOp] = useState('');
@@ -227,14 +265,28 @@ export default function NovoPedidoPage() {
 
             {/* Itens */}
             <div className="card" style={{ padding:20 }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6, flexWrap:'wrap', gap:8 }}>
                 <span style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1 }}>
                   <i className="bi bi-list-ul" style={{ marginRight:6 }} />Itens do Pedido
                 </span>
-                <button type="button" onClick={addItem}
-                  style={{ background:'#198754', color:'#fff', border:'none', borderRadius:6, padding:'6px 14px', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                  <i className="bi bi-plus-lg" style={{ marginRight:4 }} />Adicionar Item
-                </button>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    style={{ display:'none' }}
+                    onChange={importarExcel}
+                  />
+                  <button type="button" onClick={() => fileInputRef.current?.click()} disabled={importando}
+                    style={{ background:'#0d6efd', color:'#fff', border:'none', borderRadius:6, padding:'6px 14px', fontSize:12, fontWeight:700, cursor:'pointer', opacity: importando ? 0.6 : 1 }}>
+                    <i className="bi bi-file-earmark-excel" style={{ marginRight:4 }} />
+                    {importando ? 'Importando...' : 'Importar Excel'}
+                  </button>
+                  <button type="button" onClick={addItem}
+                    style={{ background:'#198754', color:'#fff', border:'none', borderRadius:6, padding:'6px 14px', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                    <i className="bi bi-plus-lg" style={{ marginRight:4 }} />Adicionar Item
+                  </button>
+                </div>
               </div>
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 {itens.map((item, i) => {
