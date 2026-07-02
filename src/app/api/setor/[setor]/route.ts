@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
 
 export async function GET(req: Request, { params }: { params: { setor: string } }) {
+  try {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
 
@@ -234,4 +235,8 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     parciais: (parciais as Record<string, unknown>[]).map(fmtParcial),
     resumo_por_item: (resumo as Record<string, unknown>[]).map(fmtResumo),
   });
+  } catch (e) {
+    console.error('[setor]', e);
+    return NextResponse.json({ erro: 'Erro interno' }, { status: 500 });
+  }
 }

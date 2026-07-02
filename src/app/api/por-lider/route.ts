@@ -4,6 +4,7 @@ import { autenticar } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
+  try {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
@@ -61,4 +62,8 @@ export async function GET(req: Request) {
   });
 
   return NextResponse.json(result);
+  } catch (e) {
+    console.error('[por-lider]', e);
+    return NextResponse.json({ erro: 'Erro interno' }, { status: 500 });
+  }
 }

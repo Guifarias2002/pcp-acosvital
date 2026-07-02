@@ -58,59 +58,64 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const user = await autenticar(req);
-  if (user instanceof NextResponse) return user;
+  try {
+    const user = await autenticar(req);
+    if (user instanceof NextResponse) return user;
 
-  const body = await req.json().catch(() => ({}));
-  const { pedido_id, item_id, tipo, descricao, setor_responsavel, prioridade } = body;
+    const body = await req.json().catch(() => ({}));
+    const { pedido_id, item_id, tipo, descricao, setor_responsavel, prioridade } = body;
 
-  if (!pedido_id) return NextResponse.json({ erro: 'pedido_id obrigatorio' }, { status: 400 });
-  if (!tipo) return NextResponse.json({ erro: 'tipo obrigatorio' }, { status: 400 });
-  if (!descricao?.trim()) return NextResponse.json({ erro: 'descricao obrigatoria' }, { status: 400 });
+    if (!pedido_id) return NextResponse.json({ erro: 'pedido_id obrigatorio' }, { status: 400 });
+    if (!tipo) return NextResponse.json({ erro: 'tipo obrigatorio' }, { status: 400 });
+    if (!descricao?.trim()) return NextResponse.json({ erro: 'descricao obrigatoria' }, { status: 400 });
 
-  const TIPOS = ['qualidade', 'quantidade', 'prazo', 'dano', 'documentacao', 'outro'];
-  if (!TIPOS.includes(tipo)) return NextResponse.json({ erro: 'tipo invalido' }, { status: 400 });
+    const TIPOS = ['qualidade', 'quantidade', 'prazo', 'dano', 'documentacao', 'outro'];
+    if (!TIPOS.includes(tipo)) return NextResponse.json({ erro: 'tipo invalido' }, { status: 400 });
 
-  const [pedido] = await sql`SELECT id FROM producao_pedido WHERE id = ${pedido_id}`;
-  if (!pedido) return NextResponse.json({ erro: 'Pedido nao encontrado' }, { status: 404 });
+    const [pedido] = await sql`SELECT id FROM producao_pedido WHERE id = ${pedido_id}`;
+    if (!pedido) return NextResponse.json({ erro: 'Pedido nao encontrado' }, { status: 404 });
 
-  const divId = await sql.begin(async (tx) => {
-    const [div] = await tx`
-      INSERT INTO producao_divergencia
-        (pedido_id, item_id, usuario_id, tipo, descricao, setor_responsavel, prioridade, status, criado_em, atualizado_em)
-      VALUES (
-        ${pedido_id},
-        ${item_id || null},
-        ${user.id},
-        ${tipo},
-        ${descricao.trim()},
-        ${setor_responsavel || null},
-        ${prioridade || 'normal'},
-        'aberta',
-        NOW(), NOW()
-      )
-      RETURNING id
-    `;
+    const divId = await sql.begin(async (tx) => {
+      const [div] = await tx`
+        INSERT INTO producao_divergencia
+          (pedido_id, item_id, usuario_id, tipo, descricao, setor_responsavel, prioridade, status, criado_em, atualizado_em)
+        VALUES (
+          ${pedido_id},
+          ${item_id || null},
+          ${user.id},
+          ${tipo},
+          ${descricao.trim()},
+          ${setor_responsavel || null},
+          ${prioridade || 'normal'},
+          'aberta',
+          NOW(), NOW()
+        )
+        RETURNING id
+      `;
 
-    if (item_id) {
-      const [item] = await tx`SELECT status, setor_atual FROM producao_itempedido WHERE id = ${item_id}`;
-      if (item) {
-        await tx`
-          INSERT INTO producao_movimentacaoitem
-            (item_id, pedido_id, usuario_id, setor_origem, setor_destino, status_anterior, status_novo, observacao, criado_em)
-          VALUES (
-            ${item_id}, ${pedido_id}, ${user.id},
-            ${item.setor_atual}, ${item.setor_atual},
-            ${item.status}, ${item.status},
-            ${`[DIVERGÊNCIA] ${tipo}: ${descricao.trim()}`},
-            NOW()
-          )
-        `;
+      if (item_id) {
+        const [item] = await tx`SELECT status, setor_atual FROM producao_itempedido WHERE id = ${item_id}`;
+        if (item) {
+          await tx`
+            INSERT INTO producao_movimentacaoitem
+              (item_id, pedido_id, usuario_id, setor_origem, setor_destino, status_anterior, status_novo, observacao, criado_em)
+            VALUES (
+              ${item_id}, ${pedido_id}, ${user.id},
+              ${item.setor_atual}, ${item.setor_atual},
+              ${item.status}, ${item.status},
+              ${`[DIVERGÊNCIA] ${tipo}: ${descricao.trim()}`},
+              NOW()
+            )
+          `;
+        }
       }
-    }
 
-    return div.id;
-  });
+      return div.id;
+    });
 
-  return NextResponse.json({ ok: true, id: divId }, { status: 201 });
+    return NextResponse.json({ ok: true, id: divId }, { status: 201 });
+  } catch (e) {
+    console.error('[divergencias POST]', e);
+    return NextResponse.json({ erro: 'Erro interno' }, { status: 500 });
+  }
 }

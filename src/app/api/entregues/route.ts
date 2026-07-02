@@ -4,6 +4,7 @@ import { autenticar } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
+  try {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
@@ -86,4 +87,8 @@ export async function GET(req: Request) {
     canhotos_assinados: comCanhoto,
     canhotos_pendentes: semCanhoto,
   });
+  } catch (e) {
+    console.error('[entregues]', e);
+    return NextResponse.json({ erro: 'Erro interno' }, { status: 500 });
+  }
 }

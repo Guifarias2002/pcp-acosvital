@@ -6,6 +6,7 @@ import { formatItem, nomeSector } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
+  try {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
 
@@ -86,4 +87,8 @@ export async function GET(req: Request) {
   }));
 
   return NextResponse.json({ setores });
+  } catch (e) {
+    console.error('[kanban]', e);
+    return NextResponse.json({ erro: 'Erro ao carregar kanban' }, { status: 500 });
+  }
 }
