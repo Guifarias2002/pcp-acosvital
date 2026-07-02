@@ -41,8 +41,19 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   `;
   if (!row) return NextResponse.json({ erro: 'Nao encontrado' }, { status: 404 });
 
-  if (!user.is_staff && row.setor_atual !== user.setor)
-    return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
+  if (!user.is_staff && row.setor_atual !== user.setor) {
+    // Permite acesso se o usuário tem parcial ativa deste item no seu setor
+    // (caso de divergência: parcial movida para outro setor mas setor_atual do item desatualizado)
+    const [{ tem_parcial }] = await sql`
+      SELECT COUNT(*)::int > 0 AS tem_parcial
+      FROM producao_itemparcial
+      WHERE item_pedido_id = ${itemId}
+        AND setor_atual = ${user.setor ?? ''}
+        AND status NOT IN ('cancelada', 'concluida')
+    `;
+    if (!tem_parcial)
+      return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
+  }
 
   const item = formatItem(row);
 
