@@ -48,6 +48,8 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   const [motivoDivergencia, setMotivoDivergencia] = useState('');
   const [desenhoUrl, setDesenhoUrl] = useState<string | null>(null);
   const [desenhoTipo, setDesenhoTipo] = useState<'img' | 'pdf' | null>(null);
+  const [uploadingDesenho, setUploadingDesenho] = useState(false);
+  const [desenhoMsg, setDesenhoMsg] = useState('');
 
   const carregarRef = useRef<() => void>(() => {});
   function carregar() {
@@ -126,6 +128,35 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
         finally { setAtuando(false); }
       },
     });
+  }
+
+  async function uploadDesenho(arquivo: File) {
+    if (!item) return;
+    setUploadingDesenho(true);
+    setDesenhoMsg('');
+    try {
+      const fd = new FormData();
+      fd.append('arquivo', arquivo);
+      const token = localStorage.getItem('token') || '';
+      const r = await fetch(`/api/pedidos/${item.pedido_id}/desenho`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (!r.ok) { const d = await r.json(); setDesenhoMsg(d.erro || 'Erro ao enviar'); }
+      else { setDesenhoMsg('Desenho salvo!'); carregar(); }
+    } catch { setDesenhoMsg('Erro ao enviar'); }
+    finally { setUploadingDesenho(false); }
+  }
+
+  async function excluirDesenho() {
+    if (!item) return;
+    const token = localStorage.getItem('token') || '';
+    await fetch(`/api/pedidos/${item.pedido_id}/desenho`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    carregar();
   }
 
   const isAdmin = getUser()?.is_staff;
@@ -555,6 +586,32 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                       Toque para abrir o Desenho Técnico (PDF)
                     </a>
                   )}
+                </div>
+              )}
+
+              {/* Upload de desenho — apenas admin */}
+              {isAdmin && (
+                <div className="mt-4 border-t pt-4">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">📐 Desenho Técnico</p>
+                  {(item as any).tem_desenho ? (
+                    <div className="flex items-center gap-2">
+                      <a href={desenhoUrl || `/api/pedidos/${item.pedido_id}/desenho`} target="_blank" rel="noreferrer"
+                        className="flex-1 text-center rounded border border-green-300 bg-green-50 text-green-700 font-semibold py-2 text-sm hover:bg-green-100" style={{ textDecoration: 'none' }}>
+                        ✅ Ver desenho técnico
+                      </a>
+                      <button onClick={excluirDesenho}
+                        className="rounded border border-red-300 bg-red-50 text-red-600 px-3 py-2 text-sm hover:bg-red-100">
+                        🗑
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="block cursor-pointer rounded border-2 border-dashed border-gray-300 p-4 text-center text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500">
+                      {uploadingDesenho ? 'Enviando…' : '➕ Anexar desenho (PDF, JPG, PNG)'}
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadDesenho(f); }} />
+                    </label>
+                  )}
+                  {desenhoMsg && <p className="text-xs mt-1 text-blue-600">{desenhoMsg}</p>}
                 </div>
               )}
 
