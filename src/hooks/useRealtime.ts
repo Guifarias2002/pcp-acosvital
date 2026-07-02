@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase-client';
 import { invalidateCache } from '@/lib/api';
 
-const FALLBACK_INTERVAL_MS = 60_000; // 1 min de fallback caso o WS caia
+const FALLBACK_INTERVAL_MS = 15_000; // 15s de fallback caso o WS caia
 
 export function useRealtime(
   tables: string[],
@@ -19,6 +19,7 @@ export function useRealtime(
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     let fallbackTimer: ReturnType<typeof setInterval> | null = null;
     let channel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null;
+    let mounted = true;
 
     function scheduleRefresh() {
       if (debounceTimer) clearTimeout(debounceTimer);
@@ -43,14 +44,13 @@ export function useRealtime(
       }
 
       channel.subscribe((status: string) => {
+        if (!mounted) return;
         if (status === 'SUBSCRIBED') {
-          // WS ativo — fallback pode ser mais longo
           if (fallbackTimer) clearInterval(fallbackTimer);
           fallbackTimer = setInterval(scheduleRefresh, FALLBACK_INTERVAL_MS);
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          // Reconecta após 3s
           if (channel) { supabase?.removeChannel(channel); channel = null; }
-          setTimeout(subscribe, 3_000);
+          setTimeout(() => { if (mounted) subscribe(); }, 3_000);
         }
       });
     }
@@ -61,6 +61,7 @@ export function useRealtime(
     subscribe();
 
     return () => {
+      mounted = false;
       if (debounceTimer) clearTimeout(debounceTimer);
       if (fallbackTimer) clearInterval(fallbackTimer);
       if (channel) supabase?.removeChannel(channel);
