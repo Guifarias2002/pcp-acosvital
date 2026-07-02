@@ -452,6 +452,31 @@ export async function POST(
                 ${parcial.item_status}, 'aguardando',
                 ${obs || `Parcial #${parcialId} devolvida de ${nomeSector(parcial.setor_atual)} → ${nomeSector(setor_destino)}`}, NOW())
       `;
+
+      // Se o item ficou sem parciais ativas no setor de origem, atualiza setor_atual do item
+      const [{ restantes }] = await tx`
+        SELECT COUNT(*)::int AS restantes
+        FROM producao_itemparcial
+        WHERE item_pedido_id = ${parcial.item_id}
+          AND setor_atual = ${parcial.setor_atual}
+          AND status NOT IN ('cancelada', 'concluida')
+          AND id != ${parcialId}
+      `;
+      if (Number(restantes) === 0) {
+        const [{ total_destino }] = await tx`
+          SELECT COALESCE(SUM(quantidade)::float, 0) AS total_destino
+          FROM producao_itemparcial
+          WHERE item_pedido_id = ${parcial.item_id}
+            AND setor_atual = ${setor_destino}
+            AND status NOT IN ('cancelada', 'concluida')
+        `;
+        await tx`
+          UPDATE producao_itempedido
+          SET setor_atual = ${setor_destino}, status = 'aguardando',
+              quantidade_pendente = ${total_destino}, atualizado_em = NOW()
+          WHERE id = ${parcial.item_id}
+        `;
+      }
     });
     return NextResponse.json({ ok: true, status: 'em_aberto', mensagem: `Devolvida para ${nomeSector(setor_destino)}` });
 
