@@ -15,7 +15,7 @@ function fmtBRL(n: number) {
 }
 
 function parseVal(s: string) {
-  const n = parseFloat(s.replace(',', '.'));
+  const n = parseFloat(s.replace(/\./g, '').replace(',', '.'));
   return isNaN(n) ? 0 : n;
 }
 
@@ -70,7 +70,7 @@ export default function NovoPedidoPage() {
         itens: itens.filter(i => i.codigo).map(i => ({
           ...i,
           quantidade: Number(i.quantidade),
-          valor_unitario: i.valor_unitario ? Number(i.valor_unitario.replace(',', '.')) : null,
+          valor_unitario: i.valor_unitario ? Number(i.valor_unitario.replace(/\./g, '').replace(',', '.')) : null,
         })),
       });
       router.push(`/pedidos/${id}`);
