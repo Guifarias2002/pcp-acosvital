@@ -22,6 +22,6 @@ const sql = global._sql ?? postgres({
   prepare: false,           // obrigatório no transaction mode pooler
 });
 
-if (process.env.NODE_ENV !== 'production') global._sql = sql;
+global._sql = sql;
 
 export default sql;
