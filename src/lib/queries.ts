@@ -14,11 +14,12 @@ function corStatus(status: string): string {
   return m[status] || 'secondary';
 }
 
-function statusDisplay(s: string): string {
+export function statusDisplay(s: string): string {
   const m: Record<string, string> = {
     emitido: 'Emitido', aguardando: 'Aguardando', recebido: 'Recebido',
     em_andamento: 'Em Andamento', pausado: 'Pausado', finalizado_setor: 'Finalizado no Setor',
-    bloqueado: 'Bloqueado', reprovado: 'Reprovado', aprovado: 'Aprovado', entregue: 'Entregue',
+    em_transito: 'Em Trânsito', bloqueado: 'Bloqueado', reprovado: 'Reprovado',
+    aprovado: 'Aprovado', entregue: 'Entregue',
   };
   return m[s] || s;
 }

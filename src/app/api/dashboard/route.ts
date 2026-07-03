@@ -2,19 +2,9 @@ import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { SETOR_CHOICES } from '@/lib/types';
-import { nomeSector } from '@/lib/queries';
+import { nomeSector, statusDisplay } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
-
-function statusDisplay(s: string): string {
-  const m: Record<string, string> = {
-    emitido: 'Emitido', aguardando: 'Aguardando', recebido: 'Recebido',
-    em_andamento: 'Em Andamento', pausado: 'Pausado',
-    finalizado_setor: 'Finalizado no Setor', em_transito: 'Em Trânsito', bloqueado: 'Bloqueado',
-    reprovado: 'Reprovado', aprovado: 'Aprovado', entregue: 'Entregue',
-  };
-  return m[s] || s;
-}
 
 // Timeout server-side: garante resposta antes do Vercel matar a função (10s limit)
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {

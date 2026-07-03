@@ -46,8 +46,8 @@ export async function POST(req: Request) {
 
   if (!username || !nome || !senha || !perfil)
     return NextResponse.json({ erro: 'Preencha todos os campos obrigatórios.' }, { status: 400 });
-  if (senha.length < 4)
-    return NextResponse.json({ erro: 'Senha deve ter pelo menos 4 caracteres.' }, { status: 400 });
+  if (senha.length < 8)
+    return NextResponse.json({ erro: 'Senha deve ter pelo menos 8 caracteres.' }, { status: 400 });
 
   const existe = await sql`SELECT id FROM usuarios_usuario WHERE username = ${username}`;
   if (existe.length > 0)

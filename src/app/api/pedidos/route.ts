@@ -3,10 +3,15 @@ import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
 import { formatPedido } from '@/lib/queries';
 import { SETOR_CHOICES } from '@/lib/types';
+import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
 const PER_PAGE = 50;
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+}
 
 export async function GET(req: Request) {
   const user = await autenticar(req);
@@ -20,6 +25,7 @@ export async function GET(req: Request) {
   const page       = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const offset     = (page - 1) * PER_PAGE;
 
+  try {
   // 1. Busca apenas os IDs da página corrente — query leve, usa índices
   const baseRows = await sql`
     SELECT p.id, p.criado_por_id, p.numero_pedido_venda, p.numero_op, p.cliente,
@@ -48,7 +54,7 @@ export async function GET(req: Request) {
   const ids = baseRows.map(r => r.id as number);
 
   // 2. Agrega itens e parciais apenas para os pedidos da página — 2 queries flat
-  const [itemRows, parcialRows, [{ total }]] = await Promise.all([
+  const [itemRows, parcialRows, [{ total }]] = await withTimeout(Promise.all([
     sql`
       SELECT pedido_id,
              SUM(quantidade * COALESCE(valor_unitario, 0))::text AS valor_calculado,
@@ -74,7 +80,7 @@ export async function GET(req: Request) {
         AND (${prioridade} = '' OR p.prioridade = ${prioridade})
         AND (${entregue} = TRUE OR p.status != 'entregue')
     `,
-  ]);
+  ]), 7500);
 
   // 3. Monta lookup por pedido_id e formata
   const itemMap    = new Map(itemRows.map(r => [r.pedido_id as number, r]));
@@ -91,6 +97,10 @@ export async function GET(req: Request) {
 
   const pages = Math.ceil((total as number) / PER_PAGE);
   return NextResponse.json({ pedidos, page, per_page: PER_PAGE, total, pages });
+  } catch (e) {
+    console.error('[pedidos GET]', e);
+    return NextResponse.json({ erro: 'Erro ao listar pedidos' }, { status: 500 });
+  }
 }
 
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
@@ -101,6 +111,9 @@ export async function POST(req: Request) {
   if (user instanceof NextResponse) return user;
   logAcesso(user, req, 'criar_pedido');
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+
+  if (!checkMutationRateLimit(getClientIp(req)))
+    return NextResponse.json({ erro: 'Muitas requisições. Aguarde um momento.' }, { status: 429 });
 
   try {
     const body = await req.json().catch(() => ({}));

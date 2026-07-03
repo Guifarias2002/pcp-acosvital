@@ -1,19 +1,9 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
-import { formatItem, nomeSector } from '@/lib/queries';
+import { formatItem, nomeSector, statusDisplay } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
-
-function statusDisplay(s: string): string {
-  const m: Record<string, string> = {
-    emitido: 'Emitido', aguardando: 'Aguardando', recebido: 'Recebido',
-    em_andamento: 'Em Andamento', pausado: 'Pausado',
-    finalizado_setor: 'Finalizado no Setor', bloqueado: 'Bloqueado',
-    reprovado: 'Reprovado', aprovado: 'Aprovado', entregue: 'Entregue',
-  };
-  return m[s] || s;
-}
 
 function parcialStatusDisplay(s: string): string {
   const m: Record<string, string> = {

@@ -27,19 +27,23 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const isResolvendo = status === 'resolvida' || status === 'cancelada';
 
-  await sql`
-    UPDATE producao_divergencia SET
-      status               = COALESCE(${status || null}, status),
-      observacao_resolucao = COALESCE(${observacao_resolucao || null}, observacao_resolucao),
-      prioridade           = COALESCE(${prioridade || null}, prioridade),
-      setor_responsavel    = COALESCE(${setor_responsavel || null}, setor_responsavel),
-      resolvido_em         = ${isResolvendo ? sql`NOW()` : sql`resolvido_em`},
-      resolvido_por_id     = ${isResolvendo ? sql`${user.id}` : sql`resolvido_por_id`},
-      atualizado_em        = NOW()
-    WHERE id = ${id}
-  `;
-
-  return NextResponse.json({ ok: true });
+  try {
+    await sql`
+      UPDATE producao_divergencia SET
+        status               = COALESCE(${status || null}, status),
+        observacao_resolucao = COALESCE(${observacao_resolucao || null}, observacao_resolucao),
+        prioridade           = COALESCE(${prioridade || null}, prioridade),
+        setor_responsavel    = COALESCE(${setor_responsavel || null}, setor_responsavel),
+        resolvido_em         = ${isResolvendo ? sql`NOW()` : sql`resolvido_em`},
+        resolvido_por_id     = ${isResolvendo ? sql`${user.id}` : sql`resolvido_por_id`},
+        atualizado_em        = NOW()
+      WHERE id = ${id}
+    `;
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error('[divergencias PATCH]', e);
+    return NextResponse.json({ erro: 'Erro ao atualizar divergência' }, { status: 500 });
+  }
 }
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -47,20 +51,28 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   if (user instanceof NextResponse) return user;
 
   const id = Number(params.id);
-  const [div] = await sql`
-    SELECT
-      d.*,
-      p.numero_pedido_venda, p.cliente,
-      i.codigo AS item_codigo, i.descricao AS item_descricao,
-      u.nome AS usuario_nome,
-      r.nome AS resolvido_por_nome
-    FROM producao_divergencia d
-    JOIN producao_pedido p ON p.id = d.pedido_id
-    LEFT JOIN producao_itempedido i ON i.id = d.item_id
-    LEFT JOIN usuarios_usuario u ON u.id = d.usuario_id
-    LEFT JOIN usuarios_usuario r ON r.id = d.resolvido_por_id
-    WHERE d.id = ${id}
-  `;
-  if (!div) return NextResponse.json({ erro: 'Nao encontrada' }, { status: 404 });
-  return NextResponse.json(div);
+  if (!Number.isInteger(id) || id <= 0)
+    return NextResponse.json({ erro: 'ID inválido' }, { status: 400 });
+
+  try {
+    const [div] = await sql`
+      SELECT
+        d.*,
+        p.numero_pedido_venda, p.cliente,
+        i.codigo AS item_codigo, i.descricao AS item_descricao,
+        u.nome AS usuario_nome,
+        r.nome AS resolvido_por_nome
+      FROM producao_divergencia d
+      JOIN producao_pedido p ON p.id = d.pedido_id
+      LEFT JOIN producao_itempedido i ON i.id = d.item_id
+      LEFT JOIN usuarios_usuario u ON u.id = d.usuario_id
+      LEFT JOIN usuarios_usuario r ON r.id = d.resolvido_por_id
+      WHERE d.id = ${id}
+    `;
+    if (!div) return NextResponse.json({ erro: 'Não encontrada' }, { status: 404 });
+    return NextResponse.json(div);
+  } catch (e) {
+    console.error('[divergencias GET]', e);
+    return NextResponse.json({ erro: 'Erro ao buscar divergência' }, { status: 500 });
+  }
 }

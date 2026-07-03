@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from 'jose';
 
-const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'acosvital-pcp-secret-2026');
+if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET env var obrigatória — configure no Vercel');
+const secret = new TextEncoder().encode(process.env.JWT_SECRET);
 
 export interface JWTPayload {
   id: number;
