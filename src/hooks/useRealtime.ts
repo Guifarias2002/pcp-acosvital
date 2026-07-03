@@ -46,9 +46,10 @@ export function useRealtime(
       channel.subscribe((status: string) => {
         if (!mounted) return;
         if (status === 'SUBSCRIBED') {
-          if (fallbackTimer) clearInterval(fallbackTimer);
-          fallbackTimer = setInterval(scheduleRefresh, FALLBACK_INTERVAL_MS);
+          // WS saudável — para o polling de segurança, atualiza só quando o banco avisar
+          if (fallbackTimer) { clearInterval(fallbackTimer); fallbackTimer = null; }
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          if (!fallbackTimer) fallbackTimer = setInterval(scheduleRefresh, FALLBACK_INTERVAL_MS);
           if (channel) { supabase?.removeChannel(channel); channel = null; }
           setTimeout(() => { if (mounted) subscribe(); }, 3_000);
         }
