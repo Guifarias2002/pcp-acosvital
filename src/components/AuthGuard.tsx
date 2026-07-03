@@ -12,13 +12,7 @@ interface Props {
 export default function AuthGuard({ children, adminOnly }: Props) {
   const router = useRouter();
 
-  // Lê o token sincronamente do localStorage para evitar flash de "Carregando..."
-  const [ok, setOk] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    if (!localStorage.getItem('access_token')) return false;
-    if (adminOnly) return false; // adminOnly ainda precisa checar perfil no useEffect
-    return true;
-  });
+  const [ok, setOk] = useState(false);
 
   const [sidebarAberta, setSidebarAberta] = useState(false);
   const [sidebarColapsada, setSidebarColapsada] = useState(false);
