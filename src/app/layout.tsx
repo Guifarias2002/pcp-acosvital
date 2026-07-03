@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"
-          integrity="sha256-Qsx5lrSTcaJNsbdhFz8KGefBPQdiihmMIlFjMUCcMtE="
+          integrity="sha256-ueLuPuhvRHrrsVwU/PUiAM6a/M4Oa4tp09wJB+pES0I="
           crossOrigin="anonymous"
         />
       </head>
