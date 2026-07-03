@@ -24,7 +24,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const [row] = await sql`
     SELECT i.*, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
            p.prazo_entrega::text AS pedido_prazo, p.prioridade AS pedido_prioridade,
-           p.roteiro_base, p.desenho_url IS NOT NULL AS tem_desenho
+           p.roteiro_base, p.desenho_url IS NOT NULL AS tem_desenho,
+           p.pedido_venda_url IS NOT NULL AS tem_pedido_venda,
+           p.ordem_producao_url IS NOT NULL AS tem_ordem_producao
     FROM producao_itempedido i
     JOIN producao_pedido p ON p.id = i.pedido_id
     WHERE i.id = ${itemId}
@@ -47,7 +49,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   const item = formatItem(row);
 
-  const [loteRows, movRows, parcialRows] = await Promise.all([
+  const [loteRows, movRows, parcialRows, obsRows] = await Promise.all([
     sql`
       SELECT l.*, l.quantidade::text AS quantidade_str
       FROM producao_loteitem l WHERE l.item_pedido_id = ${row.id} ORDER BY l.criado_em ASC
@@ -65,6 +67,14 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       WHERE p.item_pedido_id = ${row.id}
         AND p.status != 'cancelada'
       ORDER BY p.criado_em ASC
+    `.catch(() => [] as Record<string, unknown>[]),
+    // Observações — podem não existir se tabela ainda não foi criada
+    sql`
+      SELECT o.*, u.nome AS usuario_nome
+      FROM producao_item_observacao o
+      LEFT JOIN usuarios_usuario u ON u.id = o.usuario_id
+      WHERE o.item_id = ${row.id}
+      ORDER BY o.criado_em ASC
     `.catch(() => [] as Record<string, unknown>[]),
   ]);
 
@@ -112,6 +122,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   return NextResponse.json({
     ...itemSanitizado,
     tem_desenho: temDesenho,
+    tem_pedido_venda: Boolean(row.tem_pedido_venda),
+    tem_ordem_producao: Boolean(row.tem_ordem_producao),
     lotes: loteRows.map(l => ({
       id: l.id, quantidade: l.quantidade_str, status: l.status,
       setor_origem: l.setor_origem, setor_origem_nome: nomeSector(l.setor_origem as string),
@@ -142,5 +154,13 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       atualizado_em: p.atualizado_em,
     })),
     rastreio,
+    observacoes: obsRows.map(o => ({
+      id: o.id,
+      setor: o.setor,
+      setor_nome: nomeSector(o.setor as string),
+      usuario_nome: o.usuario_nome || 'Sistema',
+      texto: o.texto,
+      criado_em: o.criado_em,
+    })),
   });
 }

@@ -6,12 +6,21 @@ import { nomeSector, statusDisplay } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
 
-// Timeout server-side: garante resposta antes do Vercel matar a função (10s limit)
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
-  ]);
+// Timeout server-side: garante resposta antes do Vercel matar a função (10s limit).
+// Cancela as queries ainda pendentes quando o timeout vence a corrida — sem isso, elas
+// continuam rodando no banco e prendem conexões do pool (visto travando o dashboard
+// sob carga, já que a conexão é reaproveitada entre requisições).
+function withTimeout<T>(promise: Promise<T>, ms: number, cancelables: { cancel: () => void }[] = []): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      for (const q of cancelables) { try { q.cancel(); } catch { /* já finalizada */ } }
+      reject(new Error('timeout'));
+    }, ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
 }
 
 export async function GET(req: Request) {
@@ -20,6 +29,54 @@ export async function GET(req: Request) {
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
+  const qCounts = sql`
+    SELECT
+      COUNT(*) FILTER (WHERE status != 'entregue')                                   AS total,
+      COUNT(*) FILTER (WHERE status = 'emitido')                                     AS a_produzir,
+      COUNT(*) FILTER (WHERE status = 'em_producao' AND setor_atual != 'logistica')  AS produzindo,
+      COUNT(*) FILTER (WHERE status = 'em_producao' AND setor_atual = 'logistica')   AS mat_concluido,
+      COUNT(*) FILTER (WHERE status = 'entregue')                                    AS entregues,
+      COUNT(*) FILTER (WHERE prazo_entrega < NOW()::date AND status != 'entregue')   AS atrasados,
+      COUNT(*) FILTER (WHERE prioridade = 'urgente' AND status != 'entregue')        AS urgentes,
+      COUNT(*) FILTER (WHERE status = 'bloqueado')                                   AS bloqueados
+    FROM producao_pedido
+  `;
+
+  const qPorSetor = sql`
+    SELECT setor_atual, COUNT(*) AS qtd
+    FROM producao_itempedido
+    WHERE status NOT IN ('entregue', 'cancelado')
+    GROUP BY setor_atual
+  `;
+
+  const qAtrasados = sql`
+    SELECT id, numero_pedido_venda, cliente, prazo_entrega::text, prioridade, status
+    FROM producao_pedido
+    WHERE prazo_entrega < NOW()::date AND status != 'entregue'
+    ORDER BY prazo_entrega ASC
+    LIMIT 10
+  `;
+
+  const qUltMovs = sql`
+    SELECT m.id, m.setor_origem, m.setor_destino, m.status_anterior, m.status_novo,
+           m.observacao, m.criado_em,
+           i.codigo AS item_codigo, p.numero_pedido_venda,
+           u.nome   AS usuario_nome
+    FROM producao_movimentacaoitem m
+    JOIN producao_itempedido i ON i.id = m.item_id
+    LEFT JOIN producao_pedido p ON p.id = i.pedido_id
+    LEFT JOIN usuarios_usuario u ON u.id = m.usuario_id
+    ORDER BY m.criado_em DESC
+    LIMIT 15
+  `;
+
+  const qDivCounts = sql`
+    SELECT
+      COUNT(*) FILTER (WHERE status IN ('aberta','em_analise'))                            AS abertas,
+      COUNT(*) FILTER (WHERE status IN ('aberta','em_analise') AND prioridade = 'urgente') AS urgentes
+    FROM producao_divergencia
+  `;
+
   const [
     countsRows,
     porSetorRows,
@@ -27,54 +84,12 @@ export async function GET(req: Request) {
     ultMovs,
     divCountsRows,
   ] = await withTimeout(Promise.all([
-    sql`
-      SELECT
-        COUNT(*) FILTER (WHERE status != 'entregue')                                   AS total,
-        COUNT(*) FILTER (WHERE status = 'emitido')                                     AS a_produzir,
-        COUNT(*) FILTER (WHERE status = 'em_producao' AND setor_atual != 'logistica')  AS produzindo,
-        COUNT(*) FILTER (WHERE status = 'em_producao' AND setor_atual = 'logistica')   AS mat_concluido,
-        COUNT(*) FILTER (WHERE status = 'entregue')                                    AS entregues,
-        COUNT(*) FILTER (WHERE prazo_entrega < NOW()::date AND status != 'entregue')   AS atrasados,
-        COUNT(*) FILTER (WHERE prioridade = 'urgente' AND status != 'entregue')        AS urgentes,
-        COUNT(*) FILTER (WHERE status = 'bloqueado')                                   AS bloqueados
-      FROM producao_pedido
-    `.catch(() => [{}]),
-
-    sql`
-      SELECT setor_atual, COUNT(*) AS qtd
-      FROM producao_itempedido
-      WHERE status NOT IN ('entregue', 'cancelado')
-      GROUP BY setor_atual
-    `.catch(() => []),
-
-    sql`
-      SELECT id, numero_pedido_venda, cliente, prazo_entrega::text, prioridade, status
-      FROM producao_pedido
-      WHERE prazo_entrega < NOW()::date AND status != 'entregue'
-      ORDER BY prazo_entrega ASC
-      LIMIT 10
-    `.catch(() => []),
-
-    sql`
-      SELECT m.id, m.setor_origem, m.setor_destino, m.status_anterior, m.status_novo,
-             m.observacao, m.criado_em,
-             i.codigo AS item_codigo, p.numero_pedido_venda,
-             u.nome   AS usuario_nome
-      FROM producao_movimentacaoitem m
-      JOIN producao_itempedido i ON i.id = m.item_id
-      LEFT JOIN producao_pedido p ON p.id = i.pedido_id
-      LEFT JOIN usuarios_usuario u ON u.id = m.usuario_id
-      ORDER BY m.criado_em DESC
-      LIMIT 15
-    `.catch(() => []),
-
-    sql`
-      SELECT
-        COUNT(*) FILTER (WHERE status IN ('aberta','em_analise'))                            AS abertas,
-        COUNT(*) FILTER (WHERE status IN ('aberta','em_analise') AND prioridade = 'urgente') AS urgentes
-      FROM producao_divergencia
-    `.catch(() => [{ abertas: 0, urgentes: 0 }]),
-  ]), 7500); // 7.5s — Vercel mata em 10s, deixa margem para serializar resposta
+    qCounts.catch(() => [{}]),
+    qPorSetor.catch(() => []),
+    qAtrasados.catch(() => []),
+    qUltMovs.catch(() => []),
+    qDivCounts.catch(() => [{ abertas: 0, urgentes: 0 }]),
+  ]), 7500, [qCounts, qPorSetor, qAtrasados, qUltMovs, qDivCounts]); // 7.5s — Vercel mata em 10s, deixa margem para serializar resposta
 
   const counts = (countsRows[0] ?? {}) as Record<string, unknown>;
   const divCounts = divCountsRows[0] ?? { abertas: 0, urgentes: 0 };

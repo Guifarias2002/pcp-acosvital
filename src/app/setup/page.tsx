@@ -36,6 +36,30 @@ const SCRIPTS = [
     color: '#7c3aed',
     url: '/api/setup/rls',
   },
+  {
+    id: 'observacoes-item',
+    label: 'Observações por Item',
+    desc: 'Cria a tabela producao_item_observacao para o histórico de observações por setor',
+    icon: 'bi-chat-left-text-fill',
+    color: '#0d6efd',
+    url: '/api/setup/observacoes-item',
+  },
+  {
+    id: 'catalogo',
+    label: 'Catálogo de Materiais',
+    desc: 'Cria a tabela producao_catalogo_material para a biblioteca de materiais',
+    icon: 'bi-journal-bookmark-fill',
+    color: '#059669',
+    url: '/api/setup/catalogo',
+  },
+  {
+    id: 'anexos-producao',
+    label: 'Anexos de Pedido de Venda / OP',
+    desc: 'Adiciona as colunas pedido_venda_url e ordem_producao_url em producao_pedido',
+    icon: 'bi-file-earmark-text-fill',
+    color: '#b45309',
+    url: '/api/setup/anexos-producao',
+  },
 ];
 
 export default function SetupPage() {

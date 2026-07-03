@@ -285,6 +285,10 @@ export async function POST(
         return NextResponse.json({ erro: `Para liberar tudo use o botão Liberar. Quantidade maxima para parcial: ${qtdPendente - 1}` }, { status: 400 });
 
       await sql.begin(async (tx) => {
+        // Trava por item — evita duas requisições simultâneas (duplo clique, dois usuários)
+        // criarem duas parciais principais duplicadas no primeiro split deste item.
+        await (tx as unknown as typeof sql)`SELECT pg_advisory_xact_lock(778899, ${item.id})`;
+
         // Garante que exista uma parcial principal em emissao (para o restante)
         const [parcialEmissao] = await (tx as unknown as typeof sql)`
           SELECT id FROM producao_itemparcial
@@ -359,6 +363,8 @@ export async function POST(
     // Se a quantidade pedida cobre todo o setor, converte em enviar_tudo
     if (qtd >= qtdTotalNoSetor) {
       await sql.begin(async (tx) => {
+        // Trava por item — mesma proteção contra corrida do bloco de emissão acima.
+        await tx`SELECT pg_advisory_xact_lock(778899, ${item.id})`;
         await tx`
           INSERT INTO producao_movimentacaoitem
             (item_id, pedido_id, usuario_id, setor_origem, setor_destino,
@@ -381,6 +387,9 @@ export async function POST(
     // Envio parcial real: consome das parciais ativas no setor (maior primeiro)
     // até atingir a quantidade pedida. Assim 30 un de (25+75) funciona normalmente.
     await sql.begin(async (tx) => {
+      // Trava por item — mesma proteção contra corrida do bloco de emissão acima.
+      await (tx as unknown as typeof sql)`SELECT pg_advisory_xact_lock(778899, ${item.id})`;
+
       // Busca e trava todas as parciais ativas no setor (maior primeiro)
       let parciaisAtivas = await (tx as unknown as typeof sql)`
         SELECT id, quantidade::float AS quantidade

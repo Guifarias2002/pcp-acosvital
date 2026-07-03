@@ -143,6 +143,8 @@ export function formatPedido(row: any, itens: unknown[] = []) {
     canhoto_url: row.canhoto_url || null,
     anexo_pendente: row.anexo_pendente || false,
     tem_desenho: !!row.desenho_url,
+    tem_pedido_venda: !!row.pedido_venda_url,
+    tem_ordem_producao: !!row.ordem_producao_url,
     itens,
   };
 }
@@ -202,6 +204,30 @@ export async function getPedidoComItens(id: number) {
     }
   }
 
+  // Observações por item — histórico acumulado por setor (tabela pode não existir ainda)
+  let observacoes: Record<number, { id: number; setor: string; setor_nome: string; usuario_nome: string; texto: string; criado_em: string }[]> = {};
+  if (itemIds.length > 0) {
+    const obsRows = await sql`
+      SELECT o.*, u.nome AS usuario_nome
+      FROM producao_item_observacao o
+      LEFT JOIN usuarios_usuario u ON u.id = o.usuario_id
+      WHERE o.item_id = ANY(${itemIds})
+      ORDER BY o.criado_em ASC
+    `.catch(() => [] as Record<string, unknown>[]);
+    for (const o of obsRows) {
+      const iid = Number(o.item_id);
+      if (!observacoes[iid]) observacoes[iid] = [];
+      observacoes[iid].push({
+        id: o.id as number,
+        setor: o.setor as string,
+        setor_nome: nomeSector(o.setor as string),
+        usuario_nome: (o.usuario_nome as string) || 'Sistema',
+        texto: o.texto as string,
+        criado_em: o.criado_em as string,
+      });
+    }
+  }
+
   // Distribuição de parciais ativas por setor para cada item
   let parciaisPorSetor: Record<number, { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean; motivo_retrabalho: string | null }[]> = {};
   if (itemIds.length > 0) {
@@ -241,6 +267,7 @@ export async function getPedidoComItens(id: number) {
     lotes: lotes[i.id] || [],
     movimentacoes: movs[i.id] || [],
     parciais_por_setor: parciaisPorSetor[i.id] || [],
+    observacoes: observacoes[i.id] || [],
   }));
 
   return formatPedido(pedRow, itensComDetalhe);

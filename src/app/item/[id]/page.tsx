@@ -50,6 +50,9 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   const [desenhoTipo, setDesenhoTipo] = useState<'img' | 'pdf' | null>(null);
   const [uploadingDesenho, setUploadingDesenho] = useState(false);
   const [desenhoMsg, setDesenhoMsg] = useState('');
+  const [novaObservacao, setNovaObservacao] = useState('');
+  const [enviandoObservacao, setEnviandoObservacao] = useState(false);
+  const [erroObservacao, setErroObservacao] = useState('');
 
   const carregarRef = useRef<() => void>(() => {});
   function carregar() {
@@ -160,6 +163,25 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   }
 
   const isAdmin = getUser()?.is_staff;
+  const podeComentar = !!isAdmin || getUser()?.setor === item?.setor_atual;
+
+  async function adicionarObservacao() {
+    if (!novaObservacao.trim()) return;
+    setEnviandoObservacao(true);
+    setErroObservacao('');
+    try {
+      const token = localStorage.getItem('token') || '';
+      const res = await fetch(`/api/item/${id}/observacao`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ texto: novaObservacao.trim() }),
+      });
+      const data = await res.json();
+      if (data.ok) { setNovaObservacao(''); carregar(); }
+      else setErroObservacao(data.erro || 'Erro ao adicionar observação');
+    } catch { setErroObservacao('Erro ao adicionar observação'); }
+    finally { setEnviandoObservacao(false); }
+  }
 
   if (loading || !item) return (
     <AuthGuard><div className="p-8 text-gray-400">Carregando...</div></AuthGuard>
@@ -617,6 +639,23 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                 )}
               </div>
 
+              {/* Documentos do Pedido — leitura para todos; upload é feito na página do pedido */}
+              {((item as any).tem_pedido_venda || (item as any).tem_ordem_producao) && (
+                <div className="mt-4 border-t pt-4">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">📄 Documentos do Pedido</p>
+                  <div className="space-y-1.5">
+                    {(item as any).tem_pedido_venda && (
+                      <a href={`/api/pedidos/${item.pedido_id}/pedido-venda`} target="_blank" rel="noreferrer"
+                        className="block text-xs text-blue-700 hover:underline">✅ Ver / baixar pedido de venda</a>
+                    )}
+                    {(item as any).tem_ordem_producao && (
+                      <a href={`/api/pedidos/${item.pedido_id}/ordem-producao`} target="_blank" rel="noreferrer"
+                        className="block text-xs text-blue-700 hover:underline">✅ Ver / baixar ordem de produção</a>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Painel enviar parcial */}
               {showParcial && (
                 <div className="mt-3 space-y-2 border-t pt-3">
@@ -730,6 +769,43 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
 
           {/* COLUNA DIREITA — LINHA DO TEMPO */}
           <LinhaDoTempo movimentacoes={item.movimentacoes || []} />
+        </div>
+
+        {/* ── Observações por setor ───────────────────────────────────────── */}
+        <div className="bg-white rounded-xl border shadow-sm p-4 mt-4">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+            <i className="bi bi-chat-left-text mr-1" />Observações
+          </p>
+          <div className="space-y-2 mb-3">
+            {(item.observacoes || []).length === 0 && (
+              <p className="text-xs text-gray-400 italic">Nenhuma observação registrada ainda.</p>
+            )}
+            {(item.observacoes || []).map(o => (
+              <div key={o.id} className="flex gap-2 text-xs bg-gray-50 rounded-lg p-2.5">
+                <div className="flex-1">
+                  <p className="text-gray-700">{o.texto}</p>
+                  <p className="text-gray-400 mt-1">
+                    <span className="font-semibold text-gray-500">{o.usuario_nome}</span> · {o.setor_nome} · {new Date(o.criado_em).toLocaleString('pt-BR')}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+          {podeComentar ? (
+            <div className="flex gap-2 items-start">
+              <textarea value={novaObservacao} onChange={e => setNovaObservacao(e.target.value)}
+                placeholder="Adicionar observação sobre este item..."
+                rows={2}
+                className="flex-1 border rounded px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-400" />
+              <button onClick={adicionarObservacao} disabled={enviandoObservacao || !novaObservacao.trim()}
+                className="bg-blue-600 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
+                {enviandoObservacao ? '⏳' : 'Enviar'}
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 italic">Apenas o líder/operador do setor atual pode adicionar observações.</p>
+          )}
+          {erroObservacao && <p className="text-xs text-red-600 mt-2">{erroObservacao}</p>}
         </div>
 
         {/* ── Rastreabilidade ──────────────────────────────────────────────── */}

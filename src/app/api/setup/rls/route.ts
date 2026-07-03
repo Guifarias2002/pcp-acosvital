@@ -33,6 +33,8 @@ export async function POST(req: Request) {
     'producao_setor',
     'producao_pedido_excluido',
     'producao_divergencia',
+    'producao_item_observacao',
+    'producao_catalogo_material',
     'usuarios_usuario',
     'auditoria_login',
   ];

@@ -162,6 +162,18 @@ export interface ItemPedido {
   movimentacoes?: MovimentacaoItem[];
   parciais?: ItemParcial[];
   rastreio?: RastreioItem;
+  observacoes?: ItemObservacao[];
+  tem_pedido_venda?: boolean;
+  tem_ordem_producao?: boolean;
+}
+
+export interface ItemObservacao {
+  id: number;
+  setor: string;
+  setor_nome: string;
+  usuario_nome: string;
+  texto: string;
+  criado_em: string;
 }
 
 export interface Pedido {
@@ -188,6 +200,12 @@ export interface Pedido {
   valor_total?: string | null;
   atualizado_em?: string;
   setores_parciais?: string[];
+  nota_url?: string | null;
+  canhoto_url?: string | null;
+  anexo_pendente?: boolean;
+  tem_desenho?: boolean;
+  tem_pedido_venda?: boolean;
+  tem_ordem_producao?: boolean;
   itens: ItemPedido[];
 }
 

@@ -53,11 +53,18 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const [anexoMsg, setAnexoMsg] = useState<string | null>(null);
   const [uploadingDesenho, setUploadingDesenho] = useState(false);
   const [desenhoMsg, setDesenhoMsg] = useState<string | null>(null);
+  const [uploadingPV, setUploadingPV] = useState(false);
+  const [uploadingOP, setUploadingOP] = useState(false);
+  const [msgDocPedido, setMsgDocPedido] = useState<string | null>(null);
   const [liberarModal, setLiberarModal] = useState<{ itemId: number; roteiro: string[]; setorAtual: string; proximoSetor: string | null; parcial?: boolean; qtdMax?: number; unidade?: string } | null>(null);
   const [erroAcao, setErroAcao] = useState<string | null>(null);
   const [itemDesenhoAberto, setItemDesenhoAberto] = useState<number | null>(null);
   const [uploadingItemDesenho, setUploadingItemDesenho] = useState<number | null>(null);
   const [erroItemDesenho, setErroItemDesenho] = useState<string | null>(null);
+  const [itemObsAberto, setItemObsAberto] = useState<number | null>(null);
+  const [novaObsTexto, setNovaObsTexto] = useState('');
+  const [enviandoObs, setEnviandoObs] = useState<number | null>(null);
+  const [erroObs, setErroObs] = useState<string | null>(null);
   const user = getUser();
   const isAdmin = user?.is_staff;
   const verFinanceiro = user?.is_staff && user?.perfil !== 'lider';
@@ -98,6 +105,24 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
     carregar();
   }
 
+  async function adicionarObservacaoItem(itemId: number) {
+    if (!novaObsTexto.trim()) return;
+    setEnviandoObs(itemId);
+    setErroObs(null);
+    try {
+      const token = localStorage.getItem('token') || '';
+      const res = await fetch(`/api/item/${itemId}/observacao`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ texto: novaObsTexto.trim() }),
+      });
+      const data = await res.json();
+      if (data.ok) { setNovaObsTexto(''); carregar(); }
+      else setErroObs(data.erro || 'Erro ao adicionar observação');
+    } catch { setErroObs('Erro ao adicionar observação'); }
+    finally { setEnviandoObs(null); }
+  }
+
   async function removerAnexo(tipo: 'nota' | 'canhoto') {
     const token = localStorage.getItem('token') || '';
     await fetch(`/api/pedidos/${id}/anexo`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ tipo }) });
@@ -123,6 +148,29 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
     const token = localStorage.getItem('token') || '';
     await fetch(`/api/pedidos/${id}/desenho`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
     setDesenhoMsg(null);
+    carregar();
+  }
+
+  async function uploadDocPedido(tipo: 'pedido-venda' | 'ordem-producao', arquivo: File) {
+    const setUploading = tipo === 'pedido-venda' ? setUploadingPV : setUploadingOP;
+    setUploading(true);
+    setMsgDocPedido(null);
+    try {
+      const token = localStorage.getItem('token') || '';
+      const fd = new FormData();
+      fd.append('arquivo', arquivo);
+      const res = await fetch(`/api/pedidos/${id}/${tipo}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+      const data = await res.json();
+      if (data.ok) { setMsgDocPedido('Documento anexado com sucesso!'); carregar(); }
+      else setMsgDocPedido(data.erro || `Erro ${res.status}`);
+    } catch { setMsgDocPedido('Erro ao enviar.'); }
+    finally { setUploading(false); }
+  }
+
+  async function removerDocPedido(tipo: 'pedido-venda' | 'ordem-producao') {
+    const token = localStorage.getItem('token') || '';
+    await fetch(`/api/pedidos/${id}/${tipo}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    setMsgDocPedido(null);
     carregar();
   }
 
@@ -527,6 +575,22 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                           <i className="bi bi-eye" /> Ver
                         </Link>
 
+                        {/* Botão de observações por item — visível a todos */}
+                        {(() => {
+                          const qtdObs = (item.observacoes || []).length;
+                          const aberto = itemObsAberto === item.id;
+                          return (
+                            <button
+                              onClick={() => { setItemObsAberto(aberto ? null : item.id); setErroObs(null); }}
+                              title="Observações"
+                              style={{ background: aberto ? '#1d4ed8' : qtdObs > 0 ? '#dbeafe' : '#f8fafc', color: aberto ? '#fff' : qtdObs > 0 ? '#1d4ed8' : '#64748b', border: `1px solid ${aberto ? '#1d4ed8' : qtdObs > 0 ? '#93c5fd' : '#e2e8f0'}`, borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                            >
+                              <i className="bi bi-chat-left-text" />
+                              {qtdObs > 0 ? `${qtdObs} observaç${qtdObs > 1 ? 'ões' : 'ão'}` : 'Observação'}
+                            </button>
+                          );
+                        })()}
+
                         {/* Botão anexar desenho por item */}
                         {isAdmin && (() => {
                           const desenhos: string[] = (item as unknown as Record<string, unknown>).desenhos as string[] || [];
@@ -713,6 +777,46 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                         </div>
                       );
                     })()}
+
+                    {/* Painel de observações por item — visível a todos */}
+                    {itemObsAberto === item.id && (() => {
+                      const observacoes = item.observacoes || [];
+                      const podeComentar = isAdmin || user?.setor === item.setor_atual;
+                      return (
+                        <div style={{ marginTop: 10, background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 8, padding: '12px 14px' }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8', margin: '0 0 8px' }}>
+                            <i className="bi bi-chat-left-text" style={{ marginRight: 5 }} />Observações do item
+                          </p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                            {observacoes.length === 0 && (
+                              <p style={{ fontSize: 12, color: '#64748b', margin: 0, fontStyle: 'italic' }}>Nenhuma observação registrada ainda.</p>
+                            )}
+                            {observacoes.map(o => (
+                              <div key={o.id} style={{ background: '#fff', borderRadius: 6, border: '1px solid #dbeafe', padding: '6px 10px' }}>
+                                <p style={{ fontSize: 12, color: '#374151', margin: 0 }}>{o.texto}</p>
+                                <p style={{ fontSize: 11, color: '#94a3b8', margin: '3px 0 0' }}>
+                                  <strong style={{ color: '#64748b' }}>{o.usuario_nome}</strong> · {o.setor_nome} · {new Date(o.criado_em).toLocaleString('pt-BR')}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                          {podeComentar ? (
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                              <textarea value={novaObsTexto} onChange={e => setNovaObsTexto(e.target.value)}
+                                placeholder="Adicionar observação..." rows={2}
+                                style={{ flex: 1, border: '1px solid #93c5fd', borderRadius: 6, padding: '6px 10px', fontSize: 12, resize: 'none' }} />
+                              <button onClick={() => adicionarObservacaoItem(item.id)} disabled={enviandoObs === item.id || !novaObsTexto.trim()}
+                                style={{ background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: enviandoObs === item.id || !novaObsTexto.trim() ? 0.6 : 1 }}>
+                                {enviandoObs === item.id ? '⏳' : 'Enviar'}
+                              </button>
+                            </div>
+                          ) : (
+                            <p style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic', margin: 0 }}>Apenas o líder/operador do setor atual pode adicionar observações.</p>
+                          )}
+                          {erroObs && <p style={{ fontSize: 11, color: '#dc2626', marginTop: 6 }}>{erroObs}</p>}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
@@ -810,6 +914,63 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                 {anexoMsg && <p style={{ fontSize: 11, color: '#16a34a', marginTop: 8, textAlign: 'center' }}>{anexoMsg}</p>}
               </div>
             )}
+
+            {/* Card de Documentos do Pedido — visível a todos, upload só admin */}
+            <div style={{ borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', padding: 16 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 12px' }}>
+                📄 Documentos do Pedido
+              </p>
+
+              {/* Pedido de Venda */}
+              <div style={{ marginBottom: 10 }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '0 0 4px' }}>Pedido de Venda</p>
+                {pedido.tem_pedido_venda ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <a href={`/api/pedidos/${id}/pedido-venda`} target="_blank" rel="noopener noreferrer"
+                      style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', flex: 1 }}>
+                      ✅ Ver / baixar pedido de venda
+                    </a>
+                    {isAdmin && (
+                      <button onClick={() => removerDocPedido('pedido-venda')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12 }}>✕</button>
+                    )}
+                  </div>
+                ) : isAdmin ? (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: '#6b7280', border: '1px dashed #d1d5db', borderRadius: 6, padding: '6px 10px' }}>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadDocPedido('pedido-venda', f); e.target.value = ''; }} />
+                    {uploadingPV ? '⏳ Enviando...' : '📤 Anexar pedido de venda'}
+                  </label>
+                ) : (
+                  <p style={{ fontSize: 12, color: '#9ca3af', margin: 0, fontStyle: 'italic' }}>Ainda não anexado.</p>
+                )}
+              </div>
+
+              {/* Ordem de Produção */}
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '0 0 4px' }}>Ordem de Produção</p>
+                {pedido.tem_ordem_producao ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <a href={`/api/pedidos/${id}/ordem-producao`} target="_blank" rel="noopener noreferrer"
+                      style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', flex: 1 }}>
+                      ✅ Ver / baixar ordem de produção
+                    </a>
+                    {isAdmin && (
+                      <button onClick={() => removerDocPedido('ordem-producao')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12 }}>✕</button>
+                    )}
+                  </div>
+                ) : isAdmin ? (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: '#6b7280', border: '1px dashed #d1d5db', borderRadius: 6, padding: '6px 10px' }}>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadDocPedido('ordem-producao', f); e.target.value = ''; }} />
+                    {uploadingOP ? '⏳ Enviando...' : '📤 Anexar ordem de produção'}
+                  </label>
+                ) : (
+                  <p style={{ fontSize: 12, color: '#9ca3af', margin: 0, fontStyle: 'italic' }}>Ainda não anexada.</p>
+                )}
+              </div>
+
+              {msgDocPedido && <p style={{ fontSize: 11, color: msgDocPedido.includes('sucesso') ? '#16a34a' : '#dc2626', marginTop: 8 }}>{msgDocPedido}</p>}
+            </div>
 
             {/* Card do pedido */}
             <div className={`rounded-xl border-2 p-4 ${pedido.atrasado ? 'border-red-300 bg-red-50' : 'border-yellow-300 bg-yellow-50'}`}>
