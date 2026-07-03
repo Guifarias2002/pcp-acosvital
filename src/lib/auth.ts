@@ -1,7 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose';
 
-if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET env var obrigatória — configure no Vercel');
-const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? '');
 
 export interface JWTPayload {
   id: number;
