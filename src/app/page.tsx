@@ -410,7 +410,9 @@ export default function DashboardPage() {
       .catch(() => setPedidosData([]));
   }, [data]);
 
-  const carregarDashboard = useCallback(() => { getDashboard().then(setData); }, []);
+  const carregarDashboard = useCallback(() => {
+    getDashboard().then(d => { setData(d); setErro(false); }).catch(() => {});
+  }, []);
   useRealtime(
     ['producao_itemparcial', 'producao_itempedido', 'producao_movimentacaoitem'],
     carregarDashboard,
