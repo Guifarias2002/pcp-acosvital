@@ -6,13 +6,29 @@ import { formatItem, nomeSector } from '@/lib/queries';
 import { withTimeout } from '@/lib/queryTimeout';
 
 export const dynamic = 'force-dynamic';
+
+// Cache em memoria por instancia serverless (temporario, enquanto o banco atual
+// esta sob incidente de capacidade). Chaveado por setor+permissao financeira,
+// porque a resposta varia por usuario (operador so ve o proprio setor, valor
+// financeiro mascarado pra lider) — nao pode ser um cache unico compartilhado.
+const cache = new Map<string, { data: unknown; ts: number }>();
+const CACHE_FRESH_MS = 5000;
+
 export async function GET(req: Request) {
+  let cacheKey: string | null = null;
   try {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
 
   // Operadores veem apenas o próprio setor
   const filtroSetor = !user.is_staff && user.setor ? user.setor : null;
+  const verFinanceiro = user.is_staff && user.perfil !== 'lider';
+  cacheKey = `${filtroSetor ?? 'all'}:${verFinanceiro ? '1' : '0'}`;
+
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < CACHE_FRESH_MS) {
+    return NextResponse.json(cached.data);
+  }
 
   const qItens =
     filtroSetor
@@ -66,7 +82,6 @@ export async function GET(req: Request) {
     [qItens, qLotes],
   );
 
-  const verFinanceiro = user.is_staff && user.perfil !== 'lider';
   const setoresFiltrados = filtroSetor
     ? SETOR_CHOICES.filter(([cod]) => cod === filtroSetor)
     : SETOR_CHOICES;
@@ -94,9 +109,13 @@ export async function GET(req: Request) {
       })),
   }));
 
-  return NextResponse.json({ setores });
+  const result = { setores };
+  cache.set(cacheKey, { data: result, ts: Date.now() });
+  return NextResponse.json(result);
   } catch (e) {
     console.error('[kanban]', e);
+    const cached = cacheKey ? cache.get(cacheKey) : undefined;
+    if (cached) return NextResponse.json(cached.data);
     return NextResponse.json({ erro: 'Erro ao carregar kanban' }, { status: 500 });
   }
 }

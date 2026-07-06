@@ -6,6 +6,13 @@ import { nomeSector, statusDisplay } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
 
+// Cache em memoria por instancia serverless (temporario, enquanto o banco atual
+// esta sob incidente de capacidade). Evita reconsultar o banco a cada poucos
+// segundos e serve o ultimo resultado bom se a consulta nova falhar/estourar o
+// tempo, em vez de quebrar a tela.
+let cache: { data: unknown; ts: number } | null = null;
+const CACHE_FRESH_MS = 5000;
+
 // Timeout server-side: garante resposta antes do Vercel matar a função (10s limit).
 // Cancela as queries ainda pendentes quando o timeout vence a corrida — sem isso, elas
 // continuam rodando no banco e prendem conexões do pool (visto travando o dashboard
@@ -28,6 +35,10 @@ export async function GET(req: Request) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+
+  if (cache && Date.now() - cache.ts < CACHE_FRESH_MS) {
+    return NextResponse.json(cache.data);
+  }
 
   const qCounts = sql`
     SELECT
@@ -107,7 +118,7 @@ export async function GET(req: Request) {
     }))
     .filter(s => s.qtd > 0);
 
-  return NextResponse.json({
+  const result = {
     total:           Number(counts.total),
     a_produzir:      Number(counts.a_produzir),
     ag_recebimento:  0,
@@ -136,9 +147,12 @@ export async function GET(req: Request) {
     })),
     divergencias_abertas:  Number(divCounts.abertas),
     divergencias_urgentes: Number(divCounts.urgentes),
-  });
+  };
+  cache = { data: result, ts: Date.now() };
+  return NextResponse.json(result);
   } catch (e) {
     console.error('[dashboard] erro:', e);
+    if (cache) return NextResponse.json(cache.data);
     return NextResponse.json({ erro: 'Erro ao carregar dashboard' }, { status: 500 });
   }
 }
