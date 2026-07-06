@@ -24,12 +24,24 @@ const STATUS_COR: Record<string, { bg: string; text: string }> = {
 
 function SetorRow({ s, isAdmin }: { s: DashboardData['por_setor'][0]; isAdmin: boolean | undefined }) {
   const [aberto, setAberto] = useState(false);
+  const [pedidoAberto, setPedidoAberto] = useState<number | null>(null);
 
   // Agrupa itens por status
   const porStatus: Record<string, number> = {};
   for (const item of (s.itens ?? [])) {
     porStatus[item.status] = (porStatus[item.status] || 0) + 1;
   }
+
+  // Agrupa itens por pedido — mostrado como lista de pedidos ao expandir o setor
+  const pedidosMap = new Map<number, { numero: string; cliente: string; itens: NonNullable<typeof s.itens> }>();
+  for (const item of (s.itens ?? [])) {
+    const pid = item.pedido_id;
+    if (!pedidosMap.has(pid)) {
+      pedidosMap.set(pid, { numero: item.pedido_numero, cliente: item.pedido_cliente, itens: [] });
+    }
+    pedidosMap.get(pid)!.itens.push(item);
+  }
+  const pedidosDoSetor = Array.from(pedidosMap.entries());
 
   return (
     <div style={{ borderBottom: '1px solid #f0f0f0' }}>
@@ -73,62 +85,85 @@ function SetorRow({ s, isAdmin }: { s: DashboardData['por_setor'][0]; isAdmin: b
         </div>
       </button>
 
-      {/* Itens expandidos */}
+      {/* Pedidos do setor — clique em um pedido para ver os materiais */}
       {aberto && (
         <div style={{ paddingBottom: 6 }}>
-          {(s.itens ?? []).map(item => {
-            const roteiro = item.roteiro_efetivo || [];
-            const idxAtual = roteiro.indexOf(item.setor_atual);
-            return (
-              <Link key={item.id} href={`/item/${item.id}`} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '8px 16px 8px 40px', textDecoration: 'none',
-                borderTop: '1px solid #f9f9f9', gap: 10,
-              }}>
-                {/* Info do item */}
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <strong style={{ color: '#1a3a5c', fontSize: 12 }}>{item.pedido_numero}</strong>
-                    <span style={{ color: '#888', fontSize: 11 }}>{item.codigo}</span>
-                    <span style={{ color: '#0d6efd', fontWeight: 700, fontSize: 11 }}>{item.quantidade_pendente} {item.unidade}</span>
-                  </div>
-                  {/* Etapas do roteiro */}
-                  {roteiro.length > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-                      {roteiro.map((setor, i) => {
-                        const feito = i < idxAtual;
-                        const atual = i === idxAtual;
-                        return (
-                          <span key={setor} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <span style={{
-                              fontSize: 10, padding: '1px 6px', borderRadius: 10, fontWeight: atual ? 700 : 500,
-                              background: atual ? '#1a3a5c' : feito ? '#d1fae5' : '#f3f4f6',
-                              color: atual ? '#fff' : feito ? '#065f46' : '#9ca3af',
-                              border: atual ? 'none' : feito ? '1px solid #a7f3d0' : '1px solid #e5e7eb',
-                            }}>
-                              {feito && '✓ '}{NOMES_SETOR[setor] || setor}
-                            </span>
-                            {i < roteiro.length - 1 && (
-                              <span style={{ color: '#d1d5db', fontSize: 9 }}>›</span>
-                            )}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
+          {pedidosDoSetor.map(([pedidoId, info]) => (
+            <div key={pedidoId}>
+              <button
+                onClick={() => setPedidoAberto(v => v === pedidoId ? null : pedidoId)}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '8px 16px 8px 32px', background: 'none', border: 'none', cursor: 'pointer',
+                  textAlign: 'left', borderTop: '1px solid #f9f9f9',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  <i className={`bi bi-chevron-${pedidoAberto === pedidoId ? 'down' : 'right'}`} style={{ fontSize: 10, color: '#999' }} />
+                  <strong style={{ color: '#1a3a5c', fontSize: 12 }}>{info.numero}</strong>
+                  <span style={{ color: '#888', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{info.cliente}</span>
                 </div>
-                {/* Status badge */}
                 <span style={{
-                  fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600,
-                  flexShrink: 0, whiteSpace: 'nowrap',
-                  background: (STATUS_COR[item.status] || { bg: '#f3f4f6' }).bg,
-                  color: (STATUS_COR[item.status] || { text: '#555' }).text,
-                }}>
-                  {item.status_display}
-                </span>
-              </Link>
-            );
-          })}
+                  background: '#e9ecef', color: '#555', fontSize: 10, fontWeight: 700,
+                  minWidth: 18, height: 18, borderRadius: 9, padding: '0 5px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>{info.itens.length}</span>
+              </button>
+
+              {pedidoAberto === pedidoId && info.itens.map(item => {
+                const roteiro = item.roteiro_efetivo || [];
+                const idxAtual = roteiro.indexOf(item.setor_atual);
+                return (
+                  <Link key={item.id} href={`/item/${item.id}`} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '8px 16px 8px 56px', textDecoration: 'none',
+                    borderTop: '1px solid #f9f9f9', gap: 10,
+                  }}>
+                    {/* Info do item */}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <span style={{ color: '#888', fontSize: 11 }}>{item.codigo}</span>
+                        <span style={{ color: '#0d6efd', fontWeight: 700, fontSize: 11 }}>{item.quantidade_pendente} {item.unidade}</span>
+                      </div>
+                      {/* Etapas do roteiro */}
+                      {roteiro.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                          {roteiro.map((setor, i) => {
+                            const feito = i < idxAtual;
+                            const atual = i === idxAtual;
+                            return (
+                              <span key={setor} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <span style={{
+                                  fontSize: 10, padding: '1px 6px', borderRadius: 10, fontWeight: atual ? 700 : 500,
+                                  background: atual ? '#1a3a5c' : feito ? '#d1fae5' : '#f3f4f6',
+                                  color: atual ? '#fff' : feito ? '#065f46' : '#9ca3af',
+                                  border: atual ? 'none' : feito ? '1px solid #a7f3d0' : '1px solid #e5e7eb',
+                                }}>
+                                  {feito && '✓ '}{NOMES_SETOR[setor] || setor}
+                                </span>
+                                {i < roteiro.length - 1 && (
+                                  <span style={{ color: '#d1d5db', fontSize: 9 }}>›</span>
+                                )}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    {/* Status badge */}
+                    <span style={{
+                      fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600,
+                      flexShrink: 0, whiteSpace: 'nowrap',
+                      background: (STATUS_COR[item.status] || { bg: '#f3f4f6' }).bg,
+                      color: (STATUS_COR[item.status] || { text: '#555' }).text,
+                    }}>
+                      {item.status_display}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </div>
       )}
     </div>
