@@ -67,18 +67,37 @@ export default function CatalogoPage() {
     setEnviando(true);
     setErro('');
     try {
-      const fd = new FormData();
-      fd.append('arquivo', arquivo);
-      fd.append('nome', nome.trim());
-      if (descricao.trim()) fd.append('descricao', descricao.trim());
-      if (categoria.trim()) fd.append('categoria', categoria.trim());
-      await api.post('/api/catalogo', fd);
+      // 1. Pede URL assinada — arquivos grandes não podem passar pelo nosso
+      //    servidor (Vercel rejeita corpos acima de 4.5MB antes do código rodar).
+      const { data: urlData } = await api.post('/api/catalogo/upload-url', {
+        nomeArquivo: arquivo.name,
+        contentType: arquivo.type,
+      });
+
+      // 2. Envia o arquivo direto para o Storage do Supabase.
+      const upRes = await fetch(urlData.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': arquivo.type || 'application/octet-stream' },
+        body: arquivo,
+      });
+      if (!upRes.ok) throw new Error(`Falha ao enviar arquivo (${upRes.status})`);
+
+      // 3. Registra os metadados no catálogo.
+      await api.post('/api/catalogo', {
+        nome: nome.trim(),
+        descricao: descricao.trim() || undefined,
+        categoria: categoria.trim() || undefined,
+        storagePath: urlData.storagePath,
+        nomeArquivo: arquivo.name,
+        tamanho: arquivo.size,
+        mimeType: arquivo.type,
+      });
       setShowUpload(false);
       setNome(''); setDescricao(''); setCategoria(''); setArquivo(null);
       carregar();
     } catch (e: unknown) {
-      const ax = e as { response?: { data?: { erro?: string } } };
-      setErro(ax?.response?.data?.erro || 'Erro ao enviar material');
+      const ax = e as { response?: { data?: { erro?: string } }; message?: string };
+      setErro(ax?.response?.data?.erro || ax?.message || 'Erro ao enviar material');
     } finally {
       setEnviando(false);
     }

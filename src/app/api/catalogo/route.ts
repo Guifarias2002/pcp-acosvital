@@ -4,9 +4,6 @@ import { autenticar } from '@/lib/middleware';
 
 export const dynamic = 'force-dynamic';
 
-const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/^﻿/, '');
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const BUCKET = 'catalogo';
 const MAX_SIZE = 20 * 1024 * 1024;
 
 // GET /api/catalogo?q=busca — lista materiais (qualquer usuário autenticado)
@@ -51,7 +48,10 @@ export async function GET(req: Request) {
   }
 }
 
-// POST /api/catalogo — upload de novo material (líder ou administrador)
+// POST /api/catalogo — registra material cujo arquivo já foi enviado ao Storage
+// via URL assinada (ver /api/catalogo/upload-url). Corpo é só metadados (JSON
+// pequeno) — arquivos grandes não podem passar direto por esta rota porque a
+// Vercel rejeita corpos de requisição acima de 4.5MB antes do código rodar.
 export async function POST(req: Request) {
   try {
     const user = await autenticar(req);
@@ -59,45 +59,25 @@ export async function POST(req: Request) {
     if (!user.is_staff && user.perfil !== 'lider')
       return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
-    if (!SERVICE_KEY)
-      return NextResponse.json({ erro: 'Configuração do servidor incompleta (SERVICE_KEY)' }, { status: 500 });
+    const body = await req.json().catch(() => ({}));
+    const nome = String(body.nome || '').trim().slice(0, 200);
+    const descricao = String(body.descricao || '').trim().slice(0, 1000) || null;
+    const categoria = String(body.categoria || '').trim().slice(0, 100) || null;
+    const storagePath = String(body.storagePath || '');
+    const nomeArquivo = String(body.nomeArquivo || '').slice(0, 255);
+    const tamanho = Number(body.tamanho) || null;
+    const mimeType = body.mimeType ? String(body.mimeType).slice(0, 100) : null;
 
-    const formData = await req.formData();
-    const arquivo = formData.get('arquivo') as File | null;
-    const nome = (formData.get('nome') as string | null)?.trim().slice(0, 200) || arquivo?.name || '';
-    const descricao = (formData.get('descricao') as string | null)?.trim().slice(0, 1000) || null;
-    const categoria = (formData.get('categoria') as string | null)?.trim().slice(0, 100) || null;
-
-    if (!arquivo) return NextResponse.json({ erro: 'Nenhum arquivo enviado' }, { status: 400 });
+    if (!storagePath) return NextResponse.json({ erro: 'Nenhum arquivo enviado' }, { status: 400 });
     if (!nome) return NextResponse.json({ erro: 'Nome do material é obrigatório' }, { status: 400 });
-    if (arquivo.size > MAX_SIZE)
+    if (tamanho !== null && tamanho > MAX_SIZE)
       return NextResponse.json({ erro: 'Arquivo muito grande (máx 20 MB)' }, { status: 400 });
-
-    const ext = arquivo.name.split('.').pop() || 'bin';
-    const ts = Date.now();
-    const storagePath = `material_${ts}.${ext}`;
-    const bytes = await arquivo.arrayBuffer();
-
-    const upRes = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${storagePath}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${SERVICE_KEY}`,
-        'Content-Type': arquivo.type || 'application/octet-stream',
-        'x-upsert': 'true',
-      },
-      body: bytes,
-    });
-
-    if (!upRes.ok) {
-      const txt = await upRes.text();
-      return NextResponse.json({ erro: `Storage: ${upRes.status} - ${txt}` }, { status: 500 });
-    }
 
     const [row] = await sql`
       INSERT INTO producao_catalogo_material
         (nome, descricao, categoria, storage_path, nome_arquivo, tamanho, mime_type, criado_por_id)
       VALUES
-        (${nome}, ${descricao}, ${categoria}, ${storagePath}, ${arquivo.name}, ${arquivo.size}, ${arquivo.type || null}, ${user.id})
+        (${nome}, ${descricao}, ${categoria}, ${storagePath}, ${nomeArquivo}, ${tamanho}, ${mimeType}, ${user.id})
       RETURNING id
     `;
 
