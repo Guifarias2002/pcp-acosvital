@@ -1,6 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
+import { withTimeout } from '@/lib/queryTimeout';
 
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
@@ -10,7 +11,7 @@ export async function GET(req: Request) {
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   // Busca líderes (perfil lider) com seus setores
-  const lideres = await sql`
+  const qLideres = sql`
     SELECT u.id, u.nome, u.setor
     FROM usuarios_usuario u
     WHERE u.is_active = true AND u.setor IS NOT NULL AND u.setor != ''
@@ -18,7 +19,7 @@ export async function GET(req: Request) {
   `;
 
   // Busca itens ativos
-  const itens = await sql`
+  const qItens = sql`
     SELECT i.id, i.codigo, i.descricao, i.quantidade_pendente, i.unidade,
            i.setor_atual, i.status,
            p.numero_pedido_venda, p.cliente, p.prioridade, p.prazo_entrega
@@ -27,6 +28,12 @@ export async function GET(req: Request) {
     WHERE i.status NOT IN ('entregue', 'emitido')
     ORDER BY p.prazo_entrega ASC
   `;
+
+  const [lideres, itens] = await withTimeout(
+    Promise.all([qLideres, qItens]),
+    7500,
+    [qLideres, qItens],
+  );
 
   const SETOR_NOMES: Record<string, string> = {
     emissao: 'Emissao de Ordens', compras: 'Compras', recebimento: 'Recebimento',

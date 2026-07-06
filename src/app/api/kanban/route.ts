@@ -3,6 +3,7 @@ import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { SETOR_CHOICES } from '@/lib/types';
 import { formatItem, nomeSector } from '@/lib/queries';
+import { withTimeout } from '@/lib/queryTimeout';
 
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
@@ -13,7 +14,7 @@ export async function GET(req: Request) {
   // Operadores veem apenas o próprio setor
   const filtroSetor = !user.is_staff && user.setor ? user.setor : null;
 
-  const [itens, lotes] = await Promise.all([
+  const qItens =
     filtroSetor
       ? sql`
           SELECT i.*, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
@@ -30,7 +31,9 @@ export async function GET(req: Request) {
           JOIN producao_pedido p ON p.id = i.pedido_id
           WHERE i.status NOT IN ('entregue', 'emitido')
           ORDER BY p.prioridade DESC, p.prazo_entrega ASC
-        `,
+        `;
+
+  const qLotes =
     filtroSetor
       ? sql`
           SELECT l.id, l.quantidade::text AS quantidade, l.status,
@@ -55,8 +58,13 @@ export async function GET(req: Request) {
           JOIN producao_pedido p ON p.id = i.pedido_id
           WHERE l.status = 'em_producao'
           ORDER BY p.prazo_entrega ASC
-        `,
-  ]);
+        `;
+
+  const [itens, lotes] = await withTimeout(
+    Promise.all([qItens, qLotes]),
+    7500,
+    [qItens, qLotes],
+  );
 
   const verFinanceiro = user.is_staff && user.perfil !== 'lider';
   const setoresFiltrados = filtroSetor

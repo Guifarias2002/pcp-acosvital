@@ -1,6 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
+import { withTimeout } from '@/lib/queryTimeout';
 
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
@@ -12,7 +13,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const cliente = searchParams.get('cliente') || '';
 
-  const pedidos = await sql`
+  const qPedidos = sql`
     SELECT
       p.id, p.numero_pedido_venda, p.numero_op, p.cliente, p.vendedor,
       p.prazo_entrega::text, p.prioridade, p.status, p.setor_atual,
@@ -63,7 +64,7 @@ export async function GET(req: Request) {
     LIMIT 100
   `;
 
-  const [totais] = await sql`
+  const qTotais = sql`
     SELECT
       COUNT(DISTINCT p.id) AS total_pedidos,
       COUNT(i.id) AS total_itens,
@@ -75,6 +76,12 @@ export async function GET(req: Request) {
     ))
       ${cliente ? sql`AND LOWER(p.cliente) LIKE ${'%' + cliente.toLowerCase() + '%'}` : sql``}
   `;
+
+  const [pedidos, [totais]] = await withTimeout(
+    Promise.all([qPedidos, qTotais]),
+    7500,
+    [qPedidos, qTotais],
+  );
 
   const comCanhoto = pedidos.filter((p: any) => p.canhoto_url).length;
   const semCanhoto = Number(totais.total_pedidos) - comCanhoto;

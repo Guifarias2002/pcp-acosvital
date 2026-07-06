@@ -143,8 +143,12 @@ export default function NovoPedidoPage() {
     setErro('');
     setLoading(true);
     try {
-      // Aquece a conexão com o banco antes de salvar (evita cold start no meio do pedido)
-      await fetch('/api/health').catch(() => {});
+      // Aquece a conexão com o banco antes de salvar (evita cold start no meio do pedido).
+      // Não pode travar o envio: se demorar mais que 3s, segue direto para o salvamento.
+      await Promise.race([
+        fetch('/api/health').catch(() => {}),
+        new Promise(resolve => setTimeout(resolve, 3000)),
+      ]);
 
       const controller = new AbortController();
       const tmo = setTimeout(() => controller.abort(), 15000); // 15s timeout

@@ -1,9 +1,11 @@
 ﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
+import { withTimeout } from '@/lib/queryTimeout';
 
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
+  try {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
@@ -22,15 +24,8 @@ export async function GET(req: Request) {
   if (isNaN(deFiltro.getTime()) || isNaN(ateFiltro.getTime()))
     return NextResponse.json({ erro: 'Data inválida' }, { status: 400 });
 
-  const [
-    pedidos,
-    movimentacoes,
-    temposPorSetor,
-    colaboradores,
-    divergencias,
-  ] = await Promise.all([
-    // Pedidos no período (criados ou entregues)
-    sql`
+  // Pedidos no período (criados ou entregues)
+  const qPedidos = sql`
       SELECT p.id, p.numero_pedido_venda, p.cliente, p.status, p.prioridade,
              p.criado_em, p.prazo_entrega, p.valor_total,
              COUNT(DISTINCT i.id) AS qtd_itens,
@@ -40,10 +35,10 @@ export async function GET(req: Request) {
       LEFT JOIN producao_itempedido i ON i.pedido_id = p.id
       WHERE p.criado_em BETWEEN ${deFiltro.toISOString()} AND ${ateFiltro.toISOString()}
       GROUP BY p.id ORDER BY p.criado_em DESC
-    `,
+    `;
 
-    // Movimentações por setor no período
-    sql`
+  // Movimentações por setor no período
+  const qMovimentacoes = sql`
       SELECT m.setor_destino AS setor,
              COUNT(*) AS total_movs,
              COUNT(DISTINCT m.item_id) AS total_itens,
@@ -52,10 +47,10 @@ export async function GET(req: Request) {
       WHERE m.criado_em BETWEEN ${deFiltro.toISOString()} AND ${ateFiltro.toISOString()}
         AND m.setor_destino != ''
       GROUP BY m.setor_destino ORDER BY total_movs DESC
-    `,
+    `;
 
-    // Tempo médio por setor (em minutos)
-    sql`
+  // Tempo médio por setor (em minutos)
+  const qTemposPorSetor = sql`
       SELECT m.setor_destino AS setor,
              ROUND(AVG(
                EXTRACT(EPOCH FROM (m2.criado_em - m.criado_em)) / 60
@@ -72,10 +67,10 @@ export async function GET(req: Request) {
       WHERE m.criado_em BETWEEN ${deFiltro.toISOString()} AND ${ateFiltro.toISOString()}
         AND m.setor_destino != ''
       GROUP BY m.setor_destino ORDER BY tempo_total_min DESC
-    `,
+    `;
 
-    // Colaboradores (movimentações por usuário)
-    sql`
+  // Colaboradores (movimentações por usuário)
+  const qColaboradores = sql`
       SELECT u.id, u.first_name || ' ' || u.last_name AS nome,
              COUNT(m.id) AS total_acoes,
              COUNT(DISTINCT m.item_id) AS itens_movimentados,
@@ -87,16 +82,27 @@ export async function GET(req: Request) {
       WHERE m.criado_em BETWEEN ${deFiltro.toISOString()} AND ${ateFiltro.toISOString()}
       GROUP BY u.id, u.first_name, u.last_name
       ORDER BY total_acoes DESC
-    `,
+    `;
 
-    // Divergências no período
-    sql`
+  // Divergências no período
+  const qDivergencias = sql`
       SELECT tipo, status, COUNT(*) AS total
       FROM producao_divergencia
       WHERE criado_em BETWEEN ${deFiltro.toISOString()} AND ${ateFiltro.toISOString()}
       GROUP BY tipo, status
-    `,
-  ]);
+    `;
+
+  const [
+    pedidos,
+    movimentacoes,
+    temposPorSetor,
+    colaboradores,
+    divergencias,
+  ] = await withTimeout(
+    Promise.all([qPedidos, qMovimentacoes, qTemposPorSetor, qColaboradores, qDivergencias]),
+    7500,
+    [qPedidos, qMovimentacoes, qTemposPorSetor, qColaboradores, qDivergencias],
+  );
 
   // Resumo de pedidos
   const totalPedidos = pedidos.length;
@@ -131,4 +137,8 @@ export async function GET(req: Request) {
       tipo: d.tipo, status: d.status, total: Number(d.total),
     })),
   });
+  } catch (e) {
+    console.error('[relatorios/geral]', e);
+    return NextResponse.json({ erro: 'Erro ao carregar relatorio geral' }, { status: 500 });
+  }
 }

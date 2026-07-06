@@ -35,8 +35,11 @@ export async function POST(req: Request) {
     'producao_divergencia',
     'producao_item_observacao',
     'producao_catalogo_material',
+    'producao_itemparcial',
+    'producao_apontamento',
     'usuarios_usuario',
     'auditoria_login',
+    'auditoria_acesso',
   ];
 
   // 1. Habilita RLS em todas as tabelas
@@ -74,7 +77,7 @@ export async function POST(req: Request) {
   }
 
   // 4. Views: revogar acesso público (não têm RLS, mas podemos revogar grants)
-  for (const v of ['vw_pedidos_resumo', 'vw_itens_producao']) {
+  for (const v of ['vw_pedidos_resumo', 'vw_itens_producao', 'vw_pedidos_com_parciais', 'vw_rastreio_parciais', 'vw_rastreio_por_setor']) {
     await run(
       `Revogar acesso público à view ${v}`,
       `REVOKE ALL ON ${v} FROM anon, authenticated`

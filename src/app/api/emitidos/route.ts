@@ -2,6 +2,7 @@
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { formatPedido, formatItem } from '@/lib/queries';
+import { withTimeout } from '@/lib/queryTimeout';
 
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
@@ -14,7 +15,7 @@ export async function GET(req: Request) {
     const prioridade = searchParams.get('prioridade') || '';
     const setor = searchParams.get('setor') || '';
 
-    const rows = await sql`
+    const qRows = sql`
       SELECT p.*, u.nome AS criado_por_nome,
              COALESCE((SELECT SUM(i2.quantidade * COALESCE(i2.valor_unitario,0)) FROM producao_itempedido i2 WHERE i2.pedido_id = p.id), 0)::text AS valor_calculado
       FROM producao_pedido p
@@ -24,12 +25,13 @@ export async function GET(req: Request) {
         AND (${prioridade} = '' OR p.prioridade = ${prioridade})
       ORDER BY p.criado_em DESC
     `;
+    const rows = await withTimeout(qRows, 4000, [qRows]);
 
     const ids = rows.map(r => r.id as number);
     let itensPorPedido: Record<number, ReturnType<typeof formatItem>[]> = {};
 
     if (ids.length > 0) {
-      const itenRows = await sql`
+      const qItenRows = sql`
         SELECT
           i.id, i.pedido_id, i.codigo, i.descricao,
           i.quantidade::text, i.unidade,
@@ -47,6 +49,7 @@ export async function GET(req: Request) {
         WHERE i.pedido_id = ANY(${ids})
         ORDER BY p.numero_pedido_venda, i.codigo
       `;
+      const itenRows = await withTimeout(qItenRows, 4000, [qItenRows]);
       for (const row of itenRows) {
         const pid = Number(row.pedido_id);
         if (!itensPorPedido[pid]) itensPorPedido[pid] = [];

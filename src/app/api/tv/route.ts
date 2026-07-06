@@ -3,14 +3,15 @@ import sql from '@/lib/db';
 import { SETOR_CHOICES } from '@/lib/types';
 import { nomeSector } from '@/lib/queries';
 import { autenticar } from '@/lib/middleware';
+import { withTimeout } from '@/lib/queryTimeout';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
+  try {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
-  const [countsRows, porSetorRows, ultMovs] = await Promise.all([
-    sql`
+  const qCounts = sql`
       SELECT
         COUNT(*) FILTER (WHERE status != 'entregue')                                   AS total,
         COUNT(*) FILTER (WHERE status = 'emitido')                                     AS a_produzir,
@@ -18,14 +19,14 @@ export async function GET(req: Request) {
         COUNT(*) FILTER (WHERE prazo_entrega < NOW()::date AND status != 'entregue')   AS atrasados,
         COUNT(*) FILTER (WHERE prioridade = 'urgente' AND status != 'entregue')        AS urgentes
       FROM producao_pedido
-    `,
-    sql`
+    `;
+  const qPorSetor = sql`
       SELECT setor_atual, COUNT(*) AS qtd
       FROM producao_itempedido
       WHERE status NOT IN ('entregue', 'cancelado')
       GROUP BY setor_atual
-    `,
-    sql`
+    `;
+  const qUltMovs = sql`
       SELECT m.id, m.setor_destino, m.status_anterior, m.status_novo, m.criado_em,
              i.codigo AS item_codigo, p.numero_pedido_venda,
              u.nome   AS usuario_nome
@@ -35,8 +36,13 @@ export async function GET(req: Request) {
       LEFT JOIN usuarios_usuario u ON u.id = m.usuario_id
       ORDER BY m.criado_em DESC
       LIMIT 15
-    `,
-  ]);
+    `;
+
+  const [countsRows, porSetorRows, ultMovs] = await withTimeout(
+    Promise.all([qCounts, qPorSetor, qUltMovs]),
+    7500,
+    [qCounts, qPorSetor, qUltMovs],
+  );
 
   const counts = countsRows[0];
   const setorMap: Record<string, number> = {};
@@ -69,4 +75,8 @@ export async function GET(req: Request) {
       criado_em: m.criado_em,
     })),
   });
+  } catch (e) {
+    console.error('[tv]', e);
+    return NextResponse.json({ erro: 'Erro ao carregar painel' }, { status: 500 });
+  }
 }
