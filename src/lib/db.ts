@@ -15,7 +15,8 @@ const sql = global._sql ?? postgres({
   username: process.env.DB_USER!,
   password: process.env.DB_PASSWORD!,
   ssl: 'require',
-  max: isProd ? 3 : 2,     // conservador: Supabase free tem limite de conexões
+  max: isProd ? 8 : 2,     // pooler (6543) aguenta centenas; 8 evita fila interna quando uma rota
+                           // dispara varias queries em paralelo (dashboard manda 5 de uma vez)
   idle_timeout: 10,         // libera conexões ociosas mais rápido
   connect_timeout: 5,       // 5s — falha rápido para o Vercel poder retornar erro antes de timeout
   max_lifetime: 60 * 10,    // recicla conexões a cada 10 min — evita conexões mortas
