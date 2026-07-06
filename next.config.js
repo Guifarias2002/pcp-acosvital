@@ -9,7 +9,7 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "script-src 'self' 'unsafe-inline'" + (process.env.NODE_ENV !== 'production' ? " 'unsafe-eval'" : ''),
       "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
       "font-src 'self' https://cdn.jsdelivr.net",
       "img-src 'self' data: blob: https:",
