@@ -77,11 +77,12 @@ export async function GET(req: Request) {
       ${cliente ? sql`AND LOWER(p.cliente) LIKE ${'%' + cliente.toLowerCase() + '%'}` : sql``}
   `;
 
-  const [pedidos, [totais]] = await withTimeout(
+  const [pedidos, [totaisRow]] = await withTimeout(
     Promise.all([qPedidos, qTotais]),
     7500,
     [qPedidos, qTotais],
   );
+  const totais = totaisRow ?? { total_pedidos: 0, total_itens: 0, total_valor: '0' };
 
   const comCanhoto = pedidos.filter((p: any) => p.canhoto_url).length;
   const semCanhoto = Number(totais.total_pedidos) - comCanhoto;
