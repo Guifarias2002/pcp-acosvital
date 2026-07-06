@@ -89,7 +89,7 @@ export async function GET(req: Request) {
     qAtrasados.catch(() => []),
     qUltMovs.catch(() => []),
     qDivCounts.catch(() => [{ abertas: 0, urgentes: 0 }]),
-  ]), 7500, [qCounts, qPorSetor, qAtrasados, qUltMovs, qDivCounts]); // 7.5s — Vercel mata em 10s, deixa margem para serializar resposta
+  ]), 27000, [qCounts, qPorSetor, qAtrasados, qUltMovs, qDivCounts]); // 27s — Vercel mata em 30s (temporario, ver vercel.json), deixa margem para serializar resposta
 
   const counts = (countsRows[0] ?? {}) as Record<string, unknown>;
   const divCounts = divCountsRows[0] ?? { abertas: 0, urgentes: 0 };

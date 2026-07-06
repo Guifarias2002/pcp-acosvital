@@ -79,7 +79,7 @@ export async function GET(req: Request) {
 
   const [pedidos, [totaisRow]] = await withTimeout(
     Promise.all([qPedidos, qTotais]),
-    7500,
+    27000, // 27s — Vercel mata em 30s (temporario, ver vercel.json)
     [qPedidos, qTotais],
   );
   const totais = totaisRow ?? { total_pedidos: 0, total_itens: 0, total_valor: '0' };

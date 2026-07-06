@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { getToken, clearToken } from './auth';
 
-const api = axios.create({ baseURL: '', withCredentials: true, timeout: 30000 });
+const api = axios.create({ baseURL: '', withCredentials: true, timeout: 35000 }); // 35s — acima do maxDuration de 30s da Vercel (temporario, ver vercel.json)
 
 api.interceptors.request.use((config) => {
   // Cookie HttpOnly é enviado automaticamente via withCredentials

@@ -35,7 +35,7 @@ export async function GET(req: Request) {
 
   const [porSetor, porProduto, topClientes] = await withTimeout(
     Promise.all([qPorSetor, qPorProduto, qTopClientes]),
-    7500,
+    27000, // 27s — Vercel mata em 30s (temporario, ver vercel.json)
     [qPorSetor, qPorProduto, qTopClientes],
   );
 

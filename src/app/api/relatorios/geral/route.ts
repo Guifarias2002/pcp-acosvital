@@ -100,7 +100,7 @@ export async function GET(req: Request) {
     divergencias,
   ] = await withTimeout(
     Promise.all([qPedidos, qMovimentacoes, qTemposPorSetor, qColaboradores, qDivergencias]),
-    7500,
+    27000, // 27s — Vercel mata em 30s (temporario, ver vercel.json)
     [qPedidos, qMovimentacoes, qTemposPorSetor, qColaboradores, qDivergencias],
   );
 

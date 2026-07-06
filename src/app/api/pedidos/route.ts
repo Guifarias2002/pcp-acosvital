@@ -80,7 +80,7 @@ export async function GET(req: Request) {
         AND (${prioridade} = '' OR p.prioridade = ${prioridade})
         AND (${entregue} = TRUE OR p.status != 'entregue')
     `,
-  ]), 7500);
+  ]), 27000); // 27s — Vercel mata em 30s (temporario, ver vercel.json)
 
   // 3. Monta lookup por pedido_id e formata
   const itemMap    = new Map(itemRows.map(r => [r.pedido_id as number, r]));

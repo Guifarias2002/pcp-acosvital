@@ -25,7 +25,7 @@ export async function GET(req: Request) {
         AND (${prioridade} = '' OR p.prioridade = ${prioridade})
       ORDER BY p.criado_em DESC
     `;
-    const rows = await withTimeout(qRows, 4000, [qRows]);
+    const rows = await withTimeout(qRows, 13000, [qRows]); // 13s x2 = 26s — Vercel mata em 30s (temporario, ver vercel.json)
 
     const ids = rows.map(r => r.id as number);
     let itensPorPedido: Record<number, ReturnType<typeof formatItem>[]> = {};
@@ -49,7 +49,7 @@ export async function GET(req: Request) {
         WHERE i.pedido_id = ANY(${ids})
         ORDER BY p.numero_pedido_venda, i.codigo
       `;
-      const itenRows = await withTimeout(qItenRows, 4000, [qItenRows]);
+      const itenRows = await withTimeout(qItenRows, 13000, [qItenRows]);
       for (const row of itenRows) {
         const pid = Number(row.pedido_id);
         if (!itensPorPedido[pid]) itensPorPedido[pid] = [];

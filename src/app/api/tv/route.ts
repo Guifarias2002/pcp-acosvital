@@ -40,7 +40,7 @@ export async function GET(req: Request) {
 
   const [countsRows, porSetorRows, ultMovs] = await withTimeout(
     Promise.all([qCounts, qPorSetor, qUltMovs]),
-    7500,
+    27000, // 27s — Vercel mata em 30s (temporario, ver vercel.json)
     [qCounts, qPorSetor, qUltMovs],
   );
 
