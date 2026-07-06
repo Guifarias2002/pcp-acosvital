@@ -45,18 +45,20 @@ export function useRealtime(
 
       channel.subscribe((status: string) => {
         if (!mounted) return;
-        if (status === 'SUBSCRIBED') {
-          // WS saudável — para o polling de segurança, atualiza só quando o banco avisar
-          if (fallbackTimer) { clearInterval(fallbackTimer); fallbackTimer = null; }
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          if (!fallbackTimer) fallbackTimer = setInterval(scheduleRefresh, FALLBACK_INTERVAL_MS);
+        // Nao desliga o polling de seguranca so por causa do status "SUBSCRIBED": o
+        // handshake do canal pode ter sucesso mesmo que o RLS bloqueie a entrega real
+        // dos eventos de mudanca, o que deixaria a tela sem nenhuma atualizacao
+        // automatica. O polling de 15s fica sempre ativo como garantia; o WebSocket,
+        // quando entrega eventos de verdade, so faz a atualizacao chegar mais rapido.
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           if (channel) { supabase?.removeChannel(channel); channel = null; }
           setTimeout(() => { if (mounted) subscribe(); }, 3_000);
         }
       });
     }
 
-    // Fallback imediato enquanto o WS ainda não conectou
+    // Polling de seguranca — sempre ativo, garante atualizacao em ate 15s
+    // independente do WebSocket conseguir entregar eventos ou nao.
     fallbackTimer = setInterval(scheduleRefresh, FALLBACK_INTERVAL_MS);
 
     subscribe();
