@@ -214,6 +214,15 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
       {/* Ações */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
 
+        {/* LIBERAR — item ainda emitido, envia para o proximo setor do roteiro */}
+        {item.status === 'emitido' && (
+          <button onClick={() => acao('liberar')} disabled={loading}
+            style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+            {loading ? <i className="bi bi-hourglass-split" style={{ marginRight: 5 }}></i> : <i className="bi bi-play-fill" style={{ marginRight: 5 }}></i>}
+            {loading ? 'Aguarde...' : 'Iniciar produção'}
+          </button>
+        )}
+
         {/* RECEBER — abre modal total/parcial */}
         {item.status === 'aguardando' && !showReceber && (
           <button onClick={() => !loading && setShowReceber(true)} disabled={loading}
