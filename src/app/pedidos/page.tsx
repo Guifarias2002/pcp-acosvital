@@ -45,6 +45,7 @@ function PedidosPageInner() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [fBusca, setFBusca] = useState('');
+  const [fVendedor, setFVendedor] = useState('');
   const [fStatus, setFStatus] = useState('');
   const [fPrioridade, setFPrioridade] = useState('');
   const [fEtapa, setFEtapa] = useState(etapaParam || '');
@@ -84,7 +85,7 @@ function PedidosPageInner() {
   function buscar(p = page) {
     setLoading(true);
     setSelectedIds(new Set());
-    const params: Record<string, string> = { cliente: fBusca, status: fStatus, prioridade: fPrioridade, entregue: '1', page: String(p) };
+    const params: Record<string, string> = { cliente: fBusca, vendedor: fVendedor, status: fStatus, prioridade: fPrioridade, entregue: '1', page: String(p) };
     if (fEtapa === 'entregue') params.entregue = '1';
     getPedidos(params).then(r => { setPedidos(r.pedidos); setPaginacao({ page: r.page, pages: r.pages, total: r.total }); }).catch(() => {}).finally(() => setLoading(false));
   }
@@ -233,6 +234,10 @@ function PedidosPageInner() {
           onKeyDown={e => e.key === 'Enter' && buscar()}
           placeholder="Buscar por pedido, cliente, OP..."
           style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 10px', fontSize: 13, flex: '1 1 160px', minWidth: 0 }} />
+        <input value={fVendedor} onChange={e => setFVendedor(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && buscar()}
+          placeholder="Vendedor..."
+          style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 10px', fontSize: 13, flex: '1 1 130px', minWidth: 0 }} />
         <select value={fStatus} onChange={e => setFStatus(e.target.value)}
           style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13, flex: '1 1 140px' }}>
           <option value="">Todos os status</option>
@@ -251,7 +256,7 @@ function PedidosPageInner() {
         }}>
           <i className="bi bi-search" style={{ marginRight: 4 }}></i>Filtrar
         </button>
-        <button onClick={() => { setFBusca(''); setFStatus(''); setFPrioridade(''); setFEtapa(''); }}
+        <button onClick={() => { setFBusca(''); setFVendedor(''); setFStatus(''); setFPrioridade(''); setFEtapa(''); }}
           style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 5, padding: '6px 12px', fontSize: 13, cursor: 'pointer', color: '#666', whiteSpace: 'nowrap' }}>
           Limpar
         </button>
@@ -310,17 +315,17 @@ function PedidosPageInner() {
                   title="Selecionar todos"
                 />
               </th>
-              {['Pedido','OP','Cliente','Setor Atual','Status','Prioridade','Prazo','Ações'].map(h => (
+              {['Pedido','OP','Cliente','Vendedor','Setor Atual','Status','Prioridade','Prazo','Ações'].map(h => (
                 <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 600, fontSize: 12 }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Carregando...</td></tr>
+              <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Carregando...</td></tr>
             )}
             {!loading && pedidosFiltrados.length === 0 && (
-              <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum pedido encontrado.</td></tr>
+              <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum pedido encontrado.</td></tr>
             )}
             {pedidosFiltrados.map(p => {
               const selected = selectedIds.has(p.id);
@@ -345,6 +350,7 @@ function PedidosPageInner() {
                   </td>
                   <td style={{ padding: '8px 12px', color: '#666' }}>{p.numero_op}</td>
                   <td style={{ padding: '8px 12px', color: '#444' }}>{p.cliente}</td>
+                  <td style={{ padding: '8px 12px', color: '#666' }}>{p.vendedor}</td>
                   <td style={{ padding: '8px 12px' }}>
                     {(() => {
                       const setores: string[] = p.setores_parciais && p.setores_parciais.length > 0

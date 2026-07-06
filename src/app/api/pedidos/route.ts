@@ -19,6 +19,7 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const cliente    = searchParams.get('cliente') || '';
+  const vendedor   = searchParams.get('vendedor') || '';
   const status     = searchParams.get('status') || '';
   const prioridade = searchParams.get('prioridade') || '';
   const entregue   = searchParams.get('entregue') === '1';
@@ -37,6 +38,7 @@ export async function GET(req: Request) {
     LEFT JOIN usuarios_usuario u ON u.id = p.criado_por_id
     WHERE 1=1
       AND (${cliente} = '' OR p.cliente ILIKE ${'%' + cliente + '%'})
+      AND (${vendedor} = '' OR p.vendedor ILIKE ${'%' + vendedor + '%'})
       AND (${status}  = '' OR p.status = ${status})
       AND (${prioridade} = '' OR p.prioridade = ${prioridade})
       AND (${entregue} = TRUE OR p.status != 'entregue')
@@ -76,6 +78,7 @@ export async function GET(req: Request) {
       FROM producao_pedido p
       WHERE 1=1
         AND (${cliente} = '' OR p.cliente ILIKE ${'%' + cliente + '%'})
+        AND (${vendedor} = '' OR p.vendedor ILIKE ${'%' + vendedor + '%'})
         AND (${status}  = '' OR p.status = ${status})
         AND (${prioridade} = '' OR p.prioridade = ${prioridade})
         AND (${entregue} = TRUE OR p.status != 'entregue')
