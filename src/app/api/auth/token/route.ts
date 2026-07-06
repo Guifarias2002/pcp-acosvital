@@ -3,7 +3,6 @@ import sql from '@/lib/db';
 import { signToken } from '@/lib/auth';
 import { pbkdf2, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
-import { runMigrations } from '@/lib/migrations';
 
 const pbkdf2Async = promisify(pbkdf2);
 
@@ -58,9 +57,6 @@ async function registrarAuditoria(username: string, ip: string, sucesso: boolean
 export async function POST(req: Request) {
   if (!process.env.JWT_SECRET)
     return NextResponse.json({ erro: 'Configuracao invalida' }, { status: 500 });
-
-  // Garante migrations aplicadas a cada login (cold start safe)
-  await runMigrations().catch(() => {});
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim()
     || req.headers.get('x-real-ip')

@@ -16,7 +16,6 @@ import { autenticar, logAcesso } from '@/lib/middleware';
 import { nomeSector } from '@/lib/queries';
 import { SETOR_CHOICES } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
-import { runMigrations } from '@/lib/migrations';
 
 export const dynamic = 'force-dynamic';
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
@@ -28,7 +27,6 @@ export async function POST(
   { params }: { params: { id: string; acao: string } }
 ) {
   try {
-  await runMigrations();
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   logAcesso(user, req, `parcial_${params.acao}`);
