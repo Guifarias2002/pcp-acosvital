@@ -56,6 +56,9 @@ async function registrarAuditoria(username: string, ip: string, sucesso: boolean
 }
 
 export async function POST(req: Request) {
+  if (!process.env.JWT_SECRET)
+    return NextResponse.json({ erro: 'Configuracao invalida' }, { status: 500 });
+
   // Garante migrations aplicadas a cada login (cold start safe)
   await runMigrations().catch(() => {});
 

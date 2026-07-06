@@ -40,6 +40,12 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
+  // Sem JWT_SECRET configurado, um HS256 assinado com chave vazia validaria contra
+  // esse mesmo "secret" vazio — trata como não autenticado em vez de confiar nele.
+  if (!process.env.JWT_SECRET) {
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
+
   let payload: { is_staff?: boolean; setor?: string } = {};
   try {
     const { payload: p } = await jwtVerify(tokenCookie, secret);
