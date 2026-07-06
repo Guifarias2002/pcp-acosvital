@@ -180,6 +180,28 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
         )}
       </div>
 
+      {/* Progresso do roteiro — mesmo estilo visual da tela de Pedido Detalhe */}
+      {item.roteiro_efetivo && item.roteiro_efetivo.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
+          {item.roteiro_efetivo.map((setorRot: string, i: number) => {
+            const idxAtual = item.roteiro_efetivo.indexOf(item.setor_atual);
+            const done = i < idxAtual;
+            const current = setorRot === item.setor_atual;
+            return (
+              <span key={setorRot} style={{
+                fontSize: 11, padding: '2px 7px', borderRadius: 4, fontWeight: current ? 700 : 400,
+                background: current ? '#1d4ed8' : done ? '#f1f5f9' : 'transparent',
+                color: current ? '#fff' : done ? '#94a3b8' : '#cbd5e1',
+              }}>
+                {done && <span style={{ marginRight: 3 }}>✓</span>}
+                {current && <span style={{ marginRight: 3 }}>●</span>}
+                {NOMES[setorRot] || setorRot}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       {/* Aviso Logística: peças parciais ainda em outros setores */}
       {item.setor_atual === 'logistica' && Number(item.quantidade_pendente) < Number(item.quantidade) && Number(item.quantidade_entregue) === 0 && (
         <div style={{
