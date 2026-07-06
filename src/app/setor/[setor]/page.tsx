@@ -1826,6 +1826,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const [ultimaAtt, setUltimaAtt] = useState<Date | null>(null);
   const [pedidosColapsados, setPedidosColapsados] = useState<Set<number>>(new Set());
   const [recebendoTudo, setRecebendoTudo] = useState<Set<number>>(new Set());
+  const [enviandoTudo, setEnviandoTudo] = useState<Set<number>>(new Set());
 
   const carregar = useCallback(() => {
     getSetorPainel(setor).then(d => { setData(d); setLoading(false); setUltimaAtt(new Date()); }).catch(() => setLoading(false));
@@ -2006,10 +2007,51 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                               </button>
                             );
                           })()}
-                          <i
-                            className={pedidosColapsados.has(pedido_id) ? 'bi bi-chevron-right' : 'bi bi-chevron-down'}
-                            style={{ marginLeft: recebendoTudo.has(pedido_id) || parciais.every(p => p.status !== 'em_aberto' || p.setor_atual === 'logistica') ? 'auto' : '0', fontSize: 13, opacity: 0.8 }}
-                          />
+                          {(() => {
+                            const recebiveisCheck = parciais.some(p => p.status === 'em_aberto' && p.setor_atual !== 'logistica');
+                            const enviaveis = parciais.filter(p =>
+                              ['em_andamento', 'pausado', 'finalizado_setor'].includes(p.status)
+                              && p.proximo_setor
+                              && p.setor_atual !== 'logistica'
+                            );
+                            if (enviaveis.length === 0) return null;
+                            const carregando = enviandoTudo.has(pedido_id);
+                            return (
+                              <button
+                                disabled={carregando}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  setEnviandoTudo(prev => new Set(prev).add(pedido_id));
+                                  try {
+                                    for (const p of enviaveis) {
+                                      await parcialAcao(p.id, 'mover', { setor_destino: p.proximo_setor, quantidade: Number(p.quantidade) });
+                                    }
+                                    carregar();
+                                  } catch { /* carregar mesmo assim */ carregar(); }
+                                  finally { setEnviandoTudo(prev => { const s = new Set(prev); s.delete(pedido_id); return s; }); }
+                                }}
+                                style={{ marginLeft: recebiveisCheck ? 0 : 'auto', background: carregando ? '#4a6fa5' : '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: carregando ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                              >
+                                {carregando
+                                  ? <><i className="bi bi-hourglass-split" /> Enviando...</>
+                                  : <><i className="bi bi-send-fill" /> Enviar Tudo ({enviaveis.length})</>}
+                              </button>
+                            );
+                          })()}
+                          {(() => {
+                            const temRecebiveis = parciais.some(p => p.status === 'em_aberto' && p.setor_atual !== 'logistica');
+                            const temEnviaveis = parciais.some(p =>
+                              ['em_andamento', 'pausado', 'finalizado_setor'].includes(p.status)
+                              && p.proximo_setor
+                              && p.setor_atual !== 'logistica'
+                            );
+                            return (
+                              <i
+                                className={pedidosColapsados.has(pedido_id) ? 'bi bi-chevron-right' : 'bi bi-chevron-down'}
+                                style={{ marginLeft: (temRecebiveis || temEnviaveis) ? 0 : 'auto', fontSize: 13, opacity: 0.8 }}
+                              />
+                            );
+                          })()}
                         </div>
                         {/* Produtos do pedido */}
                         {!pedidosColapsados.has(pedido_id) && <div style={{ display: 'flex', flexDirection: 'column' }}>
