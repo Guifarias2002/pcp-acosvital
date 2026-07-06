@@ -22,7 +22,7 @@ function Cronometro({ desde }: { desde: string }) {
     </span>
   );
 }
-import { getSetorPainel, itemAcao, loteAcao, parcialAcao } from '@/lib/api';
+import { getSetorPainel, itemAcao, loteAcao, parcialAcao, adicionarObservacaoItem } from '@/lib/api';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
@@ -562,6 +562,10 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [motivoDiv, setMotivoDiv] = useState('');
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void; perigo?: boolean } | null>(null);
   const [showDespacharParcial, setShowDespacharParcial] = useState(false);
+  const [obsAberto, setObsAberto] = useState(false);
+  const [novaObsTexto, setNovaObsTexto] = useState('');
+  const [enviandoObs, setEnviandoObs] = useState(false);
+  const [erroObs, setErroObs] = useState<string | null>(null);
   const isLogistica = parcial.setor_atual === 'logistica';
   const isQualidade = parcial.setor_atual === 'qualidade';
 
@@ -593,6 +597,18 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
     }
     catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
     finally { setLoading(false); }
+  }
+
+  async function enviarObservacao() {
+    if (!novaObsTexto.trim()) return;
+    setEnviandoObs(true);
+    setErroObs(null);
+    try {
+      await adicionarObservacaoItem(parcial.item_pedido_id as number, novaObsTexto.trim());
+      setNovaObsTexto('');
+      onRefresh();
+    } catch (e: unknown) { setErroObs(erroMsg(e)); }
+    finally { setEnviandoObs(false); }
   }
 
   const isAberto    = parcial.status === 'em_aberto';
@@ -905,7 +921,57 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <i className="bi bi-arrow-return-left" style={{ marginRight: 5 }} />Devolver
           </button>
         )}
+
+        {/* Observações por item — visível a todos, histórico acumulado entre setores */}
+        {(() => {
+          const qtdObs = (parcial.observacoes || []).length;
+          return (
+            <button
+              onClick={() => { setObsAberto(v => !v); setErroObs(null); }}
+              title="Observações"
+              style={{ background: obsAberto ? '#1d4ed8' : qtdObs > 0 ? '#dbeafe' : 'none', color: obsAberto ? '#fff' : qtdObs > 0 ? '#1d4ed8' : '#64748b', border: `1px solid ${obsAberto ? '#1d4ed8' : qtdObs > 0 ? '#93c5fd' : '#dde3f0'}`, borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            >
+              <i className="bi bi-chat-left-text" style={{ marginRight: 5 }} />
+              {qtdObs > 0 ? `${qtdObs} observaç${qtdObs > 1 ? 'ões' : 'ão'}` : 'Observação'}
+            </button>
+          );
+        })()}
       </div>
+
+      {/* Painel de observações por item — visível a todos */}
+      {obsAberto && (() => {
+        const observacoes = parcial.observacoes || [];
+        return (
+          <div style={{ marginTop: 10, background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 8, padding: '12px 14px' }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8', margin: '0 0 8px' }}>
+              <i className="bi bi-chat-left-text" style={{ marginRight: 5 }} />Observações do item
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+              {observacoes.length === 0 && (
+                <p style={{ fontSize: 12, color: '#64748b', margin: 0, fontStyle: 'italic' }}>Nenhuma observação registrada ainda.</p>
+              )}
+              {observacoes.map(o => (
+                <div key={o.id} style={{ background: '#fff', borderRadius: 6, border: '1px solid #dbeafe', padding: '6px 10px' }}>
+                  <p style={{ fontSize: 12, color: '#374151', margin: 0 }}>{o.texto}</p>
+                  <p style={{ fontSize: 11, color: '#94a3b8', margin: '3px 0 0' }}>
+                    <strong style={{ color: '#64748b' }}>{o.usuario_nome}</strong> · {o.setor_nome} · {new Date(o.criado_em).toLocaleString('pt-BR')}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <textarea value={novaObsTexto} onChange={e => setNovaObsTexto(e.target.value)}
+                placeholder="Adicionar observação..." rows={2}
+                style={{ flex: 1, border: '1px solid #93c5fd', borderRadius: 6, padding: '6px 10px', fontSize: 12, resize: 'none' }} />
+              <button onClick={enviarObservacao} disabled={enviandoObs || !novaObsTexto.trim()}
+                style={{ background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: enviandoObs || !novaObsTexto.trim() ? 0.6 : 1 }}>
+                {enviandoObs ? '⏳' : 'Enviar'}
+              </button>
+            </div>
+            {erroObs && <p style={{ fontSize: 11, color: '#dc2626', marginTop: 6 }}>{erroObs}</p>}
+          </div>
+        );
+      })()}
 
       {/* Modal receber parcial */}
       {!isLogistica && isAberto && showReceberModal && (

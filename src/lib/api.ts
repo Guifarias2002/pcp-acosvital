@@ -49,6 +49,9 @@ export const getItem = (id: number) =>
 export const itemAcao = (id: number, acao: string, body?: Record<string, unknown>) =>
   api.post(`/api/item/${id}/acao/${acao}`, body || {}).then(r => r.data);
 
+export const adicionarObservacaoItem = (id: number, texto: string) =>
+  api.post(`/api/item/${id}/observacao`, { texto }).then(r => r.data);
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export const getDashboard = () =>
   api.get('/api/dashboard').then(r => r.data);

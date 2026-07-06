@@ -271,6 +271,7 @@ export interface ItemParcial {
   origem_motivo_retrabalho?: string | null;
   origem_devolvido_de?: string | null;
   outras_parciais?: { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean }[];
+  observacoes?: ItemObservacao[];
 }
 
 export interface ResumoItemParcial {

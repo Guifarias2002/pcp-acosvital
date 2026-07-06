@@ -139,6 +139,31 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     `.catch(() => [] as Record<string, unknown>[]),
   ]);
 
+  // Observações por item — histórico acumulado (tabela pode não existir ainda)
+  const itemIdsParciais = Array.from(new Set((parciais as Record<string, unknown>[]).map(p => Number(p.item_pedido_id))));
+  const observacoesPorItem = new Map<number, { id: number; setor: string; setor_nome: string; usuario_nome: string; texto: string; criado_em: string }[]>();
+  if (itemIdsParciais.length > 0) {
+    const obsRows = await sql`
+      SELECT o.*, u.nome AS usuario_nome
+      FROM producao_item_observacao o
+      LEFT JOIN usuarios_usuario u ON u.id = o.usuario_id
+      WHERE o.item_id = ANY(${itemIdsParciais})
+      ORDER BY o.criado_em ASC
+    `.catch(() => [] as Record<string, unknown>[]);
+    for (const o of obsRows) {
+      const iid = Number(o.item_id);
+      if (!observacoesPorItem.has(iid)) observacoesPorItem.set(iid, []);
+      observacoesPorItem.get(iid)!.push({
+        id: o.id as number,
+        setor: o.setor as string,
+        setor_nome: nomeSector(o.setor as string),
+        usuario_nome: (o.usuario_nome as string) || 'Sistema',
+        texto: o.texto as string,
+        criado_em: o.criado_em as string,
+      });
+    }
+  }
+
   const fmtLote = (l: Record<string, unknown>) => ({
     id: l.id,
     quantidade: l.quantidade_str,
@@ -203,6 +228,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       motivo_retrabalho: p.motivo_retrabalho ?? null,
       devolvido_de: p.devolvido_de ?? null,
       outras_parciais: outrasPorItem.get(Number(p.item_pedido_id)) ?? [],
+      observacoes: observacoesPorItem.get(Number(p.item_pedido_id)) ?? [],
     };
   };
 
