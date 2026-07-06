@@ -824,9 +824,14 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           </button>
         )}
         {!isLogistica && isRecebido && (
-          <button onClick={() => acao('iniciar')} disabled={loading} style={btnStyle('#198754')}>
-            <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Iniciar produção
-          </button>
+          <>
+            <button onClick={() => acao('iniciar')} disabled={loading} style={btnStyle('#198754')}>
+              <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Iniciar produção
+            </button>
+            <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
+              <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
+            </button>
+          </>
         )}
 
         {/* ── Em andamento: botões iguais em todos os setores ─────────────── */}
@@ -1410,9 +1415,14 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
           </button>
         )}
         {!isLogistica && isRecebido && (
-          <button onClick={() => acaoTodos('iniciar')} disabled={loading} style={btnStyle('#198754')}>
-            <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Iniciar produção
-          </button>
+          <>
+            <button onClick={() => acaoTodos('iniciar')} disabled={loading} style={btnStyle('#198754')}>
+              <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Iniciar produção
+            </button>
+            <button onClick={() => { setShowEnviar(v => !v); setShowEnviarParcial(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
+              <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
+            </button>
+          </>
         )}
 
         {!isLogistica && isAndamento && isQualidadeGrupo && (
@@ -2010,7 +2020,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                           {(() => {
                             const recebiveisCheck = parciais.some(p => p.status === 'em_aberto' && p.setor_atual !== 'logistica');
                             const enviaveis = parciais.filter(p =>
-                              ['em_andamento', 'pausado', 'finalizado_setor'].includes(p.status)
+                              ['recebido', 'em_andamento', 'pausado', 'finalizado_setor'].includes(p.status)
                               && p.proximo_setor
                               && p.setor_atual !== 'logistica'
                             );
@@ -2041,7 +2051,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                           {(() => {
                             const temRecebiveis = parciais.some(p => p.status === 'em_aberto' && p.setor_atual !== 'logistica');
                             const temEnviaveis = parciais.some(p =>
-                              ['em_andamento', 'pausado', 'finalizado_setor'].includes(p.status)
+                              ['recebido', 'em_andamento', 'pausado', 'finalizado_setor'].includes(p.status)
                               && p.proximo_setor
                               && p.setor_atual !== 'logistica'
                             );
