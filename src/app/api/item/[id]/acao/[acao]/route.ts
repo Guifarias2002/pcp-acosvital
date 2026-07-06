@@ -75,7 +75,7 @@ async function getParcialAtiva(
 }
 
 /**
- * Move a parcial principal de um item de um setor para outro.
+ * Move TODAS as parciais ativas de um item, de um setor para outro.
  * Chamado em ações que movem o item inteiro (liberar, enviar_tudo, devolver).
  */
 async function moverParcialInteira(
@@ -88,30 +88,23 @@ async function moverParcialInteira(
   userId: number,
   obs: string,
 ) {
-  // Busca a parcial PRINCIPAL (sem pai) independente do status — inclui concluídas.
-  // O operador pode ter pressionado "Finalizar" antes de "Enviar tudo", o que deixa a
-  // parcial como 'concluida'. Sem esse filtro mais amplo, a função criaria uma duplicata.
-  const [parcial] = await tx`
+  // Busca TODAS as parciais ativas no setor de origem (principal e filhas de split),
+  // independente do status — inclui concluídas (operador pode ter pressionado
+  // "Finalizar" antes de "Enviar tudo"). Mover so a "principal" deixava parciais
+  // filhas (de um split anterior) paradas no setor de origem, perdendo quantidade
+  // do fluxo mesmo o sistema reportando que moveu tudo.
+  const parciais = await tx`
     SELECT id FROM producao_itemparcial
     WHERE item_pedido_id = ${itemId}
       AND setor_atual    = ${setorOrigem}
-      AND parcial_origem_id IS NULL
       AND status NOT IN ('cancelada')
-    ORDER BY
-      CASE status
-        WHEN 'em_andamento'    THEN 0
-        WHEN 'em_aberto'       THEN 1
-        WHEN 'finalizado_setor'THEN 2
-        WHEN 'concluida'       THEN 3
-        ELSE 4
-      END ASC
-    LIMIT 1
   `;
-  if (parcial) {
+  if (parciais.length > 0) {
+    const ids = parciais.map((p: Record<string, unknown>) => p.id) as number[];
     await tx`
       UPDATE producao_itemparcial
       SET setor_atual = ${setorDestino}, status = 'em_aberto', atualizado_em = NOW()
-      WHERE id = ${parcial.id}
+      WHERE id = ANY(${ids as unknown as string[]})
     `;
   } else {
     // Item criado antes do sistema de parciais — cria parcial no destino
@@ -521,21 +514,26 @@ export async function POST(
                 ${item.status}, 'aguardando', ${obs || 'Devolucao'}, NOW())
       `;
       await tx`UPDATE producao_itempedido SET status='aguardando', setor_atual=${destino}, atualizado_em=NOW() WHERE id=${item.id}`;
-      // Cancela todas as parciais filhas (enviadas parcialmente) que ainda estão ativas
-      // para evitar que a soma ultrapasse a quantidade total do item ao reenviar
-      await tx`
+      // Move TODAS as parciais ativas do item para o setor de devolucao, onde quer que
+      // estejam (principal e filhas de splits anteriores em outros setores). Antes,
+      // as filhas eram CANCELADAS em vez de devolvidas - perdia a quantidade que
+      // estava fisicamente em outro setor no meio de um envio parcial.
+      const movidas = await tx`
         UPDATE producao_itemparcial
-        SET status = 'cancelada', atualizado_em = NOW()
+        SET setor_atual = ${destino}, status = 'em_aberto', atualizado_em = NOW()
         WHERE item_pedido_id = ${item.id}
-          AND parcial_origem_id IS NOT NULL
           AND status NOT IN ('cancelada', 'concluida')
+        RETURNING id
       `;
-      await moverParcialInteira(
-        tx as unknown as typeof sql,
-        item.id, item.pedido_id,
-        item.setor_atual, destino,
-        Number(item.quantidade_pendente), user.id, obs || 'Devolução'
-      );
+      if (movidas.length === 0) {
+        // Item criado antes do sistema de parciais — cria parcial no destino
+        await tx`
+          INSERT INTO producao_itemparcial
+            (item_pedido_id, pedido_id, quantidade, setor_atual, status, observacao, criado_por_id, criado_em, atualizado_em)
+          VALUES
+            (${item.id}, ${item.pedido_id}, ${Number(item.quantidade_pendente)}, ${destino}, 'em_aberto', ${obs || 'Devolução'}, ${user.id}, NOW(), NOW())
+        `;
+      }
     });
 
   // ── entregar ──────────────────────────────────────────────────────────────
