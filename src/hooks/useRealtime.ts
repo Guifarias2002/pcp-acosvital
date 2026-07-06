@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase-client';
 import { invalidateCache } from '@/lib/api';
 
-const FALLBACK_INTERVAL_MS = 15_000; // 15s de fallback caso o WS caia
+const FALLBACK_INTERVAL_MS = 60_000; // 60s de fallback caso o WS caia (temporario, ver commit — banco sob incidente de capacidade)
 
 export function useRealtime(
   tables: string[],
