@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { getDashboard } from '@/lib/api';
 import { useRealtime } from '@/hooks/useRealtime';
-import { DashboardData, STATUS_LABELS, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR } from '@/lib/types';
+import { DashboardData, STATUS_LABELS, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR, PARCIAL_STATUS_LABELS } from '@/lib/types';
 import { getUser, getToken } from '@/lib/auth';
 import Link from 'next/link';
 import NotificacoesLive from '@/components/NotificacoesLive';
@@ -307,7 +307,7 @@ function PedidoRow({ p, isAdmin }: { p: DashboardData['pendencias'][0]; isAdmin:
                   <p style={{ color: '#999', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Nenhum item neste setor.</p>
                 ) : (() => {
                   const stBg: Record<string, string> = { em_aberto: '#f3f4f6', em_andamento: '#dbeafe', finalizado_setor: '#dcfce7', pausado: '#fef9c3' };
-                  const stLabel: Record<string, string> = { em_aberto: 'Aguardando', em_andamento: 'Em Andamento', finalizado_setor: 'Finalizado', pausado: 'Pausado' };
+                  const stLabel = PARCIAL_STATUS_LABELS;
                   if (setorModal === '__todos__') {
                     // Agrupa por setor
                     const grupos: Record<string, any[]> = {};
@@ -411,7 +411,7 @@ export default function DashboardPage() {
   }, [data]);
 
   const carregarDashboard = useCallback(() => {
-    getDashboard().then(d => { setData(d); setErro(false); }).catch(() => {});
+    getDashboard().then(d => { setData(d); setErro(false); }).catch(() => setErro(true));
   }, []);
   useRealtime(
     ['producao_itemparcial', 'producao_itempedido', 'producao_movimentacaoitem'],

@@ -23,7 +23,7 @@ function Cronometro({ desde }: { desde: string }) {
   );
 }
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao } from '@/lib/api';
-import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES } from '@/lib/types';
+import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
@@ -544,14 +544,7 @@ const BADGE_PARCIAL: Record<string, { bg: string; color: string }> = {
   cancelada:        { bg: '#f8d7da', color: '#842029' },
 };
 
-const LABEL_PARCIAL: Record<string, string> = {
-  em_aberto:        'Aguardando',
-  em_andamento:     'Em Andamento',
-  pausado:          'Pausado',
-  finalizado_setor: 'Finalizado no Setor',
-  concluida:        'Concluída',
-  cancelada:        'Cancelada',
-};
+const LABEL_PARCIAL = PARCIAL_STATUS_LABELS;
 
 function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemParcial; onRefresh: () => void; hideHeader?: boolean; setor?: string }) {
   const { toast: toastParcial, mostrar: mostrarErroParcial, fechar: fecharToastParcial } = useToast();
@@ -778,7 +771,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
         {parcial.outras_parciais && parcial.outras_parciais.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
             {parcial.outras_parciais.map((op, i) => {
-              const stLabel: Record<string, string> = { em_aberto: 'Aguardando', em_andamento: 'Em Andamento', finalizado_setor: 'Finalizado', pausado: 'Pausado' };
+              const stLabel = PARCIAL_STATUS_LABELS;
               const stColor: Record<string, string> = { em_aberto: '#64748b', em_andamento: '#854d0e', finalizado_setor: '#14532d', pausado: '#991b1b' };
               const stBg: Record<string, string> = { em_aberto: '#f1f5f9', em_andamento: '#fef9c3', finalizado_setor: '#dcfce7', pausado: '#fee2e2' };
               return (

@@ -2,6 +2,7 @@
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { withTimeout } from '@/lib/queryTimeout';
+import { NOMES } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
@@ -35,13 +36,6 @@ export async function GET(req: Request) {
     [qLideres, qItens],
   );
 
-  const SETOR_NOMES: Record<string, string> = {
-    emissao: 'Emissao de Ordens', compras: 'Compras', recebimento: 'Recebimento',
-    estoque: 'Estoque', plasma: 'Corte Plasma', macarico: 'Corte Macarico',
-    usinagem: 'Usinagem', beneficiadores: 'Beneficiadores', inspecao: 'Inspecao de Qualidade',
-    acabamento: 'Acabamento', embalagem: 'Embalagem', logistica: 'Logistica',
-  };
-
   const result = lideres.map(l => {
     const nome = l.nome || 'Sem nome';
     const itensDoSetor = itens
@@ -62,7 +56,7 @@ export async function GET(req: Request) {
       id: l.id,
       nome,
       setor: l.setor,
-      setor_nome: SETOR_NOMES[l.setor] || l.setor,
+      setor_nome: NOMES[l.setor] || l.setor,
       total_itens: itensDoSetor.length,
       itens: itensDoSetor,
     };
