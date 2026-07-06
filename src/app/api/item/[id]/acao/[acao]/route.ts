@@ -435,6 +435,19 @@ export async function POST(
         }
       }
 
+      // Revalida contra o total realmente disponível sob o lock — a checagem anterior
+      // (linha ~358) leu fora da transação e pode estar desatualizada se outra requisição
+      // consumiu quantidade deste item enquanto esta esperava o advisory lock.
+      // Só se aplica quando há parciais reais para somar — no fallback de item legado sem
+      // nenhuma parcial (bloco acima), a validação já foi feita em cima de quantidade_pendente.
+      if (parciaisAtivas.length > 0) {
+        const totalDisponivelSobLock = parciaisAtivas.reduce(
+          (s: number, p: Record<string, unknown>) => s + Number(p.quantidade), 0
+        );
+        if (qtd > totalDisponivelSobLock)
+          throw new Error(`CONCORRENCIA_QTD_INDISPONIVEL: Quantidade nao esta mais disponivel (outra operacao concorrente alterou o saldo). Disponivel agora: ${totalDisponivelSobLock} ${item.unidade}. Tente novamente.`);
+      }
+
       // Consome das parciais em ordem (maior primeiro) até cobrir qtd
       let restante = qtd;
       let parcialOrigemId: number | null = null;
@@ -844,6 +857,8 @@ export async function POST(
 
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Erro interno no servidor';
+    if (msg.startsWith('CONCORRENCIA_QTD_INDISPONIVEL: '))
+      return NextResponse.json({ erro: msg.slice('CONCORRENCIA_QTD_INDISPONIVEL: '.length) }, { status: 400 });
     console.error('[item/acao]', params.acao, err);
     return NextResponse.json({ erro: msg }, { status: 500 });
   }
