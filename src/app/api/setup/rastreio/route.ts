@@ -50,9 +50,9 @@ export async function POST(req: Request) {
     await sql.unsafe(`
       ALTER TABLE producao_itemparcial
       ADD CONSTRAINT producao_itemparcial_status_check
-      CHECK (status IN ('em_aberto','em_andamento','pausado','finalizado_setor','concluida','cancelada'))
+      CHECK (status IN ('em_aberto','recebido','em_andamento','pausado','finalizado_setor','concluida','cancelada'))
     `);
-    resultados.push('✓ Status CHECK constraint atualizado (pausado + finalizado_setor incluídos)');
+    resultados.push('✓ Status CHECK constraint atualizado (recebido + pausado + finalizado_setor incluídos)');
   } catch (e) {
     resultados.push(`⚠ Status CHECK: ${String(e)}`);
   }
@@ -92,5 +92,5 @@ export async function POST(req: Request) {
   }
   resultados.push('✓ Índices de timing verificados');
 
-  return NextResponse.json({ ok: true, resultados });
+  return NextResponse.json({ ok: true, mensagem: 'Migração de rastreio aplicada.', log: resultados });
 }

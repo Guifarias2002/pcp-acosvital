@@ -537,6 +537,7 @@ function LoteCard({ lote, tipo, onRefresh }: { lote: LoteItem & Record<string, u
 
 const BADGE_PARCIAL: Record<string, { bg: string; color: string }> = {
   em_aberto:        { bg: '#dbeafe', color: '#1d4ed8' },
+  recebido:         { bg: '#fef3c7', color: '#92400e' },
   em_andamento:     { bg: '#fff3cd', color: '#664d03' },
   pausado:          { bg: '#fef9c3', color: '#854d0e' },
   finalizado_setor: { bg: '#d1e7dd', color: '#0a3622' },
@@ -554,7 +555,6 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [showNaoEntregue, setShowNaoEntregue] = useState(false);
   const [showDivQualidade, setShowDivQualidade] = useState(false);
   const [showReceberModal, setShowReceberModal] = useState(false);
-  const [recebidoSemIniciar, setRecebidoSemIniciar] = useState(false);
   const [qtdEnvio, setQtdEnvio] = useState('');
   const [setorDestino, setSetorDestino] = useState('');
   const [setorDev, setSetorDev] = useState('');
@@ -568,6 +568,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [erroObs, setErroObs] = useState<string | null>(null);
   const isLogistica = parcial.setor_atual === 'logistica';
   const isQualidade = parcial.setor_atual === 'qualidade';
+  const isRecebido = parcial.status === 'recebido';
 
   async function aprovarQualidadeParcial() {
     if (loading) return;
@@ -788,8 +789,8 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
             {parcial.outras_parciais.map((op, i) => {
               const stLabel = PARCIAL_STATUS_LABELS;
-              const stColor: Record<string, string> = { em_aberto: '#64748b', em_andamento: '#854d0e', finalizado_setor: '#14532d', pausado: '#991b1b' };
-              const stBg: Record<string, string> = { em_aberto: '#f1f5f9', em_andamento: '#fef9c3', finalizado_setor: '#dcfce7', pausado: '#fee2e2' };
+              const stColor: Record<string, string> = { em_aberto: '#64748b', recebido: '#92400e', em_andamento: '#854d0e', finalizado_setor: '#14532d', pausado: '#991b1b' };
+              const stBg: Record<string, string> = { em_aberto: '#f1f5f9', recebido: '#fef3c7', em_andamento: '#fef9c3', finalizado_setor: '#dcfce7', pausado: '#fee2e2' };
               return (
                 <span key={i} style={{ fontSize: 11, background: stBg[op.status] || '#f1f5f9', border: op.retrabalho ? '1px solid #fbbf24' : '1px solid #e2e8f0', borderRadius: 5, padding: '3px 8px', color: stColor[op.status] || '#374151', display: 'flex', alignItems: 'center', gap: 4 }}>
                   {op.retrabalho && '⚠ '}<strong>{fmtQtd(op.quantidade)} {op.unidade}</strong> em {op.setor_nome}
@@ -817,12 +818,12 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar entrega
           </button>
         )}
-        {!isLogistica && isAberto && !recebidoSemIniciar && (
+        {!isLogistica && isAberto && (
           <button onClick={() => setShowReceberModal(true)} disabled={loading} style={btnStyle('#d97706')}>
             <i className="bi bi-box-arrow-in-down" style={{ marginRight: 5 }} />Receber
           </button>
         )}
-        {!isLogistica && isAberto && recebidoSemIniciar && (
+        {!isLogistica && isRecebido && (
           <button onClick={() => acao('iniciar')} disabled={loading} style={btnStyle('#198754')}>
             <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Iniciar produção
           </button>
@@ -990,8 +991,8 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
               setLoading(true);
               try {
                 await parcialAcao(parcial.id, 'receber');
-                setRecebidoSemIniciar(true);
                 mostrarErroParcial('Recebimento confirmado — clique em Iniciar quando estiver pronto', 'ok');
+                onRefresh();
               } catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
               finally { setLoading(false); }
             } else { acao('pausar', { observacao: obs || 'Divergência no recebimento' }); }
@@ -1173,7 +1174,6 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   const [showEnviarParcial, setShowEnviarParcial] = useState(false);
   const [showDivQualidade, setShowDivQualidade] = useState(false);
   const [showReceberModal, setShowReceberModal] = useState(false);
-  const [recebidoSemIniciar, setRecebidoSemIniciar] = useState(false);
   const [qtdParcial, setQtdParcial] = useState('');
   const [showDevolver, setShowDevolver] = useState(false);
   const [setorDestino, setSetorDestino] = useState('');
@@ -1210,6 +1210,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   const badge = BADGE_PARCIAL[p0.status] || { bg: '#e2e3e5', color: '#333' };
   const isLogistica = p0.setor_atual === 'logistica';
   const isQualidadeGrupo = p0.setor_atual === 'qualidade';
+  const isRecebido = p0.status === 'recebido';
   const foraDoRoteiroGrupo = !p0.proximo_setor && !isLogistica;
 
   async function aprovarGrupoQualidade() {
@@ -1364,7 +1365,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
                 <span>→</span>
                 <span>{op.setor_nome}</span>
                 {op.retrabalho && <span style={{ color: '#b45309', fontWeight: 600 }}>⚠ Retrabalho</span>}
-                <span style={{ color: '#818cf8', fontSize: 10 }}>({op.status === 'em_aberto' ? 'Aguardando' : op.status === 'em_andamento' ? 'Em Andamento' : op.status === 'finalizado_setor' ? 'Finalizado' : op.status === 'pausado' ? 'Pausado' : op.status})</span>
+                <span style={{ color: '#818cf8', fontSize: 10 }}>({PARCIAL_STATUS_LABELS[op.status] || op.status})</span>
               </div>
             ))}
           </div>
@@ -1403,12 +1404,12 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
 
       {/* Ações combinadas */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {!isLogistica && isAberto && !recebidoSemIniciar && (
+        {!isLogistica && isAberto && (
           <button onClick={() => setShowReceberModal(true)} disabled={loading} style={btnStyle('#d97706')}>
             <i className="bi bi-box-arrow-in-down" style={{ marginRight: 5 }} />Receber
           </button>
         )}
-        {!isLogistica && isAberto && recebidoSemIniciar && (
+        {!isLogistica && isRecebido && (
           <button onClick={() => acaoTodos('iniciar')} disabled={loading} style={btnStyle('#198754')}>
             <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Iniciar produção
           </button>
@@ -1521,8 +1522,8 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
               setLoading(true);
               try {
                 for (const p of parciais) await parcialAcao(p.id, 'receber');
-                setRecebidoSemIniciar(true);
                 mostrarErroGrupo('Recebimento confirmado — clique em Iniciar quando estiver pronto', 'ok');
+                onRefresh();
               } catch (e: unknown) {
                 const ax = e as { response?: { data?: { erro?: string } } };
                 mostrarErroGrupo(ax?.response?.data?.erro || String(e));

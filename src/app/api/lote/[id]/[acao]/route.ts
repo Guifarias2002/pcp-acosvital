@@ -39,11 +39,13 @@ export async function POST(req: Request, { params }: { params: { id: string; aca
           WHERE id = ${loteId}
         `;
 
-        // Ativa a parcial correspondente (em_aberto → em_andamento) no setor de destino.
+        // Ativa a parcial correspondente (em_aberto → recebido) no setor de destino.
+        // Nao inicia a producao automaticamente - o cronometro so comeca quando o
+        // usuario clicar em "iniciar" separadamente na tela do setor.
         // UPDATE...LIMIT não existe no PostgreSQL — usa subquery para garantir apenas 1 linha.
         await tx`
           UPDATE producao_itemparcial
-          SET status = 'em_andamento', atualizado_em = NOW()
+          SET status = 'recebido', atualizado_em = NOW()
           WHERE id = (
             SELECT id FROM producao_itemparcial
             WHERE item_pedido_id = ${lote.item_pedido_id}

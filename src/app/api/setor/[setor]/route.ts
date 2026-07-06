@@ -86,7 +86,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       JOIN producao_pedido p ON p.id = pa.pedido_id
       LEFT JOIN producao_itemparcial origem ON origem.id = pa.parcial_origem_id
       WHERE pa.setor_atual = ${setor}
-        AND pa.status IN ('em_aberto', 'em_andamento', 'finalizado_setor', 'pausado')
+        AND pa.status IN ('em_aberto', 'recebido', 'em_andamento', 'finalizado_setor', 'pausado')
       ORDER BY p.numero_pedido_venda, i.codigo, pa.criado_em
     `.catch(() => [] as Record<string, unknown>[]),
 
@@ -119,8 +119,8 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         i.codigo AS item_codigo, i.descricao AS item_descricao, i.unidade,
         i.quantidade::text AS quantidade_total,
         p.numero_pedido_venda, p.cliente,
-        SUM(pa.quantidade) FILTER (WHERE pa.setor_atual = ${setor} AND pa.status IN ('em_aberto','em_andamento'))::text AS quantidade_no_setor,
-        SUM(pa.quantidade) FILTER (WHERE pa.setor_atual != ${setor} AND pa.status IN ('em_aberto','em_andamento'))::text AS quantidade_em_outros,
+        SUM(pa.quantidade) FILTER (WHERE pa.setor_atual = ${setor} AND pa.status IN ('em_aberto','recebido','em_andamento'))::text AS quantidade_no_setor,
+        SUM(pa.quantidade) FILTER (WHERE pa.setor_atual != ${setor} AND pa.status IN ('em_aberto','recebido','em_andamento'))::text AS quantidade_em_outros,
         SUM(pa.quantidade) FILTER (WHERE pa.status = 'concluida')::text AS quantidade_concluida,
         SUM(pa.quantidade)::text AS total_rastreado
       FROM producao_itemparcial pa
@@ -131,7 +131,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
           SELECT 1 FROM producao_itemparcial px
           WHERE px.item_pedido_id = pa.item_pedido_id
             AND px.setor_atual = ${setor}
-            AND px.status IN ('em_aberto','em_andamento')
+            AND px.status IN ('em_aberto','recebido','em_andamento')
         )
       GROUP BY i.id, p.id, i.codigo, i.descricao, i.unidade, i.quantidade,
                p.numero_pedido_venda, p.cliente

@@ -306,7 +306,7 @@ function PedidoRow({ p, isAdmin }: { p: DashboardData['pendencias'][0]; isAdmin:
                 ) : modalItens.length === 0 ? (
                   <p style={{ color: '#999', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Nenhum item neste setor.</p>
                 ) : (() => {
-                  const stBg: Record<string, string> = { em_aberto: '#f3f4f6', em_andamento: '#dbeafe', finalizado_setor: '#dcfce7', pausado: '#fef9c3' };
+                  const stBg: Record<string, string> = { em_aberto: '#f3f4f6', recebido: '#fef3c7', em_andamento: '#dbeafe', finalizado_setor: '#dcfce7', pausado: '#fef9c3' };
                   const stLabel = PARCIAL_STATUS_LABELS;
                   if (setorModal === '__todos__') {
                     // Agrupa por setor

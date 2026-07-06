@@ -45,6 +45,14 @@ const SCRIPTS = [
     url: '/api/setup/observacoes-item',
   },
   {
+    id: 'rastreio',
+    label: 'Status "Recebido" em Parciais',
+    desc: 'Permite que uma parcial fique como "Recebido" (sem iniciar produção) até o usuário clicar em Iniciar',
+    icon: 'bi-box-seam-fill',
+    color: '#d97706',
+    url: '/api/setup/rastreio',
+  },
+  {
     id: 'anexos-producao',
     label: 'Anexos de Pedido de Venda / OP',
     desc: 'Adiciona as colunas pedido_venda_url e ordem_producao_url em producao_pedido',

@@ -67,7 +67,7 @@ async function getParcialAtiva(
     FROM producao_itemparcial
     WHERE item_pedido_id = ${itemId}
       AND setor_atual = ${setor}
-      AND status IN ('em_aberto', 'em_andamento')
+      AND status IN ('em_aberto', 'recebido', 'em_andamento')
     ORDER BY criado_em ASC
     LIMIT 1
   `;
@@ -346,7 +346,7 @@ export async function POST(
       FROM producao_itemparcial
       WHERE item_pedido_id = ${item.id}
         AND setor_atual = ${item.setor_atual}
-        AND status IN ('em_aberto', 'em_andamento')
+        AND status IN ('em_aberto', 'recebido', 'em_andamento')
       ORDER BY
         CASE WHEN parcial_origem_id IS NULL THEN 0 ELSE 1 END ASC,
         quantidade DESC
@@ -396,7 +396,7 @@ export async function POST(
         FROM producao_itemparcial
         WHERE item_pedido_id = ${item.id}
           AND setor_atual = ${item.setor_atual}
-          AND status IN ('em_aberto', 'em_andamento')
+          AND status IN ('em_aberto', 'recebido', 'em_andamento')
         ORDER BY quantidade DESC
         FOR UPDATE
       `;
@@ -565,7 +565,7 @@ export async function POST(
       await tx`
         UPDATE producao_itemparcial
         SET status = 'concluida', atualizado_em = NOW()
-        WHERE item_pedido_id = ${item.id} AND status IN ('em_aberto', 'em_andamento')
+        WHERE item_pedido_id = ${item.id} AND status IN ('em_aberto', 'recebido', 'em_andamento')
       `;
       const [{ pendentes }] = await tx`
         SELECT COUNT(*) AS pendentes FROM producao_itempedido
@@ -586,13 +586,14 @@ export async function POST(
       const idxAtual = roteiro.indexOf(item.setor_atual);
       const setorAnterior = idxAtual > 0 ? roteiro[idxAtual - 1] : item.setor_atual;
       await sql.begin(async (tx) => {
-        // 1. Ajusta a parcial existente no setor atual: reduz para qtdReceber e marca como em_andamento.
+        // 1. Ajusta a parcial existente no setor atual: reduz para qtdReceber e marca como recebido.
+        //    Nao inicia a producao automaticamente - precisa de um "iniciar" separado.
         //    Sem isso, a soma das parciais ativas ultrapassaria a quantidade total do item.
         const parcialAtual = await getParcialAtiva(tx as unknown as typeof sql, item.id, item.setor_atual);
         if (parcialAtual) {
           await tx`
             UPDATE producao_itemparcial
-            SET quantidade = ${qtdReceber}, status = 'em_andamento', atualizado_em = NOW()
+            SET quantidade = ${qtdReceber}, status = 'recebido', atualizado_em = NOW()
             WHERE id = ${parcialAtual.id}
           `;
         } else {
@@ -603,7 +604,7 @@ export async function POST(
                criado_por_id, criado_em, atualizado_em)
             VALUES
               (${item.id}, ${item.pedido_id}, ${qtdReceber}, ${item.setor_atual},
-               'em_andamento', ${`Recebido parcialmente: ${qtdReceber} de ${qtdTotal} ${item.unidade}`},
+               'recebido', ${`Recebido parcialmente: ${qtdReceber} de ${qtdTotal} ${item.unidade}`},
                ${user.id}, NOW(), NOW())
           `;
         }
@@ -655,10 +656,10 @@ export async function POST(
         `;
         await tx`UPDATE producao_itempedido SET status='recebido', atualizado_em=NOW() WHERE id=${item.id}`;
         await tx`UPDATE producao_pedido SET setor_atual=${item.setor_atual}, atualizado_em=NOW() WHERE id=${item.pedido_id}`;
-        // Marca parcial do setor como em_andamento
+        // Marca parcial do setor como recebida (nao inicia producao automaticamente)
         await tx`
           UPDATE producao_itemparcial
-          SET status = 'em_andamento', atualizado_em = NOW()
+          SET status = 'recebido', atualizado_em = NOW()
           WHERE item_pedido_id = ${item.id}
             AND setor_atual = ${item.setor_atual}
             AND status = 'em_aberto'
@@ -752,7 +753,7 @@ export async function POST(
       await tx`
         UPDATE producao_itemparcial
         SET status = 'cancelada', atualizado_em = NOW()
-        WHERE item_pedido_id = ${item.id} AND status IN ('em_aberto', 'em_andamento')
+        WHERE item_pedido_id = ${item.id} AND status IN ('em_aberto', 'recebido', 'em_andamento')
       `;
     });
     await sql`
@@ -780,7 +781,7 @@ export async function POST(
             atualizado_em = NOW()
         WHERE item_pedido_id = ${item.id}
           AND setor_atual = ${item.setor_atual}
-          AND status IN ('em_aberto')
+          AND status IN ('em_aberto', 'recebido')
       `;
       // Finaliza lotes em_trabalho para este item neste setor (chegaram via envio parcial)
       await tx`
@@ -812,7 +813,7 @@ export async function POST(
             atualizado_em = NOW()
         WHERE item_pedido_id = ${item.id}
           AND setor_atual = ${item.setor_atual}
-          AND status IN ('em_aberto', 'em_andamento')
+          AND status IN ('em_aberto', 'recebido', 'em_andamento')
       `;
     });
 

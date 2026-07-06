@@ -198,23 +198,23 @@ export async function POST(
       mensagem: `${qtdMover} ${parcial.unidade} movidos de ${nomeSector(parcial.setor_atual)} → ${nomeSector(setor_destino)}`,
     });
 
-  // ── receber ── reconhece o recebimento e inicia a etapa (em_aberto → em_andamento) ─
+  // ── receber ── reconhece o recebimento SEM iniciar a produção (em_aberto → recebido) ─
+  //    O cronometro so comeca quando o usuario clicar em "iniciar" separadamente.
   } else if (acao === 'receber') {
     if (parcial.status !== 'em_aberto')
       return NextResponse.json({ erro: 'Parcial não está em aberto para recebimento' }, { status: 400 });
     await sql.begin(async (tx) => {
       await tx`
         UPDATE producao_itemparcial
-        SET status = 'em_andamento',
-            iniciado_em = COALESCE(iniciado_em, NOW()),
+        SET status = 'recebido',
             atualizado_em = NOW(),
             observacao = CASE WHEN ${obs} != '' THEN ${obs} ELSE observacao END
         WHERE id = ${parcialId}
       `;
       await tx`
         UPDATE producao_itempedido
-        SET status = 'em_andamento', atualizado_em = NOW()
-        WHERE id = ${parcial.item_id} AND status IN ('aguardando', 'recebido', 'emitido')
+        SET status = 'recebido', atualizado_em = NOW()
+        WHERE id = ${parcial.item_id} AND status IN ('aguardando', 'emitido')
       `;
       await tx`
         INSERT INTO producao_movimentacaoitem
@@ -222,11 +222,11 @@ export async function POST(
            status_anterior, status_novo, observacao, criado_em)
         VALUES (${parcial.item_id}, ${parcial.pedido_id}, ${user.id},
                 ${parcial.setor_atual}, ${parcial.setor_atual},
-                ${parcial.item_status}, 'em_andamento',
-                ${obs || `Parcial #${parcialId} recebida e iniciada em ${nomeSector(parcial.setor_atual)}`}, NOW())
+                ${parcial.item_status}, 'recebido',
+                ${obs || `Parcial #${parcialId} recebida em ${nomeSector(parcial.setor_atual)} — aguardando início`}, NOW())
       `;
     });
-    return NextResponse.json({ ok: true, status: 'em_andamento', mensagem: 'Parcial recebida — produção iniciada' });
+    return NextResponse.json({ ok: true, status: 'recebido', mensagem: 'Parcial recebida — clique em Iniciar quando estiver pronto' });
 
   // ── iniciar ───────────────────────────────────────────────────────────────
   } else if (acao === 'iniciar') {

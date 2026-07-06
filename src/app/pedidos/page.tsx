@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedidos } from '@/lib/api';
 import { getToken } from '@/lib/auth';
-import { Pedido, STATUS_LABELS, getPedidoEtapa, ETAPA_LABELS, NOMES } from '@/lib/types';
+import { Pedido, STATUS_LABELS, getPedidoEtapa, ETAPA_LABELS, NOMES, PARCIAL_STATUS_LABELS } from '@/lib/types';
 import { getUser } from '@/lib/auth';
 import Link from 'next/link';
 
@@ -609,9 +609,9 @@ function PedidosPageInner() {
                 <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>Carregando...</div>
               )}
               {!modalRastreio.loading && modalRastreio.itens.map(item => {
-                const STATUS_LABEL: Record<string, string> = { em_aberto: 'Aguardando', em_andamento: 'Em Andamento', finalizado_setor: 'Finalizado', pausado: 'Pausado', concluida: 'Concluída' };
-                const STATUS_BG: Record<string, string> = { em_aberto: '#f1f5f9', em_andamento: '#fef9c3', finalizado_setor: '#dcfce7', pausado: '#fee2e2' };
-                const STATUS_TXT: Record<string, string> = { em_aberto: '#475569', em_andamento: '#854d0e', finalizado_setor: '#14532d', pausado: '#991b1b' };
+                const STATUS_LABEL = PARCIAL_STATUS_LABELS;
+                const STATUS_BG: Record<string, string> = { em_aberto: '#f1f5f9', recebido: '#fef3c7', em_andamento: '#fef9c3', finalizado_setor: '#dcfce7', pausado: '#fee2e2' };
+                const STATUS_TXT: Record<string, string> = { em_aberto: '#475569', recebido: '#92400e', em_andamento: '#854d0e', finalizado_setor: '#14532d', pausado: '#991b1b' };
                 const entregues = Number(item.quantidade_entregue || 0);
                 const temParciais = item.parciais_por_setor && item.parciais_por_setor.length > 0;
 
