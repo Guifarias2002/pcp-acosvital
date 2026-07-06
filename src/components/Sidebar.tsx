@@ -89,7 +89,6 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
         <nav>
           <NavGroup label="Geral">
             <NavItem href="/" label="Dashboard" icon="bi-speedometer2" onNav={fechar} />
-            <NavItem href="/catalogo" label="Catálogo" icon="bi-journal-bookmark-fill" onNav={fechar} />
             {isAdmin && (
               <>
                 <NavItem href="/pedidos" label="Todos os Pedidos" icon="bi-list-ul" onNav={fechar} />
@@ -164,7 +163,6 @@ export function TopBar({ onHamburger, colapsada, onExpandir }: TopBarProps) {
 
   const titles: Record<string, string> = {
     '/': 'Dashboard',
-    '/catalogo': 'Catálogo de Materiais',
     '/pedidos': 'Todos os Pedidos',
     '/kanban': 'Kanban',
     '/por-lider': 'Painel por Líder',

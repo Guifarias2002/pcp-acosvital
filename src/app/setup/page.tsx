@@ -45,14 +45,6 @@ const SCRIPTS = [
     url: '/api/setup/observacoes-item',
   },
   {
-    id: 'catalogo',
-    label: 'Catálogo de Materiais',
-    desc: 'Cria a tabela producao_catalogo_material para a biblioteca de materiais',
-    icon: 'bi-journal-bookmark-fill',
-    color: '#059669',
-    url: '/api/setup/catalogo',
-  },
-  {
     id: 'anexos-producao',
     label: 'Anexos de Pedido de Venda / OP',
     desc: 'Adiciona as colunas pedido_venda_url e ordem_producao_url em producao_pedido',
