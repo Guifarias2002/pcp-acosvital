@@ -239,7 +239,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
         {/* LIBERAR — item ainda emitido, envia para o proximo setor do roteiro */}
         {item.status === 'emitido' && (
           <button onClick={() => acao('liberar')} disabled={loading}
-            style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+            style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
             {loading ? <i className="bi bi-hourglass-split" style={{ marginRight: 5 }}></i> : <i className="bi bi-play-fill" style={{ marginRight: 5 }}></i>}
             {loading ? 'Aguarde...' : 'Iniciar produção'}
           </button>
@@ -248,21 +248,21 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
         {/* RECEBER — abre modal total/parcial */}
         {item.status === 'aguardando' && !showReceber && (
           <button onClick={() => !loading && setShowReceber(true)} disabled={loading}
-            style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+            style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
             <i className="bi bi-box-arrow-in-down" style={{ marginRight: 5 }}></i>Receber
           </button>
         )}
 
         {item.status === 'recebido' && item.setor_atual === 'logistica' && (
           <button onClick={() => !loading && setShowDespachar(true)} disabled={loading}
-            style={{ background: '#fd7e14', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+            style={{ background: '#fd7e14', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
             <i className="bi bi-truck" style={{ marginRight: 5 }}></i>Despachar
           </button>
         )}
 
         {item.status === 'recebido' && item.setor_atual !== 'logistica' && (
           <button onClick={() => acao('iniciar')} disabled={loading}
-            style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+            style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
             {loading ? <i className="bi bi-hourglass-split" style={{ marginRight: 5 }}></i> : <i className="bi bi-play-fill" style={{ marginRight: 5 }}></i>}
             {loading ? 'Aguarde...' : 'Iniciar produção'}
           </button>
@@ -271,12 +271,12 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
         {item.status === 'em_andamento' && item.setor_atual !== 'logistica' && (
           <>
             <button onClick={() => !loading && setConfirm({ titulo: 'Finalizar etapa', mensagem: `Confirma que a etapa de ${item.nome_setor_atual} foi concluída para este item?`, acao: () => acao('finalizar') })} disabled={loading}
-              style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+              style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
               {loading ? <i className="bi bi-hourglass-split" style={{ marginRight: 5 }}></i> : <i className="bi bi-check-lg" style={{ marginRight: 5 }}></i>}
               {loading ? 'Aguarde...' : 'Finalizar etapa'}
             </button>
             <button onClick={() => acao('pausar')} disabled={loading}
-              style={{ background: '#fd7e14', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+              style={{ background: '#fd7e14', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
               <i className="bi bi-pause-fill" style={{ marginRight: 5 }}></i>Pausar
             </button>
           </>
@@ -284,7 +284,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
 
         {item.status === 'pausado' && (
           <button onClick={() => acao('retomar')} disabled={loading}
-            style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+            style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
             {loading ? <i className="bi bi-hourglass-split" style={{ marginRight: 5 }}></i> : <i className="bi bi-play-fill" style={{ marginRight: 5 }}></i>}
             {loading ? 'Aguarde...' : 'Retomar'}
           </button>
@@ -304,12 +304,12 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
               </select>
             </div>
             <button onClick={() => !loading && setConfirm({ titulo: 'Enviar para o setor selecionado', mensagem: `Confirma o envio de TODOS os itens para ${NOMES[setorDestinoEnvio || item.proximo_setor || ''] || 'o setor selecionado'}?`, acao: () => acao('enviar_tudo', { setor_destino: setorDestinoEnvio || item.proximo_setor }) })} disabled={loading}
-              style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+              style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
               {loading ? <i className="bi bi-hourglass-split" style={{ marginRight: 5 }}></i> : <i className="bi bi-send-fill" style={{ marginRight: 5 }}></i>}
               {loading ? 'Aguarde...' : 'Enviar tudo'}
             </button>
             <button onClick={() => !loading && setShowParcial(v => !v)} disabled={loading}
-              style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+              style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
               <i className="bi bi-scissors" style={{ marginRight: 5 }}></i>Enviar parcial
             </button>
           </>
@@ -317,7 +317,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
 
         {item.setor_atual === 'logistica' && item.status === 'em_transito' && (
           <button onClick={() => !loading && setShowEntregar(true)} disabled={loading}
-            style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+            style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
             <i className="bi bi-check-circle-fill" style={{ marginRight: 5 }}></i>
             Confirmar entrega
           </button>
@@ -673,7 +673,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
     background: outline ? 'none' : bg,
     color: outline ? bg : '#fff',
     border: outline ? `1px solid ${bg}` : 'none',
-    borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700,
+    borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600,
     cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1,
   });
 
@@ -1013,7 +1013,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <button
               onClick={() => { setObsAberto(v => !v); setErroObs(null); }}
               title="Observações"
-              style={{ background: obsAberto ? '#1d4ed8' : qtdObs > 0 ? '#dbeafe' : 'none', color: obsAberto ? '#fff' : qtdObs > 0 ? '#1d4ed8' : '#64748b', border: `1px solid ${obsAberto ? '#1d4ed8' : qtdObs > 0 ? '#93c5fd' : '#dde3f0'}`, borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              style={{ background: obsAberto ? '#1d4ed8' : qtdObs > 0 ? '#dbeafe' : 'none', color: obsAberto ? '#fff' : qtdObs > 0 ? '#1d4ed8' : '#64748b', border: `1px solid ${obsAberto ? '#1d4ed8' : qtdObs > 0 ? '#93c5fd' : '#dde3f0'}`, borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
             >
               <i className="bi bi-chat-left-text" style={{ marginRight: 5 }} />
               {qtdObs > 0 ? `${qtdObs} observaç${qtdObs > 1 ? 'ões' : 'ão'}` : 'Observação'}
@@ -1151,7 +1151,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             acao('mover', { setor_destino: dest, quantidade: qtd });
             setShowEnviar(false);
           }} disabled={loading || (!setorDestino && !parcial.proximo_setor)}
-            style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: (loading || (!setorDestino && !parcial.proximo_setor)) ? 'not-allowed' : 'pointer', opacity: (!setorDestino && !parcial.proximo_setor) ? 0.4 : 1 }}>
+            style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: (loading || (!setorDestino && !parcial.proximo_setor)) ? 'not-allowed' : 'pointer', opacity: (!setorDestino && !parcial.proximo_setor) ? 0.4 : 1 }}>
             Confirmar envio
           </button>
           <button onClick={() => setShowEnviar(false)}
@@ -1294,7 +1294,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   const btnStyle = (bg: string, outline = false): React.CSSProperties => ({
     background: outline ? 'none' : bg, color: outline ? bg : '#fff',
     border: outline ? `1px solid ${bg}` : 'none',
-    borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700,
+    borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600,
     cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1,
   });
 
@@ -1709,7 +1709,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             acaoTodos('mover', { setor_destino: dest });
             setShowEnviar(false);
           }} disabled={loading || (!setorDestino && !p0.proximo_setor)}
-            style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: (loading || (!setorDestino && !p0.proximo_setor)) ? 'not-allowed' : 'pointer', opacity: (!setorDestino && !p0.proximo_setor) ? 0.4 : 1 }}>
+            style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: (loading || (!setorDestino && !p0.proximo_setor)) ? 'not-allowed' : 'pointer', opacity: (!setorDestino && !p0.proximo_setor) ? 0.4 : 1 }}>
             Confirmar envio
           </button>
           <button onClick={() => setShowEnviar(false)}
@@ -1758,7 +1758,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             setQtdParcial('');
             onRefresh();
           }} disabled={loading || (!setorDestino && !p0.proximo_setor)}
-            style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: (loading || (!setorDestino && !p0.proximo_setor)) ? 'not-allowed' : 'pointer', opacity: (!setorDestino && !p0.proximo_setor) ? 0.4 : 1 }}>
+            style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: (loading || (!setorDestino && !p0.proximo_setor)) ? 'not-allowed' : 'pointer', opacity: (!setorDestino && !p0.proximo_setor) ? 0.4 : 1 }}>
             Confirmar envio
           </button>
           <button onClick={() => setShowEnviarParcial(false)}
