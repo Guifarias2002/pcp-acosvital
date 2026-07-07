@@ -563,7 +563,8 @@ export async function POST(
       await tx`
         UPDATE producao_itemparcial
         SET status = 'concluida', atualizado_em = NOW()
-        WHERE item_pedido_id = ${item.id} AND status IN ('em_aberto', 'recebido', 'em_andamento')
+        WHERE item_pedido_id = ${item.id}
+          AND status IN ('em_aberto', 'recebido', 'em_andamento', 'em_transito', 'pausado', 'finalizado_setor')
       `;
       const [{ pendentes }] = await tx`
         SELECT COUNT(*) AS pendentes FROM producao_itempedido
@@ -838,7 +839,30 @@ export async function POST(
       `;
     });
 
-  // ── demais ações (pausar, aprovar, despachar) ─────────────────────────────
+  // ── despachar ─────────────────────────────────────────────────────────────
+  // Alem de mudar o status do item, marca a(s) parcial(is) do item na logistica
+  // como em_transito - sem isso, o card da parcial ficava sem saber que o
+  // despacho aconteceu e continuava mostrando os botoes de producao.
+  } else if (acao === 'despachar') {
+    await sql.begin(async (tx) => {
+      await tx`
+        INSERT INTO producao_movimentacaoitem
+          (item_id, pedido_id, usuario_id, setor_origem, setor_destino,
+           status_anterior, status_novo, observacao, criado_em)
+        VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${item.setor_atual},
+                ${item.status}, 'em_transito', ${obs || ''}, NOW())
+      `;
+      await tx`UPDATE producao_itempedido SET status='em_transito', atualizado_em=NOW() WHERE id=${item.id}`;
+      await tx`
+        UPDATE producao_itemparcial
+        SET status = 'em_transito', atualizado_em = NOW()
+        WHERE item_pedido_id = ${item.id}
+          AND setor_atual = 'logistica'
+          AND status IN ('finalizado_setor', 'em_andamento', 'concluida')
+      `;
+    });
+
+  // ── demais ações (pausar, aprovar) ────────────────────────────────────────
   } else {
     await sql.begin(async (tx) => {
       await tx`

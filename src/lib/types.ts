@@ -249,7 +249,7 @@ export interface ItemParcial {
   unidade?: string;
   setor_atual: string;
   setor_atual_nome: string;
-  status: 'em_aberto' | 'recebido' | 'em_andamento' | 'concluida' | 'cancelada' | 'pausado' | 'finalizado_setor';
+  status: 'em_aberto' | 'recebido' | 'em_andamento' | 'em_transito' | 'concluida' | 'cancelada' | 'pausado' | 'finalizado_setor';
   observacao: string | null;
   numero_op?: string;
   item_codigo?: string;
@@ -324,6 +324,7 @@ export const PARCIAL_STATUS_LABELS: Record<string, string> = {
   em_aberto: 'Em Aberto',
   recebido: 'Recebido',
   em_andamento: 'Em Andamento',
+  em_transito: 'Em Rota',
   concluida: 'Concluída',
   cancelada: 'Cancelada',
   pausado: 'Pausado',
@@ -334,6 +335,7 @@ export const PARCIAL_STATUS_COR: Record<string, string> = {
   em_aberto: 'bg-gray-100 text-gray-700',
   recebido: 'bg-amber-100 text-amber-800',
   em_andamento: 'bg-blue-100 text-blue-800',
+  em_transito: 'bg-cyan-100 text-cyan-800',
   concluida: 'bg-green-100 text-green-800',
   cancelada: 'bg-red-100 text-red-700',
   pausado: 'bg-yellow-100 text-yellow-800',

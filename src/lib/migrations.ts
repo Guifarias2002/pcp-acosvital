@@ -28,7 +28,7 @@ export async function runMigrations() {
     await sql.unsafe(`
       ALTER TABLE producao_itemparcial
       ADD CONSTRAINT producao_itemparcial_status_check
-      CHECK (status IN ('em_aberto','recebido','em_andamento','pausado','finalizado_setor','concluida','cancelada'))
+      CHECK (status IN ('em_aberto','recebido','em_andamento','em_transito','pausado','finalizado_setor','concluida','cancelada'))
     `).catch(() => {});
   } catch { /* ignora */ }
 

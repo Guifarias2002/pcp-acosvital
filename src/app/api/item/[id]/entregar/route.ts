@@ -85,6 +85,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     await tx`UPDATE producao_itempedido SET status='entregue', quantidade_entregue=${qtdEntregue}, atualizado_em=NOW() WHERE id=${itemId}`;
 
+    // Marca todas as parciais ativas do item como concluidas - sem isso, uma parcial
+    // em_transito ficava orfa (travada nesse status para sempre apos a entrega).
+    await tx`
+      UPDATE producao_itemparcial
+      SET status = 'concluida', concluido_em = COALESCE(concluido_em, NOW()), atualizado_em = NOW()
+      WHERE item_pedido_id = ${itemId}
+        AND status IN ('em_aberto', 'recebido', 'em_andamento', 'em_transito', 'pausado', 'finalizado_setor')
+    `;
+
     await tx`
       INSERT INTO producao_entrega (pedido_id, item_id, usuario_id, numero_nf, comprovante_url, comprovante_tipo, observacao, criado_em)
       VALUES (${item.pedido_id}, ${itemId}, ${user.id}, ${numeroNf}, ${comprovanteUrl}, ${tipo}, ${observacao || null}, NOW())

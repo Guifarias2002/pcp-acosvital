@@ -24,7 +24,7 @@ interface ParcialDetalhe {
   unidade: string;
   setor_atual: string;
   setor_atual_nome: string;
-  status: 'em_aberto' | 'recebido' | 'em_andamento' | 'pausado' | 'finalizado_setor' | 'concluida' | 'cancelada';
+  status: 'em_aberto' | 'recebido' | 'em_andamento' | 'em_transito' | 'pausado' | 'finalizado_setor' | 'concluida' | 'cancelada';
   observacao: string | null;
   item_codigo: string;
   item_descricao: string;

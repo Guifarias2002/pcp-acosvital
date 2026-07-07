@@ -570,6 +570,7 @@ const BADGE_PARCIAL: Record<string, { bg: string; color: string }> = {
   em_aberto:        { bg: '#dbeafe', color: '#1d4ed8' },
   recebido:         { bg: '#fef3c7', color: '#92400e' },
   em_andamento:     { bg: '#fff3cd', color: '#664d03' },
+  em_transito:      { bg: '#cffafe', color: '#155e75' },
   pausado:          { bg: '#fef9c3', color: '#854d0e' },
   finalizado_setor: { bg: '#d1e7dd', color: '#0a3622' },
   concluida:        { bg: '#d1e7dd', color: '#0a3622' },
@@ -593,6 +594,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [motivoDiv, setMotivoDiv] = useState('');
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void; perigo?: boolean } | null>(null);
   const [showDespacharParcial, setShowDespacharParcial] = useState(false);
+  const [showEntregarParcial, setShowEntregarParcial] = useState(false);
   const [obsAberto, setObsAberto] = useState(false);
   const [novaObsTexto, setNovaObsTexto] = useState('');
   const [enviandoObs, setEnviandoObs] = useState(false);
@@ -647,6 +649,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const isAndamento = parcial.status === 'em_andamento';
   const isPausado   = parcial.status === 'pausado';
   const isFinalizado = parcial.status === 'finalizado_setor';
+  const isEmTransito = parcial.status === 'em_transito';
   const badge = BADGE_PARCIAL[parcial.status] || { bg: '#e2e3e5', color: '#333' };
   const foraDoRoteiro = !parcial.proximo_setor && !isLogistica;
 
@@ -713,7 +716,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: badge.bg, color: badge.color }}>
             {LABEL_PARCIAL[parcial.status] || parcial.status}
           </span>
-          {isAndamento && parcial.atualizado_em && (
+          {(isAndamento || isEmTransito) && parcial.atualizado_em && (
             <Cronometro desde={parcial.atualizado_em} />
           )}
           <Link href={`/parcial/${parcial.id}`} title="Ver detalhe" style={{ color: '#0d6efd', fontSize: 14, textDecoration: 'none' }}>
@@ -949,6 +952,24 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             pedidoNumero={parcial.numero_pedido_venda ?? ''}
             onClose={() => setShowDespacharParcial(false)}
             onSuccess={() => { setShowDespacharParcial(false); onRefresh(); }}
+          />
+        )}
+
+        {/* EM ROTA — logística, após despachar: só confirmar entrega, sem botões de produção */}
+        {isLogistica && isEmTransito && (
+          <button onClick={() => setShowEntregarParcial(true)} disabled={loading} style={btnStyle('#198754')}>
+            <i className="bi bi-check-circle-fill" style={{ marginRight: 5 }} />Confirmar entrega
+          </button>
+        )}
+        {showEntregarParcial && (
+          <EntregarModal
+            itemId={parcial.item_pedido_id as number}
+            pedidoNumero={parcial.numero_pedido_venda ?? ''}
+            descricao={parcial.item_descricao ?? ''}
+            quantidade={parcial.quantidade}
+            unidade={parcial.unidade ?? 'un'}
+            onCancel={() => setShowEntregarParcial(false)}
+            onConfirm={() => { setShowEntregarParcial(false); onRefresh(); }}
           />
         )}
 
@@ -1304,6 +1325,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   const isAndamento = p0.status === 'em_andamento';
   const isPausado   = p0.status === 'pausado';
   const isFinalizado = p0.status === 'finalizado_setor';
+  const isEmTransito = p0.status === 'em_transito';
 
   return (
     <>
