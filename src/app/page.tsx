@@ -454,6 +454,20 @@ export default function DashboardPage() {
   );
 
   const ultimosPedidos = pedidosData ?? [];
+
+  // Contagem dos 4 primeiros cards de etapa a partir do MESMO calculo (getPedidoEtapa)
+  // usado na tabela "Últimos Pedidos" logo abaixo - antes os cards vinham de uma
+  // contagem separada no banco (por status do pedido), que podia divergir da tabela
+  // (ex: item "recebido" mas ainda nao iniciado contava como "produzindo" nos cards,
+  // mas como "ag_recebimento" na tabela). "Entregue" continua vindo do backend.
+  const etapaCounts = { a_produzir: 0, ag_recebimento: 0, produzindo: 0, mat_concluido: 0 };
+  if (pedidosData) {
+    for (const p of pedidosData) {
+      const e = getPedidoEtapa(p);
+      if (e !== 'entregue') etapaCounts[e as keyof typeof etapaCounts]++;
+    }
+  }
+
   const pedidosFiltrados = ultimosPedidos.filter(p => {
     if (busca && !p.numero_pedido_venda?.toLowerCase().includes(busca.toLowerCase()) && !p.cliente?.toLowerCase().includes(busca.toLowerCase())) return false;
     if (fPrioridade && p.prioridade !== fPrioridade) return false;
@@ -499,25 +513,25 @@ export default function DashboardPage() {
             {[
               {
                 etapa: 'a_produzir', bg: '#1a3a5c', label: 'A Produzir',
-                count: data.a_produzir, val: data.valor_a_produzir,
+                count: etapaCounts.a_produzir, val: data.valor_a_produzir,
                 sub: 'OPs emitidas aguardando início', icon: 'bi-hourglass-split',
                 href: '/pedidos?status=emitido',
               },
               {
                 etapa: 'ag_recebimento', bg: '#92400e', label: 'Ag. Recebimento',
-                count: data.ag_recebimento, val: null,
+                count: etapaCounts.ag_recebimento, val: null,
                 sub: 'enviado, aguardando setor receber', icon: 'bi-arrow-down-circle',
                 href: '/kanban',
               },
               {
                 etapa: 'produzindo', bg: '#1d4ed8', label: 'Produzindo',
-                count: data.produzindo, val: data.valor_em_producao,
+                count: etapaCounts.produzindo, val: data.valor_em_producao,
                 sub: 'em trabalho nos setores', icon: 'bi-gear-fill',
                 href: '/kanban',
               },
               {
                 etapa: 'mat_concluido', bg: '#b45309', label: 'Mat. Concluído',
-                count: data.mat_concluido, val: null,
+                count: etapaCounts.mat_concluido, val: null,
                 sub: 'produção ok, na logística', icon: 'bi-truck',
                 href: '/pedidos?setor=logistica',
               },
