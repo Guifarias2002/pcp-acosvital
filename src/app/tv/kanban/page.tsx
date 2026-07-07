@@ -28,7 +28,6 @@ interface PedidoTV {
 // Mesmas etapas, cores, icones e legendas do card "Painel de Produção" do Dashboard (/)
 const ETAPAS_META: { etapa: Etapa; bg: string; label: string; sub: string; icon: string }[] = [
   { etapa: 'a_produzir', bg: '#1a3a5c', label: 'A Produzir', sub: 'OPs emitidas aguardando início', icon: 'bi-hourglass-split' },
-  { etapa: 'ag_recebimento', bg: '#92400e', label: 'Ag. Recebimento', sub: 'enviado, aguardando setor receber', icon: 'bi-arrow-down-circle' },
   { etapa: 'produzindo', bg: '#1d4ed8', label: 'Produzindo', sub: 'em trabalho nos setores', icon: 'bi-gear-fill' },
   { etapa: 'mat_concluido', bg: '#b45309', label: 'Mat. Concluído', sub: 'produção ok, na logística', icon: 'bi-truck' },
   { etapa: 'entregue', bg: '#166534', label: 'Entregue', sub: 'materiais entregues ao cliente', icon: 'bi-check-circle-fill' },
@@ -71,7 +70,12 @@ export default function TVKanbanPage() {
   // Agrupa os pedidos carregados nas 5 etapas do ciclo de vida
   const grupos: Record<Etapa, PedidoTV[]> = { a_produzir: [], ag_recebimento: [], produzindo: [], mat_concluido: [], entregue: [] };
   for (const p of pedidos) {
-    try { grupos[getPedidoEtapa(p)].push(p); } catch { /* pedido com dados incompletos - ignora */ }
+    try {
+      const e = getPedidoEtapa(p);
+      // "ag_recebimento" some como etapa separada na TV e passa a contar em "Produzindo",
+      // igual ao Dashboard (decisão do usuário) - evita as duas telas divergirem de novo.
+      grupos[e === 'ag_recebimento' ? 'produzindo' : e].push(p);
+    } catch { /* pedido com dados incompletos - ignora */ }
   }
 
   const etapaAtual = ETAPAS[etapaIdx];

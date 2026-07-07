@@ -460,18 +460,26 @@ export default function DashboardPage() {
   // contagem separada no banco (por status do pedido), que podia divergir da tabela
   // (ex: item "recebido" mas ainda nao iniciado contava como "produzindo" nos cards,
   // mas como "ag_recebimento" na tabela). "Entregue" continua vindo do backend.
-  const etapaCounts = { a_produzir: 0, ag_recebimento: 0, produzindo: 0, mat_concluido: 0 };
+  const etapaCounts = { a_produzir: 0, produzindo: 0, mat_concluido: 0 };
   if (pedidosData) {
     for (const p of pedidosData) {
       const e = getPedidoEtapa(p);
-      if (e !== 'entregue') etapaCounts[e as keyof typeof etapaCounts]++;
+      if (e === 'entregue') continue;
+      // "ag_recebimento" (enviado, aguardando setor receber) some como card separado
+      // e passa a contar dentro de "Produzindo" - decisão do usuário.
+      const key = e === 'ag_recebimento' ? 'produzindo' : e;
+      etapaCounts[key as keyof typeof etapaCounts]++;
     }
   }
 
   const pedidosFiltrados = ultimosPedidos.filter(p => {
     if (busca && !p.numero_pedido_venda?.toLowerCase().includes(busca.toLowerCase()) && !p.cliente?.toLowerCase().includes(busca.toLowerCase())) return false;
     if (fPrioridade && p.prioridade !== fPrioridade) return false;
-    if (filtroEtapa && getPedidoEtapa(p) !== filtroEtapa) return false;
+    if (filtroEtapa) {
+      const e = getPedidoEtapa(p);
+      const eNorm = e === 'ag_recebimento' ? 'produzindo' : e;
+      if (eNorm !== filtroEtapa) return false;
+    }
     return true;
   });
 
@@ -516,12 +524,6 @@ export default function DashboardPage() {
                 count: etapaCounts.a_produzir, val: data.valor_a_produzir,
                 sub: 'OPs emitidas aguardando início', icon: 'bi-hourglass-split',
                 href: '/pedidos?status=emitido',
-              },
-              {
-                etapa: 'ag_recebimento', bg: '#92400e', label: 'Ag. Recebimento',
-                count: etapaCounts.ag_recebimento, val: null,
-                sub: 'enviado, aguardando setor receber', icon: 'bi-arrow-down-circle',
-                href: '/kanban',
               },
               {
                 etapa: 'produzindo', bg: '#1d4ed8', label: 'Produzindo',
