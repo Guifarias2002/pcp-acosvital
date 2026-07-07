@@ -297,7 +297,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
             titulo={confirm.titulo}
             mensagem={confirm.mensagem}
             perigo={confirm.perigo}
-            onConfirm={() => confirm.acao()}
+            onConfirm={() => { setConfirm(null); confirm.acao(); }}
             onCancel={() => setConfirm(null)}
           />
         )}
