@@ -868,19 +868,25 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           </>
         )}
 
-        {/* ── Em andamento: botões iguais em todos os setores ─────────────── */}
+        {/* ── Em andamento: logística não tem próximo setor no roteiro ────── */}
         {isAndamento && (
           <>
-            <button onClick={() => setConfirm({
+            <button onClick={() => setConfirm(isLogistica ? {
+              titulo: 'Iniciar Entrega',
+              mensagem: 'Confirma o início da entrega? A parcial ficará pronta para despacho.',
+              acao: () => acao('finalizar'),
+            } : {
               titulo: 'Finalizar etapa',
               mensagem: 'Deseja finalizar o processo neste setor? A parcial ficará disponível para envio ao próximo setor.',
               acao: () => acao('finalizar'),
             })} disabled={loading} style={btnStyle('#198754')}>
-              ✓ Finalizar etapa
+              {isLogistica ? <><i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar Entrega</> : <>✓ Finalizar etapa</>}
             </button>
-            <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
-              <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
-            </button>
+            {!isLogistica && (
+              <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
+                <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
+              </button>
+            )}
             <button onClick={() => acao('pausar')} disabled={loading} style={btnStyle('#fd7e14')}>
               <i className="bi bi-pause-fill" style={{ marginRight: 5 }} />Pausar
             </button>
