@@ -71,4 +71,13 @@ export async function runMigrations() {
   await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_movimentacao_criado_em       ON producao_movimentacaoitem (criado_em DESC)`).catch(() => {});
   await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_pedido_status                ON producao_pedido (status)`).catch(() => {});
   await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_pedido_prazo_status          ON producao_pedido (prazo_entrega, status)`).catch(() => {});
+
+  // M08: múltiplos desenhos por pedido (mesmo padrão do M06 para itens) -
+  // migra o desenho_url único existente (se houver) para o array antes de
+  // o front-end passar a depender só de "desenhos".
+  await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS desenhos TEXT[] NOT NULL DEFAULT '{}'`).catch(() => {});
+  await sql`
+    UPDATE producao_pedido SET desenhos = ARRAY[desenho_url]
+    WHERE desenho_url IS NOT NULL AND desenhos = '{}'
+  `.catch(() => {});
 }

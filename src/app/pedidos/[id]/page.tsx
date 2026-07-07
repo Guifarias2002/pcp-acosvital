@@ -144,9 +144,9 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
     finally { setUploadingDesenho(false); }
   }
 
-  async function removerDesenho() {
+  async function removerDesenho(path: string) {
     const token = localStorage.getItem('token') || '';
-    await fetch(`/api/pedidos/${id}/desenho`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    await fetch(`/api/pedidos/${id}/desenho`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
     setDesenhoMsg(null);
     carregar();
   }
@@ -744,7 +744,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                             </span>
                             <label style={{ background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 5, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                               {uploadingItemDesenho === item.id ? '⏳ Enviando...' : '+ Anexar'}
-                              <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" style={{ display: 'none' }}
+                              <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.xls,.xlsx,.doc,.docx" style={{ display: 'none' }}
                                 disabled={uploadingItemDesenho === item.id}
                                 onChange={e => { const f = e.target.files?.[0]; if (f) { uploadDesenhoItem(item.id, f); e.target.value = ''; } }} />
                             </label>
@@ -827,29 +827,49 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
           <div className="space-y-4">
 
             {/* Card de Desenho Técnico */}
-            {isAdmin && (
+            {isAdmin && (() => {
+              const desenhosPedido: string[] = (pedido as any).desenhos || [];
+              const tokenPedido = typeof window !== 'undefined' ? (localStorage.getItem('token') || '') : '';
+              return (
               <div style={{ borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', padding: 16 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 12px' }}>
-                  📐 Desenho Técnico
-                </p>
-                {(pedido as any).tem_desenho ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <a href={`/api/pedidos/${id}/desenho`} target="_blank" rel="noopener noreferrer"
-                      style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', flex: 1 }}>
-                      ✅ Ver desenho técnico
-                    </a>
-                    <button onClick={removerDesenho} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12 }}>✕</button>
-                  </div>
-                ) : (
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: '#6b7280', border: '1px dashed #d1d5db', borderRadius: 6, padding: '8px 10px' }}>
-                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, margin: 0 }}>
+                    📐 Desenho Técnico
+                  </p>
+                  <label style={{ background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 5, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                    {uploadingDesenho ? '⏳ Enviando...' : '+ Anexar'}
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.xls,.xlsx,.doc,.docx" style={{ display: 'none' }}
+                      disabled={uploadingDesenho}
                       onChange={e => { const f = e.target.files?.[0]; if (f) uploadDesenho(f); e.target.value = ''; }} />
-                    {uploadingDesenho ? '⏳ Enviando...' : '📤 Anexar desenho técnico'}
                   </label>
+                </div>
+                {desenhosPedido.length === 0 ? (
+                  <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>Nenhum desenho anexado ainda.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {desenhosPedido.map((path, di) => {
+                      const nome = path.split('/').pop() || `Desenho ${di + 1}`;
+                      return (
+                        <div key={di} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f9fafb', borderRadius: 5, border: '1px solid #e5e7eb', padding: '5px 10px' }}>
+                          <i className="bi bi-file-earmark" style={{ color: '#6b7280', fontSize: 13 }} />
+                          <a href={`/api/pedidos/${id}/desenho?idx=${di}&token=${tokenPedido}`} target="_blank" rel="noopener noreferrer"
+                            style={{ fontSize: 12, color: '#2563eb', textDecoration: 'underline', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {nome}
+                          </a>
+                          <button onClick={() => removerDesenho(path)}
+                            style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 13, padding: '0 2px' }}
+                            title="Remover">
+                            <i className="bi bi-trash" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
                 {desenhoMsg && <p style={{ fontSize: 11, color: desenhoMsg.includes('sucesso') ? '#16a34a' : '#dc2626', marginTop: 6 }}>{desenhoMsg}</p>}
               </div>
-            )}
+              );
+            })()}
 
             {/* Card de Anexos */}
             {isAdmin && (

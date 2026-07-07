@@ -9,7 +9,13 @@ const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/^﻿/
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const BUCKET = 'desenhos';
 const MAX_SIZE = 20 * 1024 * 1024;
-const TIPOS_ACEITOS = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+const TIPOS_ACEITOS = [
+  'application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+];
 
 async function uploadStorage(path: string, body: ArrayBuffer, contentType: string) {
   const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, {
@@ -84,7 +90,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const arquivo = formData.get('arquivo') as File | null;
     if (!arquivo) return NextResponse.json({ erro: 'Nenhum arquivo enviado' }, { status: 400 });
     if (!TIPOS_ACEITOS.includes(arquivo.type))
-      return NextResponse.json({ erro: 'Formato inválido. Use PDF, PNG ou JPG.' }, { status: 400 });
+      return NextResponse.json({ erro: 'Formato inválido. Use PDF, PNG, JPG, Excel ou Word.' }, { status: 400 });
     if (arquivo.size > MAX_SIZE)
       return NextResponse.json({ erro: 'Arquivo muito grande (máx 20 MB)' }, { status: 400 });
 
