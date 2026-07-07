@@ -33,13 +33,19 @@ export async function GET(req: Request) {
   if (!res.ok) return NextResponse.json({ arquivos: [] });
 
   const data = await res.json();
-  const arquivos = (Array.isArray(data) ? data : []).map((f: { name: string; metadata?: { size?: number }; created_at?: string }) => ({
-    nome: f.name,
-    data: f.name.replace('backups/', '').replace('.json', ''),
-    tamanho: f.metadata?.size ?? 0,
-    criado_em: f.created_at,
-    url: `/api/cron/backup/download?arquivo=${encodeURIComponent(f.name)}`,
-  }));
+  const arquivos = (Array.isArray(data) ? data : []).map((f: { name: string; metadata?: { size?: number }; created_at?: string }) => {
+    // A API de storage retorna o nome relativo ao prefixo filtrado (sem
+    // "backups/"), mas o endpoint de download espera o caminho completo
+    // dentro do bucket (que inclui esse prefixo) - recoloca se faltar.
+    const nomeCompleto = f.name.startsWith('backups/') ? f.name : `backups/${f.name}`;
+    return {
+      nome: nomeCompleto,
+      data: nomeCompleto.replace('backups/', '').replace('.json', ''),
+      tamanho: f.metadata?.size ?? 0,
+      criado_em: f.created_at,
+      url: `/api/cron/backup/download?arquivo=${encodeURIComponent(nomeCompleto)}`,
+    };
+  });
 
   return NextResponse.json({ arquivos });
 }
