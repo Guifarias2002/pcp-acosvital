@@ -1,12 +1,12 @@
 ﻿<#
-  Sincroniza o backup diario do Sistema PCP (gerado as 03:00 UTC / meia-noite
-  em Brasilia) para uma pasta de rede local.
+  Sincroniza o backup do Sistema PCP (gerado na nuvem as 00h e 17h,
+  horario de Brasilia) para uma pasta de rede local.
 
   Como funciona:
-    1. O backup em si roda na nuvem (Vercel), automaticamente, todo dia.
+    1. O backup em si roda na nuvem (Vercel), automaticamente, 2x por dia.
     2. Este script roda NA SUA MAQUINA (via Agendador de Tarefas do Windows),
-       busca o backup mais recente e salva uma copia em Z:\...\BACKUPS.
-    3. So funciona enquanto o computador estiver ligado e com o Z:\ mapeado.
+       busca o backup mais recente e salva uma copia na pasta de rede.
+    3. So funciona enquanto o computador estiver ligado e a rede acessivel.
 
   Configuracao necessaria (uma vez so):
     1. Copie "backup-sync.secret.example" para "backup-sync.secret" (mesma pasta
@@ -14,7 +14,8 @@
        Environment Variables). NUNCA coloque esse valor direto neste .ps1.
     2. Ajuste $PastaDestino abaixo se o caminho da pasta mudar.
     3. Agende este script no Agendador de Tarefas do Windows (Task Scheduler)
-       para rodar 1x por dia, por exemplo as 08:00 (depois que voce liga o PC).
+       2x por dia, por exemplo as 08:00 e as 17:30 (task "PCP - Sincronizar
+       Backup" e "PCP - Sincronizar Backup 17h" ja configuradas).
 
   Uso manual (para testar):
     powershell -ExecutionPolicy Bypass -File .\sync-backup-local.ps1
