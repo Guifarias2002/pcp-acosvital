@@ -33,6 +33,8 @@ export async function GET(req: Request) {
            p.vendedor, p.prazo_entrega::text, p.prioridade, p.status, p.setor_atual,
            p.roteiro_base, p.observacoes, p.data_emissao::text, p.criado_em, p.atualizado_em,
            p.valor_total::text,
+           p.pedido_venda_url IS NOT NULL AS tem_pedido_venda,
+           p.ordem_producao_url IS NOT NULL AS tem_ordem_producao,
            u.nome AS criado_por_nome
     FROM producao_pedido p
     LEFT JOIN usuarios_usuario u ON u.id = p.criado_por_id

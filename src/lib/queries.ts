@@ -144,8 +144,11 @@ export function formatPedido(row: any, itens: unknown[] = []) {
     anexo_pendente: row.anexo_pendente || false,
     desenhos: (row.desenhos as string[]) || [],
     tem_desenho: !!row.desenho_url || ((row.desenhos as string[])?.length > 0),
-    tem_pedido_venda: !!row.pedido_venda_url,
-    tem_ordem_producao: !!row.ordem_producao_url,
+    // Algumas rotas (lista de pedidos) já mandam o booleano pronto (tem_pedido_venda)
+    // para não precisar trazer a coluna inteira; outras (pedido individual) mandam
+    // a url crua (pedido_venda_url) via "SELECT p.*" - aceita os dois formatos.
+    tem_pedido_venda: row.tem_pedido_venda ?? !!row.pedido_venda_url,
+    tem_ordem_producao: row.tem_ordem_producao ?? !!row.ordem_producao_url,
     itens,
   };
 }

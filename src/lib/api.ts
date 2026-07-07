@@ -42,6 +42,9 @@ export const criarPedido = (data: unknown) =>
 export const editarPedido = (id: number, data: unknown) =>
   api.patch(`/api/pedidos/${id}`, data).then(r => r.data);
 
+export const getUltimoRoteiro = () =>
+  api.get('/api/pedidos/ultimo-roteiro').then(r => r.data);
+
 // ── Itens ─────────────────────────────────────────────────────────────────────
 export const getItem = (id: number) =>
   api.get(`/api/item/${id}`).then(r => r.data);

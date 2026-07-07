@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 
-import { criarPedido } from '@/lib/api';
+import { criarPedido, getUltimoRoteiro } from '@/lib/api';
 import { SETOR_CHOICES } from '@/lib/types';
 
 const SS_KEY = 'nova_ordem_rascunho';
@@ -113,6 +113,27 @@ export default function NovoPedidoPage() {
       sessionStorage.setItem(SS_KEY, JSON.stringify({ pv, op, cliente, vendedor, prazo, prioridade, obs, roteiro, itens }));
     } catch { /* quota exceeded */ }
   }, [pv, op, cliente, vendedor, prazo, prioridade, obs, roteiro, itens]);
+
+  const [copiandoRoteiro, setCopiandoRoteiro] = useState(false);
+  const [msgRoteiro, setMsgRoteiro] = useState('');
+
+  async function copiarRoteiroUltimoPedido() {
+    setCopiandoRoteiro(true);
+    setMsgRoteiro('');
+    try {
+      const data = await getUltimoRoteiro();
+      if (data.roteiro_base?.length > 0) {
+        setRoteiro(data.roteiro_base);
+        setMsgRoteiro(`Roteiro copiado do pedido ${data.numero_pedido_venda}.`);
+      } else {
+        setMsgRoteiro('O último pedido não tem roteiro definido.');
+      }
+    } catch {
+      setMsgRoteiro('Erro ao buscar o último pedido.');
+    } finally {
+      setCopiandoRoteiro(false);
+    }
+  }
 
   function toggleSetor(cod: string) {
     if (cod === 'emissao') return;
@@ -424,9 +445,22 @@ export default function NovoPedidoPage() {
           {/* COLUNA DIREITA — Roteiro */}
           <div>
             <div className="card" style={{ padding:20, position:'sticky', top:66 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
-                <i className="bi bi-arrow-right-circle" style={{ marginRight:6 }} />Roteiro de Produção
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6, flexWrap:'wrap', gap:8 }}>
+                <span style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1 }}>
+                  <i className="bi bi-arrow-right-circle" style={{ marginRight:6 }} />Roteiro de Produção
+                </span>
+                <button type="button" onClick={copiarRoteiroUltimoPedido} disabled={copiandoRoteiro}
+                  title="Copia a sequência de setores do último pedido cadastrado"
+                  style={{ background:'#eef2ff', color:'#1a3a5c', border:'1px solid #c7d2fe', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, cursor:'pointer', opacity: copiandoRoteiro ? 0.6 : 1 }}>
+                  <i className="bi bi-clipboard-check" style={{ marginRight:4 }} />
+                  {copiandoRoteiro ? 'Copiando...' : 'Copiar do último pedido'}
+                </button>
               </div>
+              {msgRoteiro && (
+                <p style={{ fontSize:11, color: msgRoteiro.startsWith('Erro') || msgRoteiro.includes('não tem') ? '#dc2626' : '#198754', margin:'-8px 0 12px' }}>
+                  {msgRoteiro}
+                </p>
+              )}
               <p style={{ fontSize:12, color:'#888', margin:'0 0 12px' }}>
                 Clique nos setores na ordem em que o pedido deve passar:
               </p>

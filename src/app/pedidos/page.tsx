@@ -315,17 +315,17 @@ function PedidosPageInner() {
                   title="Selecionar todos"
                 />
               </th>
-              {['Pedido','OP','Cliente','Vendedor','Setor Atual','Status','Prioridade','Prazo','Ações'].map(h => (
+              {['Pedido','OP','Cliente','Vendedor','Setor Atual','Status','Prioridade','Prazo','Docs','Ações'].map(h => (
                 <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 600, fontSize: 12 }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Carregando...</td></tr>
+              <tr><td colSpan={11} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Carregando...</td></tr>
             )}
             {!loading && pedidosFiltrados.length === 0 && (
-              <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum pedido encontrado.</td></tr>
+              <tr><td colSpan={11} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum pedido encontrado.</td></tr>
             )}
             {pedidosFiltrados.map(p => {
               const selected = selectedIds.has(p.id);
@@ -396,6 +396,30 @@ function PedidosPageInner() {
                   </td>
                   <td style={{ padding: '8px 12px', color: p.atrasado ? '#dc3545' : '#555', fontWeight: p.atrasado ? 700 : 400, fontSize: 12 }}>
                     {fmtData(p.prazo_entrega)}
+                  </td>
+                  <td style={{ padding: '8px 12px' }}>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <span title={(p as any).tem_ordem_producao ? 'Ordem de Produção anexada' : 'Ordem de Produção não anexada'}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700,
+                          padding: '2px 6px', borderRadius: 4,
+                          background: (p as any).tem_ordem_producao ? '#d1e7dd' : '#f1f3f5',
+                          color: (p as any).tem_ordem_producao ? '#0f5132' : '#adb5bd',
+                        }}>
+                        <i className={`bi ${(p as any).tem_ordem_producao ? 'bi-file-earmark-check-fill' : 'bi-file-earmark'}`} />
+                        OP
+                      </span>
+                      <span title={(p as any).tem_pedido_venda ? 'Pedido de Venda anexado' : 'Pedido de Venda não anexado'}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700,
+                          padding: '2px 6px', borderRadius: 4,
+                          background: (p as any).tem_pedido_venda ? '#d1e7dd' : '#f1f3f5',
+                          color: (p as any).tem_pedido_venda ? '#0f5132' : '#adb5bd',
+                        }}>
+                        <i className={`bi ${(p as any).tem_pedido_venda ? 'bi-file-earmark-check-fill' : 'bi-file-earmark'}`} />
+                        PV
+                      </span>
+                    </div>
                   </td>
                   <td style={{ padding: '8px 12px' }}>
                     <div style={{ display: 'flex', gap: 4 }}>
