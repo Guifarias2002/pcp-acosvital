@@ -166,8 +166,16 @@ export default function TVKanbanPage() {
         </div>
         <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto' }} className="table-responsive">
           {listaAtual.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 0', color: '#999', fontSize: 15 }}>
-              Nenhum pedido em &quot;{metaAtual.label}&quot;
+            <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
+              <svg width="180" height="130" viewBox="0 0 180 130" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: .55 }}>
+                <rect x="20" y="55" width="140" height="60" rx="3" fill="#e2e6ea" />
+                <path d="M12 60 L90 20 L168 60" stroke="#c3cad1" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                <rect x="78" y="85" width="24" height="30" fill="#c3cad1" />
+                <rect x="34" y="68" width="26" height="18" rx="2" fill="#f0f2f5" stroke="#c3cad1" strokeWidth="2" />
+                <rect x="120" y="68" width="26" height="18" rx="2" fill="#f0f2f5" stroke="#c3cad1" strokeWidth="2" />
+                <line x1="20" y1="98" x2="160" y2="98" stroke="#cfd5db" strokeWidth="2" />
+              </svg>
+              <div style={{ fontSize: 16, fontWeight: 600, color: '#888', marginTop: 4 }}>Nenhum pedido por aqui</div>
             </div>
           ) : (
             <table className="table-app">
