@@ -292,6 +292,16 @@ body {
   color: #1a3a5c;
 }
 
+.btn-secondary {
+  background: #6c757d;
+  color: #fff;
+  border-color: #6c757d;
+}
+.btn-secondary:hover:not(:disabled) {
+  background: #5c636a;
+  box-shadow: 0 2px 6px rgba(108,117,125,.25);
+}
+
 /* Tamanhos */
 .btn-sm {
   font-size: 11px;
@@ -353,6 +363,34 @@ body {
 .table-responsive {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* ---- Tabela padrão do sistema — cabeçalho e linhas únicos ---- */
+.table-app {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table-app thead tr {
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+.table-app th {
+  padding: 9px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #555;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.table-app td {
+  padding: 10px 12px;
+}
+.table-app tbody tr {
+  border-bottom: 1px solid #f0f0f0;
+}
+.table-app tbody tr:hover {
+  background: #f8faff;
 }
 .table-responsive table {
   min-width: 600px;

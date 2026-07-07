@@ -474,11 +474,8 @@ export default function DashboardPage() {
           <small style={{ color: '#888' }}>Visão geral em tempo real</small>
         </div>
         {isSuperAdmin && (
-          <Link href="/pedidos/novo" style={{
-            background: '#1a3a5c', color: '#fff', padding: '7px 16px',
-            borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600,
-          }}>
-            <i className="bi bi-plus-lg" style={{ marginRight: 6 }}></i>Nova Ordem
+          <Link href="/pedidos/novo" className="btn btn-primary">
+            <i className="bi bi-plus-lg" />Nova Ordem
           </Link>
         )}
       </div>
@@ -488,7 +485,7 @@ export default function DashboardPage() {
         <div style={{ textAlign: 'center', padding: '60px 0', color: '#666' }}>
           <p style={{ marginBottom: 12 }}>Não foi possível carregar o dashboard. Verifique a conexão e tente novamente.</p>
           <button onClick={() => { setLoading(true); setErro(false); getDashboard().then(d => { setData(d); setErro(false); }).catch(() => setErro(true)).finally(() => setLoading(false)); }}
-            style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', cursor: 'pointer', fontWeight: 600 }}>
+            className="btn btn-primary">
             Tentar novamente
           </button>
         </div>
@@ -643,11 +640,11 @@ export default function DashboardPage() {
                 </strong>
               </div>
               <div className="table-responsive">
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <table className="table-app">
                   <thead>
-                    <tr style={{ background: '#f8f9fa', borderBottom: '1px solid #e9ecef' }}>
+                    <tr>
                       {['Pedido','Cliente','Setor','Prazo'].map(h => (
-                        <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#555', fontSize: 11 }}>{h}</th>
+                        <th key={h}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -655,13 +652,13 @@ export default function DashboardPage() {
                     {data.pedidos_atrasados.length === 0 ? (
                       <tr><td colSpan={4} style={{ padding: 24, textAlign: 'center', color: '#198754', fontWeight: 600 }}>Nenhum pedido atrasado!</td></tr>
                     ) : data.pedidos_atrasados.map(p => (
-                      <tr key={p.id} style={{ borderBottom: '1px solid #f5f5f5' }}>
-                        <td style={{ padding: '8px 12px' }}>
+                      <tr key={p.id}>
+                        <td>
                           <Link href={`/pedidos/${p.id}`} style={{ color: '#1a3a5c', fontWeight: 700, textDecoration: 'none' }}>{p.numero_pedido_venda}</Link>
                         </td>
-                        <td style={{ padding: '8px 12px', color: '#555' }}>{p.cliente}</td>
-                        <td style={{ padding: '8px 12px', color: '#888' }}>{p.nome_setor_atual}</td>
-                        <td style={{ padding: '8px 12px', color: '#dc3545', fontWeight: 600 }}>{p.prazo_entrega}</td>
+                        <td style={{ color: '#555' }}>{p.cliente}</td>
+                        <td style={{ color: '#888' }}>{p.nome_setor_atual}</td>
+                        <td style={{ color: '#dc3545', fontWeight: 600 }}>{p.prazo_entrega}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -814,17 +811,17 @@ export default function DashboardPage() {
                 {['baixa','normal','alta','urgente'].map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</option>)}
               </select>
               <button onClick={() => { setBusca(''); setFPrioridade(''); setFiltroEtapa(null); }}
-                style={{ background: '#6c757d', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 13, cursor: 'pointer' }}>
+                className="btn btn-secondary">
                 Limpar
               </button>
             </div>
             {/* Tabela */}
             <div className="table-responsive">
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <table className="table-app">
                 <thead>
-                  <tr style={{ background: '#212529', color: '#fff' }}>
+                  <tr>
                     {['','Pedido','Cliente','Setor Atual','Status','Prioridade','Prazo','Itens'].map(h => (
-                      <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+                      <th key={h}>{h}</th>
                     ))}
                   </tr>
                 </thead>
