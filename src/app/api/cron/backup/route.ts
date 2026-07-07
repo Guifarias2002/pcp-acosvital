@@ -11,7 +11,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ erro: 'Não autorizado' }, { status: 401 });
   }
 
-  const hoje = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const agora = new Date();
+  const hoje = agora.toISOString().slice(0, 10); // YYYY-MM-DD
+  // Rotula pelo horario de Brasilia (UTC-3) para o arquivo ficar legivel -
+  // roda 2x por dia (00h e 17h BRT), entao precisa de um sufixo pra nao
+  // uma sobrescrever a outra no mesmo dia.
+  const horaBrt = new Date(agora.getTime() - 3 * 60 * 60 * 1000).toISOString().slice(11, 16).replace(':', '');
 
   // Busca todos os pedidos com itens e parciais
   // Movimentações limitadas a 90 dias para evitar payload gigante
@@ -23,8 +28,11 @@ export async function GET(req: Request) {
     sql`SELECT * FROM producao_movimentacaoitem WHERE criado_em >= ${noventa} ORDER BY id`,
   ]);
 
+  const nomeArquivo = `${hoje}_${horaBrt}`;
+
   const snapshot = {
     data: hoje,
+    hora_brt: horaBrt,
     gerado_em: new Date().toISOString(),
     totais: {
       pedidos: pedidos.length,
@@ -48,7 +56,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ erro: 'Supabase não configurado' }, { status: 500 });
   }
 
-  const path = `backups/${hoje}.json`;
+  const path = `backups/${nomeArquivo}.json`;
   const uploadUrl = `${supabaseUrl}/storage/v1/object/backups/${path}`;
 
   const res = await fetch(uploadUrl, {
@@ -67,8 +75,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ erro: 'Falha ao salvar backup', detalhe: err }, { status: 500 });
   }
 
-  console.log(`[cron/backup] Backup ${hoje} salvo — ${pedidos.length} pedidos, ${itens.length} itens`);
-  return NextResponse.json({ ok: true, data: hoje, totais: snapshot.totais });
+  console.log(`[cron/backup] Backup ${nomeArquivo} salvo — ${pedidos.length} pedidos, ${itens.length} itens`);
+  return NextResponse.json({ ok: true, data: hoje, hora_brt: horaBrt, totais: snapshot.totais });
   } catch (e) {
     console.error('[cron/backup] erro:', e);
     return NextResponse.json({ erro: e instanceof Error ? e.message : 'Erro interno' }, { status: 500 });
