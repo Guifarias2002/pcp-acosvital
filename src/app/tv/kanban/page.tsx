@@ -98,19 +98,19 @@ export default function TVKanbanPage() {
   }, [etapaIdx, listaAtual.length]);
 
   return (
-    <div style={{ minHeight: '100vh', height: '100vh', background: '#0f172a', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif', padding: '20px 28px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', overflow: 'hidden' }}>
+    <div className="tv-kanban-page" style={{ minHeight: '100vh', height: '100vh', background: '#0f172a', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif', padding: '20px 28px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', overflow: 'hidden' }}>
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexShrink: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexShrink: 0, flexWrap: 'wrap', gap: 8 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, letterSpacing: 1 }}>PCP ACOSVITAL</h1>
+          <h1 className="tv-header-titulo" style={{ margin: 0, fontSize: 26, fontWeight: 800, letterSpacing: 1 }}>PCP ACOSVITAL</h1>
           <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>Painel de Produção — Quadro por Etapa</p>
         </div>
-        <div style={{ fontSize: 30, fontWeight: 700, color: '#38bdf8', fontVariantNumeric: 'tabular-nums' }}>{agora}</div>
+        <div className="tv-header-relogio" style={{ fontSize: 30, fontWeight: 700, color: '#38bdf8', fontVariantNumeric: 'tabular-nums' }}>{agora}</div>
       </div>
 
       {/* Indicador das 5 etapas */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexShrink: 0 }}>
+      <div className="tv-etapas-row" style={{ display: 'flex', gap: 10, marginBottom: 18, flexShrink: 0 }}>
         {ETAPAS.map((e, i) => {
           const ativo = i === etapaIdx;
           const c = ETAPA_COR[e];
@@ -138,7 +138,7 @@ export default function TVKanbanPage() {
             Nenhum pedido em &quot;{ETAPA_LABELS[etapaAtual]}&quot;
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+          <div className="tv-kanban-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
             {listaAtual.map(p => (
               <div key={p.id} style={{
                 background: '#1e293b', borderRadius: 12, padding: '16px 18px',
