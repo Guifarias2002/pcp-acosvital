@@ -1983,10 +1983,23 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const [pedidosColapsados, setPedidosColapsados] = useState<Set<number>>(new Set());
   const [recebendoTudo, setRecebendoTudo] = useState<Set<number>>(new Set());
   const [enviandoTudo, setEnviandoTudo] = useState<Set<number>>(new Set());
+  // Pedidos ja vistos nesta sessao da pagina - controla quais ja tiveram seu
+  // estado de colapso inicializado, pra nao re-fechar um que o usuario abriu.
+  const pedidosVistos = useRef<Set<number>>(new Set());
 
   const carregar = useCallback(() => {
     getSetorPainel(setor).then(d => { setData(d); setLoading(false); setUltimaAtt(new Date()); }).catch(() => setLoading(false));
   }, [setor]);
+
+  // Todo pedido comeca fechado - so abre se o usuario clicar. Roda a cada
+  // atualizacao de dados, mas so mexe em pedidos vistos pela primeira vez.
+  useEffect(() => {
+    const idsAtuais = new Set((data?.parciais || []).map(p => p.pedido_id));
+    const novos = Array.from(idsAtuais).filter(id => !pedidosVistos.current.has(id));
+    if (novos.length === 0) return;
+    novos.forEach(id => pedidosVistos.current.add(id));
+    setPedidosColapsados(prev => new Set(Array.from(prev).concat(novos)));
+  }, [data]);
 
   // Ref sempre aponta para a versão mais recente de carregar — evita closure stale no interval
   const carregarRef = useRef(carregar);
