@@ -813,37 +813,13 @@ body {
 
 /* =====================================================
    TV — QUADRO POR ETAPA (/tv/kanban) — responsivo
-   (as divs internas usam style inline como base para desktop;
-   as regras abaixo usam !important pra vencer o inline nas
-   telas menores, mesmo padrao usado no restante do arquivo)
+   O conteudo (etapas-grid, card, table-app) ja e responsivo via
+   as classes compartilhadas do resto do sistema - so o container
+   de altura fixa (100vh + overflow hidden) precisa de ajuste em
+   telas pequenas, senao corta conteudo sem rolagem.
    ===================================================== */
-@media (max-width: 1200px) {
-  .tv-kanban-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-  }
-}
-@media (max-width: 1024px) {
-  .tv-etapas-row {
-    flex-wrap: wrap !important;
-  }
-  .tv-etapas-row > div {
-    flex: 1 1 30% !important;
-  }
-  .tv-header-titulo {
-    font-size: 20px !important;
-  }
-}
 @media (max-width: 768px) {
-  .tv-etapas-row > div {
-    flex: 1 1 45% !important;
-  }
-  .tv-kanban-grid {
-    grid-template-columns: 1fr !important;
-  }
-  .tv-header-relogio {
-    font-size: 22px !important;
-  }
-  .tv-kanban-page {
+  .tv-kanban-page-light {
     padding: 14px !important;
     height: auto !important;
     min-height: 100vh !important;

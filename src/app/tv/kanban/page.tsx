@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import { getToken } from '@/lib/auth';
-import { getPedidoEtapa, ETAPA_LABELS, ETAPA_COR, Etapa } from '@/lib/types';
+import { getPedidoEtapa, Etapa } from '@/lib/types';
 
 interface ItemPedidoTV {
   id: number;
@@ -19,12 +19,21 @@ interface PedidoTV {
   prioridade: string;
   status: string;
   setor_atual: string;
+  nome_setor_atual?: string;
   atrasado?: boolean;
   setores_parciais?: string[];
   itens: ItemPedidoTV[];
 }
 
-const ETAPAS: Etapa[] = ['a_produzir', 'ag_recebimento', 'produzindo', 'mat_concluido', 'entregue'];
+// Mesmas etapas, cores, icones e legendas do card "Painel de Produção" do Dashboard (/)
+const ETAPAS_META: { etapa: Etapa; bg: string; label: string; sub: string; icon: string }[] = [
+  { etapa: 'a_produzir', bg: '#1a3a5c', label: 'A Produzir', sub: 'OPs emitidas aguardando início', icon: 'bi-hourglass-split' },
+  { etapa: 'ag_recebimento', bg: '#92400e', label: 'Ag. Recebimento', sub: 'enviado, aguardando setor receber', icon: 'bi-arrow-down-circle' },
+  { etapa: 'produzindo', bg: '#1d4ed8', label: 'Produzindo', sub: 'em trabalho nos setores', icon: 'bi-gear-fill' },
+  { etapa: 'mat_concluido', bg: '#b45309', label: 'Mat. Concluído', sub: 'produção ok, na logística', icon: 'bi-truck' },
+  { etapa: 'entregue', bg: '#166534', label: 'Entregue', sub: 'materiais entregues ao cliente', icon: 'bi-check-circle-fill' },
+];
+const ETAPAS: Etapa[] = ETAPAS_META.map(e => e.etapa);
 const DWELL_MS = 30_000;
 
 export default function TVKanbanPage() {
@@ -66,8 +75,8 @@ export default function TVKanbanPage() {
   }
 
   const etapaAtual = ETAPAS[etapaIdx];
+  const metaAtual = ETAPAS_META[etapaIdx];
   const listaAtual = grupos[etapaAtual];
-  const cor = ETAPA_COR[etapaAtual];
 
   // Roda para a proxima etapa a cada DWELL_MS, voltando ao inicio depois da ultima
   useEffect(() => {
@@ -98,75 +107,91 @@ export default function TVKanbanPage() {
   }, [etapaIdx, listaAtual.length]);
 
   return (
-    <div className="tv-kanban-page" style={{ minHeight: '100vh', height: '100vh', background: '#0f172a', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif', padding: '20px 28px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', overflow: 'hidden' }}>
+    <div className="tv-kanban-page-light" style={{ minHeight: '100vh', height: '100vh', background: '#f0f2f5', padding: '22px 28px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', overflow: 'hidden' }}>
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexShrink: 0, flexWrap: 'wrap', gap: 8 }}>
+      {/* Header — mesmo padrao do Dashboard */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexShrink: 0, flexWrap: 'wrap', gap: 10 }}>
         <div>
-          <h1 className="tv-header-titulo" style={{ margin: 0, fontSize: 26, fontWeight: 800, letterSpacing: 1 }}>PCP ACOSVITAL</h1>
-          <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>Painel de Produção — Quadro por Etapa</p>
+          <h4 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c', fontSize: 22 }}>
+            <i className="bi bi-speedometer2" style={{ marginRight: 8 }}></i>
+            Painel de Produção
+          </h4>
+          <small style={{ color: '#888' }}>Quadro por etapa — atualização automática</small>
         </div>
-        <div className="tv-header-relogio" style={{ fontSize: 30, fontWeight: 700, color: '#38bdf8', fontVariantNumeric: 'tabular-nums' }}>{agora}</div>
+        <div style={{ fontSize: 28, fontWeight: 700, color: '#1a3a5c', fontVariantNumeric: 'tabular-nums' }}>{agora}</div>
       </div>
 
-      {/* Indicador das 5 etapas */}
-      <div className="tv-etapas-row" style={{ display: 'flex', gap: 10, marginBottom: 18, flexShrink: 0 }}>
-        {ETAPAS.map((e, i) => {
+      {/* 5 Etapas — identico ao card do Dashboard, com a etapa atual em destaque */}
+      <div className="etapas-grid" style={{ flexShrink: 0, marginBottom: 18 }}>
+        {ETAPAS_META.map((c, i) => {
           const ativo = i === etapaIdx;
-          const c = ETAPA_COR[e];
           return (
-            <div key={e} style={{
-              flex: 1, borderRadius: 10, padding: '14px 18px',
-              background: ativo ? c.text : '#1e293b',
-              border: ativo ? `2px solid ${c.text}` : '2px solid transparent',
-              opacity: ativo ? 1 : 0.55,
-              transition: 'all .3s',
-            }}>
-              <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: ativo ? '#fff' : '#94a3b8' }}>
-                {ETAPA_LABELS[e]}
+            <div key={c.etapa} style={{
+              background: c.bg, color: '#fff', padding: '18px 20px', borderRadius: 10, height: '100%',
+              transition: 'opacity .3s, transform .3s, box-shadow .3s',
+              outline: ativo ? '3px solid #fff' : 'none',
+              boxShadow: ativo ? `0 0 0 4px ${c.bg}, 0 0 0 6px #fff, 0 4px 20px rgba(0,0,0,.25)` : 'none',
+              transform: ativo ? 'scale(1.03)' : 'scale(1)',
+              opacity: ativo ? 1 : 0.7,
+              position: 'relative',
+            }} className="etapa-card">
+              <div style={{ fontSize: 10, fontWeight: 700, opacity: .45, marginBottom: 4, letterSpacing: 1 }} className="etapa-label-num">
+                ETAPA {i + 1}
               </div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: '#fff', marginTop: 4 }}>{grupos[e].length}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, opacity: .8 }} className="etapa-label-titulo">{c.label}</div>
+                  <div style={{ fontSize: 36, fontWeight: 800, lineHeight: 1, margin: '8px 0 4px' }} className="etapa-count">{grupos[c.etapa].length}</div>
+                  <div style={{ fontSize: 10, opacity: .6, marginTop: 4 }} className="etapa-sub">{c.sub}</div>
+                </div>
+                <i className={`bi ${c.icon} etapa-icone`} style={{ fontSize: 28, opacity: .3 }}></i>
+              </div>
             </div>
           );
         })}
       </div>
 
-      {/* Pedidos da etapa atual */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
-        {listaAtual.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '80px 0', color: '#475569', fontSize: 20 }}>
-            Nenhum pedido em &quot;{ETAPA_LABELS[etapaAtual]}&quot;
-          </div>
-        ) : (
-          <div className="tv-kanban-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-            {listaAtual.map(p => (
-              <div key={p.id} style={{
-                background: '#1e293b', borderRadius: 12, padding: '16px 18px',
-                borderLeft: `4px solid ${p.atrasado ? '#ef4444' : cor.text}`,
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                  <span style={{ fontSize: 18, fontWeight: 800, color: '#f1f5f9' }}>{p.numero_pedido_venda}</span>
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 6,
-                    background: p.prioridade === 'urgente' ? '#7f1d1d' : p.prioridade === 'alta' ? '#7c2d12' : '#334155',
-                    color: p.prioridade === 'urgente' ? '#fca5a5' : p.prioridade === 'alta' ? '#fdba74' : '#cbd5e1',
-                  }}>{p.prioridade}</span>
-                </div>
-                <div style={{ fontSize: 14, color: '#94a3b8', marginBottom: 8 }}>{p.cliente}</div>
-                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>
-                  {p.itens?.length ?? 0} ite{(p.itens?.length ?? 0) === 1 ? 'm' : 'ns'}
-                </div>
-                {p.prazo_entrega && (
-                  <div style={{ fontSize: 12, color: p.atrasado ? '#f87171' : '#64748b' }}>
-                    <i className="bi bi-calendar3" style={{ marginRight: 4 }} />
-                    Prazo: {p.prazo_entrega}
-                    {p.atrasado && <strong style={{ marginLeft: 6 }}>ATRASADO</strong>}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+      {/* Pedidos da etapa atual — mesma tabela do Dashboard */}
+      <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <i className={`bi ${metaAtual.icon}`} style={{ color: metaAtual.bg }}></i>
+          <strong style={{ fontSize: 14, color: '#333' }}>{metaAtual.label}</strong>
+          <span style={{ background: metaAtual.bg, color: '#fff', fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 10 }}>
+            {listaAtual.length}
+          </span>
+        </div>
+        <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto' }} className="table-responsive">
+          {listaAtual.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 0', color: '#999', fontSize: 15 }}>
+              Nenhum pedido em &quot;{metaAtual.label}&quot;
+            </div>
+          ) : (
+            <table className="table-app">
+              <thead>
+                <tr>
+                  {['Pedido','Cliente','Setor Atual','Prioridade','Prazo','Itens'].map(h => <th key={h}>{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {listaAtual.map(p => (
+                  <tr key={p.id}>
+                    <td style={{ color: '#1a3a5c', fontWeight: 700 }}>{p.numero_pedido_venda}</td>
+                    <td style={{ color: '#555' }}>{p.cliente}</td>
+                    <td style={{ color: '#888' }}>{p.nome_setor_atual || '—'}</td>
+                    <td><span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: p.prioridade === 'urgente' ? '#dc3545' : p.prioridade === 'alta' ? '#fd7e14' : '#0d6efd', color: '#fff' }}>
+                      {p.prioridade?.charAt(0).toUpperCase() + p.prioridade?.slice(1)}
+                    </span></td>
+                    <td style={{ color: p.atrasado ? '#dc3545' : '#555', fontWeight: p.atrasado ? 700 : 400 }}>
+                      {p.atrasado && <i className="bi bi-exclamation-circle-fill" style={{ marginRight: 4 }} />}
+                      {p.prazo_entrega}
+                    </td>
+                    <td style={{ color: '#888', fontSize: 12 }}>{p.itens?.length ?? 0} item{(p.itens?.length ?? 0) !== 1 ? 's' : ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
   );
