@@ -24,7 +24,9 @@ $ErrorActionPreference = 'Stop'
 
 # ── Configuracao ──────────────────────────────────────────────────────────
 $BaseUrl       = 'https://sistemapcp-nine.vercel.app'
-$PastaDestino  = 'Z:\Ordens de Serviço - IAPP\BACKUPS'
+# Caminho de rede completo (nao a letra Z:) - tarefas agendadas nem sempre
+# enxergam drives mapeados, principalmente sem sessao interativa aberta.
+$PastaDestino  = '\\server\REDE\Ordens de Serviço - IAPP\BACKUPS'
 $ArquivoSecret = Join-Path $PSScriptRoot 'backup-sync.secret'
 $ArquivoLog    = Join-Path $PSScriptRoot 'backup-sync.log'
 
