@@ -4,9 +4,15 @@ import { autenticar } from '@/lib/middleware';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
-  const user = await autenticar(req);
-  if (user instanceof NextResponse) return user;
-  if (!user.is_staff) return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
+  // Permite acesso via CRON_SECRET (script local de sincronizacao do backup
+  // para pasta de rede), alem do login normal de staff.
+  const auth = req.headers.get('authorization');
+  const viaCronSecret = !!process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`;
+  if (!viaCronSecret) {
+    const user = await autenticar(req);
+    if (user instanceof NextResponse) return user;
+    if (!user.is_staff) return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
+  }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/^﻿/, '');
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

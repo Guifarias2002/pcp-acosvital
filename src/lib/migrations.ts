@@ -29,8 +29,14 @@ export async function runMigrations() {
       ALTER TABLE producao_itemparcial
       ADD CONSTRAINT producao_itemparcial_status_check
       CHECK (status IN ('em_aberto','recebido','em_andamento','em_transito','pausado','finalizado_setor','concluida','cancelada'))
-    `).catch(() => {});
-  } catch { /* ignora */ }
+    `).catch((e) => {
+      // Se isto falhar, a tabela fica sem CHECK de status ate o proximo restart
+      // rodar a migration de novo - deixa visivel no log em vez de falhar em silencio.
+      console.error('[migrations] falha ao recriar producao_itemparcial_status_check:', e);
+    });
+  } catch (e) {
+    console.error('[migrations] M02 (status CHECK) falhou:', e);
+  }
 
   // M04: flag de retrabalho em parciais devolvidas
   await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS retrabalho BOOLEAN NOT NULL DEFAULT FALSE`).catch(() => {});
