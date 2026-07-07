@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { SETOR_CHOICES } from '@/lib/types';
-import { nomeSector, statusDisplay } from '@/lib/queries';
+import { nomeSector, statusDisplay, formatItem } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +60,18 @@ export async function GET(req: Request) {
     GROUP BY setor_atual
   `;
 
+  // Itens de cada setor para o card "Itens por Setor" do dashboard poder expandir
+  // e mostrar pedido/item/etapa - antes so vinha a contagem (qPorSetor), sem os
+  // itens em si, entao expandir o setor nunca mostrava nada.
+  const qItensPorSetor = sql`
+    SELECT i.*, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
+           p.prazo_entrega::text AS pedido_prazo, p.prioridade AS pedido_prioridade, p.roteiro_base
+    FROM producao_itempedido i
+    JOIN producao_pedido p ON p.id = i.pedido_id
+    WHERE i.status NOT IN ('entregue', 'cancelado')
+    ORDER BY p.prioridade DESC, p.prazo_entrega ASC
+  `;
+
   const qAtrasados = sql`
     SELECT id, numero_pedido_venda, cliente, prazo_entrega::text, prioridade, status
     FROM producao_pedido
@@ -91,16 +103,18 @@ export async function GET(req: Request) {
   const [
     countsRows,
     porSetorRows,
+    itensPorSetorRows,
     pedidosAtrasados,
     ultMovs,
     divCountsRows,
   ] = await withTimeout(Promise.all([
     qCounts.catch(() => [{}]),
     qPorSetor.catch(() => []),
+    qItensPorSetor.catch(() => []),
     qAtrasados.catch(() => []),
     qUltMovs.catch(() => []),
     qDivCounts.catch(() => [{ abertas: 0, urgentes: 0 }]),
-  ]), 27000, [qCounts, qPorSetor, qAtrasados, qUltMovs, qDivCounts]); // 27s — Vercel mata em 30s (temporario, ver vercel.json), deixa margem para serializar resposta
+  ]), 27000, [qCounts, qPorSetor, qItensPorSetor, qAtrasados, qUltMovs, qDivCounts]); // 27s — Vercel mata em 30s (temporario, ver vercel.json), deixa margem para serializar resposta
 
   const counts = (countsRows[0] ?? {}) as Record<string, unknown>;
   const divCounts = divCountsRows[0] ?? { abertas: 0, urgentes: 0 };
@@ -114,7 +128,7 @@ export async function GET(req: Request) {
       qtd: setorQtdMap[cod] ?? 0,
       qtd_chegando: 0,
       valor: null,
-      itens: [],
+      itens: itensPorSetorRows.filter(i => i.setor_atual === cod).map(i => formatItem(i)),
     }))
     .filter(s => s.qtd > 0);
 
