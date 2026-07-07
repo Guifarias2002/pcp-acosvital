@@ -22,7 +22,7 @@ function Cronometro({ desde }: { desde: string }) {
     </span>
   );
 }
-import { getSetorPainel, itemAcao, loteAcao, parcialAcao, adicionarObservacaoItem } from '@/lib/api';
+import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem } from '@/lib/api';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
@@ -482,6 +482,20 @@ function LoteCard({ lote, tipo, onRefresh }: { lote: LoteItem & Record<string, u
     finally { setLoading(false); }
   }
 
+  async function reportarDivergencia(obs: string) {
+    setLoading(true);
+    setErro('');
+    try {
+      const itemId = (lote as Record<string, unknown>).item_pedido_id as number;
+      await itemAcao(itemId, 'reprovar', { observacao: obs || 'Divergência reportada no recebimento do lote' });
+      onRefresh();
+    } catch (e: unknown) {
+      const ax = e as { response?: { data?: { erro?: string } } };
+      setErro(ax?.response?.data?.erro || 'Erro ao reportar divergência');
+    }
+    finally { setLoading(false); }
+  }
+
   async function finalizar() {
     setLoading(true);
     setShowConfirmFinalizar(false);
@@ -554,10 +568,12 @@ function LoteCard({ lote, tipo, onRefresh }: { lote: LoteItem & Record<string, u
           quantidade={lote.quantidade as string}
           unidade={(lote.unidade as string) || 'un'}
           loading={loading}
+          ocultarParcial
           onCancel={() => setShowReceber(false)}
-          onConfirm={async (decisao, _qtd, _obs) => {
+          onConfirm={async (decisao, _qtd, obs) => {
             setShowReceber(false);
-            await receber();
+            if (decisao === 'divergente') await reportarDivergencia(obs || '');
+            else await receber();
           }}
         />
       )}
@@ -1050,6 +1066,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           itemCodigo={parcial.item_codigo}
           itemDescricao={parcial.item_descricao}
           loading={loading}
+          ocultarParcial
           onCancel={() => setShowReceberModal(false)}
           onConfirm={async (decisao, _qtd, obs) => {
             setShowReceberModal(false);
@@ -1248,6 +1265,8 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   const [setorRetrabalhoGrupo, setSetorRetrabalhoGrupo] = useState('');
   const [motivoDivGrupo, setMotivoDivGrupo] = useState('');
   const [expandido, setExpandido] = useState(false);
+  const [showEntregarGrupo, setShowEntregarGrupo] = useState(false);
+  const [showDespacharGrupo, setShowDespacharGrupo] = useState(false);
 
   if (parciais.length === 1) return <ParcialCard parcial={parciais[0]} onRefresh={onRefresh} setor={setor} />;
 
@@ -1258,8 +1277,13 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   async function acaoTodos(a: string, body?: Record<string, unknown>, msgSucesso?: string) {
     setLoading(true);
     try {
-      for (const p of parciais) await parcialAcao(p.id, a, body);
-      if (msgSucesso) mostrarErroGrupo(msgSucesso, 'ok');
+      const r = await parcialAcaoLote(parciais.map(p => p.id), a, body);
+      if (r.falhas > 0) {
+        const primeiraFalha = r.resultados.find(x => !x.ok);
+        mostrarErroGrupo(`${r.falhas} de ${r.total} falharam: ${primeiraFalha?.erro || 'erro desconhecido'}`);
+      } else if (msgSucesso) {
+        mostrarErroGrupo(msgSucesso, 'ok');
+      }
       onRefresh();
     } catch (e: unknown) {
       const ax = e as { response?: { data?: { erro?: string } } };
@@ -1285,8 +1309,10 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
     if (!destino) { mostrarErroGrupo('Selecione o setor destino'); return; }
     setLoading(true);
     try {
-      for (const p of parciais) await parcialAcao(p.id, 'finalizar');
-      for (const p of parciais) await parcialAcao(p.id, 'mover', { setor_destino: destino, quantidade: Number(p.quantidade) });
+      const ids = parciais.map(p => p.id);
+      await parcialAcaoLote(ids, 'finalizar');
+      // Sem quantidade: cada parcial move sua propria quantidade total
+      await parcialAcaoLote(ids, 'mover', { setor_destino: destino });
       onRefresh();
     } catch (e: unknown) {
       const ax = e as { response?: { data?: { erro?: string } } };
@@ -1472,6 +1498,11 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
 
       {/* Ações combinadas */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {isLogistica && isAberto && (
+          <button onClick={() => acaoTodos('iniciar')} disabled={loading} style={btnStyle('#0d6efd')}>
+            <i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar entrega
+          </button>
+        )}
         {!isLogistica && isAberto && (
           <button onClick={() => setShowReceberModal(true)} disabled={loading} style={btnStyle('#d97706')}>
             <i className="bi bi-box-arrow-in-down" style={{ marginRight: 5 }} />Receber
@@ -1534,6 +1565,13 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
           </>
         )}
 
+        {/* Logística — confirma a entrega direto, sem etapa intermediária (mesmo fluxo do ParcialCard) */}
+        {isLogistica && isAndamento && (
+          <button onClick={() => setShowEntregarGrupo(true)} disabled={loading} style={btnStyle('#198754')}>
+            <i className="bi bi-check-circle-fill" style={{ marginRight: 5 }} />Confirmar entrega
+          </button>
+        )}
+
         {!isLogistica && isPausado && (
           <>
             <button onClick={() => acaoTodos('retomar')} disabled={loading} style={btnStyle('#198754')}>
@@ -1546,6 +1584,11 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
               <i className="bi bi-send" style={{ marginRight: 5 }} />Enviar parcial
             </button>
           </>
+        )}
+        {isLogistica && isPausado && (
+          <button onClick={() => acaoTodos('retomar')} disabled={loading} style={btnStyle('#0d6efd')}>
+            <i className="bi bi-truck" style={{ marginRight: 5 }} />Tentar entrega novamente
+          </button>
         )}
 
         {!isLogistica && isFinalizado && (
@@ -1570,6 +1613,37 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             </button>
           </>
         )}
+        {/* Logística — despacho legado (finalizado_setor -> em_transito), mesmo caminho do ParcialCard */}
+        {isLogistica && isFinalizado && (
+          <button onClick={() => setShowDespacharGrupo(true)} disabled={loading} style={btnStyle('#fd7e14')}>
+            🚚 Despachar
+          </button>
+        )}
+        {isLogistica && isEmTransito && (
+          <button onClick={() => setShowEntregarGrupo(true)} disabled={loading} style={btnStyle('#198754')}>
+            <i className="bi bi-check-circle-fill" style={{ marginRight: 5 }} />Confirmar entrega
+          </button>
+        )}
+        {showEntregarGrupo && (
+          <EntregarModal
+            itemId={p0.item_pedido_id as number}
+            pedidoNumero={p0.numero_pedido_venda ?? ''}
+            descricao={p0.item_descricao ?? ''}
+            quantidade={String(totalQtd)}
+            unidade={p0.unidade ?? 'un'}
+            onCancel={() => setShowEntregarGrupo(false)}
+            onConfirm={() => { setShowEntregarGrupo(false); onRefresh(); }}
+          />
+        )}
+        {showDespacharGrupo && (
+          <DespacharModal
+            itemId={p0.item_pedido_id as number}
+            itemCodigo={p0.item_codigo ?? ''}
+            pedidoNumero={p0.numero_pedido_venda ?? ''}
+            onClose={() => setShowDespacharGrupo(false)}
+            onSuccess={() => { setShowDespacharGrupo(false); onRefresh(); }}
+          />
+        )}
 
         {(isAberto || isAndamento || isPausado || isFinalizado) && !isLogistica && (
           <button onClick={() => { setShowDevolver(v => !v); setShowEnviar(false); }} disabled={loading} style={btnStyle('#dc3545', true)}>
@@ -1587,6 +1661,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
           itemCodigo={p0.item_codigo}
           itemDescricao={p0.item_descricao}
           loading={loading}
+          ocultarParcial
           onCancel={() => setShowReceberModal(false)}
           onConfirm={async (decisao, _qtd, obs) => {
             setShowReceberModal(false);
@@ -1594,8 +1669,13 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             else if (decisao === 'preparar') {
               setLoading(true);
               try {
-                for (const p of parciais) await parcialAcao(p.id, 'receber');
-                mostrarErroGrupo('Recebimento confirmado — clique em Iniciar quando estiver pronto', 'ok');
+                const r = await parcialAcaoLote(parciais.map(p => p.id), 'receber');
+                if (r.falhas > 0) {
+                  const primeiraFalha = r.resultados.find(x => !x.ok);
+                  mostrarErroGrupo(`${r.falhas} de ${r.total} falharam: ${primeiraFalha?.erro || 'erro desconhecido'}`);
+                } else {
+                  mostrarErroGrupo('Recebimento confirmado — clique em Iniciar quando estiver pronto', 'ok');
+                }
                 onRefresh();
               } catch (e: unknown) {
                 const ax = e as { response?: { data?: { erro?: string } } };
@@ -1624,7 +1704,9 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
           <button onClick={() => {
             const dest = setorDestino || p0.proximo_setor || '';
             if (!dest) { mostrarErroGrupo('Selecione o setor destino'); return; }
-            acaoTodos('mover', { setor_destino: dest, quantidade: Number(p0.quantidade) });
+            // Sem quantidade explicita: cada parcial usa sua propria quantidade total
+            // (o grupo pode ter parciais com quantidades diferentes, ex. apos uma divisao).
+            acaoTodos('mover', { setor_destino: dest });
             setShowEnviar(false);
           }} disabled={loading || (!setorDestino && !p0.proximo_setor)}
             style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: (loading || (!setorDestino && !p0.proximo_setor)) ? 'not-allowed' : 'pointer', opacity: (!setorDestino && !p0.proximo_setor) ? 0.4 : 1 }}>
@@ -1702,10 +1784,11 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
               if (!motivoDivGrupo.trim()) { mostrarErroGrupo('Informe o motivo da divergência.'); return; }
               setLoading(true);
               try {
+                const ids = parciais.map(p => p.id);
                 if (p0.status === 'finalizado_setor') {
-                  for (const p of parciais) await parcialAcao(p.id, 'retomar');
+                  await parcialAcaoLote(ids, 'retomar');
                 }
-                for (const p of parciais) await parcialAcao(p.id, 'pausar', { observacao: motivoDivGrupo });
+                await parcialAcaoLote(ids, 'pausar', { observacao: motivoDivGrupo });
                 setMotivoDivGrupo('');
                 setShowDivQualidade(false);
                 onRefresh();
@@ -2067,7 +2150,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                                   e.stopPropagation();
                                   setRecebendoTudo(prev => new Set(prev).add(pedido_id));
                                   try {
-                                    for (const p of recebiveis) await parcialAcao(p.id, 'receber');
+                                    await parcialAcaoLote(recebiveis.map(p => p.id), 'receber');
                                     carregar();
                                   } catch { /* carregar mesmo assim */ carregar(); }
                                   finally { setRecebendoTudo(prev => { const s = new Set(prev); s.delete(pedido_id); return s; }); }

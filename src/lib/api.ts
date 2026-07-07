@@ -60,9 +60,6 @@ export const getDashboard = () =>
 export const getSetorPainel = (setor: string) =>
   api.get(`/api/setor/${setor}`).then(r => r.data);
 
-export const getSetores = () =>
-  api.get('/api/setores').then(r => r.data);
-
 // ── Emitidos / Entregues ──────────────────────────────────────────────────────
 export const getEmitidos = (params?: Record<string, string>) =>
   api.get('/api/emitidos', { params }).then(r => r.data);
@@ -80,6 +77,30 @@ export const getParcial = (id: number) =>
 
 export const parcialAcao = (id: number, acao: string, body?: Record<string, unknown>) =>
   api.post(`/api/parcial/${id}/acao/${acao}`, body || {}).then(r => r.data);
+
+// Mesma acao aplicada a varias parciais numa unica requisicao (evita 1 round-trip por item).
+// A rota aceita no maximo 50 ids por chamada - grupos maiores sao divididos em pedacos
+// e enviados em sequencia, com os resultados combinados como se fosse uma chamada so.
+type ResultadoLote = {
+  ok: boolean; total: number; sucesso: number; falhas: number;
+  resultados: Array<{ id: number; ok: boolean; erro?: string }>;
+};
+const MAX_IDS_POR_CHAMADA = 50;
+export const parcialAcaoLote = async (ids: number[], acao: string, body?: Record<string, unknown>): Promise<ResultadoLote> => {
+  const pedacos: number[][] = [];
+  for (let i = 0; i < ids.length; i += MAX_IDS_POR_CHAMADA) pedacos.push(ids.slice(i, i + MAX_IDS_POR_CHAMADA));
+
+  const combinado: ResultadoLote = { ok: true, total: 0, sucesso: 0, falhas: 0, resultados: [] };
+  for (const pedaco of pedacos) {
+    const r = await api.post(`/api/parcial/lote/${acao}`, { ids: pedaco, ...(body || {}) }).then(res => res.data as ResultadoLote);
+    combinado.total += r.total;
+    combinado.sucesso += r.sucesso;
+    combinado.falhas += r.falhas;
+    combinado.resultados.push(...r.resultados);
+  }
+  combinado.ok = combinado.falhas === 0;
+  return combinado;
+};
 
 // ── Cache helpers (no-op sem implementação de cache) ─────────────────────────
 export const invalidateCache = (..._keys: string[]) => { /* sem cache no lado cliente */ };

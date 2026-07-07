@@ -262,18 +262,23 @@ export async function POST(
       `;
 
       if (parcial.setor_atual === 'logistica') {
-        // Busca o saldo atual de entregues (com lock para evitar race condition)
+        // Busca o saldo atual de entregues/pendentes (com lock para evitar race condition)
         const [itemAtual] = await tx`
           SELECT quantidade::float          AS total,
-                 COALESCE(quantidade_entregue::float, 0) AS entregue
+                 COALESCE(quantidade_entregue::float, 0) AS entregue,
+                 COALESCE(quantidade_pendente::float, 0) AS pendente
           FROM producao_itempedido WHERE id = ${parcial.item_id} FOR UPDATE
         `;
         const novaEntregue = Number(itemAtual.entregue) + parcial.qtd;
+        const novoPendente = Math.max(0, Number(itemAtual.pendente) - parcial.qtd);
 
-        // Atualiza entregue e status do item em uma única query
+        // Decrementa quantidade_pendente junto - se ficasse parada aqui, uma entrega
+        // total posterior via /api/item/[id]/entregar somaria entregue + pendente
+        // usando um saldo desatualizado, contando esta parcial em dobro.
         await tx`
           UPDATE producao_itempedido
           SET quantidade_entregue = ${novaEntregue},
+              quantidade_pendente = ${novoPendente},
               status = CASE
                 WHEN ${novaEntregue} >= quantidade THEN 'entregue'
                 ELSE status
@@ -381,9 +386,11 @@ export async function POST(
     });
 
   // ── pausar ────────────────────────────────────────────────────────────────
+  // Aceita tambem em_aberto/recebido: e o caminho usado para reportar uma
+  // divergencia no recebimento, antes da producao ter comecado de fato.
   } else if (acao === 'pausar') {
-    if (parcial.status !== 'em_andamento')
-      return NextResponse.json({ erro: 'Parcial não está em andamento' }, { status: 400 });
+    if (!['em_andamento', 'em_aberto', 'recebido'].includes(parcial.status))
+      return NextResponse.json({ erro: 'Parcial não pode ser pausada neste status' }, { status: 400 });
 
     await sql.begin(async (tx) => {
       await tx`
@@ -397,7 +404,7 @@ export async function POST(
            status_anterior, status_novo, observacao, criado_em)
         VALUES (${parcial.item_id}, ${parcial.pedido_id}, ${user.id},
                 ${parcial.setor_atual}, ${parcial.setor_atual},
-                'em_andamento', 'pausado',
+                ${parcial.status}, 'pausado',
                 ${obs || `Parcial #${parcialId} pausada em ${nomeSector(parcial.setor_atual)}`}, NOW())
       `;
     });

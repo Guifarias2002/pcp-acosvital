@@ -14,6 +14,8 @@ import OndeEstaoPecas from '@/components/workspace/OndeEstaoPecas';
 import RastreabilidadeParciais from '@/components/workspace/RastreabilidadeParciais';
 import ConfirmModal from '@/components/ConfirmModal';
 import EntregarModal from '@/components/EntregarModal';
+import DespacharModal from '@/components/DespacharModal';
+import ReceberModal from '@/components/ReceberModal';
 
 // Shape returned by GET /api/parcial/[id]
 interface ParcialDetalhe {
@@ -93,6 +95,10 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
 
   // Confirmar entrega (logística) — mesmo modal com NF + comprovante do painel de setor
   const [showEntregar, setShowEntregar] = useState(false);
+  // Despachar (caminho legado finalizado_setor -> em_transito) — mesmo modal do painel de setor
+  const [showDespachar, setShowDespachar] = useState(false);
+  // Receber (em_aberto -> iniciar/recebido/divergencia) — mesmo modal do painel de setor
+  const [showReceberModal, setShowReceberModal] = useState(false);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -222,13 +228,15 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
   });
 
   const isAberto    = parcial.status === 'em_aberto';
+  const isRecebido  = parcial.status === 'recebido';
   const isAndamento = parcial.status === 'em_andamento';
   const isPausado   = parcial.status === 'pausado';
   const isFinalizado = parcial.status === 'finalizado_setor';
   const isConcluida = parcial.status === 'concluida';
   const isCancelada = parcial.status === 'cancelada';
+  const isEmTransito = parcial.status === 'em_transito';
   const isLogistica = parcial.setor_atual === 'logistica';
-  const isAtiva     = isAberto || isAndamento || isPausado || isFinalizado;
+  const isAtiva     = isAberto || isRecebido || isAndamento || isPausado || isFinalizado || isEmTransito;
   const duracao     = fmtDuracao(parcial.iniciado_em, parcial.concluido_em);
 
   const setoresDisponiveis = SETOR_CHOICES.filter(([cod]) => cod !== parcial.setor_atual);
@@ -254,6 +262,33 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
           unidade={parcial.unidade}
           onCancel={() => setShowEntregar(false)}
           onConfirm={() => { setShowEntregar(false); carregar(); }}
+        />
+      )}
+      {showDespachar && (
+        <DespacharModal
+          itemId={parcial.item_pedido_id}
+          itemCodigo={parcial.item_codigo}
+          pedidoNumero={parcial.numero_pedido_venda}
+          onClose={() => setShowDespachar(false)}
+          onSuccess={() => { setShowDespachar(false); carregar(); }}
+        />
+      )}
+      {showReceberModal && (
+        <ReceberModal
+          quantidade={parcial.quantidade}
+          unidade={parcial.unidade || 'un'}
+          setor={parcial.setor_atual_nome}
+          itemCodigo={parcial.item_codigo}
+          itemDescricao={parcial.item_descricao}
+          loading={!!atuando}
+          ocultarParcial
+          onCancel={() => setShowReceberModal(false)}
+          onConfirm={async (decisao, _qtd, obs) => {
+            setShowReceberModal(false);
+            if (decisao === 'iniciar') { executarAcao('iniciar'); }
+            else if (decisao === 'preparar') { executarAcao('receber'); }
+            else { executarAcao('pausar', { observacao: obs || 'Divergência no recebimento' }); }
+          }}
         />
       )}
       {/* ── Header ──────────────────────────────────────────────────────────── */}
@@ -463,12 +498,35 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
             )}
             <div className="space-y-2">
 
-              {/* INICIAR */}
+              {/* INICIAR — logística vai direto (sem próximo setor); demais setores escolhem via modal */}
               {isAberto && (
-                <button onClick={() => executarAcao('iniciar')} disabled={!!atuando}
-                  className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
-                  {atuando === 'iniciar' ? '⏳ Recebendo...' : '▶ Receber'}
-                </button>
+                isLogistica ? (
+                  <button onClick={() => executarAcao('iniciar')} disabled={!!atuando}
+                    className="w-full bg-blue-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-blue-700 disabled:opacity-60">
+                    {atuando === 'iniciar' ? '⏳ Iniciando...' : '🚚 Iniciar entrega'}
+                  </button>
+                ) : (
+                  <button onClick={() => setShowReceberModal(true)} disabled={!!atuando}
+                    className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
+                    {atuando === 'iniciar' || atuando === 'receber' || atuando === 'pausar' ? '⏳ Aguarde...' : '▶ Receber'}
+                  </button>
+                )
+              )}
+
+              {/* RECEBIDO — recebida mas produção ainda não iniciada (via "receber sem iniciar" no painel de setor) */}
+              {isRecebido && (
+                <>
+                  <button onClick={() => executarAcao('iniciar')} disabled={!!atuando}
+                    className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
+                    {atuando === 'iniciar' ? '⏳ Iniciando...' : '▶ Iniciar produção'}
+                  </button>
+                  {!isLogistica && (
+                    <button onClick={() => { setShowSplit(v => !v); setShowDevolver(false); }} disabled={!!atuando}
+                      className="w-full bg-[#1a3a5c] text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:opacity-90 disabled:opacity-60">
+                      ↗ Enviar ao próximo setor
+                    </button>
+                  )}
+                </>
               )}
 
               {/* EM ANDAMENTO — logística confirma a entrega direto, sem etapa intermediária */}
@@ -558,9 +616,10 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                     </button>
                   )}
                   {isLogistica && (
-                    <button onClick={() => setShowEntregar(true)} disabled={!!atuando}
-                      className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
-                      <i className="bi bi-check-circle-fill" style={{ marginRight: 6 }} />Confirmar entrega
+                    <button onClick={() => setShowDespachar(true)} disabled={!!atuando}
+                      className="w-full text-white px-4 py-2.5 rounded text-sm font-semibold text-left disabled:opacity-60"
+                      style={{ background: '#fd7e14' }}>
+                      🚚 Despachar
                     </button>
                   )}
                   <button onClick={() => executarAcao('retomar')} disabled={!!atuando}
@@ -578,6 +637,14 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                     </button>
                   )}
                 </>
+              )}
+
+              {/* EM ROTA (legado) — despachada mas ainda não entregue */}
+              {isEmTransito && (
+                <button onClick={() => setShowEntregar(true)} disabled={!!atuando}
+                  className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
+                  <i className="bi bi-check-circle-fill" style={{ marginRight: 6 }} />Confirmar entrega
+                </button>
               )}
 
               {/* DEVOLVER — quando em andamento, pausado ou finalizado */}
@@ -606,7 +673,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
             </div>
 
             {/* Painel de quantidade para split */}
-            {showSplit && (isAndamento || isFinalizado) && (
+            {showSplit && (isRecebido || isAndamento || isFinalizado) && (
               <div className="mt-3 space-y-2 border-t pt-3">
                 <p className="text-xs font-semibold text-gray-600">Enviar parcial para outro setor</p>
                 <select value={setorDestino} onChange={e => setSetorDestino(e.target.value)}

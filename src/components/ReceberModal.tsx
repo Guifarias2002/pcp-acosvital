@@ -12,13 +12,16 @@ interface Props {
   unidade: string;
   setor?: string;
   ocultarIniciar?: boolean;
+  /** Esconde a opção "receber parcial" — use quando quem chama não sabe dividir
+   * a quantidade recebida (ex: parcial individual, que já é uma fração de um item). */
+  ocultarParcial?: boolean;
   onConfirm: (decisao: Decisao, qtdParcial?: number, obs?: string) => void;
   onCancel: () => void;
   loading?: boolean;
 }
 
-export default function ReceberModal({ quantidade, unidade, setor = 'Setor', itemCodigo, itemDescricao, setorOrigem, ocultarIniciar, onConfirm, onCancel, loading }: Props) {
-  const [step, setStep] = useState<'quantidade' | 'decisao' | 'divergente'>('quantidade');
+export default function ReceberModal({ quantidade, unidade, setor = 'Setor', itemCodigo, itemDescricao, setorOrigem, ocultarIniciar, ocultarParcial, onConfirm, onCancel, loading }: Props) {
+  const [step, setStep] = useState<'quantidade' | 'decisao' | 'divergente'>(ocultarParcial ? 'decisao' : 'quantidade');
   const [modo, setModo] = useState<'tudo' | 'parcial'>('tudo');
   const [qtdParcial, setQtdParcial] = useState('');
   const [obsDiv, setObsDiv] = useState('');
@@ -190,10 +193,12 @@ export default function ReceberModal({ quantidade, unidade, setor = 'Setor', ite
               </button>
             </div>
 
-            <button onClick={() => setStep('quantidade')}
-              style={{ width: '100%', background: 'none', border: '1px solid #dee2e6', borderRadius: 8, padding: '8px 0', fontSize: 12, color: '#888', cursor: 'pointer' }}>
-              ← Voltar
-            </button>
+            {!ocultarParcial && (
+              <button onClick={() => setStep('quantidade')}
+                style={{ width: '100%', background: 'none', border: '1px solid #dee2e6', borderRadius: 8, padding: '8px 0', fontSize: 12, color: '#888', cursor: 'pointer' }}>
+                ← Voltar
+              </button>
+            )}
           </>
         )}
 
