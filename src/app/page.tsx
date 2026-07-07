@@ -582,11 +582,6 @@ export default function DashboardPage() {
                     </div>
                     <i className={`bi ${c.icon} etapa-icone`} style={{ fontSize: 28, opacity: .3 }}></i>
                   </div>
-                  {i < 3 && (
-                    <div style={{ marginTop: 10, textAlign: 'right', opacity: .35, fontSize: 11 }}>
-                      próxima etapa →
-                    </div>
-                  )}
                   </div>
                 </button>
               );
