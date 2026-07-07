@@ -2,6 +2,7 @@
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { NOMES } from '@/lib/types';
+import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { pbkdf2, randomBytes } from 'crypto';
 import { promisify } from 'util';
 
@@ -41,6 +42,8 @@ export async function POST(req: Request) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  if (!checkMutationRateLimit(getClientIp(req)))
+    return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
   const { username, nome, senha, perfil, setor } = await req.json();
 

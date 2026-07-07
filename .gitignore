@@ -27,9 +27,15 @@ yarn-error.log*
 .env*.local
 .env.development
 .env.production
+.env.pcp_next
+.env.sistema
 
 # vercel
 .vercel
+
+# segredo local do script de sincronizacao de backup (nunca committar)
+scripts/backup-sync.secret
+scripts/backup-sync.log
 
 # typescript
 *.tsbuildinfo

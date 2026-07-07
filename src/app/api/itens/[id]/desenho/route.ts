@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
+import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,6 +70,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const user = await autenticar(req);
     if (user instanceof NextResponse) return user;
     if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+    if (!checkMutationRateLimit(getClientIp(req)))
+      return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
     const itemId = Number(params.id);
     if (!Number.isInteger(itemId) || itemId <= 0)
@@ -114,6 +117,12 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   const itemId = Number(params.id);
   const { path } = await req.json().catch(() => ({ path: null }));
   if (!path) return NextResponse.json({ erro: 'path obrigatório' }, { status: 400 });
+
+  const [row] = await sql`SELECT desenhos FROM producao_itempedido WHERE id = ${itemId}`;
+  if (!row) return NextResponse.json({ erro: 'Item não encontrado' }, { status: 404 });
+  const desenhos: string[] = row.desenhos || [];
+  if (!desenhos.includes(path))
+    return NextResponse.json({ erro: 'Arquivo não pertence a este item' }, { status: 400 });
 
   await deleteStorage(path);
   await sql`

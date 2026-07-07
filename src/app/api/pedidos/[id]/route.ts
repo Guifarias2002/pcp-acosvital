@@ -2,6 +2,7 @@
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
 import { getPedidoComItens } from '@/lib/queries';
+import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 const PRIORIDADES_VALIDAS = ['baixa', 'normal', 'alta', 'urgente'];
@@ -33,6 +34,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  if (!checkMutationRateLimit(getClientIp(req)))
+    return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
   logAcesso(user, req, 'editar_pedido');
 
   const pedidoId = Number(params.id);
@@ -155,6 +158,8 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  if (!checkMutationRateLimit(getClientIp(req)))
+    return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
   const id = Number(params.id);
   if (!Number.isInteger(id) || id <= 0)

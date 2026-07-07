@@ -1,6 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
+import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
@@ -61,6 +62,8 @@ export async function POST(req: Request) {
   try {
     const user = await autenticar(req);
     if (user instanceof NextResponse) return user;
+    if (!checkMutationRateLimit(getClientIp(req)))
+      return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
     const body = await req.json().catch(() => ({}));
     const { pedido_id, item_id, tipo, descricao, setor_responsavel, prioridade } = body;

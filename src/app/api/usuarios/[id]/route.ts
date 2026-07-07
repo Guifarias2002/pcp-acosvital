@@ -1,12 +1,15 @@
 ﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
+import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  if (!checkMutationRateLimit(getClientIp(req)))
+    return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
   const targetId = Number(params.id);
   if (!Number.isInteger(targetId) || targetId <= 0)
@@ -52,6 +55,8 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  if (!checkMutationRateLimit(getClientIp(req)))
+    return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
   const targetId = Number(params.id);
   if (!Number.isInteger(targetId) || targetId <= 0)

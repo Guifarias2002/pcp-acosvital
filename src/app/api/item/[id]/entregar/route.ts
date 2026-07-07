@@ -1,11 +1,15 @@
 ﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
+import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
+
+  if (!checkMutationRateLimit(getClientIp(req)))
+    return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
   const itemId = Number(params.id);
   if (!Number.isInteger(itemId) || itemId <= 0)
@@ -115,17 +119,24 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
 
+  if (!checkMutationRateLimit(getClientIp(req)))
+    return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
+
   const itemId = Number(params.id);
   if (!Number.isInteger(itemId) || itemId <= 0)
     return NextResponse.json({ erro: 'ID invalido' }, { status: 400 });
 
   const [entrega] = await sql`
-    SELECT e.*, i.pedido_id FROM producao_entrega e
+    SELECT e.*, i.pedido_id, i.setor_atual FROM producao_entrega e
     JOIN producao_itempedido i ON i.id = e.item_id
     WHERE e.item_id = ${itemId}
     ORDER BY e.criado_em DESC LIMIT 1
   `;
   if (!entrega) return NextResponse.json({ erro: 'Entrega nao encontrada' }, { status: 404 });
+
+  logAcesso(user, req, 'entregar_comprovante');
+  if (!user.is_staff && entrega.setor_atual !== user.setor)
+    return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
 
   let formData: FormData;
   try { formData = await req.formData(); }

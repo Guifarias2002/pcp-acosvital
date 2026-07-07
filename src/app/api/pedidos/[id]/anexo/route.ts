@@ -1,14 +1,18 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
+import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+const EXTENSOES_VALIDAS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf'];
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  if (!checkMutationRateLimit(getClientIp(req)))
+    return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
   const pedidoId = Number(params.id);
   const formData = await req.formData();
@@ -26,6 +30,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   if (arquivo.size > MAX_SIZE) {
     return NextResponse.json({ erro: 'Arquivo muito grande (máx 10 MB)' }, { status: 400 });
+  }
+
+  const ext = arquivo.name.split('.').pop()?.toLowerCase() || '';
+  if (!EXTENSOES_VALIDAS.includes(ext)) {
+    return NextResponse.json({ erro: 'Tipo de arquivo não permitido. Use JPG, PNG, PDF ou GIF.' }, { status: 400 });
   }
 
   const bytes = await arquivo.arrayBuffer();
