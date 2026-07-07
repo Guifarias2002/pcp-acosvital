@@ -1983,6 +1983,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const [pedidosColapsados, setPedidosColapsados] = useState<Set<number>>(new Set());
   const [recebendoTudo, setRecebendoTudo] = useState<Set<number>>(new Set());
   const [enviandoTudo, setEnviandoTudo] = useState<Set<number>>(new Set());
+  const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
   // Pedidos ja vistos nesta sessao da pagina - controla quais ja tiveram seu
   // estado de colapso inicializado, pra nao re-fechar um que o usuario abriu.
   const pedidosVistos = useRef<Set<number>>(new Set());
@@ -2025,6 +2026,10 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
 
   return (
     <AuthGuard>
+      {confirm && (
+        <ConfirmModal titulo={confirm.titulo} mensagem={confirm.mensagem} confirmLabel="Confirmar"
+          onConfirm={() => { confirm.acao(); setConfirm(null); }} onCancel={() => setConfirm(null)} />
+      )}
       <NotificacoesLive filtroSetor={setor} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: setor === 'logistica' ? 12 : 18, flexWrap: 'wrap', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -2185,19 +2190,26 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             );
                             if (enviaveis.length === 0) return null;
                             const carregando = enviandoTudo.has(pedido_id);
+                            const executarEnvioTudo = async () => {
+                              setEnviandoTudo(prev => new Set(prev).add(pedido_id));
+                              try {
+                                for (const p of enviaveis) {
+                                  await parcialAcao(p.id, 'mover', { setor_destino: p.proximo_setor, quantidade: Number(p.quantidade) });
+                                }
+                                carregar();
+                              } catch { /* carregar mesmo assim */ carregar(); }
+                              finally { setEnviandoTudo(prev => { const s = new Set(prev); s.delete(pedido_id); return s; }); }
+                            };
                             return (
                               <button
                                 disabled={carregando}
-                                onClick={async (e) => {
+                                onClick={(e) => {
                                   e.stopPropagation();
-                                  setEnviandoTudo(prev => new Set(prev).add(pedido_id));
-                                  try {
-                                    for (const p of enviaveis) {
-                                      await parcialAcao(p.id, 'mover', { setor_destino: p.proximo_setor, quantidade: Number(p.quantidade) });
-                                    }
-                                    carregar();
-                                  } catch { /* carregar mesmo assim */ carregar(); }
-                                  finally { setEnviandoTudo(prev => { const s = new Set(prev); s.delete(pedido_id); return s; }); }
+                                  setConfirm({
+                                    titulo: 'Enviar tudo',
+                                    mensagem: `Confirma o envio de ${enviaveis.length} parcial${enviaveis.length > 1 ? 'is' : ''} deste pedido para o próximo setor?`,
+                                    acao: executarEnvioTudo,
+                                  });
                                 }}
                                 style={{ marginLeft: recebiveisCheck ? 0 : 'auto', background: carregando ? '#4a6fa5' : '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: carregando ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
                               >
