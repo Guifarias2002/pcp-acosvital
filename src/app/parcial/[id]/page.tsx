@@ -13,6 +13,7 @@ import LinhaDoTempo from '@/components/workspace/LinhaDoTempo';
 import OndeEstaoPecas from '@/components/workspace/OndeEstaoPecas';
 import RastreabilidadeParciais from '@/components/workspace/RastreabilidadeParciais';
 import ConfirmModal from '@/components/ConfirmModal';
+import EntregarModal from '@/components/EntregarModal';
 
 // Shape returned by GET /api/parcial/[id]
 interface ParcialDetalhe {
@@ -89,6 +90,9 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
 
   // Confirm modal state
   const [confirmModal, setConfirmModal] = useState<{ titulo: string; mensagem: string; acao: () => void; perigo?: boolean } | null>(null);
+
+  // Confirmar entrega (logística) — mesmo modal com NF + comprovante do painel de setor
+  const [showEntregar, setShowEntregar] = useState(false);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -239,6 +243,17 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
           confirmLabel="Confirmar"
           onConfirm={() => { confirmModal.acao(); setConfirmModal(null); }}
           onCancel={() => setConfirmModal(null)}
+        />
+      )}
+      {showEntregar && (
+        <EntregarModal
+          itemId={parcial.item_pedido_id}
+          pedidoNumero={parcial.numero_pedido_venda}
+          descricao={parcial.item_descricao}
+          quantidade={parcial.quantidade}
+          unidade={parcial.unidade}
+          onCancel={() => setShowEntregar(false)}
+          onConfirm={() => { setShowEntregar(false); carregar(); }}
         />
       )}
       {/* ── Header ──────────────────────────────────────────────────────────── */}
@@ -456,36 +471,37 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                 </button>
               )}
 
-              {/* EM ANDAMENTO — logística não tem próximo setor no roteiro */}
+              {/* EM ANDAMENTO — logística confirma a entrega direto, sem etapa intermediária */}
               {isAndamento && (
                 <>
-                  <button onClick={() => setConfirmModal(isLogistica ? {
-                    titulo: 'Iniciar Entrega',
-                    mensagem: 'Confirma o início da entrega? A parcial ficará pronta para despacho.',
-                    acao: () => executarAcao('finalizar'),
-                  } : {
-                    titulo: 'Finalizar etapa',
-                    mensagem: 'Deseja finalizar o processo neste setor? A parcial ficará disponível para envio ao próximo setor.',
-                    acao: () => executarAcao('finalizar'),
-                  })} disabled={!!atuando}
-                    className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
-                    {atuando === 'finalizar' ? '⏳ Finalizando...' : isLogistica ? '🚚 Iniciar Entrega' : '✓ Finalizar etapa'}
-                  </button>
-                  {!isLogistica && (
-                    <button onClick={() => { setShowSplit(v => !v); setShowDevolver(false); }} disabled={!!atuando}
-                      className="w-full bg-[#1a3a5c] text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:opacity-90 disabled:opacity-60">
-                      ↗ Enviar ao próximo setor
+                  {isLogistica ? (
+                    <button onClick={() => setShowEntregar(true)} disabled={!!atuando}
+                      className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
+                      <i className="bi bi-check-circle-fill" style={{ marginRight: 6 }} />Confirmar entrega
                     </button>
-                  )}
-                  {!isLogistica && (
-                    <button onClick={() => setConfirmModal({
-                      titulo: 'Encerrar parcial',
-                      mensagem: 'A parcial não irá para nenhum outro setor. Deseja encerrá-la como concluída?',
-                      acao: () => executarAcao('concluir'),
-                    })} disabled={!!atuando}
-                      className="w-full border border-green-500 text-green-700 px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-50 disabled:opacity-60">
-                      {atuando === 'concluir' ? '⏳ Encerrando...' : '✓ Encerrar'}
-                    </button>
+                  ) : (
+                    <>
+                      <button onClick={() => setConfirmModal({
+                        titulo: 'Finalizar etapa',
+                        mensagem: 'Deseja finalizar o processo neste setor? A parcial ficará disponível para envio ao próximo setor.',
+                        acao: () => executarAcao('finalizar'),
+                      })} disabled={!!atuando}
+                        className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
+                        {atuando === 'finalizar' ? '⏳ Finalizando...' : '✓ Finalizar etapa'}
+                      </button>
+                      <button onClick={() => { setShowSplit(v => !v); setShowDevolver(false); }} disabled={!!atuando}
+                        className="w-full bg-[#1a3a5c] text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:opacity-90 disabled:opacity-60">
+                        ↗ Enviar ao próximo setor
+                      </button>
+                      <button onClick={() => setConfirmModal({
+                        titulo: 'Encerrar parcial',
+                        mensagem: 'A parcial não irá para nenhum outro setor. Deseja encerrá-la como concluída?',
+                        acao: () => executarAcao('concluir'),
+                      })} disabled={!!atuando}
+                        className="w-full border border-green-500 text-green-700 px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-50 disabled:opacity-60">
+                        {atuando === 'concluir' ? '⏳ Encerrando...' : '✓ Encerrar'}
+                      </button>
+                    </>
                   )}
                   <button onClick={() => executarAcao('pausar')} disabled={!!atuando}
                     className="w-full bg-orange-500 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-orange-600 disabled:opacity-60">
@@ -542,14 +558,9 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                     </button>
                   )}
                   {isLogistica && (
-                    <button onClick={() => setConfirmModal({
-                      titulo: 'Despachar',
-                      mensagem: 'Confirma o despacho desta parcial para o cliente?',
-                      acao: () => executarAcao('concluir'),
-                    })} disabled={!!atuando}
-                      className="w-full text-white px-4 py-2.5 rounded text-sm font-semibold text-left disabled:opacity-60"
-                      style={{ background: '#fd7e14' }}>
-                      {atuando === 'concluir' ? '⏳ Despachando...' : '🚚 Despachar'}
+                    <button onClick={() => setShowEntregar(true)} disabled={!!atuando}
+                      className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
+                      <i className="bi bi-check-circle-fill" style={{ marginRight: 6 }} />Confirmar entrega
                     </button>
                   )}
                   <button onClick={() => executarAcao('retomar')} disabled={!!atuando}

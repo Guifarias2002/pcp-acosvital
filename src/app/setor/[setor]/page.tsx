@@ -868,24 +868,26 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           </>
         )}
 
-        {/* ── Em andamento: logística não tem próximo setor no roteiro ────── */}
+        {/* ── Em andamento: logística confirma a entrega direto, sem etapa intermediária ── */}
         {isAndamento && (
           <>
-            <button onClick={() => setConfirm(isLogistica ? {
-              titulo: 'Iniciar Entrega',
-              mensagem: 'Confirma o início da entrega? A parcial ficará pronta para despacho.',
-              acao: () => acao('finalizar'),
-            } : {
-              titulo: 'Finalizar etapa',
-              mensagem: 'Deseja finalizar o processo neste setor? A parcial ficará disponível para envio ao próximo setor.',
-              acao: () => acao('finalizar'),
-            })} disabled={loading} style={btnStyle('#198754')}>
-              {isLogistica ? <><i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar Entrega</> : <>✓ Finalizar etapa</>}
-            </button>
-            {!isLogistica && (
-              <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
-                <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
+            {isLogistica ? (
+              <button onClick={() => setShowEntregarParcial(true)} disabled={loading} style={btnStyle('#198754')}>
+                <i className="bi bi-check-circle-fill" style={{ marginRight: 5 }} />Confirmar entrega
               </button>
+            ) : (
+              <>
+                <button onClick={() => setConfirm({
+                  titulo: 'Finalizar etapa',
+                  mensagem: 'Deseja finalizar o processo neste setor? A parcial ficará disponível para envio ao próximo setor.',
+                  acao: () => acao('finalizar'),
+                })} disabled={loading} style={btnStyle('#198754')}>
+                  ✓ Finalizar etapa
+                </button>
+                <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
+                  <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
+                </button>
+              </>
             )}
             <button onClick={() => acao('pausar')} disabled={loading} style={btnStyle('#fd7e14')}>
               <i className="bi bi-pause-fill" style={{ marginRight: 5 }} />Pausar
@@ -910,9 +912,11 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <button onClick={() => acao('retomar')} disabled={loading} style={btnStyle('#198754')}>
               <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Retomar
             </button>
-            <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
-              <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
-            </button>
+            {!isLogistica && (
+              <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
+                <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
+              </button>
+            )}
             {isLogistica && (
               <button onClick={() => acao('retomar')} disabled={loading} style={btnStyle('#0d6efd')}>
                 <i className="bi bi-truck" style={{ marginRight: 5 }} />Tentar entrega novamente
