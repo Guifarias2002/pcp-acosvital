@@ -2238,32 +2238,10 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                         {!pedidosColapsados.has(pedido_id) && <div style={{ display: 'flex', flexDirection: 'column' }}>
                           {itemGrupos.map((grupo, itemIdx) => {
                             const p0 = grupo[0];
-                            const totalQtd = grupo.reduce((s, p) => s + Number(p.quantidade), 0);
                             return (
                               <div key={(p0.item_codigo || '') + itemIdx} style={{ borderTop: itemIdx > 0 ? '2px solid #e2e8f0' : 'none' }}>
-                                {/* Header do produto — mostrado uma única vez */}
-                                <div style={{ background: '#f0f4ff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                                  <span style={{ fontSize: 15, fontWeight: 800, color: '#1a3a5c' }}>{p0.item_descricao || p0.item_codigo}</span>
-                                  {p0.prioridade && p0.prioridade !== 'normal' && (
-                                    <span style={{ background: '#dc2626', color: '#fff', fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 4 }}>
-                                      {p0.prioridade.toUpperCase()}
-                                    </span>
-                                  )}
-                                  <span style={{ fontSize: 12, color: '#64748b' }}>
-                                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#94a3b8', marginRight: 3 }}>Cód</span>
-                                    <span style={{ fontWeight: 800, color: '#475569' }}>{p0.item_codigo}</span>
-                                  </span>
-                                  {(p0 as any).numero_op && (
-                                    <span style={{ fontSize: 12, color: '#64748b' }}>
-                                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#94a3b8', marginRight: 3 }}>OP</span>
-                                      <span style={{ fontWeight: 800, color: '#1a3a5c' }}>{(p0 as any).numero_op}</span>
-                                    </span>
-                                  )}
-                                  <span style={{ marginLeft: 'auto', fontSize: 12, color: '#0d6efd', fontWeight: 700 }}>
-                                    {totalQtd} {p0.unidade} · {grupo.length} parcial{grupo.length > 1 ? 'is' : ''}
-                                  </span>
-                                </div>
-                                {/* Todas as parciais do item agrupadas em um único card */}
+                                {/* Todas as parciais do item agrupadas em um único card
+                                    (o proprio card ja mostra descricao/codigo/OP/quantidade) */}
                                 <div className="setor-parcial-area" style={{ padding: '12px 12px' }}>
                                   <ParcialGrupoCard parciais={grupo} onRefresh={carregar} setor={setor} />
                                 </div>
