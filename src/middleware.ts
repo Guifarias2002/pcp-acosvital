@@ -62,8 +62,15 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL(`/setor/${meuSetor}`, req.url));
   }
 
-  // Bloquear não-admins em rotas restritas
-  const rotaBloqueada = ROTAS_ADMIN.some(r => pathname === r || pathname.startsWith(r + '/'));
+  // Bloquear não-admins em rotas restritas — exceto o detalhe de um pedido
+  // específico (/pedidos/123), que qualquer usuário autenticado pode abrir (ex:
+  // "Ver pedido completo" no modal de rastreio); a permissão de verdade é
+  // decidida pela própria API (GET /api/pedidos/[id]), que checa se o usuário
+  // tem item/parcial ativo no pedido. Sem essa exceção, o middleware bloqueava
+  // até líderes/operadores com acesso legítimo, mandando de volta pro próprio
+  // setor sem nenhum aviso — parecia que o botão "não fazia nada".
+  const isPedidoDetalhe = /^\/pedidos\/\d+$/.test(pathname);
+  const rotaBloqueada = ROTAS_ADMIN.some(r => pathname === r || pathname.startsWith(r + '/')) && !isPedidoDetalhe;
   if (!isAdmin && rotaBloqueada) {
     const destino = meuSetor ? `/setor/${meuSetor}` : '/login';
     return NextResponse.redirect(new URL(destino, req.url));
