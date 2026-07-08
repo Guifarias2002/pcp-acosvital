@@ -2,6 +2,16 @@
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
+import { pbkdf2, randomBytes } from 'crypto';
+import { promisify } from 'util';
+
+const pbkdf2Async = promisify(pbkdf2);
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(8).toString('hex');
+  const h = await pbkdf2Async(password, salt, 260_000, 32, 'sha256');
+  return `pbkdf2_sha256$260000$${salt}$${h.toString('base64')}`;
+}
 
 export const dynamic = 'force-dynamic';
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -23,6 +33,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (typeof body.perfil === 'string') campos.perfil = body.perfil || null;
   if (typeof body.is_active === 'boolean') campos.is_active = body.is_active;
   if (typeof body.is_staff === 'boolean') campos.is_staff = body.is_staff;
+  if (typeof body.senha === 'string' && body.senha) {
+    if (body.senha.length < 8)
+      return NextResponse.json({ erro: 'Senha deve ter pelo menos 8 caracteres' }, { status: 400 });
+    campos.senha = body.senha;
+  }
 
   logAcesso(user, req, 'editar_usuario');
   if (Object.keys(campos).length === 0)
@@ -43,6 +58,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
     if (campos.is_staff !== undefined) {
       await tx`UPDATE usuarios_usuario SET is_staff = ${campos.is_staff as boolean} WHERE id = ${targetId}`;
+    }
+    if (campos.senha !== undefined) {
+      const hashed = await hashPassword(campos.senha as string);
+      await tx`UPDATE usuarios_usuario SET password = ${hashed} WHERE id = ${targetId}`;
     }
   });
 
