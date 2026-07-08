@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { PARCIAL_STATUS_LABELS } from '@/lib/types';
 
@@ -13,6 +13,12 @@ interface ItemRastreio { id: number; codigo: string; descricao: string; quantida
 export default function RastreioModal({ pedidoId, numero, onClose }: { pedidoId: number; numero: string; onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [itens, setItens] = useState<ItemRastreio[]>([]);
+  // O toque que abre o modal (no ícone de olho) as vezes gera um "clique fantasma"
+  // logo em seguida, na mesma posição da tela — como o fundo do modal passa a
+  // ocupar a tela inteira nesse exato instante, esse clique fantasma cai no
+  // backdrop e fecha o modal quase instantaneamente. Ignora cliques no backdrop
+  // nos primeiros 350ms para não fechar sozinho assim que abre.
+  const abertoEm = useRef(Date.now());
 
   useEffect(() => {
     let cancelado = false;
@@ -45,7 +51,7 @@ export default function RastreioModal({ pedidoId, numero, onClose }: { pedidoId:
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      onClick={e => { if (e.target === e.currentTarget && Date.now() - abertoEm.current > 350) onClose(); }}>
       <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 680, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,.2)' }}>
 
         {/* Cabeçalho modal */}
