@@ -1865,8 +1865,10 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   );
 }
 
-function PedidoGrupos({ grupos, onRefresh, onVerPedido }: { grupos: [string, ItemPedido[]][]; onRefresh: () => void; onVerPedido?: (pedidoId: number, numero: string) => void }) {
+function PedidoGrupos({ grupos, onRefresh, onVerPedido, setor }: { grupos: [string, ItemPedido[]][]; onRefresh: () => void; onVerPedido?: (pedidoId: number, numero: string) => void; setor?: string }) {
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  const [iniciando, setIniciando] = useState<Set<string>>(new Set());
+  const modoEmissao = setor === 'emissao';
 
   function toggle(chave: string) {
     setAbertos(prev => {
@@ -1875,6 +1877,20 @@ function PedidoGrupos({ grupos, onRefresh, onVerPedido }: { grupos: [string, Ite
       else next.add(chave);
       return next;
     });
+  }
+
+  async function iniciarProducao(numeroPedido: string, itens: ItemPedido[]) {
+    const emitidos = itens.filter(i => i.status === 'emitido');
+    if (emitidos.length === 0) return;
+    setIniciando(prev => new Set(prev).add(numeroPedido));
+    try {
+      for (const item of emitidos) {
+        try { await itemAcao(item.id, 'liberar'); } catch { /* segue para os proximos */ }
+      }
+      onRefresh();
+    } finally {
+      setIniciando(prev => { const s = new Set(prev); s.delete(numeroPedido); return s; });
+    }
   }
 
   return (
@@ -1896,10 +1912,13 @@ function PedidoGrupos({ grupos, onRefresh, onVerPedido }: { grupos: [string, Ite
           );
         });
 
+        const emitidos = itens.filter(i => i.status === 'emitido');
+        const carregandoInicio = iniciando.has(numeroPedido);
+
         return (
           <div key={numeroPedido} style={{
-            border: atrasado ? '1.5px solid #fca5a5' : '1px solid #e2e8f0',
-            borderRadius: 10, overflow: 'hidden',
+            border: modoEmissao ? '2px solid #dde3f0' : atrasado ? '1.5px solid #fca5a5' : '1px solid #e2e8f0',
+            borderRadius: modoEmissao ? 12 : 10, overflow: 'hidden',
             background: '#fff',
             boxShadow: '0 1px 4px rgba(0,0,0,.06)',
           }}>
@@ -1910,14 +1929,18 @@ function PedidoGrupos({ grupos, onRefresh, onVerPedido }: { grupos: [string, Ite
               onClick={() => toggle(numeroPedido)}
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') toggle(numeroPedido); }}
               style={{
-                width: '100%', textAlign: 'left', background: atrasado ? '#fef2f2' : '#f8fafc',
+                width: '100%', textAlign: 'left',
+                background: modoEmissao ? '#1a3a5c' : atrasado ? '#fef2f2' : '#f8fafc',
                 border: 'none', borderBottom: aberto ? '1px solid #e2e8f0' : 'none',
-                padding: '12px 16px', cursor: 'pointer', display: 'flex',
+                padding: modoEmissao ? '10px 16px' : '12px 16px', cursor: 'pointer', display: 'flex',
                 alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 700, fontSize: 15, color: '#1a3a5c' }}>{numeroPedido}</span>
+                {modoEmissao && <i className="bi bi-folder2-open" style={{ fontSize: 15, color: '#fff' }} />}
+                <span style={{ fontWeight: 700, fontSize: 15, color: modoEmissao ? '#fff' : '#1a3a5c' }}>
+                  {modoEmissao ? `Pedido de Venda ${numeroPedido}` : numeroPedido}
+                </span>
                 <span className={`badge-${rep.pedido_prioridade || 'normal'}`}>
                   {rep.pedido_prioridade?.charAt(0).toUpperCase()}{rep.pedido_prioridade?.slice(1)}
                 </span>
@@ -1931,17 +1954,36 @@ function PedidoGrupos({ grupos, onRefresh, onVerPedido }: { grupos: [string, Ite
                   <button
                     title="Ver todos os itens deste pedido"
                     onClick={(e) => { e.stopPropagation(); onVerPedido(rep.pedido_id, numeroPedido); }}
-                    style={{ background: '#eef2ff', border: '1px solid #c7d2fe', color: '#1a3a5c', borderRadius: 5, padding: '2px 7px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                    style={{
+                      background: modoEmissao ? 'rgba(255,255,255,.15)' : '#eef2ff',
+                      border: modoEmissao ? 'none' : '1px solid #c7d2fe',
+                      color: modoEmissao ? '#fff' : '#1a3a5c',
+                      borderRadius: 5, padding: '2px 7px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center',
+                    }}>
                     <i className="bi bi-eye-fill" />
                   </button>
                 )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: '#888' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: modoEmissao ? 'rgba(255,255,255,.7)' : '#888' }}>
                 {rep.pedido_prazo && (
                   <span><i className="bi bi-calendar3" style={{ marginRight: 4 }}></i>{rep.pedido_prazo}</span>
                 )}
                 <span style={{ fontWeight: 600 }}>{itens.length} {itens.length === 1 ? 'item' : 'itens'}</span>
-                <i className={`bi bi-chevron-${aberto ? 'up' : 'down'}`} style={{ fontSize: 13, color: '#64748b' }}></i>
+                {modoEmissao && emitidos.length > 0 && (
+                  <button
+                    disabled={carregandoInicio}
+                    onClick={(e) => { e.stopPropagation(); iniciarProducao(numeroPedido, itens); }}
+                    style={{
+                      background: carregandoInicio ? '#4a6fa5' : '#f59e0b', color: carregandoInicio ? '#fff' : '#1a1a1a',
+                      border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 700,
+                      cursor: carregandoInicio ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
+                    {carregandoInicio
+                      ? <><i className="bi bi-hourglass-split" /> Iniciando...</>
+                      : <><i className="bi bi-play-fill" /> Iniciar Produção ({emitidos.length})</>}
+                  </button>
+                )}
+                <i className={`bi bi-chevron-${aberto ? 'up' : 'down'}`} style={{ fontSize: 13, color: modoEmissao ? 'rgba(255,255,255,.8)' : '#64748b' }}></i>
               </div>
             </div>
 
@@ -2303,7 +2345,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                   <i className="bi bi-list-ul" style={{ marginRight: 6 }}></i>
                   Itens no Setor ({itensFiltrados.length})
                 </div>
-                <PedidoGrupos grupos={grupos} onRefresh={carregar} onVerPedido={(pedidoId, numero) => setModalRastreio({ pedidoId, numero })} />
+                <PedidoGrupos grupos={grupos} onRefresh={carregar} onVerPedido={(pedidoId, numero) => setModalRastreio({ pedidoId, numero })} setor={setor} />
               </section>
             );
           })()}
