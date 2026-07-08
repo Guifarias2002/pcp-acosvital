@@ -13,6 +13,10 @@ export const dynamic = 'force-dynamic';
 // financeiro mascarado pra lider) — nao pode ser um cache unico compartilhado.
 const cache = new Map<string, { data: unknown; ts: number }>();
 const CACHE_FRESH_MS = 5000;
+// Acima disso, o fallback de erro para de servir o cache antigo como se fosse
+// bom — evita mostrar dado de horas atrás sem aviso se o banco cair por muito
+// tempo (o cache "fresco" de 5s é só para reduzir carga no caminho feliz).
+const CACHE_MAX_STALE_MS = 5 * 60 * 1000;
 
 export async function GET(req: Request) {
   let cacheKey: string | null = null;
@@ -115,7 +119,7 @@ export async function GET(req: Request) {
   } catch (e) {
     console.error('[kanban]', e);
     const cached = cacheKey ? cache.get(cacheKey) : undefined;
-    if (cached) return NextResponse.json(cached.data);
+    if (cached && Date.now() - cached.ts < CACHE_MAX_STALE_MS) return NextResponse.json(cached.data);
     return NextResponse.json({ erro: 'Erro ao carregar kanban' }, { status: 500 });
   }
 }

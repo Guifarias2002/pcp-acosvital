@@ -17,9 +17,19 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const pedido = await getPedidoComItens(pedidoId);
   if (!pedido) return NextResponse.json({ erro: 'Nao encontrado' }, { status: 404 });
 
-  // Operadores só podem ver pedidos do próprio setor (sem setor = sem acesso)
-  if (!user.is_staff && pedido.setor_atual !== user.setor)
-    return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
+  // Operadores só podem ver pedidos com item/parcial ativo no próprio setor.
+  // pedido.setor_atual sozinho não basta: reflete só o último item que se moveu,
+  // mas um pedido pode ter itens/parciais em setores diferentes ao mesmo tempo.
+  if (!user.is_staff) {
+    const setoresDoPedido = new Set<string>([pedido.setor_atual as string]);
+    for (const item of pedido.itens as Record<string, unknown>[]) {
+      setoresDoPedido.add(item.setor_atual as string);
+      for (const p of (item.parciais_por_setor as Record<string, unknown>[]) || [])
+        setoresDoPedido.add(p.setor as string);
+    }
+    if (!user.setor || !setoresDoPedido.has(user.setor))
+      return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
+  }
 
   // Líderes e operadores não veem valores financeiros
   const verFinanceiro = user.is_staff && user.perfil !== 'lider';
@@ -110,9 +120,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         if (item.id) {
           // Atualiza item existente — ajusta quantidade_pendente pelo mesmo delta
           // para não desincronizar do total quando a quantidade é editada
+          // FOR UPDATE trava a linha até o fim da transação — evita que dois PATCHs
+          // concorrentes no mesmo item leiam a mesma quantidade_pendente "antiga" e
+          // calculem deltas incompatíveis (lost update).
           const [atualQtd] = await tx`
             SELECT quantidade, quantidade_pendente FROM producao_itempedido
             WHERE id = ${Number(item.id)} AND pedido_id = ${pedidoId}
+            FOR UPDATE
           `;
           const delta = atualQtd ? qtd - Number(atualQtd.quantidade) : 0;
           const pendenteAjustada = atualQtd

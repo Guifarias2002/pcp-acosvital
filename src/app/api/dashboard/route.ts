@@ -12,6 +12,10 @@ export const dynamic = 'force-dynamic';
 // tempo, em vez de quebrar a tela.
 let cache: { data: unknown; ts: number } | null = null;
 const CACHE_FRESH_MS = 5000;
+// Acima disso, o fallback de erro para de servir o cache antigo como se fosse
+// bom — evita mostrar dado de horas atrás sem aviso se o banco cair por muito
+// tempo (o cache "fresco" de 5s é só para reduzir carga no caminho feliz).
+const CACHE_MAX_STALE_MS = 5 * 60 * 1000;
 
 // Timeout server-side: garante resposta antes do Vercel matar a função (10s limit).
 // Cancela as queries ainda pendentes quando o timeout vence a corrida — sem isso, elas
@@ -166,7 +170,7 @@ export async function GET(req: Request) {
   return NextResponse.json(result);
   } catch (e) {
     console.error('[dashboard] erro:', e);
-    if (cache) return NextResponse.json(cache.data);
+    if (cache && Date.now() - cache.ts < CACHE_MAX_STALE_MS) return NextResponse.json(cache.data);
     return NextResponse.json({ erro: 'Erro ao carregar dashboard' }, { status: 500 });
   }
 }

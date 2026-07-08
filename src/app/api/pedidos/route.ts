@@ -144,6 +144,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: 'Setor invalido no roteiro' }, { status: 400 });
     if (!Array.isArray(itens) || itens.length === 0)
       return NextResponse.json({ erro: 'Pelo menos um item obrigatorio' }, { status: 400 });
+    for (const item of itens) {
+      if (!item?.codigo?.toString().trim())
+        return NextResponse.json({ erro: 'Codigo do item obrigatorio' }, { status: 400 });
+      const qtd = Number(item.quantidade);
+      if (!Number.isFinite(qtd) || qtd <= 0)
+        return NextResponse.json({ erro: `Quantidade invalida para o item "${item.codigo}"` }, { status: 400 });
+    }
 
     const pedidoId = await sql.begin(async (tx) => {
       const [pedido] = await tx`
@@ -155,7 +162,7 @@ export async function POST(req: Request) {
           ${numero_pedido_venda}, ${numero_op.toString().trim()}, ${cliente}, ${vendedor || ''},
           ${prazo_entrega}, ${prioridade}, ${roteiro_base},
           ${observacoes || ''}, 'emitido', ${roteiro_base[0] || ''},
-          NOW()::date, ${user.id}, NOW(), NOW()
+          (NOW() AT TIME ZONE 'America/Sao_Paulo')::date, ${user.id}, NOW(), NOW()
         )
         RETURNING id
       `;
@@ -192,6 +199,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ id: pedidoId }, { status: 201 });
   } catch (e: unknown) {
+    // 23505 = unique_violation no Postgres — nº do pedido de venda já existe
+    const pgErr = e as { code?: string; constraint_name?: string };
+    if (pgErr?.code === '23505' && pgErr?.constraint_name === 'uq_pedido_numero_venda')
+      return NextResponse.json({ erro: 'Já existe um pedido com esse número de pedido de venda.' }, { status: 409 });
     console.error('[POST /api/pedidos]', e);
     return NextResponse.json({ erro: 'Erro ao criar pedido' }, { status: 500 });
   }

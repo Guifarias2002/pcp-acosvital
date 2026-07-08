@@ -93,7 +93,9 @@ export async function POST(
         erro: `Quantidade informada (${qtdMover} ${parcial.unidade}) é maior do que o disponível nesta parcial (${parcial.qtd} ${parcial.unidade})`
       }, { status: 400 });
 
-    // Validação de integridade: qtdMover não pode exceder a quantidade total do item
+    // Validação de integridade (fast-fail, fora da tx): qtdMover não pode exceder
+    // a quantidade total do item. Reconfirmada sob lock dentro da transação abaixo,
+    // pois esta leitura pode estar desatualizada por uma requisição concorrente.
     const [{ soma_ativas }] = await sql`
       SELECT COALESCE(SUM(quantidade)::float, 0) AS soma_ativas
       FROM producao_itemparcial
@@ -108,11 +110,45 @@ export async function POST(
     }
 
     await sql.begin(async (tx) => {
-      if (qtdMover < parcial.qtd) {
+      // Trava por item — evita duas requisições concorrentes (duplo clique, dois
+      // usuários) movendo/dividindo parciais do mesmo item ao mesmo tempo e
+      // ultrapassando a quantidade total (mesma proteção usada em enviar_parcial,
+      // ver item/[id]/acao/[acao]/route.ts).
+      await (tx as unknown as typeof sql)`SELECT pg_advisory_xact_lock(778899, ${parcial.item_id})`;
+
+      // Revalida a própria parcial sob o lock — a leitura inicial (fora da tx) pode
+      // estar desatualizada se outra requisição concorrente já alterou esta parcial
+      // enquanto esta esperava o lock.
+      const [parcialAtual] = await (tx as unknown as typeof sql)`
+        SELECT quantidade::float AS quantidade, status
+        FROM producao_itemparcial WHERE id = ${parcialId} FOR UPDATE
+      `;
+      if (!parcialAtual || parcialAtual.status !== parcial.status)
+        throw new Error('CONCORRENCIA_QTD_INDISPONIVEL: Esta parcial foi alterada por outra operação enquanto você aguardava. Recarregue a tela e tente novamente.');
+
+      const qtdAtual = parcialAtual.quantidade as number;
+      if (qtdMover > qtdAtual)
+        throw new Error(`CONCORRENCIA_QTD_INDISPONIVEL: Quantidade não está mais disponível (outra operação concorrente alterou o saldo). Disponível agora: ${qtdAtual} ${parcial.unidade}. Tente novamente.`);
+
+      // Revalida a soma das demais parciais ativas sob o lock — mesma checagem de
+      // integridade feita fora da tx, agora com dados frescos e travados.
+      const outrasAtivas = await (tx as unknown as typeof sql)`
+        SELECT quantidade::float AS quantidade
+        FROM producao_itemparcial
+        WHERE item_pedido_id = ${parcial.item_id}
+          AND status NOT IN ('cancelada')
+          AND id != ${parcialId}
+        FOR UPDATE
+      `;
+      const somaAtivasLock = outrasAtivas.reduce((s: number, p: Record<string, unknown>) => s + Number(p.quantidade), 0);
+      if ((somaAtivasLock + qtdMover) > (parcial.item_qtd_total + 0.001))
+        throw new Error(`CONCORRENCIA_QTD_INDISPONIVEL: Operação bloqueada: a soma das parciais (${somaAtivasLock + qtdMover}) ultrapassaria a quantidade total do item (${parcial.item_qtd_total})`);
+
+      if (qtdMover < qtdAtual) {
         // Divisão: reduz a parcial origem e cria parcial filha no destino
         await tx`
           UPDATE producao_itemparcial
-          SET quantidade = ${parcial.qtd - qtdMover}, atualizado_em = NOW()
+          SET quantidade = ${qtdAtual - qtdMover}, atualizado_em = NOW()
           WHERE id = ${parcialId}
         `;
       } else {
@@ -125,7 +161,7 @@ export async function POST(
       }
 
       // Cria parcial filha apenas se for divisão
-      if (qtdMover < parcial.qtd) {
+      if (qtdMover < qtdAtual) {
         await tx`
           INSERT INTO producao_itemparcial
             (item_pedido_id, pedido_id, parcial_origem_id, quantidade, setor_atual, status,
@@ -147,8 +183,8 @@ export async function POST(
            ${parcial.setor_atual}, ${setor_destino},
            ${parcial.item_status}, 'aguardando',
            ${`Parcial #${parcialId}: ${qtdMover} ${parcial.unidade} → ${nomeSector(setor_destino)}` +
-             (qtdMover < parcial.qtd
-               ? `. Saldo em ${nomeSector(parcial.setor_atual)}: ${parcial.qtd - qtdMover} ${parcial.unidade}.`
+             (qtdMover < qtdAtual
+               ? `. Saldo em ${nomeSector(parcial.setor_atual)}: ${qtdAtual - qtdMover} ${parcial.unidade}.`
                : '.')},
            NOW())
       `;
@@ -554,11 +590,16 @@ export async function POST(
       return NextResponse.json({ erro: 'Só é possível desfazer o recebimento de parciais no status "recebido"' }, { status: 400 });
 
     await sql.begin(async (tx) => {
-      await tx`
+      // Repete "AND status = 'recebido'" na própria condição do UPDATE — a checagem
+      // acima foi feita fora da transação e pode estar desatualizada se outra ação
+      // (ex: "iniciar") mudou o status desta parcial entre a leitura e a escrita.
+      const r = await tx`
         UPDATE producao_itemparcial
         SET status = 'em_aberto', atualizado_em = NOW()
-        WHERE id = ${parcialId}
+        WHERE id = ${parcialId} AND status = 'recebido'
       `;
+      if (r.count === 0)
+        throw new Error('CONCORRENCIA_QTD_INDISPONIVEL: Esta parcial não está mais "recebido" (outra ação a alterou enquanto você aguardava). Recarregue a tela e tente novamente.');
       // Se o item não tem mais nenhuma parcial recebida neste setor, volta para 'aguardando'
       const [{ recebidas }] = await tx`
         SELECT COUNT(*)::int AS recebidas
@@ -592,6 +633,8 @@ export async function POST(
 
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Erro interno no servidor';
+    if (msg.startsWith('CONCORRENCIA_QTD_INDISPONIVEL: '))
+      return NextResponse.json({ erro: msg.slice('CONCORRENCIA_QTD_INDISPONIVEL: '.length) }, { status: 409 });
     console.error('[parcial/acao]', params.acao, err);
     return NextResponse.json({ erro: msg }, { status: 500 });
   }

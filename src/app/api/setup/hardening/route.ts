@@ -58,6 +58,12 @@ export async function POST(req: Request) {
   await run('NOT NULL: producao_itempedido.setor_atual', `
     ALTER TABLE producao_itempedido ALTER COLUMN setor_atual SET NOT NULL;
   `);
+  await run('NOT NULL: producao_itempedido.quantidade', `
+    ALTER TABLE producao_itempedido ALTER COLUMN quantidade SET NOT NULL;
+  `);
+  await run('NOT NULL: producao_pedido.numero_op', `
+    ALTER TABLE producao_pedido ALTER COLUMN numero_op SET NOT NULL;
+  `);
   await run('NOT NULL: producao_movimentacaoitem.item_id', `
     ALTER TABLE producao_movimentacaoitem ALTER COLUMN item_id SET NOT NULL;
   `);

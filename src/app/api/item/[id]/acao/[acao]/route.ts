@@ -37,6 +37,11 @@ const NOVO_STATUS: Record<string, string> = {
   retrabalho: 'aguardando', resolver: 'finalizado_setor', cancelar_item: 'bloqueado',
 };
 
+// Repetida na condição WHERE de cada UPDATE de status dentro da transação — evita
+// que duas requisições concorrentes (duplo clique, dois usuários) apliquem ações
+// diferentes em cima do mesmo status antigo, sobrescrevendo uma a outra em silêncio.
+const ERRO_CONCORRENCIA = 'CONCORRENCIA_QTD_INDISPONIVEL: Item foi alterado por outra ação enquanto você aguardava. Recarregue a tela e tente novamente.';
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 async function registrarMovItem(
@@ -192,7 +197,12 @@ export async function POST(
     : item.roteiro_base as string[];
   const idx = roteiro.indexOf(item.setor_atual);
   const proximoSetorRoteiro = (idx >= 0 && idx < roteiro.length - 1) ? roteiro[idx + 1] : null;
-  const setorDestinoEscolhido = (body.setor_destino && SETORES_VALIDOS.includes(body.setor_destino))
+  // Só aceita um setor_destino escolhido pelo cliente se ele vier DEPOIS do setor
+  // atual no roteiro deste item — mesma regra já aplicada no dropdown do
+  // LiberarSetorModal (permite pular etapas à frente, nunca voltar ou desviar
+  // para fora do roteiro via chamada direta à API).
+  const setorDestinoIdx = body.setor_destino ? roteiro.indexOf(body.setor_destino) : -1;
+  const setorDestinoEscolhido = (body.setor_destino && SETORES_VALIDOS.includes(body.setor_destino) && setorDestinoIdx > idx)
     ? body.setor_destino : null;
   const proximoSetor = setorDestinoEscolhido || proximoSetorRoteiro;
 
@@ -212,11 +222,12 @@ export async function POST(
         VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${proximoSetor},
                 ${item.status}, 'aguardando', ${obs || 'Liberado para produção'}, NOW())
       `;
-      await tx`
+      const rLiberar = await tx`
         UPDATE producao_itempedido
         SET status = 'aguardando', setor_atual = ${proximoSetor}, atualizado_em = NOW()
-        WHERE id = ${item.id}
+        WHERE id = ${item.id} AND status = ${item.status}
       `;
+      if (rLiberar.count === 0) throw new Error(ERRO_CONCORRENCIA);
       await tx`
         UPDATE producao_pedido
         SET status = 'em_producao', setor_atual = ${proximoSetor}, atualizado_em = NOW()
@@ -245,11 +256,12 @@ export async function POST(
         VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${proximoSetor},
                 ${item.status}, 'aguardando', ${obs}, NOW())
       `;
-      await tx`
+      const rEnviarTudo = await tx`
         UPDATE producao_itempedido
         SET status = 'aguardando', setor_atual = ${proximoSetor}, atualizado_em = NOW()
-        WHERE id = ${item.id}
+        WHERE id = ${item.id} AND status = ${item.status}
       `;
+      if (rEnviarTudo.count === 0) throw new Error(ERRO_CONCORRENCIA);
       await tx`
         UPDATE producao_pedido SET setor_atual = ${proximoSetor}, atualizado_em = NOW()
         WHERE id = ${item.pedido_id}
@@ -365,7 +377,8 @@ export async function POST(
           VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${proximoSetor},
                   ${item.status}, 'aguardando', ${obs}, NOW())
         `;
-        await tx`UPDATE producao_itempedido SET status='aguardando', setor_atual=${proximoSetor}, atualizado_em=NOW() WHERE id=${item.id}`;
+        const rEnviarParcialConv = await tx`UPDATE producao_itempedido SET status='aguardando', setor_atual=${proximoSetor}, atualizado_em=NOW() WHERE id=${item.id} AND status=${item.status}`;
+        if (rEnviarParcialConv.count === 0) throw new Error(ERRO_CONCORRENCIA);
         await tx`UPDATE producao_pedido SET setor_atual=${proximoSetor}, atualizado_em=NOW() WHERE id=${item.pedido_id}`;
         await moverParcialInteira(
           tx as unknown as typeof sql,
@@ -492,11 +505,12 @@ export async function POST(
            ${item.status}, 'em_andamento', ${obsMovItem}, NOW())
       `;
 
-      await tx`
+      const rEnviarParcial = await tx`
         UPDATE producao_itempedido
         SET quantidade_pendente = ${novaQtdPendente}, status = 'em_andamento', atualizado_em = NOW()
-        WHERE id = ${item.id}
+        WHERE id = ${item.id} AND status = ${item.status}
       `;
+      if (rEnviarParcial.count === 0) throw new Error(ERRO_CONCORRENCIA);
     });
     return NextResponse.json({ ok: true, status: 'em_andamento' });
 
@@ -513,7 +527,8 @@ export async function POST(
         VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${destino},
                 ${item.status}, 'aguardando', ${obs || 'Devolucao'}, NOW())
       `;
-      await tx`UPDATE producao_itempedido SET status='aguardando', setor_atual=${destino}, atualizado_em=NOW() WHERE id=${item.id}`;
+      const rDevolver = await tx`UPDATE producao_itempedido SET status='aguardando', setor_atual=${destino}, atualizado_em=NOW() WHERE id=${item.id} AND status=${item.status}`;
+      if (rDevolver.count === 0) throw new Error(ERRO_CONCORRENCIA);
       // Move TODAS as parciais ativas do item para o setor de devolucao, onde quer que
       // estejam (principal e filhas de splits anteriores em outros setores). Antes,
       // as filhas eram CANCELADAS em vez de devolvidas - perdia a quantidade que
@@ -646,11 +661,12 @@ export async function POST(
           VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${item.setor_atual},
                   ${item.status}, 'recebido', ${obsReceber}, NOW())
         `;
-        await tx`
+        const rReceberParcial = await tx`
           UPDATE producao_itempedido
           SET status = 'recebido', quantidade_pendente = ${qtdReceber}, atualizado_em = NOW()
-          WHERE id = ${item.id}
+          WHERE id = ${item.id} AND status = ${item.status}
         `;
+        if (rReceberParcial.count === 0) throw new Error(ERRO_CONCORRENCIA);
       });
     } else {
       await sql.begin(async (tx) => {
@@ -661,7 +677,8 @@ export async function POST(
           VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${item.setor_atual},
                   ${item.status}, 'recebido', ${obs || 'Recebido no setor'}, NOW())
         `;
-        await tx`UPDATE producao_itempedido SET status='recebido', atualizado_em=NOW() WHERE id=${item.id}`;
+        const rReceberTudo = await tx`UPDATE producao_itempedido SET status='recebido', atualizado_em=NOW() WHERE id=${item.id} AND status=${item.status}`;
+        if (rReceberTudo.count === 0) throw new Error(ERRO_CONCORRENCIA);
         await tx`UPDATE producao_pedido SET setor_atual=${item.setor_atual}, atualizado_em=NOW() WHERE id=${item.pedido_id}`;
         // Marca parcial do setor como recebida (nao inicia producao automaticamente)
         await tx`
@@ -684,7 +701,8 @@ export async function POST(
         VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${item.setor_atual},
                 ${item.status}, 'reprovado', ${obs || 'Reprovado na inspeção'}, NOW())
       `;
-      await tx`UPDATE producao_itempedido SET status='reprovado', atualizado_em=NOW() WHERE id=${item.id}`;
+      const rReprovar = await tx`UPDATE producao_itempedido SET status='reprovado', atualizado_em=NOW() WHERE id=${item.id} AND status=${item.status}`;
+      if (rReprovar.count === 0) throw new Error(ERRO_CONCORRENCIA);
       await tx`
         INSERT INTO producao_divergencia
           (pedido_id, item_id, usuario_id, tipo, descricao, setor_responsavel, status, prioridade, criado_em, atualizado_em)
@@ -711,7 +729,8 @@ export async function POST(
         VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${destino},
                 ${item.status}, 'aguardando', ${obsRet}, NOW())
       `;
-      await tx`UPDATE producao_itempedido SET status='aguardando', setor_atual=${destino}, atualizado_em=NOW() WHERE id=${item.id}`;
+      const rRetrabalho = await tx`UPDATE producao_itempedido SET status='aguardando', setor_atual=${destino}, atualizado_em=NOW() WHERE id=${item.id} AND status=${item.status}`;
+      if (rRetrabalho.count === 0) throw new Error(ERRO_CONCORRENCIA);
       await moverParcialInteira(
         tx as unknown as typeof sql,
         item.id, item.pedido_id,
@@ -736,7 +755,8 @@ export async function POST(
         VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${item.setor_atual},
                 ${item.status}, 'finalizado_setor', ${obsRes}, NOW())
       `;
-      await tx`UPDATE producao_itempedido SET status='finalizado_setor', atualizado_em=NOW() WHERE id=${item.id}`;
+      const rResolver = await tx`UPDATE producao_itempedido SET status='finalizado_setor', atualizado_em=NOW() WHERE id=${item.id} AND status=${item.status}`;
+      if (rResolver.count === 0) throw new Error(ERRO_CONCORRENCIA);
       await tx`
         UPDATE producao_divergencia SET status='resolvida', resolvido_em=NOW(),
           resolvido_por_id=${user.id}, observacao_resolucao=${obsRes}, atualizado_em=NOW()
@@ -755,7 +775,8 @@ export async function POST(
         VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${item.setor_atual},
                 ${item.status}, 'bloqueado', ${obsCan}, NOW())
       `;
-      await tx`UPDATE producao_itempedido SET status='bloqueado', atualizado_em=NOW() WHERE id=${item.id}`;
+      const rCancelarItem = await tx`UPDATE producao_itempedido SET status='bloqueado', atualizado_em=NOW() WHERE id=${item.id} AND status=${item.status}`;
+      if (rCancelarItem.count === 0) throw new Error(ERRO_CONCORRENCIA);
       // Cancela todas as parciais ativas do item
       await tx`
         UPDATE producao_itemparcial
@@ -779,7 +800,8 @@ export async function POST(
         VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${item.setor_atual},
                 ${item.status}, 'em_andamento', ${obs}, NOW())
       `;
-      await tx`UPDATE producao_itempedido SET status='em_andamento', atualizado_em=NOW() WHERE id=${item.id}`;
+      const rIniciar = await tx`UPDATE producao_itempedido SET status='em_andamento', atualizado_em=NOW() WHERE id=${item.id} AND status=${item.status}`;
+      if (rIniciar.count === 0) throw new Error(ERRO_CONCORRENCIA);
       // Atualiza status da parcial e registra horário de início
       await tx`
         UPDATE producao_itemparcial
@@ -810,7 +832,8 @@ export async function POST(
         VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${item.setor_atual},
                 ${item.status}, 'finalizado_setor', ${obs}, NOW())
       `;
-      await tx`UPDATE producao_itempedido SET status='finalizado_setor', atualizado_em=NOW() WHERE id=${item.id}`;
+      const rFinalizar = await tx`UPDATE producao_itempedido SET status='finalizado_setor', atualizado_em=NOW() WHERE id=${item.id} AND status=${item.status}`;
+      if (rFinalizar.count === 0) throw new Error(ERRO_CONCORRENCIA);
       // Marca parcial do setor como concluida e registra horário de conclusão
       await tx`
         UPDATE producao_itemparcial
@@ -835,7 +858,8 @@ export async function POST(
         VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${item.setor_atual},
                 ${item.status}, 'em_andamento', ${obs || 'Etapa reaberta'}, NOW())
       `;
-      await tx`UPDATE producao_itempedido SET status='em_andamento', atualizado_em=NOW() WHERE id=${item.id}`;
+      const rRetomar = await tx`UPDATE producao_itempedido SET status='em_andamento', atualizado_em=NOW() WHERE id=${item.id} AND status=${item.status}`;
+      if (rRetomar.count === 0) throw new Error(ERRO_CONCORRENCIA);
       // Reativa parcial concluída neste setor (caso tenha sido finalizada antes do envio parcial)
       await tx`
         UPDATE producao_itemparcial
@@ -860,7 +884,8 @@ export async function POST(
         VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${item.setor_atual},
                 ${item.status}, 'em_transito', ${obs || ''}, NOW())
       `;
-      await tx`UPDATE producao_itempedido SET status='em_transito', atualizado_em=NOW() WHERE id=${item.id}`;
+      const rDespachar = await tx`UPDATE producao_itempedido SET status='em_transito', atualizado_em=NOW() WHERE id=${item.id} AND status=${item.status}`;
+      if (rDespachar.count === 0) throw new Error(ERRO_CONCORRENCIA);
       await tx`
         UPDATE producao_itemparcial
         SET status = 'em_transito', atualizado_em = NOW()
@@ -880,7 +905,8 @@ export async function POST(
         VALUES (${item.id}, ${item.pedido_id}, ${user.id}, ${item.setor_atual}, ${item.setor_atual},
                 ${item.status}, ${novoStatus}, ${obs || ''}, NOW())
       `;
-      await tx`UPDATE producao_itempedido SET status=${novoStatus}, atualizado_em=NOW() WHERE id=${item.id}`;
+      const rGenerico = await tx`UPDATE producao_itempedido SET status=${novoStatus}, atualizado_em=NOW() WHERE id=${item.id} AND status=${item.status}`;
+      if (rGenerico.count === 0) throw new Error(ERRO_CONCORRENCIA);
     });
   }
 
