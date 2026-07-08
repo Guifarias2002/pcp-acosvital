@@ -12,11 +12,17 @@ export async function GET(req: Request) {
   }
 
   const agora = new Date();
-  const hoje = agora.toISOString().slice(0, 10); // YYYY-MM-DD
-  // Rotula pelo horario de Brasilia (UTC-3) para o arquivo ficar legivel -
-  // roda 2x por dia (00h e 17h BRT), entao precisa de um sufixo pra nao
-  // uma sobrescrever a outra no mesmo dia.
-  const horaBrt = new Date(agora.getTime() - 3 * 60 * 60 * 1000).toISOString().slice(11, 16).replace(':', '');
+  // Rotula pelo horario de Brasilia (UTC-3) para o arquivo ficar legivel - roda
+  // 2x por dia (00h e 17h BRT), entao precisa de um sufixo pra nao uma
+  // sobrescrever a outra no mesmo dia. Data E hora vem do MESMO instante
+  // ajustado pro fuso BRT (antes a data usava UTC e a hora usava BRT
+  // separadamente, o que rotulava backups de "23h-01h BRT" com a data UTC do
+  // dia seguinte e a hora do dia anterior - o nome ficava fora de ordem
+  // alfabetica em relacao a backups mais novos, e o script de sync local
+  // (que pega so o "mais recente" por nome) podia escolher um arquivo velho).
+  const agoraBrt = new Date(agora.getTime() - 3 * 60 * 60 * 1000);
+  const hoje = agoraBrt.toISOString().slice(0, 10); // YYYY-MM-DD, ja em BRT
+  const horaBrt = agoraBrt.toISOString().slice(11, 16).replace(':', '');
 
   // Busca todos os pedidos com itens e parciais
   // Movimentações limitadas a 90 dias para evitar payload gigante
