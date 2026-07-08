@@ -334,52 +334,49 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                     <p className="text-xs text-gray-400">de {fmtQtd(item.quantidade)} {item.unidade} totais no pedido</p>
                   )}
                 </div>
-                {isAdmin && (
-                  <>
+                <>
+                  <div>
+                    <span className="text-gray-400 text-xs">Pedido</span>
+                    <p>
+                      <Link href={`/pedidos/${item.pedido_id}`} className="font-semibold text-blue-700 hover:underline">{item.pedido_numero}</Link>
+                      <span className="text-gray-500 ml-1">· {item.pedido_cliente}</span>
+                    </p>
+                  </div>
+                  <div><span className="text-gray-400 text-xs">Prazo</span><p className="font-semibold">{fmtData(item.pedido_prazo)}</p></div>
+                  <div>
+                    <span className="text-gray-400 text-xs">Prioridade</span>
+                    <span className={`text-xs px-2 py-0.5 rounded font-medium ${PRIORIDADE_COR[item.pedido_prioridade]}`}>
+                      {item.pedido_prioridade?.charAt(0).toUpperCase() + item.pedido_prioridade?.slice(1)}
+                    </span>
+                  </div>
+                  {/* Valor unitario ja vem null da API para lider/operador (nao-financeiro) */}
+                  {item.valor_unitario && (
                     <div>
-                      <span className="text-gray-400 text-xs">Pedido</span>
-                      <p>
-                        <Link href={`/pedidos/${item.pedido_id}`} className="font-semibold text-blue-700 hover:underline">{item.pedido_numero}</Link>
-                        <span className="text-gray-500 ml-1">· {item.pedido_cliente}</span>
+                      <span className="text-gray-400 text-xs">Valor unit.</span>
+                      <p className="font-semibold text-green-700">
+                        R$ {Number(item.valor_unitario).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </p>
                     </div>
-                    <div><span className="text-gray-400 text-xs">Prazo</span><p className="font-semibold">{fmtData(item.pedido_prazo)}</p></div>
-                    <div>
-                      <span className="text-gray-400 text-xs">Prioridade</span>
-                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${PRIORIDADE_COR[item.pedido_prioridade]}`}>
-                        {item.pedido_prioridade?.charAt(0).toUpperCase() + item.pedido_prioridade?.slice(1)}
-                      </span>
-                    </div>
-                    {item.valor_unitario && (
-                      <div>
-                        <span className="text-gray-400 text-xs">Valor unit.</span>
-                        <p className="font-semibold text-green-700">
-                          R$ {Number(item.valor_unitario).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
-                      </div>
-                    )}
-                  </>
-                )}
+                  )}
+                </>
               </div>
             </div>
 
-            {/* Onde estão as peças — admin only */}
-            {isAdmin && (
-              <OndeEstaoPecas
-                roteiro={roteiro}
-                idxAtual={idxAtual}
-                qtdAtivaPorSetor={qtdAtivaPorSetor}
-                qtdConcluidaPorSetor={qtdConcluidaPorSetor}
-                setorAtual={item.setor_atual}
-                status={item.status}
-                corStatus={item.cor_status}
-                unidade={item.unidade}
-                qtdTotal={item.quantidade}
-                qtdEntregue={item.quantidade_entregue}
-                entregue={entregue}
-                parciais={parciais}
-              />
-            )}
+            {/* Onde estão as peças — informação operacional, visível a todos */}
+            <OndeEstaoPecas
+              roteiro={roteiro}
+              idxAtual={idxAtual}
+              qtdAtivaPorSetor={qtdAtivaPorSetor}
+              qtdConcluidaPorSetor={qtdConcluidaPorSetor}
+              setorAtual={item.setor_atual}
+              status={item.status}
+              corStatus={item.cor_status}
+              unidade={item.unidade}
+              qtdTotal={item.quantidade}
+              qtdEntregue={item.quantidade_entregue}
+              entregue={entregue}
+              parciais={parciais}
+            />
           </div>
 
           {/* COLUNA CENTRAL — AÇÕES */}

@@ -338,14 +338,14 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
           <Link href={`/setor/${parcial.setor_atual}`} style={{ fontSize: 12, color: '#6b7280', textDecoration: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '2px 8px', background: '#f9fafb' }}>
             ← Voltar ao setor
           </Link>
-          {isAdmin && (
-            <Link href={`/pedidos/${parcial.pedido_id}`} style={{ fontSize: 12, color: '#6b7280', textDecoration: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '2px 8px' }}>
-              ← Pedido {parcial.numero_pedido_venda}
-            </Link>
-          )}
-          <Link href={`/item/${parcial.item_pedido_id}`} style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>
+          <button type="button" onClick={() => { window.location.href = `/pedidos/${parcial.pedido_id}`; }}
+            style={{ fontSize: 12, color: '#6b7280', background: 'none', textDecoration: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '2px 8px', cursor: 'pointer' }}>
+            ← Pedido {parcial.numero_pedido_venda}
+          </button>
+          <button type="button" onClick={() => { window.location.href = `/item/${parcial.item_pedido_id}`; }}
+            style={{ fontSize: 12, color: '#3b82f6', background: 'none', border: 'none', textDecoration: 'none', cursor: 'pointer' }}>
             👁 Ver item
-          </Link>
+          </button>
           <div style={{ flex: 1 }} />
           {isAdmin && isAtiva && (
             <button onClick={() => setConfirmModal({
@@ -411,41 +411,47 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                   <p className="text-xs text-gray-400">de {fmtQtd(parcial.item_quantidade_total)} {parcial.unidade} totais no pedido</p>
                 )}
               </div>
-              {isAdmin && (
-                <>
+              <>
+                <div>
+                  <span className="text-gray-400 text-xs">Pedido</span>
+                  <p>
+                    <button type="button" onClick={() => { window.location.href = `/pedidos/${parcial.pedido_id}`; }}
+                      className="font-semibold text-blue-700 hover:underline" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+                      {parcial.numero_pedido_venda}
+                    </button>
+                    <span className="text-gray-500 ml-1">· {parcial.cliente}</span>
+                  </p>
+                </div>
+                {parcial.prazo_entrega && (
+                  <div><span className="text-gray-400 text-xs">Prazo</span><p className="font-semibold">{fmtData(parcial.prazo_entrega)}</p></div>
+                )}
+                {parcial.prioridade && (
                   <div>
-                    <span className="text-gray-400 text-xs">Pedido</span>
-                    <p>
-                      <Link href={`/pedidos/${parcial.pedido_id}`} className="font-semibold text-blue-700 hover:underline">{parcial.numero_pedido_venda}</Link>
-                      <span className="text-gray-500 ml-1">· {parcial.cliente}</span>
-                    </p>
+                    <span className="text-gray-400 text-xs">Prioridade</span>
+                    <span className={`inline-block text-xs px-2 py-0.5 rounded font-medium ml-1 ${
+                      parcial.prioridade === 'urgente' ? 'bg-red-100 text-red-700' :
+                      parcial.prioridade === 'alta' ? 'bg-orange-100 text-orange-700' :
+                      'bg-blue-100 text-blue-700'
+                    }`}>
+                      {parcial.prioridade.charAt(0).toUpperCase() + parcial.prioridade.slice(1)}
+                    </span>
                   </div>
-                  {parcial.prazo_entrega && (
-                    <div><span className="text-gray-400 text-xs">Prazo</span><p className="font-semibold">{fmtData(parcial.prazo_entrega)}</p></div>
-                  )}
-                  {parcial.prioridade && (
-                    <div>
-                      <span className="text-gray-400 text-xs">Prioridade</span>
-                      <span className={`inline-block text-xs px-2 py-0.5 rounded font-medium ml-1 ${
-                        parcial.prioridade === 'urgente' ? 'bg-red-100 text-red-700' :
-                        parcial.prioridade === 'alta' ? 'bg-orange-100 text-orange-700' :
-                        'bg-blue-100 text-blue-700'
-                      }`}>
-                        {parcial.prioridade.charAt(0).toUpperCase() + parcial.prioridade.slice(1)}
-                      </span>
-                    </div>
-                  )}
-                  <div>
-                    <span className="text-gray-400 text-xs">Ver item completo</span>
-                    <p><Link href={`/item/${parcial.item_pedido_id}`} className="text-blue-600 hover:underline text-xs">→ Abrir item #{parcial.item_pedido_id}</Link></p>
-                  </div>
-                </>
-              )}
+                )}
+                <div>
+                  <span className="text-gray-400 text-xs">Ver item completo</span>
+                  <p>
+                    <button type="button" onClick={() => { window.location.href = `/item/${parcial.item_pedido_id}`; }}
+                      className="text-blue-600 hover:underline text-xs" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+                      → Abrir item #{parcial.item_pedido_id}
+                    </button>
+                  </p>
+                </div>
+              </>
             </div>
           </div>
 
-          {/* Onde estão as peças — admin only */}
-          {isAdmin && roteiro.length > 0 && (
+          {/* Onde estão as peças — informação operacional, visível a todos */}
+          {roteiro.length > 0 && (
             <OndeEstaoPecas
               roteiro={roteiro}
               idxAtual={idxItemAtual >= 0 ? idxItemAtual : 0}
