@@ -507,6 +507,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                             em_andamento:     { bg: '#fef9c3', txt: '#854d0e', label: 'Em Andamento' },
                             pausado:          { bg: '#fee2e2', txt: '#991b1b', label: 'Pausado' },
                             finalizado_setor: { bg: '#dcfce7', txt: '#14532d', label: 'Finalizado' },
+                            concluida:        { bg: '#dcfce7', txt: '#14532d', label: 'Finalizado' },
                           };
                           return (
                             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -827,8 +828,8 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
           {/* Sidebar direita (1/3) */}
           <div className="space-y-4">
 
-            {/* Card de Desenho Técnico */}
-            {isAdmin && (() => {
+            {/* Card de Desenho Técnico — visível a todos, upload/remoção só admin */}
+            {(() => {
               const desenhosPedido: string[] = (pedido as any).desenhos || [];
               const tokenPedido = typeof window !== 'undefined' ? (localStorage.getItem('token') || '') : '';
               return (
@@ -837,12 +838,14 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                   <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, margin: 0 }}>
                     📐 Desenho Técnico
                   </p>
-                  <label style={{ background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 5, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                    {uploadingDesenho ? '⏳ Enviando...' : '+ Anexar'}
-                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.xls,.xlsx,.doc,.docx" style={{ display: 'none' }}
-                      disabled={uploadingDesenho}
-                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadDesenho(f); e.target.value = ''; }} />
-                  </label>
+                  {isAdmin && (
+                    <label style={{ background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 5, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      {uploadingDesenho ? '⏳ Enviando...' : '+ Anexar'}
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.xls,.xlsx,.doc,.docx" style={{ display: 'none' }}
+                        disabled={uploadingDesenho}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadDesenho(f); e.target.value = ''; }} />
+                    </label>
+                  )}
                 </div>
                 {desenhosPedido.length === 0 ? (
                   <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>Nenhum desenho anexado ainda.</p>
@@ -857,11 +860,13 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                             style={{ fontSize: 12, color: '#2563eb', textDecoration: 'underline', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {nome}
                           </a>
-                          <button onClick={() => removerDesenho(path)}
-                            style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 13, padding: '0 2px' }}
-                            title="Remover">
-                            <i className="bi bi-trash" />
-                          </button>
+                          {isAdmin && (
+                            <button onClick={() => removerDesenho(path)}
+                              style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 13, padding: '0 2px' }}
+                              title="Remover">
+                              <i className="bi bi-trash" />
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -872,9 +877,8 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
               );
             })()}
 
-            {/* Card de Anexos */}
-            {isAdmin && (
-              <div style={{ borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', padding: 16 }}>
+            {/* Card de Anexos — visível a todos, upload/remoção só admin */}
+            <div style={{ borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', padding: 16 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 12px' }}>
                   📎 Documentos da Entrega
                 </p>
@@ -888,14 +892,18 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                         style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', flex: 1 }}>
                         ✅ Baixar nota fiscal
                       </a>
-                      <button onClick={() => removerAnexo('nota')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12 }}>✕</button>
+                      {isAdmin && (
+                        <button onClick={() => removerAnexo('nota')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12 }}>✕</button>
+                      )}
                     </div>
-                  ) : (
+                  ) : isAdmin ? (
                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: '#6b7280', border: '1px dashed #d1d5db', borderRadius: 6, padding: '6px 10px' }}>
                       <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
                         onChange={e => { const f = e.target.files?.[0]; if (f) uploadAnexo('nota', f); e.target.value = ''; }} />
                       {uploadingAnexo === 'nota' ? '⏳ Enviando...' : '📤 Anexar nota fiscal'}
                     </label>
+                  ) : (
+                    <p style={{ fontSize: 12, color: '#9ca3af', margin: 0, fontStyle: 'italic' }}>Ainda não anexada.</p>
                   )}
                 </div>
 
@@ -908,19 +916,23 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                         style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', flex: 1 }}>
                         ✅ Baixar canhoto
                       </a>
-                      <button onClick={() => removerAnexo('canhoto')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12 }}>✕</button>
+                      {isAdmin && (
+                        <button onClick={() => removerAnexo('canhoto')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12 }}>✕</button>
+                      )}
                     </div>
-                  ) : (
+                  ) : isAdmin ? (
                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: '#6b7280', border: '1px dashed #d1d5db', borderRadius: 6, padding: '6px 10px' }}>
                       <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
                         onChange={e => { const f = e.target.files?.[0]; if (f) uploadAnexo('canhoto', f); e.target.value = ''; }} />
                       {uploadingAnexo === 'canhoto' ? '⏳ Enviando...' : '📤 Anexar canhoto'}
                     </label>
+                  ) : (
+                    <p style={{ fontSize: 12, color: '#9ca3af', margin: 0, fontStyle: 'italic' }}>Ainda não anexado.</p>
                   )}
                 </div>
 
                 {/* Anexar depois */}
-                {!(pedido as any).nota_url && !(pedido as any).canhoto_url && (
+                {isAdmin && !(pedido as any).nota_url && !(pedido as any).canhoto_url && (
                   <button onClick={() => uploadAnexo('pendente')}
                     style={{ width: '100%', fontSize: 12, color: '#6b7280', background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 0', cursor: 'pointer' }}>
                     🕐 Anexar depois
@@ -933,8 +945,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                 )}
 
                 {anexoMsg && <p style={{ fontSize: 11, color: '#16a34a', marginTop: 8, textAlign: 'center' }}>{anexoMsg}</p>}
-              </div>
-            )}
+            </div>
 
             {/* Card de Documentos do Pedido — visível a todos, upload só admin */}
             <div style={{ borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', padding: 16 }}>

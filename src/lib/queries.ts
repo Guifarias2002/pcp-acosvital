@@ -236,7 +236,10 @@ export async function getPedidoComItens(id: number) {
     }
   }
 
-  // Distribuição de parciais ativas por setor para cada item
+  // Distribuição de parciais por setor para cada item — inclui 'concluida' (peça
+  // finalizada num setor mas ainda fisicamente lá, aguardando ir pro próximo) para
+  // a rastreabilidade não "perder" a localização de itens já finalizados no setor.
+  // Só exclui 'cancelada' (peça sucateada/reprovada, não deve aparecer como ativa).
   let parciaisPorSetor: Record<number, { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean; motivo_retrabalho: string | null }[]> = {};
   if (itemIds.length > 0) {
     const parcialRows = await sql`
@@ -251,7 +254,7 @@ export async function getPedidoComItens(id: number) {
       FROM producao_itemparcial pa
       JOIN producao_itempedido i2 ON i2.id = pa.item_pedido_id
       WHERE pa.item_pedido_id = ANY(${itemIds})
-        AND pa.status NOT IN ('cancelada', 'concluida')
+        AND pa.status != 'cancelada'
       GROUP BY pa.item_pedido_id, pa.setor_atual, pa.status, pa.retrabalho, pa.motivo_retrabalho, i2.unidade
       ORDER BY pa.item_pedido_id, pa.setor_atual
     `;

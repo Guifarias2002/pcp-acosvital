@@ -46,8 +46,8 @@ export default function RastreioModal({ pedidoId, numero, onClose }: { pedidoId:
   }, [pedidoId]);
 
   const STATUS_LABEL = PARCIAL_STATUS_LABELS;
-  const STATUS_BG: Record<string, string> = { em_aberto: '#f1f5f9', recebido: '#fef3c7', em_andamento: '#fef9c3', finalizado_setor: '#dcfce7', pausado: '#fee2e2' };
-  const STATUS_TXT: Record<string, string> = { em_aberto: '#475569', recebido: '#92400e', em_andamento: '#854d0e', finalizado_setor: '#14532d', pausado: '#991b1b' };
+  const STATUS_BG: Record<string, string> = { em_aberto: '#f1f5f9', recebido: '#fef3c7', em_andamento: '#fef9c3', finalizado_setor: '#dcfce7', concluida: '#dcfce7', pausado: '#fee2e2' };
+  const STATUS_TXT: Record<string, string> = { em_aberto: '#475569', recebido: '#92400e', em_andamento: '#854d0e', finalizado_setor: '#14532d', concluida: '#14532d', pausado: '#991b1b' };
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
