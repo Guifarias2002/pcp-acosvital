@@ -91,6 +91,10 @@ export function formatItem(row: any) {
     pedido_id: row.pedido_id,
     pedido_numero: row.pedido_numero,
     pedido_cliente: row.pedido_cliente,
+    // atrasado precisa comparar a data crua (ISO) - pedido_prazo abaixo ja vira
+    // string formatada (DD/MM/AAAA) so para exibicao, comparar ela com "hoje" em
+    // ISO dava sempre errado (comparacao de texto, nao de data real).
+    atrasado: row.pedido_prazo ? diasPrazo(row.pedido_prazo) < 0 : false,
     pedido_prazo: fmtData(row.pedido_prazo),
     pedido_prioridade: row.pedido_prioridade,
     codigo: row.codigo,

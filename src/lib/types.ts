@@ -165,6 +165,7 @@ export interface ItemPedido {
   observacoes?: ItemObservacao[];
   tem_pedido_venda?: boolean;
   tem_ordem_producao?: boolean;
+  atrasado?: boolean;
 }
 
 export interface ItemObservacao {

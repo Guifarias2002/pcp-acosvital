@@ -1876,13 +1876,11 @@ function PedidoGrupos({ grupos, onRefresh }: { grupos: [string, ItemPedido[]][];
     });
   }
 
-  const hoje = new Date().toISOString().slice(0, 10);
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {grupos.map(([numeroPedido, itens]) => {
         const rep = itens[0];
-        const atrasado = rep.pedido_prazo && rep.pedido_prazo < hoje;
+        const atrasado = !!rep.atrasado;
         const aberto = abertos.has(numeroPedido);
 
         // Status resumido dos itens
