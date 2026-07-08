@@ -419,10 +419,11 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
           )}
         </div>
 
-        {/* Conteúdo principal */}
-        <div className="grid grid-cols-3 gap-4">
+        {/* Conteúdo principal — no celular (<768px) empilha em 1 coluna;
+            tablet/PC (>=768px) mantêm o layout de 3 colunas (2/3 + 1/3). */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Itens do Pedido (2/3) */}
-          <div className="col-span-2">
+          <div className="md:col-span-2">
             <div className="bg-white rounded-xl border shadow-sm">
               <div className="px-4 py-3 border-b flex items-center justify-between">
                 <div>
