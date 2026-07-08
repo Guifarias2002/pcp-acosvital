@@ -49,6 +49,14 @@ export function clearToken() {
   }
 }
 
+// "Super admin" = perfil administrador (ou staff legado sem perfil pcp/lider).
+// Mesma regra usada nas telas para liberar ações restritas ao administrador.
+// Aceita o usuário do JWT (back-end) ou lê do storage (client, sem argumento).
+export function isAdministrador(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return !!user && (user.perfil === 'administrador' || (user.is_staff && user.perfil !== 'pcp' && user.perfil !== 'lider'));
+}
+
 export function getUser(): JWTPayload | null {
   // Tenta ler do pcp_user primeiro, depois decodifica o token
   if (typeof window === 'undefined') return null;

@@ -31,6 +31,7 @@ function Cronometro({ desde }: { desde: string }) {
   );
 }
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem } from '@/lib/api';
+import { isAdministrador } from '@/lib/auth';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
@@ -637,6 +638,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const isLogistica = parcial.setor_atual === 'logistica';
   const isQualidade = parcial.setor_atual === 'qualidade';
   const isRecebido = parcial.status === 'recebido';
+  const podeDesfazer = isAdministrador();
 
   async function aprovarQualidadeParcial() {
     if (loading) return;
@@ -915,6 +917,11 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
               <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
             </button>
+            {podeDesfazer && (
+              <button onClick={() => setConfirm({ titulo: 'Desfazer recebimento', mensagem: 'Voltar esta parcial para "em aberto" (não recebida)?', acao: () => acao('desfazer_recebimento') })} disabled={loading} style={btnStyle('#6b7280', true)}>
+                <i className="bi bi-arrow-counterclockwise" style={{ marginRight: 5 }} />Desfazer recebimento
+              </button>
+            )}
           </>
         )}
 
@@ -1349,6 +1356,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   const isLogistica = p0.setor_atual === 'logistica';
   const isQualidadeGrupo = p0.setor_atual === 'qualidade';
   const isRecebido = p0.status === 'recebido';
+  const podeDesfazer = isAdministrador();
   const foraDoRoteiroGrupo = !p0.proximo_setor && !isLogistica;
 
   async function aprovarGrupoQualidade() {
@@ -1577,6 +1585,11 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             <button onClick={() => { setShowEnviar(v => !v); setShowEnviarParcial(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
               <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
             </button>
+            {podeDesfazer && (
+              <button onClick={() => setConfirm({ titulo: 'Desfazer recebimento', mensagem: `Voltar ${parciais.length > 1 ? `as ${parciais.length} parciais` : 'a parcial'} para "em aberto" (não recebida)?`, acao: () => acaoTodos('desfazer_recebimento') })} disabled={loading} style={btnStyle('#6b7280', true)}>
+                <i className="bi bi-arrow-counterclockwise" style={{ marginRight: 5 }} />Desfazer recebimento
+              </button>
+            )}
           </>
         )}
 
@@ -2108,6 +2121,8 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const [pedidosColapsados, setPedidosColapsados] = useState<Set<number>>(new Set());
   const [recebendoTudo, setRecebendoTudo] = useState<Set<number>>(new Set());
   const [enviandoTudo, setEnviandoTudo] = useState<Set<number>>(new Set());
+  const [desfazendoTudo, setDesfazendoTudo] = useState<Set<number>>(new Set());
+  const podeDesfazer = isAdministrador();
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
   const [modalRastreio, setModalRastreio] = useState<{ pedidoId: number; numero: string } | null>(null);
   // Pedidos ja vistos nesta sessao da pagina - controla quais ja tiveram seu
@@ -2364,6 +2379,43 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                                 {carregando
                                   ? <><i className="bi bi-hourglass-split" /> Enviando...</>
                                   : <><i className="bi bi-send-fill" /> Enviar Tudo ({enviaveis.length})</>}
+                              </button>
+                            );
+                          })()}
+                          {(() => {
+                            // Desfazer recebimento (só administrador): volta as parciais
+                            // recebidas para "em aberto", fazendo o "Receber Tudo" reaparecer.
+                            const desfaziveis = parciais.filter(p => p.status === 'recebido' && p.setor_atual !== 'logistica');
+                            if (!podeDesfazer || desfaziveis.length === 0) return null;
+                            const temRecebiveis = parciais.some(p => p.status === 'em_aberto' && p.setor_atual !== 'logistica');
+                            const temEnviaveis = parciais.some(p =>
+                              ['recebido', 'em_andamento', 'pausado', 'finalizado_setor'].includes(p.status)
+                              && p.proximo_setor && p.setor_atual !== 'logistica'
+                            );
+                            const carregando = desfazendoTudo.has(pedido_id);
+                            const executarDesfazer = async () => {
+                              setDesfazendoTudo(prev => new Set(prev).add(pedido_id));
+                              try { await parcialAcaoLote(desfaziveis.map(p => p.id), 'desfazer_recebimento'); carregar(); }
+                              catch { carregar(); }
+                              finally { setDesfazendoTudo(prev => { const s = new Set(prev); s.delete(pedido_id); return s; }); }
+                            };
+                            return (
+                              <button
+                                disabled={carregando}
+                                title="Desfazer o recebimento — volta as peças para 'em aberto' (Receber Tudo)"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConfirm({
+                                    titulo: 'Desfazer recebimento',
+                                    mensagem: `Voltar ${desfaziveis.length} parcial${desfaziveis.length > 1 ? 'is' : ''} recebida${desfaziveis.length > 1 ? 's' : ''} deste pedido para "em aberto"? O "Receber Tudo" volta a aparecer.`,
+                                    acao: executarDesfazer,
+                                  });
+                                }}
+                                style={{ marginLeft: (temRecebiveis || temEnviaveis) ? 0 : 'auto', background: 'rgba(255,255,255,.12)', color: '#fff', border: '1px solid rgba(255,255,255,.4)', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: carregando ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                              >
+                                {carregando
+                                  ? <><i className="bi bi-hourglass-split" /> Desfazendo...</>
+                                  : <><i className="bi bi-arrow-counterclockwise" /> Desfazer</>}
                               </button>
                             );
                           })()}

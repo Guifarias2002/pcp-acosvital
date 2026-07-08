@@ -19,7 +19,7 @@ import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
-const ACOES_LOTE_PERMITIDAS = ['iniciar', 'finalizar', 'pausar', 'retomar', 'receber', 'devolver', 'mover'] as const;
+const ACOES_LOTE_PERMITIDAS = ['iniciar', 'finalizar', 'pausar', 'retomar', 'receber', 'devolver', 'mover', 'desfazer_recebimento'] as const;
 // Abaixo do teto de 60/60s do rate limiter: cada chamada interna por item
 // também passa por ele (com uma chave nova por requisição, ver abaixo), e
 // um lote maior que o teto seria truncado no meio mesmo sendo legítimo.

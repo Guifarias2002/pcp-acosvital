@@ -13,13 +13,14 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
+import { isAdministrador } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
 import { SETOR_CHOICES } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
-const ACOES_VALIDAS = ['mover', 'iniciar', 'finalizar', 'pausar', 'retomar', 'concluir', 'cancelar', 'apontar', 'devolver', 'receber'] as const;
+const ACOES_VALIDAS = ['mover', 'iniciar', 'finalizar', 'pausar', 'retomar', 'concluir', 'cancelar', 'apontar', 'devolver', 'receber', 'desfazer_recebimento'] as const;
 type Acao = typeof ACOES_VALIDAS[number];
 
 export async function POST(
@@ -542,6 +543,49 @@ export async function POST(
       `;
     });
     return NextResponse.json({ ok: true, status: 'em_andamento' });
+
+  // ── desfazer_recebimento ────────────────────────────────────────────────────
+  // Reverte uma parcial recebida de volta para "em_aberto" (o botão "Receber
+  // Tudo" volta a aparecer). Ação restrita a administradores.
+  } else if (acao === 'desfazer_recebimento') {
+    if (!isAdministrador(user))
+      return NextResponse.json({ erro: 'Apenas administradores podem desfazer o recebimento' }, { status: 403 });
+    if (parcial.status !== 'recebido')
+      return NextResponse.json({ erro: 'Só é possível desfazer o recebimento de parciais no status "recebido"' }, { status: 400 });
+
+    await sql.begin(async (tx) => {
+      await tx`
+        UPDATE producao_itemparcial
+        SET status = 'em_aberto', atualizado_em = NOW()
+        WHERE id = ${parcialId}
+      `;
+      // Se o item não tem mais nenhuma parcial recebida neste setor, volta para 'aguardando'
+      const [{ recebidas }] = await tx`
+        SELECT COUNT(*)::int AS recebidas
+        FROM producao_itemparcial
+        WHERE item_pedido_id = ${parcial.item_id}
+          AND setor_atual = ${parcial.setor_atual}
+          AND status = 'recebido'
+          AND id != ${parcialId}
+      `;
+      if (Number(recebidas) === 0) {
+        await tx`
+          UPDATE producao_itempedido
+          SET status = 'aguardando', atualizado_em = NOW()
+          WHERE id = ${parcial.item_id} AND status = 'recebido'
+        `;
+      }
+      await tx`
+        INSERT INTO producao_movimentacaoitem
+          (item_id, pedido_id, usuario_id, setor_origem, setor_destino,
+           status_anterior, status_novo, observacao, criado_em)
+        VALUES (${parcial.item_id}, ${parcial.pedido_id}, ${user.id},
+                ${parcial.setor_atual}, ${parcial.setor_atual},
+                'recebido', 'aguardando',
+                ${obs || `Recebimento desfeito (parcial #${parcialId}) em ${nomeSector(parcial.setor_atual)}`}, NOW())
+      `;
+    });
+    return NextResponse.json({ ok: true, status: 'em_aberto', mensagem: 'Recebimento desfeito' });
   }
 
   return NextResponse.json({ erro: 'Ação não processada' }, { status: 500 });
