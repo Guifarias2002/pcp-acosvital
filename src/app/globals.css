@@ -715,6 +715,16 @@ body {
 /* =====================================================
    PEDIDOS — lista responsiva
    ===================================================== */
+/* Tabela de Pedidos de Venda: no tablet/celular as 11 colunas nao cabem e o
+   navegador as espremia (texto quebrado, selos amontoados, colunas cortadas).
+   Uma largura minima + rolagem horizontal (wrapper com overflow-x:auto) mantem
+   as colunas legiveis e deixa deslizar pro lado pra ver tudo. So <=1024px para
+   nao introduzir rolagem no PC, onde a tabela ja cabe em 100%. */
+@media (max-width: 1024px) {
+  .pedidos-tabela-wrap table {
+    min-width: 960px;
+  }
+}
 @media (max-width: 768px) {
   /* Filtros do topo empilham verticalmente */
   .pedidos-filtros {

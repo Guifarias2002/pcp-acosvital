@@ -288,8 +288,9 @@ function PedidosPageInner() {
         </div>
       )}
 
-      {/* Tabela */}
-      <div className="card" style={{ overflow: 'hidden' }}>
+      {/* Tabela — rola na horizontal no tablet/celular (min-width via CSS ≤1024px)
+          para as 11 colunas nao esprememerem; no PC continua 100% sem rolagem. */}
+      <div className="card pedidos-tabela-wrap" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: '#212529', color: '#fff' }}>
