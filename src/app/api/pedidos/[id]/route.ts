@@ -17,13 +17,21 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const pedido = await getPedidoComItens(pedidoId);
   if (!pedido) return NextResponse.json({ erro: 'Nao encontrado' }, { status: 404 });
 
-  // Operadores só podem ver pedidos com item/parcial ativo no próprio setor.
-  // pedido.setor_atual sozinho não basta: reflete só o último item que se moveu,
-  // mas um pedido pode ter itens/parciais em setores diferentes ao mesmo tempo.
+  // Operadores só podem ver pedidos cujo roteiro passa pelo próprio setor.
+  // Usa o roteiro PLANEJADO (roteiro_base do pedido + roteiro_efetivo de cada
+  // item), não só a localização atual das peças: um pedido parcial tem itens
+  // em setores diferentes o tempo todo, e a peça pode mudar de setor entre o
+  // carregamento da tela e o clique do usuário (corrida real, já vista em
+  // produção) — checar só o instante atual gera "acesso negado" para quem
+  // claramente tem relação legítima com o pedido.
   if (!user.is_staff) {
-    const setoresDoPedido = new Set<string>([pedido.setor_atual as string]);
+    const setoresDoPedido = new Set<string>([
+      pedido.setor_atual as string,
+      ...(pedido.roteiro_base as string[] || []),
+    ]);
     for (const item of pedido.itens as Record<string, unknown>[]) {
       setoresDoPedido.add(item.setor_atual as string);
+      for (const s of (item.roteiro_efetivo as string[]) || []) setoresDoPedido.add(s);
       for (const p of (item.parciais_por_setor as Record<string, unknown>[]) || [])
         setoresDoPedido.add(p.setor as string);
     }
