@@ -22,6 +22,7 @@ export async function GET(req: Request) {
   const vendedor   = searchParams.get('vendedor') || '';
   const status     = searchParams.get('status') || '';
   const prioridade = searchParams.get('prioridade') || '';
+  const setor      = searchParams.get('setor') || '';
   const entregue   = searchParams.get('entregue') === '1';
   const page       = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const offset     = (page - 1) * PER_PAGE;
@@ -43,6 +44,7 @@ export async function GET(req: Request) {
       AND (${vendedor} = '' OR p.vendedor ILIKE ${'%' + vendedor + '%'})
       AND (${status}  = '' OR p.status = ${status})
       AND (${prioridade} = '' OR p.prioridade = ${prioridade})
+      AND (${setor} = '' OR p.setor_atual = ${setor})
       AND (${entregue} = TRUE OR p.status != 'entregue')
     ORDER BY
       CASE p.prioridade WHEN 'urgente' THEN 1 WHEN 'alta' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
@@ -83,6 +85,7 @@ export async function GET(req: Request) {
         AND (${vendedor} = '' OR p.vendedor ILIKE ${'%' + vendedor + '%'})
         AND (${status}  = '' OR p.status = ${status})
         AND (${prioridade} = '' OR p.prioridade = ${prioridade})
+        AND (${setor} = '' OR p.setor_atual = ${setor})
         AND (${entregue} = TRUE OR p.status != 'entregue')
     `,
   ]), 27000); // 27s — Vercel mata em 30s (temporario, ver vercel.json)

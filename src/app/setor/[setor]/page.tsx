@@ -33,6 +33,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import EntregarModal from '@/components/EntregarModal';
 import DespacharModal from '@/components/DespacharModal';
 import DivergenciaResolucaoModal from '@/components/DivergenciaResolucaoModal';
+import RastreioModal from '@/components/RastreioModal';
 
 function useToast() {
   const [toast, setToast] = useState<{ msg: string; tipo: 'erro' | 'ok' } | null>(null);
@@ -1864,7 +1865,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   );
 }
 
-function PedidoGrupos({ grupos, onRefresh }: { grupos: [string, ItemPedido[]][]; onRefresh: () => void }) {
+function PedidoGrupos({ grupos, onRefresh, onVerPedido }: { grupos: [string, ItemPedido[]][]; onRefresh: () => void; onVerPedido?: (pedidoId: number, numero: string) => void }) {
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
 
   function toggle(chave: string) {
@@ -1903,8 +1904,11 @@ function PedidoGrupos({ grupos, onRefresh }: { grupos: [string, ItemPedido[]][];
             boxShadow: '0 1px 4px rgba(0,0,0,.06)',
           }}>
             {/* Cabeçalho clicável */}
-            <button
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => toggle(numeroPedido)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') toggle(numeroPedido); }}
               style={{
                 width: '100%', textAlign: 'left', background: atrasado ? '#fef2f2' : '#f8fafc',
                 border: 'none', borderBottom: aberto ? '1px solid #e2e8f0' : 'none',
@@ -1923,6 +1927,14 @@ function PedidoGrupos({ grupos, onRefresh }: { grupos: [string, ItemPedido[]][];
                   </span>
                 )}
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{statusChips}</div>
+                {onVerPedido && (
+                  <button
+                    title="Ver todos os itens deste pedido"
+                    onClick={(e) => { e.stopPropagation(); onVerPedido(rep.pedido_id, numeroPedido); }}
+                    style={{ background: '#eef2ff', border: '1px solid #c7d2fe', color: '#1a3a5c', borderRadius: 5, padding: '2px 7px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                    <i className="bi bi-eye-fill" />
+                  </button>
+                )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: '#888' }}>
                 {rep.pedido_prazo && (
@@ -1931,7 +1943,7 @@ function PedidoGrupos({ grupos, onRefresh }: { grupos: [string, ItemPedido[]][];
                 <span style={{ fontWeight: 600 }}>{itens.length} {itens.length === 1 ? 'item' : 'itens'}</span>
                 <i className={`bi bi-chevron-${aberto ? 'up' : 'down'}`} style={{ fontSize: 13, color: '#64748b' }}></i>
               </div>
-            </button>
+            </div>
 
             {/* Itens expandidos */}
             {aberto && (
@@ -1982,6 +1994,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const [recebendoTudo, setRecebendoTudo] = useState<Set<number>>(new Set());
   const [enviandoTudo, setEnviandoTudo] = useState<Set<number>>(new Set());
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
+  const [modalRastreio, setModalRastreio] = useState<{ pedidoId: number; numero: string } | null>(null);
   // Pedidos ja vistos nesta sessao da pagina - controla quais ja tiveram seu
   // estado de colapso inicializado, pra nao re-fechar um que o usuario abriu.
   const pedidosVistos = useRef<Set<number>>(new Set());
@@ -2027,6 +2040,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
       {confirm && (
         <ConfirmModal titulo={confirm.titulo} mensagem={confirm.mensagem} confirmLabel="Confirmar"
           onConfirm={() => { confirm.acao(); setConfirm(null); }} onCancel={() => setConfirm(null)} />
+      )}
+      {modalRastreio && (
+        <RastreioModal pedidoId={modalRastreio.pedidoId} numero={modalRastreio.numero} onClose={() => setModalRastreio(null)} />
       )}
       <NotificacoesLive filtroSetor={setor} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: setor === 'logistica' ? 12 : 18, flexWrap: 'wrap', gap: 10 }}>
@@ -2155,6 +2171,12 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             {parciais.length} parcial{parciais.length > 1 ? 'is' : ''}
                             {itemGrupos.length > 1 ? ` · ${itemGrupos.length} produtos` : ''}
                           </span>
+                          <button
+                            title="Ver todos os itens deste pedido"
+                            onClick={(e) => { e.stopPropagation(); setModalRastreio({ pedidoId: pedido_id, numero: numero_pedido_venda }); }}
+                            style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', borderRadius: 5, padding: '3px 8px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                            <i className="bi bi-eye-fill" />
+                          </button>
                           {(() => {
                             const recebiveis = parciais.filter(p => p.status === 'em_aberto' && p.setor_atual !== 'logistica');
                             if (recebiveis.length === 0) return null;
@@ -2281,7 +2303,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                   <i className="bi bi-list-ul" style={{ marginRight: 6 }}></i>
                   Itens no Setor ({itensFiltrados.length})
                 </div>
-                <PedidoGrupos grupos={grupos} onRefresh={carregar} />
+                <PedidoGrupos grupos={grupos} onRefresh={carregar} onVerPedido={(pedidoId, numero) => setModalRastreio({ pedidoId, numero })} />
               </section>
             );
           })()}

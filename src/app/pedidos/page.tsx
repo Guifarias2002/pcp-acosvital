@@ -5,9 +5,10 @@ import { useSearchParams } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedidos } from '@/lib/api';
 import { getToken } from '@/lib/auth';
-import { Pedido, STATUS_LABELS, getPedidoEtapa, ETAPA_LABELS, NOMES, PARCIAL_STATUS_LABELS } from '@/lib/types';
+import { Pedido, STATUS_LABELS, getPedidoEtapa, ETAPA_LABELS, NOMES, SETOR_CHOICES } from '@/lib/types';
 import { getUser } from '@/lib/auth';
 import Link from 'next/link';
+import RastreioModal from '@/components/RastreioModal';
 
 function fmtData(s: string) {
   if (!s) return '—';
@@ -24,9 +25,7 @@ interface ModalExcluir { id: number; numero: string; motivo: string; loading: bo
 interface ModalExcluirLote { ids: number[]; motivo: string; loading: boolean; }
 interface AvisoProducao { id: number; numero: string; motivo: string; count: number; loading: boolean; }
 
-interface ParcelSetor { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean; motivo_retrabalho: string | null; }
-interface ItemRastreio { id: number; codigo: string; descricao: string; quantidade: string; unidade: string; status: string; parciais_por_setor: ParcelSetor[]; quantidade_entregue?: string; }
-interface ModalRastreio { pedidoId: number; numero: string; loading: boolean; itens: ItemRastreio[]; }
+interface ModalRastreio { pedidoId: number; numero: string; }
 
 export default function PedidosPage() {
   return (
@@ -48,32 +47,15 @@ function PedidosPageInner() {
   const [fVendedor, setFVendedor] = useState('');
   const [fStatus, setFStatus] = useState('');
   const [fPrioridade, setFPrioridade] = useState('');
+  const [fSetor, setFSetor] = useState('');
   const [fEtapa, setFEtapa] = useState(etapaParam || '');
   const [modalExcluir, setModalExcluir] = useState<ModalExcluir | null>(null);
   const [modalExcluirLote, setModalExcluirLote] = useState<ModalExcluirLote | null>(null);
   const [avisoProducao, setAvisoProducao] = useState<AvisoProducao | null>(null);
   const [modalRastreio, setModalRastreio] = useState<ModalRastreio | null>(null);
 
-  async function abrirRastreio(pedidoId: number, numero: string) {
-    setModalRastreio({ pedidoId, numero, loading: true, itens: [] });
-    try {
-      const token = getToken();
-      const res = await fetch(`/api/pedidos/${pedidoId}`, { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      const itens = (data.itens || []).map((i: Record<string, unknown>) => ({
-        id: i.id,
-        codigo: i.codigo,
-        descricao: i.descricao,
-        quantidade: i.quantidade,
-        unidade: i.unidade,
-        status: i.status,
-        quantidade_entregue: i.quantidade_entregue,
-        parciais_por_setor: (i as Record<string, unknown>).parciais_por_setor || [],
-      }));
-      setModalRastreio({ pedidoId, numero, loading: false, itens });
-    } catch {
-      setModalRastreio(prev => prev ? { ...prev, loading: false } : null);
-    }
+  function abrirRastreio(pedidoId: number, numero: string) {
+    setModalRastreio({ pedidoId, numero });
   }
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const _u = getUser();
@@ -85,7 +67,7 @@ function PedidosPageInner() {
   function buscar(p = page) {
     setLoading(true);
     setSelectedIds(new Set());
-    const params: Record<string, string> = { cliente: fBusca, vendedor: fVendedor, status: fStatus, prioridade: fPrioridade, entregue: '1', page: String(p) };
+    const params: Record<string, string> = { cliente: fBusca, vendedor: fVendedor, status: fStatus, prioridade: fPrioridade, setor: fSetor, entregue: '1', page: String(p) };
     if (fEtapa === 'entregue') params.entregue = '1';
     getPedidos(params).then(r => { setPedidos(r.pedidos); setPaginacao({ page: r.page, pages: r.pages, total: r.total }); }).catch(() => {}).finally(() => setLoading(false));
   }
@@ -250,13 +232,18 @@ function PedidosPageInner() {
             <option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</option>
           ))}
         </select>
+        <select value={fSetor} onChange={e => setFSetor(e.target.value)}
+          style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13, flex: '1 1 150px' }}>
+          <option value="">Todos os setores</option>
+          {SETOR_CHOICES.map(([cod, nome]) => <option key={cod} value={cod}>{nome}</option>)}
+        </select>
         <button onClick={() => buscar()} style={{
           background: '#1a3a5c', color: '#fff', border: 'none',
           borderRadius: 5, padding: '6px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap',
         }}>
           <i className="bi bi-search" style={{ marginRight: 4 }}></i>Filtrar
         </button>
-        <button onClick={() => { setFBusca(''); setFVendedor(''); setFStatus(''); setFPrioridade(''); setFEtapa(''); }}
+        <button onClick={() => { setFBusca(''); setFVendedor(''); setFStatus(''); setFPrioridade(''); setFSetor(''); setFEtapa(''); }}
           style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 5, padding: '6px 12px', fontSize: 13, cursor: 'pointer', color: '#666', whiteSpace: 'nowrap' }}>
           Limpar
         </button>
@@ -607,101 +594,7 @@ function PedidosPageInner() {
       )}
       {/* Modal rastreabilidade */}
       {modalRastreio && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-          onClick={e => { if (e.target === e.currentTarget) setModalRastreio(null); }}>
-          <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 680, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,.2)' }}>
-
-            {/* Cabeçalho modal */}
-            <div style={{ padding: '18px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#1a3a5c' }}>📦 {modalRastreio.numero}</div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Rastreabilidade — onde estão as peças</div>
-              </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <Link href={`/pedidos/${modalRastreio.pedidoId}`}
-                  style={{ fontSize: 12, color: '#0d6efd', border: '1px solid #0d6efd', borderRadius: 6, padding: '4px 12px', textDecoration: 'none', fontWeight: 600 }}>
-                  Ver pedido completo →
-                </Link>
-                <button onClick={() => setModalRastreio(null)}
-                  style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>✕</button>
-              </div>
-            </div>
-
-            {/* Corpo */}
-            <div style={{ overflow: 'auto', padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {modalRastreio.loading && (
-                <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>Carregando...</div>
-              )}
-              {!modalRastreio.loading && modalRastreio.itens.map(item => {
-                const STATUS_LABEL = PARCIAL_STATUS_LABELS;
-                const STATUS_BG: Record<string, string> = { em_aberto: '#f1f5f9', recebido: '#fef3c7', em_andamento: '#fef9c3', finalizado_setor: '#dcfce7', pausado: '#fee2e2' };
-                const STATUS_TXT: Record<string, string> = { em_aberto: '#475569', recebido: '#92400e', em_andamento: '#854d0e', finalizado_setor: '#14532d', pausado: '#991b1b' };
-                const entregues = Number(item.quantidade_entregue || 0);
-                const temParciais = item.parciais_por_setor && item.parciais_por_setor.length > 0;
-
-                return (
-                  <div key={item.id} style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
-                    {/* Cabeçalho do item */}
-                    <div style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: '#1a3a5c' }}>{item.codigo}</span>
-                        <span style={{ fontSize: 12, color: '#64748b', marginLeft: 8 }}>{String(item.descricao)}</span>
-                      </div>
-                      <span style={{ fontSize: 12, color: '#64748b' }}>{Number(item.quantidade)} {String(item.unidade)} total</span>
-                    </div>
-
-                    {/* Parciais por setor */}
-                    <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {temParciais ? item.parciais_por_setor.map((p, i) => (
-                        <div key={i} style={{
-                          display: 'flex', alignItems: 'center', gap: 10,
-                          background: p.retrabalho ? '#fffbeb' : STATUS_BG[p.status] || '#f8fafc',
-                          border: `1px solid ${p.retrabalho ? '#fcd34d' : '#e2e8f0'}`,
-                          borderRadius: 8, padding: '10px 14px',
-                        }}>
-                          {/* Quantidade */}
-                          <div style={{ minWidth: 70 }}>
-                            <span style={{ fontSize: 18, fontWeight: 800, color: '#1d4ed8' }}>{Number(p.quantidade)}</span>
-                            <span style={{ fontSize: 12, color: '#64748b', marginLeft: 4 }}>{p.unidade}</span>
-                          </div>
-                          {/* Seta */}
-                          <span style={{ color: '#94a3b8', fontSize: 16 }}>→</span>
-                          {/* Setor + status */}
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{p.setor_nome}</div>
-                            <div style={{ fontSize: 11, color: STATUS_TXT[p.status] || '#64748b', display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                              <span style={{ background: STATUS_BG[p.status] || '#f1f5f9', border: `1px solid ${STATUS_TXT[p.status] || '#e2e8f0'}22`, borderRadius: 3, padding: '0 5px', fontWeight: 600 }}>
-                                {STATUS_LABEL[p.status] || p.status}
-                              </span>
-                              {p.retrabalho && <span style={{ color: '#b45309', fontWeight: 700 }}>⚠ Retrabalho</span>}
-                              {p.retrabalho && p.motivo_retrabalho && <span style={{ color: '#78350f', fontStyle: 'italic' }}>"{p.motivo_retrabalho}"</span>}
-                            </div>
-                          </div>
-                        </div>
-                      )) : (
-                        <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '8px 0' }}>
-                          Sem lotes ativos — item no fluxo principal
-                        </div>
-                      )}
-                      {entregues > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px' }}>
-                          <div style={{ minWidth: 70 }}>
-                            <span style={{ fontSize: 18, fontWeight: 800, color: '#15803d' }}>{entregues}</span>
-                            <span style={{ fontSize: 12, color: '#64748b', marginLeft: 4 }}>{String(item.unidade)}</span>
-                          </div>
-                          <span style={{ color: '#94a3b8', fontSize: 16 }}>→</span>
-                          <div>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#15803d' }}>✓ Entregues ao cliente</div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+        <RastreioModal pedidoId={modalRastreio.pedidoId} numero={modalRastreio.numero} onClose={() => setModalRastreio(null)} />
       )}
     </AuthGuard>
   );
