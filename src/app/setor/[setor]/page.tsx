@@ -103,6 +103,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
   const [qtdParcial, setQtdParcial] = useState('');
   const [showDevolver, setShowDevolver] = useState(false);
   const [setorDev, setSetorDev] = useState('');
+  const [motivoDev, setMotivoDev] = useState('');
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void; perigo?: boolean } | null>(null);
   const [showEntregar, setShowEntregar] = useState(false);
   const [showDespachar, setShowDespachar] = useState(false);
@@ -450,17 +451,25 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
               <option key={cod} value={cod}>{nome}</option>
             ))}
           </select>
+          <label style={{ fontSize: 11, fontWeight: 600, color: item.status === 'reprovado' ? '#92400e' : '#842029', display: 'block', marginBottom: 4 }}>
+            {item.status === 'reprovado' ? 'Motivo do retrabalho:' : 'Motivo do retorno:'} <span style={{ color: '#dc2626' }}>*</span>
+          </label>
+          <textarea value={motivoDev} onChange={e => setMotivoDev(e.target.value)}
+            rows={2} placeholder={item.status === 'reprovado' ? 'Descreva o problema encontrado...' : 'Ex.: recebido por engano, setor errado, peça trocada...'}
+            style={{ width: '100%', border: `1px solid ${item.status === 'reprovado' ? '#fde68a' : '#f5c2c7'}`, borderRadius: 5, padding: '6px 8px', fontSize: 13, marginBottom: 8, resize: 'vertical', boxSizing: 'border-box' }} />
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => {
-              if (!setorDev) return;
+              if (!setorDev) { mostrarErroItem('Selecione o setor destino'); return; }
+              if (!motivoDev.trim()) { mostrarErroItem('Informe o motivo'); return; }
               const acaoNome = item.status === 'reprovado' ? 'retrabalho' : 'devolver';
-              acao(acaoNome, { setor_destino: setorDev });
-              setShowDevolver(false);
-            }}
-              style={{ flex: 1, background: item.status === 'reprovado' ? '#d97706' : '#dc3545', color: '#fff', border: 'none', borderRadius: 5, padding: '7px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              const extra = acaoNome === 'devolver' ? { tipo: 'correcao' } : {};
+              acao(acaoNome, { setor_destino: setorDev, observacao: motivoDev.trim(), ...extra });
+              setShowDevolver(false); setMotivoDev('');
+            }} disabled={loading || !setorDev || !motivoDev.trim()}
+              style={{ flex: 1, background: item.status === 'reprovado' ? '#d97706' : '#dc3545', color: '#fff', border: 'none', borderRadius: 5, padding: '7px 0', fontSize: 13, fontWeight: 700, cursor: (!setorDev || !motivoDev.trim()) ? 'not-allowed' : 'pointer', opacity: (!setorDev || !motivoDev.trim()) ? 0.5 : 1 }}>
               {item.status === 'reprovado' ? 'Encaminhar para retrabalho' : 'Confirmar devolução'}
             </button>
-            <button onClick={() => setShowDevolver(false)}
+            <button onClick={() => { setShowDevolver(false); setMotivoDev(''); }}
               style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 5, padding: '7px 14px', fontSize: 13, color: '#666', cursor: 'pointer' }}>
               Cancelar
             </button>
@@ -617,6 +626,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [setorDev, setSetorDev] = useState('');
   const [setorRetrabalho, setSetorRetrabalho] = useState('');
   const [motivoDiv, setMotivoDiv] = useState('');
+  const [motivoDevolucao, setMotivoDevolucao] = useState('');
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void; perigo?: boolean } | null>(null);
   const [showDespacharParcial, setShowDespacharParcial] = useState(false);
   const [showEntregarParcial, setShowEntregarParcial] = useState(false);
@@ -807,6 +817,21 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
               </div>
               {parcial.origem_motivo_retrabalho && (
                 <div style={{ fontSize: 11, color: '#047857' }}>Problema original: {parcial.origem_motivo_retrabalho}</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Banner devolução/correção — peça voltou por engano/recebimento errado (não é retrabalho) */}
+        {!parcial.retrabalho && parcial.devolvido_de && !parcial.origem_retrabalho && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '6px 10px', marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <span style={{ fontSize: 14 }}>↩️</span>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#991b1b' }}>
+                Devolvido de {NOMES[parcial.devolvido_de] || parcial.devolvido_de} — correção
+              </div>
+              {parcial.motivo_retrabalho && (
+                <div style={{ fontSize: 11, color: '#7f1d1d' }}>Motivo: {parcial.motivo_retrabalho}</div>
               )}
             </div>
           </div>
@@ -1242,12 +1267,23 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
               <option key={cod} value={cod}>{nome}</option>
             ))}
           </select>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#842029', display: 'block', marginBottom: 4 }}>
+            Motivo do retorno: <span style={{ color: '#dc2626' }}>*</span>
+          </label>
+          <textarea value={motivoDevolucao} onChange={e => setMotivoDevolucao(e.target.value)}
+            rows={2} placeholder="Ex.: recebido por engano, setor errado, peça trocada..."
+            style={{ width: '100%', border: '1px solid #f5c2c7', borderRadius: 5, padding: '6px 8px', fontSize: 13, marginBottom: 8, resize: 'vertical', boxSizing: 'border-box' }} />
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => { if (!setorDev) return; acao('devolver', { setor_destino: setorDev }); setShowDevolver(false); }}
-              style={{ flex: 1, background: '#dc3545', color: '#fff', border: 'none', borderRadius: 5, padding: '7px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            <button onClick={() => {
+              if (!setorDev) { mostrarErroParcial('Selecione o setor destino'); return; }
+              if (!motivoDevolucao.trim()) { mostrarErroParcial('Informe o motivo do retorno'); return; }
+              acao('devolver', { setor_destino: setorDev, tipo: 'correcao', observacao: motivoDevolucao.trim() });
+              setShowDevolver(false); setMotivoDevolucao('');
+            }} disabled={loading || !setorDev || !motivoDevolucao.trim()}
+              style={{ flex: 1, background: '#dc3545', color: '#fff', border: 'none', borderRadius: 5, padding: '7px 0', fontSize: 13, fontWeight: 700, cursor: (!setorDev || !motivoDevolucao.trim()) ? 'not-allowed' : 'pointer', opacity: (!setorDev || !motivoDevolucao.trim()) ? 0.5 : 1 }}>
               Confirmar devolução
             </button>
-            <button onClick={() => setShowDevolver(false)}
+            <button onClick={() => { setShowDevolver(false); setMotivoDevolucao(''); }}
               style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 5, padding: '7px 14px', fontSize: 13, color: '#666', cursor: 'pointer' }}>
               Cancelar
             </button>
@@ -1274,6 +1310,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   const [setorDev, setSetorDev] = useState('');
   const [setorRetrabalhoGrupo, setSetorRetrabalhoGrupo] = useState('');
   const [motivoDivGrupo, setMotivoDivGrupo] = useState('');
+  const [motivoDevGrupo, setMotivoDevGrupo] = useState('');
   const [expandido, setExpandido] = useState(false);
   const [showEntregarGrupo, setShowEntregarGrupo] = useState(false);
   const [showDespacharGrupo, setShowDespacharGrupo] = useState(false);
@@ -1433,6 +1470,20 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
           )}
         </div>
       )}
+
+      {/* Banner devolução/correção (grupo) — peça voltou por engano (não é retrabalho) */}
+      {!parciais.some(p => p.retrabalho) && parciais.some(p => p.devolvido_de && !p.origem_retrabalho) && (() => {
+        const dev = parciais.find(p => p.devolvido_de);
+        const motivo = parciais.find(p => p.motivo_retrabalho)?.motivo_retrabalho;
+        return (
+          <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '6px 10px', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#991b1b' }}>
+              ↩️ Devolvido de {NOMES[dev?.devolvido_de || ''] || dev?.devolvido_de} — correção
+            </div>
+            {motivo && <div style={{ fontSize: 11, color: '#7f1d1d' }}>Motivo: {motivo}</div>}
+          </div>
+        );
+      })()}
 
       {/* Banner fora do roteiro (grupo) */}
       {foraDoRoteiroGrupo && (isAndamento || isPausado || isFinalizado) && (
@@ -1859,12 +1910,23 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
               <option key={cod} value={cod}>{nome}</option>
             ))}
           </select>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#842029', display: 'block', marginBottom: 4 }}>
+            Motivo do retorno: <span style={{ color: '#dc2626' }}>*</span>
+          </label>
+          <textarea value={motivoDevGrupo} onChange={e => setMotivoDevGrupo(e.target.value)}
+            rows={2} placeholder="Ex.: recebido por engano, setor errado, peça trocada..."
+            style={{ width: '100%', border: '1px solid #f5c2c7', borderRadius: 5, padding: '6px 8px', fontSize: 13, marginBottom: 8, resize: 'vertical', boxSizing: 'border-box' }} />
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => { if (!setorDev) return; acaoTodos('devolver', { setor_destino: setorDev }); setShowDevolver(false); }}
-              style={{ flex: 1, background: '#dc3545', color: '#fff', border: 'none', borderRadius: 5, padding: '7px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            <button onClick={() => {
+              if (!setorDev) { mostrarErroGrupo('Selecione o setor destino'); return; }
+              if (!motivoDevGrupo.trim()) { mostrarErroGrupo('Informe o motivo do retorno'); return; }
+              acaoTodos('devolver', { setor_destino: setorDev, tipo: 'correcao', observacao: motivoDevGrupo.trim() });
+              setShowDevolver(false); setMotivoDevGrupo('');
+            }} disabled={loading || !setorDev || !motivoDevGrupo.trim()}
+              style={{ flex: 1, background: '#dc3545', color: '#fff', border: 'none', borderRadius: 5, padding: '7px 0', fontSize: 13, fontWeight: 700, cursor: (!setorDev || !motivoDevGrupo.trim()) ? 'not-allowed' : 'pointer', opacity: (!setorDev || !motivoDevGrupo.trim()) ? 0.5 : 1 }}>
               Confirmar devolução
             </button>
-            <button onClick={() => setShowDevolver(false)}
+            <button onClick={() => { setShowDevolver(false); setMotivoDevGrupo(''); }}
               style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 5, padding: '7px 14px', fontSize: 13, color: '#666', cursor: 'pointer' }}>
               Cancelar
             </button>

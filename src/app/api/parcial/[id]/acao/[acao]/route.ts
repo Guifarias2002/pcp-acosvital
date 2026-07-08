@@ -443,12 +443,18 @@ export async function POST(
     if (setor_destino === parcial.setor_atual)
       return NextResponse.json({ erro: 'Setor de devolução deve ser diferente do setor atual' }, { status: 400 });
 
+    // tipo 'correcao' = devolução por engano / recebimento errado (NÃO é retrabalho).
+    // Qualquer outro valor (ou ausência) mantém o comportamento de retrabalho,
+    // preservando o fluxo de divergência da Inspeção de Qualidade. O sinal de
+    // "correção" no destino é retrabalho=FALSE + devolvido_de preenchido.
+    const ehCorrecao = body.tipo === 'correcao';
+
     await sql.begin(async (tx) => {
       await tx`
         UPDATE producao_itemparcial
         SET setor_atual = ${setor_destino}, status = 'em_aberto',
             concluido_em = NULL, atualizado_em = NOW(),
-            retrabalho = TRUE,
+            retrabalho = ${!ehCorrecao},
             motivo_retrabalho = ${obs || null},
             devolvido_de = ${parcial.setor_atual}
         WHERE id = ${parcialId}

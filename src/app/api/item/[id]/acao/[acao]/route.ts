@@ -518,9 +518,15 @@ export async function POST(
       // estejam (principal e filhas de splits anteriores em outros setores). Antes,
       // as filhas eram CANCELADAS em vez de devolvidas - perdia a quantidade que
       // estava fisicamente em outro setor no meio de um envio parcial.
+      // Marca como "correção" (devolvido_de + motivo, retrabalho=FALSE): a peça
+      // voltou por engano/recebimento errado, não é retrabalho da Qualidade. O
+      // destino mostra o banner de devolução com o motivo informado.
       const movidas = await tx`
         UPDATE producao_itemparcial
-        SET setor_atual = ${destino}, status = 'em_aberto', atualizado_em = NOW()
+        SET setor_atual = ${destino}, status = 'em_aberto', atualizado_em = NOW(),
+            retrabalho = FALSE,
+            motivo_retrabalho = ${obs || null},
+            devolvido_de = ${item.setor_atual}
         WHERE item_pedido_id = ${item.id}
           AND status NOT IN ('cancelada', 'concluida')
         RETURNING id
@@ -529,9 +535,11 @@ export async function POST(
         // Item criado antes do sistema de parciais — cria parcial no destino
         await tx`
           INSERT INTO producao_itemparcial
-            (item_pedido_id, pedido_id, quantidade, setor_atual, status, observacao, criado_por_id, criado_em, atualizado_em)
+            (item_pedido_id, pedido_id, quantidade, setor_atual, status, observacao,
+             retrabalho, motivo_retrabalho, devolvido_de, criado_por_id, criado_em, atualizado_em)
           VALUES
-            (${item.id}, ${item.pedido_id}, ${Number(item.quantidade_pendente)}, ${destino}, 'em_aberto', ${obs || 'Devolução'}, ${user.id}, NOW(), NOW())
+            (${item.id}, ${item.pedido_id}, ${Number(item.quantidade_pendente)}, ${destino}, 'em_aberto', ${obs || 'Devolução'},
+             FALSE, ${obs || null}, ${item.setor_atual}, ${user.id}, NOW(), NOW())
         `;
       }
     });
