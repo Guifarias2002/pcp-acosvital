@@ -63,11 +63,27 @@ export function useRealtime(
 
     subscribe();
 
+    // Tablets/celulares suspendem timers (o polling de 15s e a conexao do
+    // WebSocket) quando a tela trava ou o app vai pra segundo plano. Sem isso,
+    // uma tela deixada aberta e "esquecida" so atualiza quando o usuario
+    // recarrega manualmente. Ao voltar a ficar visivel, forca atualizacao
+    // imediata e reconecta o canal se ele tiver caido.
+    function onVisibilityChange() {
+      if (document.visibilityState !== 'visible' || !mounted) return;
+      if (cachePrefixes?.length) invalidateCache(...cachePrefixes);
+      cbRef.current();
+      if (!channel) subscribe();
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('focus', onVisibilityChange);
+
     return () => {
       mounted = false;
       if (debounceTimer) clearTimeout(debounceTimer);
       if (fallbackTimer) clearInterval(fallbackTimer);
       if (channel) supabase?.removeChannel(channel);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('focus', onVisibilityChange);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tablesKey]);
