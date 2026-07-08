@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { getToken } from '@/lib/auth';
 import { PARCIAL_STATUS_LABELS } from '@/lib/types';
 
@@ -12,6 +12,7 @@ interface ItemRastreio { id: number; codigo: string; descricao: string; quantida
 // na hora (mesma fonte, /api/pedidos/:id) para garantir que a informação é a mesma
 // em qualquer lugar do sistema.
 export default function RastreioModal({ pedidoId, numero, onClose }: { pedidoId: number; numero: string; onClose: () => void }) {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [itens, setItens] = useState<ItemRastreio[]>([]);
 
@@ -56,12 +57,15 @@ export default function RastreioModal({ pedidoId, numero, onClose }: { pedidoId:
             <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Rastreabilidade — onde estão as peças</div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <Link href={`/pedidos/${pedidoId}`}
-              style={{ fontSize: 12, color: '#0d6efd', border: '1px solid #0d6efd', borderRadius: 6, padding: '4px 12px', textDecoration: 'none', fontWeight: 600 }}>
+            {/* Botão (não <a>) navegando via router: toque confiável no tablet, sem o
+                atraso de 300ms e sem depender do comportamento de link do PWA. */}
+            <button type="button"
+              onClick={() => { onClose(); router.push(`/pedidos/${pedidoId}`); }}
+              style={{ fontSize: 13, color: '#0d6efd', background: 'none', border: '1px solid #0d6efd', borderRadius: 8, padding: '8px 14px', minHeight: 44, fontWeight: 600, cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
               Ver pedido completo →
-            </Link>
-            <button onClick={onClose}
-              style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>✕</button>
+            </button>
+            <button type="button" onClick={onClose} aria-label="Fechar"
+              style={{ background: 'none', border: 'none', fontSize: 22, color: '#94a3b8', cursor: 'pointer', lineHeight: 1, minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>✕</button>
           </div>
         </div>
 

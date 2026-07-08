@@ -2,16 +2,24 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import AuthGuard from '@/components/AuthGuard';
 
+// Ticker global compartilhado: um único setInterval de 1s para TODOS os
+// cronômetros da tela, em vez de um timer por card. Reduz drasticamente o
+// número de timers/agendamentos quando há muitas parciais em andamento.
+const tickSubs = new Set<() => void>();
+let tickTimer: ReturnType<typeof setInterval> | null = null;
+function subscribeTick(cb: () => void) {
+  tickSubs.add(cb);
+  if (!tickTimer) tickTimer = setInterval(() => { tickSubs.forEach(f => f()); }, 1000);
+  return () => {
+    tickSubs.delete(cb);
+    if (tickSubs.size === 0 && tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+  };
+}
+
 function Cronometro({ desde }: { desde: string }) {
-  const [seg, setSeg] = useState(0);
-  const ref = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => {
-    const inicio = new Date(desde).getTime();
-    function tick() { setSeg(Math.floor((Date.now() - inicio) / 1000)); }
-    tick();
-    ref.current = setInterval(tick, 1000);
-    return () => { if (ref.current) clearInterval(ref.current); };
-  }, [desde]);
+  const [, forcar] = useState(0);
+  useEffect(() => subscribeTick(() => forcar(n => (n + 1) % 1_000_000)), []);
+  const seg = Math.max(0, Math.floor((Date.now() - new Date(desde).getTime()) / 1000));
   const h = Math.floor(seg / 3600);
   const m = Math.floor((seg % 3600) / 60);
   const s = seg % 60;
@@ -1000,8 +1008,9 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           />
         )}
 
-        {/* Devolver — disponível em todos os setores incluindo logística */}
-        {(isAberto || isAndamento || isPausado || isFinalizado) && (
+        {/* Devolver — disponível em todos os setores (inclui recebido: peça
+            chegou errada e precisa voltar a um setor anterior, ex.: Emissão) */}
+        {(isAberto || isRecebido || isAndamento || isPausado || isFinalizado || isEmTransito) && (
           <button onClick={() => { setShowDevolver(v => !v); setShowNaoEntregue(false); }} disabled={loading} style={btnStyle('#dc3545', true)}>
             <i className="bi bi-arrow-return-left" style={{ marginRight: 5 }} />Devolver
           </button>
@@ -1646,7 +1655,9 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
           />
         )}
 
-        {(isAberto || isAndamento || isPausado || isFinalizado) && !isLogistica && (
+        {/* Devolver — em todos os setores e status ativos (inclui recebido: peça
+            chegou errada e precisa voltar a um setor anterior, ex.: Emissão) */}
+        {(isAberto || isRecebido || isAndamento || isPausado || isFinalizado || isEmTransito) && (
           <button onClick={() => { setShowDevolver(v => !v); setShowEnviar(false); }} disabled={loading} style={btnStyle('#dc3545', true)}>
             <i className="bi bi-arrow-return-left" style={{ marginRight: 5 }} />Devolver
           </button>
@@ -2041,8 +2052,21 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   // estado de colapso inicializado, pra nao re-fechar um que o usuario abriu.
   const pedidosVistos = useRef<Set<number>>(new Set());
 
+  // Guarda o "retrato" dos últimos dados carregados. O polling de segurança do
+  // useRealtime dispara carregar() a cada 15s; sem essa comparação, a tela toda
+  // (11 pedidos / dezenas de parciais) re-renderizava a cada 15s mesmo sem nada
+  // ter mudado — no tablet isso engasgava e chegava a "comer" o toque nos botões.
+  const ultimoDadosRef = useRef<string>('');
+
   const carregar = useCallback(() => {
-    getSetorPainel(setor).then(d => { setData(d); setLoading(false); setUltimaAtt(new Date()); }).catch(() => setLoading(false));
+    getSetorPainel(setor).then(d => {
+      setLoading(false);
+      const retrato = JSON.stringify(d);
+      if (retrato === ultimoDadosRef.current) return; // nada mudou → não re-renderiza
+      ultimoDadosRef.current = retrato;
+      setData(d);
+      setUltimaAtt(new Date());
+    }).catch(() => setLoading(false));
   }, [setor]);
 
   // Todo pedido comeca fechado - so abre se o usuario clicar. Roda a cada
