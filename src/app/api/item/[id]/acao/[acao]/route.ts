@@ -17,7 +17,7 @@ const TRANSICOES: Record<string, string[]> = {
   finalizar: ['em_andamento', 'pausado', 'finalizado_setor'],
   enviar_tudo: ['finalizado_setor', 'aguardando', 'recebido', 'em_andamento', 'pausado'],
   enviar_parcial: ['emitido', 'finalizado_setor', 'aguardando', 'recebido', 'em_andamento', 'pausado'],
-  despachar: ['recebido'],
+  despachar: ['recebido', 'finalizado_setor', 'em_andamento'],
   devolver: ['aguardando', 'recebido', 'em_andamento', 'pausado', 'finalizado_setor', 'em_transito'],
   entregar: ['finalizado_setor', 'aguardando', 'recebido', 'em_andamento', 'em_transito'],
   aprovar: ['em_andamento', 'finalizado_setor'],

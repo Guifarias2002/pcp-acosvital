@@ -264,7 +264,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
           </button>
         )}
 
-        {item.status === 'recebido' && item.setor_atual === 'logistica' && (
+        {item.setor_atual === 'logistica' && ['recebido', 'finalizado_setor', 'em_andamento'].includes(item.status) && (
           <button onClick={() => !loading && setShowDespachar(true)} disabled={loading}
             style={{ background: '#fd7e14', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
             <i className="bi bi-truck" style={{ marginRight: 5 }}></i>Despachar
@@ -326,7 +326,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
           </>
         )}
 
-        {item.setor_atual === 'logistica' && item.status === 'em_transito' && (
+        {item.setor_atual === 'logistica' && ['recebido', 'finalizado_setor', 'em_andamento', 'em_transito'].includes(item.status) && (
           <button onClick={() => !loading && setShowEntregar(true)} disabled={loading}
             style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
             <i className="bi bi-check-circle-fill" style={{ marginRight: 5 }}></i>
@@ -2311,7 +2311,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                           <i className="bi bi-folder2-open" style={{ fontSize: 15 }} />
                           <span style={{ fontWeight: 700, fontSize: 15 }}>Pedido de Venda {numero_pedido_venda}</span>
                           <span style={{ fontSize: 11, opacity: 0.65, marginLeft: 4 }}>
-                            {parciais.length} parcial{parciais.length > 1 ? 'is' : ''}
+                            {parciais.length} {parciais.length > 1 ? 'parciais' : 'parcial'}
                             {itemGrupos.length > 1 ? ` · ${itemGrupos.length} produtos` : ''}
                           </span>
                           <button
@@ -2370,7 +2370,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                                   e.stopPropagation();
                                   setConfirm({
                                     titulo: 'Enviar tudo',
-                                    mensagem: `Confirma o envio de ${enviaveis.length} parcial${enviaveis.length > 1 ? 'is' : ''} deste pedido para o próximo setor?`,
+                                    mensagem: `Confirma o envio de ${enviaveis.length} ${enviaveis.length > 1 ? 'parciais' : 'parcial'} deste pedido para o próximo setor?`,
                                     acao: executarEnvioTudo,
                                   });
                                 }}
@@ -2407,7 +2407,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                                   e.stopPropagation();
                                   setConfirm({
                                     titulo: 'Desfazer recebimento',
-                                    mensagem: `Voltar ${desfaziveis.length} parcial${desfaziveis.length > 1 ? 'is' : ''} recebida${desfaziveis.length > 1 ? 's' : ''} deste pedido para "em aberto"? O "Receber Tudo" volta a aparecer.`,
+                                    mensagem: `Voltar ${desfaziveis.length} ${desfaziveis.length > 1 ? 'parciais recebidas' : 'parcial recebida'} deste pedido para "em aberto"? O "Receber Tudo" volta a aparecer.`,
                                     acao: executarDesfazer,
                                   });
                                 }}
