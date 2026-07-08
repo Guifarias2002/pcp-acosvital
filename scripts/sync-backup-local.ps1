@@ -59,7 +59,11 @@ try {
         throw "Nenhum backup encontrado no servidor."
     }
 
-    $maisRecente = $resposta.arquivos[0]
+    # Ordena pela data real de criacao (criado_em), nao pelo nome do arquivo -
+    # um backup antigo com nome "maior" alfabeticamente (ex: rotulo de hora
+    # mal calculado num bug ja corrigido) nao deve mais ser escolhido como
+    # "mais recente" por engano.
+    $maisRecente = $resposta.arquivos | Sort-Object { [datetime]$_.criado_em } -Descending | Select-Object -First 1
     $nomeArquivoLocal = "$($maisRecente.data).json"
     $caminhoLocal = Join-Path $PastaDestino $nomeArquivoLocal
 
