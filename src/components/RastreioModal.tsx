@@ -85,9 +85,9 @@ export default function RastreioModal({ pedidoId, numero, onClose, podeVerComple
             const temParciais = item.parciais_por_setor && item.parciais_por_setor.length > 0;
 
             return (
-              <div key={item.id} style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+              <div key={item.id} style={{ border: '1px solid #e2e8f0', borderRadius: 10 }}>
                 {/* Cabeçalho do item */}
-                <div style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', borderTopLeftRadius: 9, borderTopRightRadius: 9, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
                     <span style={{ fontWeight: 700, fontSize: 14, color: '#1a3a5c' }}>{item.codigo}</span>
                     <span style={{ fontSize: 12, color: '#64748b', marginLeft: 8 }}>{String(item.descricao)}</span>
@@ -102,7 +102,7 @@ export default function RastreioModal({ pedidoId, numero, onClose, podeVerComple
                       display: 'flex', alignItems: 'center', gap: 10,
                       background: p.retrabalho ? '#fffbeb' : STATUS_BG[p.status] || '#f8fafc',
                       border: `1px solid ${p.retrabalho ? '#fcd34d' : '#e2e8f0'}`,
-                      borderRadius: 8, padding: '10px 14px',
+                      borderRadius: 8, padding: '12px 14px',
                     }}>
                       {/* Quantidade */}
                       <div style={{ minWidth: 70 }}>
@@ -112,14 +112,14 @@ export default function RastreioModal({ pedidoId, numero, onClose, podeVerComple
                       {/* Seta */}
                       <span style={{ color: '#94a3b8', fontSize: 16 }}>→</span>
                       {/* Setor + status */}
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{p.setor_nome}</div>
-                        <div style={{ fontSize: 11, color: STATUS_TXT[p.status] || '#64748b', display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                          <span style={{ background: STATUS_BG[p.status] || '#f1f5f9', border: `1px solid ${STATUS_TXT[p.status] || '#e2e8f0'}22`, borderRadius: 3, padding: '0 5px', fontWeight: 600 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', lineHeight: 1.4 }}>{p.setor_nome}</div>
+                        <div style={{ fontSize: 11, color: STATUS_TXT[p.status] || '#64748b', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 5 }}>
+                          <span style={{ background: STATUS_BG[p.status] || '#f1f5f9', border: `1px solid ${STATUS_TXT[p.status] || '#e2e8f0'}22`, borderRadius: 3, padding: '3px 7px', lineHeight: 1.4, fontWeight: 600, whiteSpace: 'nowrap' }}>
                             {STATUS_LABEL[p.status] || p.status}
                           </span>
-                          {p.retrabalho && <span style={{ color: '#b45309', fontWeight: 700 }}>⚠ Retrabalho</span>}
-                          {p.retrabalho && p.motivo_retrabalho && <span style={{ color: '#78350f', fontStyle: 'italic' }}>"{p.motivo_retrabalho}"</span>}
+                          {p.retrabalho && <span style={{ color: '#b45309', fontWeight: 700, lineHeight: 1.4 }}>⚠ Retrabalho</span>}
+                          {p.retrabalho && p.motivo_retrabalho && <span style={{ color: '#78350f', fontStyle: 'italic', lineHeight: 1.4 }}>"{p.motivo_retrabalho}"</span>}
                         </div>
                       </div>
                     </div>
