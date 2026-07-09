@@ -60,8 +60,8 @@ export async function POST(req: Request) {
   const is_staff = perfil === 'administrador' || perfil === 'pcp';
 
   await sql`
-    INSERT INTO usuarios_usuario (username, nome, password, perfil, setor, is_staff, is_active, is_superuser, date_joined)
-    VALUES (${username}, ${nome}, ${hashed}, ${perfil}, ${setor || null}, ${is_staff}, true, false, NOW())
+    INSERT INTO usuarios_usuario (username, nome, password, perfil, setor, is_staff, is_active, date_joined)
+    VALUES (${username}, ${nome}, ${hashed}, ${perfil}, ${setor || null}, ${is_staff}, true, NOW())
   `;
 
   return NextResponse.json({ ok: true });
