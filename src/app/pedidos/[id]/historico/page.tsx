@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import AuthGuard from '@/components/AuthGuard';
-import { getToken } from '@/lib/auth';
+import { getToken, getUser } from '@/lib/auth';
 
 const NOMES: Record<string, string> = {
   emissao: 'Emissão', usinagem: 'Usinagem', 'maçarico': 'Maçarico',
@@ -58,6 +58,7 @@ export default function HistoricoPage() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
   const [filtroItem, setFiltroItem] = useState('');
+  const isAdmin = getUser()?.is_staff;
 
   useEffect(() => {
     Promise.all([
@@ -92,9 +93,15 @@ export default function HistoricoPage() {
           )}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Link href={`/pedidos/${id}`} className="btn btn-outline btn-sm">
-            <i className="bi bi-arrow-left" /> Voltar ao Pedido
-          </Link>
+          {isAdmin ? (
+            <Link href={`/pedidos/${id}`} className="btn btn-outline btn-sm">
+              <i className="bi bi-arrow-left" /> Voltar ao Pedido
+            </Link>
+          ) : (
+            <Link href="/pedidos" className="btn btn-outline btn-sm">
+              <i className="bi bi-arrow-left" /> Voltar à lista
+            </Link>
+          )}
           <Link href={`/pedidos/${id}/relatorio`} className="btn btn-outline btn-sm" target="_blank">
             <i className="bi bi-file-earmark-text" /> Relatório Completo
           </Link>

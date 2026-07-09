@@ -89,9 +89,9 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
         <nav>
           <NavGroup label="Geral">
             <NavItem href="/" label="Dashboard" icon="bi-speedometer2" onNav={fechar} />
+            <NavItem href="/pedidos" label="Todos os Pedidos" icon="bi-list-ul" onNav={fechar} />
             {isAdmin && (
               <>
-                <NavItem href="/pedidos" label="Todos os Pedidos" icon="bi-list-ul" onNav={fechar} />
                 <NavItem href="/kanban" label="Kanban" icon="bi-kanban" onNav={fechar} />
                 <NavItem href="/por-lider" label="Por Líder" icon="bi-people-fill" onNav={fechar} />
                 <NavItem href="/emitidos" label="Em Produção" icon="bi-send-fill" onNav={fechar} />

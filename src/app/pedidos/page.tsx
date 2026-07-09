@@ -411,19 +411,26 @@ function PedidosPageInner() {
                   </td>
                   <td style={{ padding: '8px 12px' }}>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <Link href={`/pedidos/${p.id}`} title="Ver"
-                        style={{ border: '1px solid #0d6efd', color: '#0d6efd', borderRadius: 4, padding: '2px 8px', textDecoration: 'none', fontSize: 13 }}>
-                        <i className="bi bi-eye"></i>
-                      </Link>
-                      <Link href={`/pedidos/${p.id}/editar`} title="Editar"
-                        style={{ border: '1px solid #6c757d', color: '#6c757d', borderRadius: 4, padding: '2px 8px', textDecoration: 'none', fontSize: 13 }}>
-                        <i className="bi bi-pencil"></i>
-                      </Link>
-                      {isAdmin && (
-                        <button title="Excluir" onClick={() => setModalExcluir({ id: p.id, numero: p.numero_pedido_venda, motivo: '', loading: false })}
-                          style={{ border: '1px solid #dc3545', color: '#dc3545', borderRadius: 4, padding: '2px 8px', background: 'none', cursor: 'pointer', fontSize: 13 }}>
-                          <i className="bi bi-trash"></i>
-                        </button>
+                      {isAdmin ? (
+                        <>
+                          <Link href={`/pedidos/${p.id}`} title="Ver"
+                            style={{ border: '1px solid #0d6efd', color: '#0d6efd', borderRadius: 4, padding: '2px 8px', textDecoration: 'none', fontSize: 13 }}>
+                            <i className="bi bi-eye"></i>
+                          </Link>
+                          <Link href={`/pedidos/${p.id}/editar`} title="Editar"
+                            style={{ border: '1px solid #6c757d', color: '#6c757d', borderRadius: 4, padding: '2px 8px', textDecoration: 'none', fontSize: 13 }}>
+                            <i className="bi bi-pencil"></i>
+                          </Link>
+                          <button title="Excluir" onClick={() => setModalExcluir({ id: p.id, numero: p.numero_pedido_venda, motivo: '', loading: false })}
+                            style={{ border: '1px solid #dc3545', color: '#dc3545', borderRadius: 4, padding: '2px 8px', background: 'none', cursor: 'pointer', fontSize: 13 }}>
+                            <i className="bi bi-trash"></i>
+                          </button>
+                        </>
+                      ) : (
+                        <Link href={`/pedidos/${p.id}/historico`} title="Histórico"
+                          style={{ border: '1px solid #1a3a5c', color: '#1a3a5c', borderRadius: 4, padding: '2px 8px', textDecoration: 'none', fontSize: 13 }}>
+                          <i className="bi bi-clock-history"></i>
+                        </Link>
                       )}
                     </div>
                   </td>
@@ -595,7 +602,7 @@ function PedidosPageInner() {
       )}
       {/* Modal rastreabilidade */}
       {modalRastreio && (
-        <RastreioModal pedidoId={modalRastreio.pedidoId} numero={modalRastreio.numero} onClose={() => setModalRastreio(null)} />
+        <RastreioModal pedidoId={modalRastreio.pedidoId} numero={modalRastreio.numero} onClose={() => setModalRastreio(null)} podeVerCompleto={!!isAdmin} />
       )}
     </AuthGuard>
   );

@@ -10,7 +10,7 @@ interface ItemRastreio { id: number; codigo: string; descricao: string; quantida
 // na lista de Pedidos quanto em qualquer tela de Setor, sempre buscando os dados
 // na hora (mesma fonte, /api/pedidos/:id) para garantir que a informação é a mesma
 // em qualquer lugar do sistema.
-export default function RastreioModal({ pedidoId, numero, onClose }: { pedidoId: number; numero: string; onClose: () => void }) {
+export default function RastreioModal({ pedidoId, numero, onClose, podeVerCompleto = true }: { pedidoId: number; numero: string; onClose: () => void; podeVerCompleto?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [itens, setItens] = useState<ItemRastreio[]>([]);
   // O toque que abre o modal (no ícone de olho) as vezes gera um "clique fantasma"
@@ -63,11 +63,13 @@ export default function RastreioModal({ pedidoId, numero, onClose }: { pedidoId:
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {/* Botão (não <a>) navegando via router: toque confiável no tablet, sem o
                 atraso de 300ms e sem depender do comportamento de link do PWA. */}
-            <button type="button"
-              onClick={() => { window.location.href = `/pedidos/${pedidoId}`; }}
-              style={{ fontSize: 13, color: '#0d6efd', background: 'none', border: '1px solid #0d6efd', borderRadius: 8, padding: '8px 14px', minHeight: 44, fontWeight: 600, cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
-              Ver pedido completo →
-            </button>
+            {podeVerCompleto && (
+              <button type="button"
+                onClick={() => { window.location.href = `/pedidos/${pedidoId}`; }}
+                style={{ fontSize: 13, color: '#0d6efd', background: 'none', border: '1px solid #0d6efd', borderRadius: 8, padding: '8px 14px', minHeight: 44, fontWeight: 600, cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>
+                Ver pedido completo →
+              </button>
+            )}
             <button type="button" onClick={onClose} aria-label="Fechar"
               style={{ background: 'none', border: 'none', fontSize: 22, color: '#94a3b8', cursor: 'pointer', lineHeight: 1, minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}>✕</button>
           </div>
