@@ -163,7 +163,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   }
 
   const isAdmin = getUser()?.is_staff;
-  const podeComentar = !!isAdmin || getUser()?.setor === item?.setor_atual;
+  const podeComentar = true; // qualquer usuário autenticado pode comentar
 
   async function adicionarObservacao() {
     if (!novaObservacao.trim()) return;

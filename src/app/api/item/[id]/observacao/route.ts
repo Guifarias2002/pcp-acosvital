@@ -25,8 +25,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     `;
     if (!item) return NextResponse.json({ erro: 'Item não encontrado' }, { status: 404 });
 
-    if (!user.is_staff && user.setor !== item.setor_atual)
-      return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+    // Qualquer usuário autenticado pode comentar, independente do setor —
+    // pedido explícito: líderes com peça em parcial (setor_atual do item pode
+    // ficar desatualizado enquanto parciais estão divididas entre setores)
+    // recebiam "sem permissão" mesmo com a peça já na fila deles.
 
     const [obs] = await sql`
       INSERT INTO producao_item_observacao (item_id, pedido_id, setor, usuario_id, texto)

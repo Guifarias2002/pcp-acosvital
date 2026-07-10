@@ -783,7 +783,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                     {/* Painel de observações por item — visível a todos */}
                     {itemObsAberto === item.id && (() => {
                       const observacoes = item.observacoes || [];
-                      const podeComentar = isAdmin || user?.setor === item.setor_atual;
+                      const podeComentar = true; // qualquer usuário autenticado pode comentar
                       return (
                         <div style={{ marginTop: 10, background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 8, padding: '12px 14px' }}>
                           <p style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8', margin: '0 0 8px' }}>

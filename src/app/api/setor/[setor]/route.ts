@@ -24,7 +24,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
   const verFinanceiro = user.is_staff && user.perfil !== 'lider';
 
   // Rodar as queries em paralelo
-  const [itens, lotes_chegando, lotes_trabalho, parciais, outras_parciais, resumo] = await Promise.all([
+  const [itens, lotes_chegando, lotes_trabalho, parciais, outras_parciais, resumo, proximos] = await Promise.all([
     // Itens cujo setor_atual é este setor (visão tradicional).
     // Exclui itens que tenham parciais ativas em outro setor — esses já se moveram
     // (divergência/devolver) mas o setor_atual do item ficou desatualizado.
@@ -137,6 +137,31 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
                p.numero_pedido_venda, p.cliente
       ORDER BY p.numero_pedido_venda, i.codigo
     `.catch(() => [] as Record<string, unknown>[]),
+
+    // Próximos pedidos — itens cujo roteiro planejado passa por este setor mais
+    // à frente, mas que ainda não chegaram (visão antecipada, somente leitura,
+    // pra o líder ver a OP antes da peça chegar na fila dele).
+    sql`
+      SELECT x.item_pedido_id, x.item_codigo, x.item_descricao, x.quantidade, x.unidade,
+             x.setor_atual, x.pedido_id, x.numero_pedido_venda, x.cliente, x.prioridade,
+             x.pedido_prazo, x.tem_ordem_producao
+      FROM (
+        SELECT i.id AS item_pedido_id, i.codigo AS item_codigo, i.descricao AS item_descricao,
+               i.quantidade::text AS quantidade, i.unidade, i.setor_atual,
+               p.id AS pedido_id, p.numero_pedido_venda, p.cliente, p.prioridade,
+               p.prazo_entrega::text AS pedido_prazo,
+               (p.ordem_producao_url IS NOT NULL) AS tem_ordem_producao,
+               CASE WHEN COALESCE(array_length(i.roteiro_proprio, 1), 0) > 0
+                    THEN i.roteiro_proprio ELSE p.roteiro_base END AS roteiro
+        FROM producao_itempedido i
+        JOIN producao_pedido p ON p.id = i.pedido_id
+        WHERE i.status != 'entregue'
+      ) x
+      WHERE array_position(x.roteiro, ${setor}) IS NOT NULL
+        AND array_position(x.roteiro, ${setor}) > COALESCE(array_position(x.roteiro, x.setor_atual), 0)
+      ORDER BY x.numero_pedido_venda, x.item_codigo
+      LIMIT 50
+    `.catch(() => [] as Record<string, unknown>[]),
   ]);
 
   // Observações por item — histórico acumulado (tabela pode não existir ainda)
@@ -247,6 +272,22 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     total_rastreado: r.total_rastreado ?? '0',
   });
 
+  const fmtProximo = (r: Record<string, unknown>) => ({
+    item_pedido_id: r.item_pedido_id,
+    item_codigo: r.item_codigo,
+    item_descricao: r.item_descricao,
+    quantidade: r.quantidade,
+    unidade: r.unidade,
+    setor_atual: r.setor_atual,
+    setor_atual_nome: nomeSector(r.setor_atual as string),
+    pedido_id: r.pedido_id,
+    numero_pedido_venda: r.numero_pedido_venda,
+    cliente: r.cliente,
+    prioridade: r.prioridade,
+    pedido_prazo: r.pedido_prazo ?? null,
+    tem_ordem_producao: Boolean(r.tem_ordem_producao),
+  });
+
   return NextResponse.json({
     setor,
     nome: nomeSector(setor),
@@ -260,6 +301,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     // Nova visão por parciais
     parciais: (parciais as Record<string, unknown>[]).map(fmtParcial),
     resumo_por_item: (resumo as Record<string, unknown>[]).map(fmtResumo),
+    proximos_pedidos: (proximos as Record<string, unknown>[]).map(fmtProximo),
   });
   } catch (e) {
     console.error('[setor]', e);

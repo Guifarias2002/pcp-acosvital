@@ -237,6 +237,25 @@ export interface SetorPainelData {
   itens: ItemPedido[];
   parciais: ItemParcial[];
   resumo_por_item: ResumoItemParcial[];
+  proximos_pedidos: ProximoPedidoItem[];
+}
+
+// Item cujo roteiro planejado inclui este setor mais à frente, mas que ainda
+// não chegou — visão antecipada (somente leitura) da OP antes da peça chegar.
+export interface ProximoPedidoItem {
+  item_pedido_id: number;
+  item_codigo: string;
+  item_descricao: string;
+  quantidade: string;
+  unidade: string;
+  setor_atual: string;
+  setor_atual_nome: string;
+  pedido_id: number;
+  numero_pedido_venda: string;
+  cliente: string;
+  prioridade: string;
+  pedido_prazo: string | null;
+  tem_ordem_producao: boolean;
 }
 
 // ── Parcial (fragmento de quantidade circulando pelo processo) ─────────────
