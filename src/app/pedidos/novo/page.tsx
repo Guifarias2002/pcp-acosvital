@@ -12,6 +12,11 @@ interface ItemForm { codigo: string; descricao: string; quantidade: string; unid
 
 const UNIDADES = ['un', 'kg', 'm', 'pc', 'jg', 'cx', 'lt'];
 
+// Acima disso a planilha claramente não segue o modelo esperado (ordem de
+// produção real não tem centenas de itens) — provavelmente área usada
+// inflada do Excel ou arquivo errado. Ver importarExcel().
+const MAX_ITENS_IMPORTACAO = 500;
+
 function fmtBRL(n: number) {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -61,6 +66,14 @@ export default function NovoPedidoPage() {
       const dataRows = rows.slice(3).filter((r: unknown[]) => r[0]);
       if (dataRows.length === 0) {
         setErro('Nenhum item encontrado na planilha. Verifique se os dados começam na linha 4.');
+        return;
+      }
+      // Planilha fora do modelo esperado (ex: área usada inflada do Excel, ou
+      // arquivo errado) pode gerar milhares de "itens" — trava a tela ao tentar
+      // renderizar tudo isso antes mesmo de salvar. Recusa a importação inteira
+      // nesse caso, em vez de tentar importar o que der.
+      if (dataRows.length > MAX_ITENS_IMPORTACAO) {
+        setErro(`A planilha tem ${dataRows.length} linhas de dados — isso não parece o modelo esperado (código, descrição, quantidade, ..., valor, a partir da linha 4). Verifique se exportou o arquivo correto.`);
         return;
       }
       const novosItens: ItemForm[] = dataRows.map((r: unknown[]) => ({
