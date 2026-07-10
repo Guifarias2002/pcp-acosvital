@@ -197,12 +197,12 @@ export async function POST(
     : item.roteiro_base as string[];
   const idx = roteiro.indexOf(item.setor_atual);
   const proximoSetorRoteiro = (idx >= 0 && idx < roteiro.length - 1) ? roteiro[idx + 1] : null;
-  // Só aceita um setor_destino escolhido pelo cliente se ele vier DEPOIS do setor
-  // atual no roteiro deste item — mesma regra já aplicada no dropdown do
-  // LiberarSetorModal (permite pular etapas à frente, nunca voltar ou desviar
-  // para fora do roteiro via chamada direta à API).
-  const setorDestinoIdx = body.setor_destino ? roteiro.indexOf(body.setor_destino) : -1;
-  const setorDestinoEscolhido = (body.setor_destino && SETORES_VALIDOS.includes(body.setor_destino) && setorDestinoIdx > idx)
+  // O operador pode escolher manualmente qualquer setor de destino válido,
+  // mesmo fora do roteiro padrão — mesma regra já usada em devolver/retrabalho
+  // (neste arquivo) e no "mover" de parcial (api/parcial/[id]/acao/[acao]).
+  // Antes essa escolha era descartada silenciosamente quando o setor não
+  // estava no roteiro, e a peça caía sempre no próximo setor do roteiro.
+  const setorDestinoEscolhido = (body.setor_destino && SETORES_VALIDOS.includes(body.setor_destino))
     ? body.setor_destino : null;
   const proximoSetor = setorDestinoEscolhido || proximoSetorRoteiro;
 
