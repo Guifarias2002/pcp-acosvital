@@ -2125,7 +2125,6 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const podeDesfazer = isAdministrador();
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
   const [modalRastreio, setModalRastreio] = useState<{ pedidoId: number; numero: string } | null>(null);
-  const [proximosAberto, setProximosAberto] = useState(false);
   // Pedidos ja vistos nesta sessao da pagina - controla quais ja tiveram seu
   // estado de colapso inicializado, pra nao re-fechar um que o usuario abriu.
   const pedidosVistos = useRef<Set<number>>(new Set());
@@ -2241,60 +2240,6 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
               </button>
             );
           })}
-        </div>
-      )}
-
-      {/* Próximos Pedidos — visão antecipada (somente leitura) da OP antes da peça chegar neste setor */}
-      {data && data.proximos_pedidos && data.proximos_pedidos.length > 0 && (
-        <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 18 }}>
-          <button onClick={() => setProximosAberto(v => !v)} style={{
-            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '12px 16px', background: '#f8fafc', border: 'none', cursor: 'pointer', textAlign: 'left',
-          }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#1a3a5c' }}>
-              <i className="bi bi-hourglass-top" style={{ marginRight: 8, color: '#64748b' }} />
-              Próximos Pedidos — ainda não chegaram aqui
-              <span style={{ marginLeft: 8, background: '#e2e8f0', color: '#475569', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 700 }}>
-                {data.proximos_pedidos.length}
-              </span>
-            </span>
-            <i className={`bi ${proximosAberto ? 'bi-chevron-up' : 'bi-chevron-down'}`} style={{ color: '#64748b' }} />
-          </button>
-          {proximosAberto && (
-            <div style={{ padding: '4px 16px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <p style={{ fontSize: 11, color: '#94a3b8', margin: '6px 0 4px' }}>
-                Peças que vão passar por aqui, mas ainda estão em etapas anteriores — só consulta, nenhuma ação disponível ainda.
-              </p>
-              {data.proximos_pedidos.map(p => (
-                <div key={p.item_pedido_id} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
-                  border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 14px',
-                }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
-                      {p.numero_pedido_venda} <span style={{ fontWeight: 400, color: '#64748b' }}>— {p.cliente}</span>
-                    </div>
-                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                      {p.item_codigo} · {fmtQtd(p.quantidade)} {p.unidade} · atualmente em <strong>{p.setor_atual_nome}</strong>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {p.pedido_prazo && (
-                      <span style={{ fontSize: 11, color: '#64748b' }}>
-                        Prazo {new Date(p.pedido_prazo).toLocaleDateString('pt-BR')}
-                      </span>
-                    )}
-                    {p.tem_ordem_producao && (
-                      <a href={`/api/pedidos/${p.pedido_id}/ordem-producao`} target="_blank" rel="noopener noreferrer"
-                        style={{ fontSize: 12, color: '#0d6efd', border: '1px solid #0d6efd', borderRadius: 6, padding: '4px 10px', textDecoration: 'none', fontWeight: 600 }}>
-                        <i className="bi bi-file-earmark-arrow-down" style={{ marginRight: 4 }} />OP
-                      </a>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
