@@ -91,4 +91,8 @@ export async function runMigrations() {
     UPDATE usuarios_usuario SET setores = ARRAY[setor]
     WHERE setor IS NOT NULL AND setor <> '' AND setores = '{}'
   `.catch(() => {});
+
+  // M10: peso da embalagem por parcial — lista de pesos (kg), um por pallet.
+  // O setor de Embalagem registra 1+ pallets; o total é a soma. Vazio = não informado.
+  await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS pesos_pallets NUMERIC(12,3)[] NOT NULL DEFAULT '{}'`).catch(() => {});
 }

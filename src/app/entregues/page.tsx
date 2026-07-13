@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getEntregues } from '@/lib/api';
+import { getToken } from '@/lib/auth';
 import { Pedido, PRIORIDADE_COR } from '@/lib/types';
 import Link from 'next/link';
 import AnexarComprovanteModal from '@/components/AnexarComprovanteModal';
@@ -45,6 +46,34 @@ export default function EntreguesPage() {
   const [modalCanhotos, setModalCanhotos] = useState(false);
   const [divergencia, setDivergencia] = useState<{ pedidoId: number; pedidoNumero: string; itens: PedidoEntregue['itens'] } | null>(null);
   const [mensagem, setMensagem] = useState('');
+  const [modalExcluir, setModalExcluir] = useState<{ id: number; numero: string; motivo: string; loading: boolean; erro?: string; requerConfirmacao?: boolean } | null>(null);
+
+  async function confirmarExcluir(forcar = false) {
+    if (!modalExcluir) return;
+    setModalExcluir(m => m ? { ...m, loading: true, erro: undefined } : null);
+    try {
+      const res = await fetch(`/api/pedidos/${modalExcluir.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
+        body: JSON.stringify({ motivo: modalExcluir.motivo, ...(forcar ? { confirmar_excluir_em_producao: true } : {}) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const numero = modalExcluir.numero;
+        setModalExcluir(null);
+        setMensagem(`Pedido ${numero} excluído. Recuperável em "Pedidos Excluídos".`);
+        setTimeout(() => setMensagem(''), 6000);
+        buscar();
+      } else if (res.status === 409 && data.requer_confirmacao) {
+        // Entrega parcial com item ainda em produção — pede confirmação extra.
+        setModalExcluir(m => m ? { ...m, loading: false, requerConfirmacao: true, erro: data.erro || 'Este pedido tem itens em produção.' } : null);
+      } else {
+        setModalExcluir(m => m ? { ...m, loading: false, erro: (data.detalhe || data.erro) || 'Erro ao excluir' } : null);
+      }
+    } catch {
+      setModalExcluir(m => m ? { ...m, loading: false, erro: 'Erro de conexão. Tente novamente.' } : null);
+    }
+  }
 
   function buscar() {
     setLoading(true);
@@ -150,6 +179,42 @@ export default function EntreguesPage() {
           onClose={() => setAnexar(null)}
           onSuccess={() => { setAnexar(null); buscar(); }}
         />
+      )}
+
+      {/* Modal excluir pedido */}
+      {modalExcluir && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: '100%', maxWidth: 440, boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
+            <h5 style={{ margin: '0 0 12px', fontWeight: 700, color: '#b91c1c' }}>
+              <i className="bi bi-exclamation-triangle" style={{ marginRight: 8 }}></i>Excluir Pedido
+            </h5>
+            <p style={{ fontSize: 14, color: '#374151', margin: '0 0 8px' }}>
+              Tem certeza que deseja excluir o pedido <strong>{modalExcluir.numero}</strong>? Ele poderá ser recuperado em "Pedidos Excluídos".
+            </p>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>Motivo (opcional)</label>
+            <textarea
+              value={modalExcluir.motivo}
+              onChange={e => setModalExcluir(m => m ? { ...m, motivo: e.target.value } : null)}
+              rows={2} placeholder="Ex.: pedido duplicado, cadastrado por engano..."
+              style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px', fontSize: 13, resize: 'vertical', boxSizing: 'border-box', marginBottom: 12 }}
+            />
+            {modalExcluir.erro && (
+              <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 6, fontSize: 12.5, background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca' }}>
+                ⚠ {modalExcluir.erro}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setModalExcluir(null)} disabled={modalExcluir.loading}
+                style={{ background: '#f0f0f0', color: '#333', border: 'none', borderRadius: 6, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={() => confirmarExcluir(modalExcluir.requerConfirmacao)} disabled={modalExcluir.loading}
+                style={{ background: modalExcluir.loading ? '#f5a3a3' : '#dc3545', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', fontSize: 13, fontWeight: 700, cursor: modalExcluir.loading ? 'not-allowed' : 'pointer' }}>
+                {modalExcluir.loading ? 'Excluindo...' : modalExcluir.requerConfirmacao ? 'Excluir mesmo assim' : 'Excluir'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {mensagem && (
@@ -296,10 +361,17 @@ export default function EntreguesPage() {
                       </button>
                     </td>
                     <td style={{ padding: '8px 12px' }}>
-                      <Link href={`/pedidos/${p.id}`}
-                        style={{ border: '1px solid #0d6efd', color: '#0d6efd', borderRadius: 4, padding: '2px 10px', textDecoration: 'none', fontSize: 12 }}>
-                        <i className="bi bi-eye"></i>
-                      </Link>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <Link href={`/pedidos/${p.id}`}
+                          style={{ border: '1px solid #0d6efd', color: '#0d6efd', borderRadius: 4, padding: '2px 10px', textDecoration: 'none', fontSize: 12 }}>
+                          <i className="bi bi-eye"></i>
+                        </Link>
+                        <button title="Excluir pedido"
+                          onClick={() => setModalExcluir({ id: p.id, numero: p.numero_pedido_venda, motivo: '', loading: false })}
+                          style={{ border: '1px solid #dc3545', color: '#dc3545', background: 'none', borderRadius: 4, padding: '2px 10px', cursor: 'pointer', fontSize: 12 }}>
+                          <i className="bi bi-trash"></i>
+                        </button>
+                      </div>
                     </td>
                   </tr>
 

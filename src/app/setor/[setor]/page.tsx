@@ -30,7 +30,7 @@ function Cronometro({ desde }: { desde: string }) {
     </span>
   );
 }
-import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem } from '@/lib/api';
+import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, setPesosPallets } from '@/lib/api';
 import { isAdministrador } from '@/lib/auth';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
@@ -886,6 +886,14 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           temOrdemProducao={(parcial as any).tem_ordem_producao}
           temDesenho={(parcial as any).tem_desenho}
         />
+
+        {/* Peso da embalagem: editável na Embalagem, somente leitura na Logística */}
+        {parcial.setor_atual === 'embalagem' && (
+          <PesosPalletsEditor parcialId={parcial.id as number} inicial={(parcial as any).pesos_pallets || []} />
+        )}
+        {parcial.setor_atual === 'logistica' && (
+          <PesosPalletsInfo pesos={(parcial as any).pesos_pallets || []} />
+        )}
 
         {/* Outras parciais do mesmo item */}
         {parcial.outras_parciais && parcial.outras_parciais.length > 0 && (
@@ -2152,6 +2160,89 @@ function getPedidoVendaUrl(pedidoId: number) {
 function getOrdemProducaoUrl(pedidoId: number) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') || '' : '';
   return `/api/pedidos/${pedidoId}/ordem-producao?token=${encodeURIComponent(token)}`;
+}
+
+function fmtPeso(n: number) {
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+}
+
+// Editor de peso da embalagem por pallet (setor Embalagem). Sempre editável;
+// salva a lista de pesos (kg) via PATCH. O total é a soma dos pallets.
+function PesosPalletsEditor({ parcialId, inicial }: { parcialId: number; inicial: number[] }) {
+  const [pesos, setPesos] = useState<string[]>(() => (inicial.length ? inicial.map(n => String(n)) : ['']));
+  const [salvando, setSalvando] = useState(false);
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+
+  const total = pesos.reduce((s, p) => s + (parseFloat(p.replace(',', '.')) || 0), 0);
+
+  async function salvar() {
+    setSalvando(true); setMsg(null);
+    try {
+      const nums = pesos.map(p => parseFloat(p.replace(',', '.'))).filter(n => Number.isFinite(n) && n >= 0);
+      await setPesosPallets(parcialId, nums);
+      setMsg({ tipo: 'ok', texto: 'Peso salvo' });
+      setTimeout(() => setMsg(null), 2500);
+    } catch {
+      setMsg({ tipo: 'erro', texto: 'Erro ao salvar' });
+    } finally { setSalvando(false); }
+  }
+
+  return (
+    <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+        📦 Peso da embalagem (kg)
+      </div>
+      {pesos.map((p, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <span style={{ fontSize: 12, color: '#475569', fontWeight: 600, minWidth: 58 }}>Palet {i + 1}</span>
+          <input
+            type="number" inputMode="decimal" min="0" step="0.001" value={p}
+            onChange={e => setPesos(arr => arr.map((v, idx) => idx === i ? e.target.value : v))}
+            placeholder="kg"
+            style={{ border: '1px solid #cbd5e1', borderRadius: 5, padding: '5px 8px', fontSize: 13, width: 100 }}
+          />
+          <span style={{ fontSize: 12, color: '#64748b' }}>kg</span>
+          <button type="button" onClick={() => setPesos(arr => arr.length > 1 ? arr.filter((_, idx) => idx !== i) : [''])}
+            title="Remover pallet"
+            style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 14, marginLeft: 'auto' }}>
+            <i className="bi bi-trash" />
+          </button>
+        </div>
+      ))}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+        <button type="button" onClick={() => setPesos(arr => [...arr, ''])}
+          style={{ background: 'none', border: '1px dashed #7dd3fc', color: '#0369a1', borderRadius: 5, padding: '4px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+          <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />Adicionar pallet
+        </button>
+        <span style={{ fontSize: 12, color: '#0f172a', fontWeight: 700 }}>Total: {fmtPeso(total)} kg</span>
+        <button type="button" onClick={salvar} disabled={salvando}
+          style={{ background: salvando ? '#93c5fd' : '#0284c7', color: '#fff', border: 'none', borderRadius: 5, padding: '5px 14px', fontSize: 12, fontWeight: 700, cursor: salvando ? 'not-allowed' : 'pointer', marginLeft: 'auto' }}>
+          {salvando ? 'Salvando...' : 'Salvar peso'}
+        </button>
+        {msg && <span style={{ fontSize: 12, fontWeight: 600, color: msg.tipo === 'ok' ? '#16a34a' : '#dc2626' }}>{msg.texto}</span>}
+      </div>
+    </div>
+  );
+}
+
+// Exibição somente leitura do peso da embalagem (setor Logística).
+function PesosPalletsInfo({ pesos }: { pesos: number[] }) {
+  if (!pesos || pesos.length === 0) return null;
+  const total = pesos.reduce((s, p) => s + (Number(p) || 0), 0);
+  return (
+    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+        📦 Peso da embalagem — {pesos.length} pallet{pesos.length > 1 ? 's' : ''} · Total {fmtPeso(total)} kg
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {pesos.map((p, i) => (
+          <span key={i} style={{ fontSize: 11, background: '#eef2ff', color: '#3730a3', borderRadius: 4, padding: '2px 8px', fontWeight: 600 }}>
+            Palet {i + 1}: {fmtPeso(Number(p))} kg
+          </span>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // Linha de links dos documentos anexados ao pedido (PV / OP / Desenho).

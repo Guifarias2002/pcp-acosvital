@@ -10,6 +10,7 @@ import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { podeAcessarSetor } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
+import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -68,6 +69,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     numero_op: parcial.numero_op ?? null,
     prazo_entrega: parcial.prazo_entrega ?? null,
     cliente: parcial.cliente,
+    pesos_pallets: Array.isArray(parcial.pesos_pallets) ? (parcial.pesos_pallets as unknown[]).map(v => Number(v)) : [],
     criado_em: parcial.criado_em,
     atualizado_em: parcial.atualizado_em,
     apontamentos: apontamentos.map((a: Record<string, unknown>) => ({
@@ -84,4 +86,40 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       criado_em: a.criado_em,
     })),
   });
+}
+
+/**
+ * PATCH /api/parcial/[id]
+ * Atualiza o peso da embalagem da parcial — lista de pesos (kg), um por pallet.
+ * Usado pelo setor de Embalagem. Body: { pesos_pallets: number[] }
+ */
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const user = await autenticar(req);
+  if (user instanceof NextResponse) return user;
+  if (!checkMutationRateLimit(getClientIp(req)))
+    return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
+
+  const parcialId = Number(params.id);
+  if (!Number.isInteger(parcialId) || parcialId <= 0)
+    return NextResponse.json({ erro: 'ID inválido' }, { status: 400 });
+
+  const body = await req.json().catch(() => ({}));
+  if (!Array.isArray(body.pesos_pallets))
+    return NextResponse.json({ erro: 'pesos_pallets deve ser uma lista' }, { status: 400 });
+
+  // Aceita apenas números válidos e não-negativos (pesos em kg).
+  const pesos: number[] = (body.pesos_pallets as unknown[])
+    .map(v => Number(v))
+    .filter(n => Number.isFinite(n) && n >= 0);
+
+  const [parcial] = await sql`SELECT id, setor_atual FROM producao_itemparcial WHERE id = ${parcialId}`;
+  if (!parcial) return NextResponse.json({ erro: 'Parcial não encontrada' }, { status: 404 });
+
+  // Operador só edita parciais de um setor da sua lista (admin edita qualquer uma).
+  if (!user.is_staff && !podeAcessarSetor(user, parcial.setor_atual))
+    return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
+
+  await sql`UPDATE producao_itemparcial SET pesos_pallets = ${pesos}, atualizado_em = NOW() WHERE id = ${parcialId}`;
+
+  return NextResponse.json({ ok: true, pesos_pallets: pesos });
 }

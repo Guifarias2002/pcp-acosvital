@@ -87,6 +87,15 @@ export async function POST(
 
   // ── mover ─────────────────────────────────────────────────────────────────
   if (acao === 'mover') {
+    // Peso obrigatório ao sair da Embalagem: exige ao menos 1 pallet com peso > 0.
+    if (parcial.setor_atual === 'embalagem') {
+      const pesos = Array.isArray(parcial.pesos_pallets)
+        ? (parcial.pesos_pallets as unknown[]).map(v => Number(v)).filter(n => Number.isFinite(n) && n > 0)
+        : [];
+      if (pesos.length === 0)
+        return NextResponse.json({ erro: 'Informe o peso dos pallets antes de enviar a embalagem.' }, { status: 400 });
+    }
+
     const setor_destino = body.setor_destino as string;
     if (!setor_destino || !SETORES_VALIDOS.includes(setor_destino))
       return NextResponse.json({ erro: 'setor_destino inválido ou não informado' }, { status: 400 });

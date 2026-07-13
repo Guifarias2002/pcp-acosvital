@@ -90,7 +90,8 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade, p.roteiro_base, p.prazo_entrega::text AS pedido_prazo,
         (p.desenho_url IS NOT NULL OR COALESCE(array_length(p.desenhos,1),0) > 0) AS tem_desenho, p.desenho_url AS desenho_url,
         (p.pedido_venda_url IS NOT NULL) AS tem_pedido_venda,
-        (p.ordem_producao_url IS NOT NULL) AS tem_ordem_producao
+        (p.ordem_producao_url IS NOT NULL) AS tem_ordem_producao,
+        pa.pesos_pallets
       FROM producao_itemparcial pa
       JOIN producao_itempedido i ON i.id = pa.item_pedido_id
       JOIN producao_pedido p ON p.id = pa.pedido_id
@@ -231,6 +232,10 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       tem_desenho: Boolean(p.tem_desenho),
       tem_pedido_venda: Boolean(p.tem_pedido_venda),
       tem_ordem_producao: Boolean(p.tem_ordem_producao),
+      pesos_pallets: Array.isArray(p.pesos_pallets) ? (p.pesos_pallets as unknown[]).map(v => Number(v)) : [],
+      peso_total_embalagem: Array.isArray(p.pesos_pallets)
+        ? (p.pesos_pallets as unknown[]).reduce((s: number, v) => s + Number(v), 0)
+        : 0,
       pedido_prazo: p.pedido_prazo ?? null,
       cliente: p.cliente,
       prioridade: p.prioridade,
