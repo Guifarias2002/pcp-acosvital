@@ -1031,8 +1031,9 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           </button>
         )}
 
-        {/* ── Concluída: mesmo já encerrada, pode ser encaminhada pra outro setor ── */}
-        {isConcluida && (
+        {/* ── Concluída: mesmo já encerrada, pode ser encaminhada pra outro setor ──
+             (não vale pra Logística: entrega concluída é o fim, não há próximo setor) */}
+        {isConcluida && !isLogistica && (
           <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
             <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Encaminhar para setor
           </button>
@@ -1720,8 +1721,9 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             </button>
           </>
         )}
-        {/* ── Concluída: mesmo já encerrada, pode ser encaminhada pra outro setor ── */}
-        {isConcluida && (
+        {/* ── Concluída: mesmo já encerrada, pode ser encaminhada pra outro setor ──
+             (não vale pra Logística: entrega concluída é o fim, não há próximo setor) */}
+        {isConcluida && !isLogistica && (
           <>
             <button onClick={() => { setShowEnviar(v => !v); setShowEnviarParcial(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
               <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Encaminhar tudo
