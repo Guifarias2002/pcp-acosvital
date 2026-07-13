@@ -46,7 +46,7 @@ export default function EmitidosPage() {
         }}>
           <i className="bi bi-cone-striped" style={{ color: '#92400e', fontSize: 14 }} />
           <span style={{ fontSize: 12.5, color: '#92400e', fontWeight: 600 }}>
-            Sistema em fase de teste — os pedidos e números mostrados aqui ainda não são dados reais de produção.
+            Sistema em fase de teste — os pedidos são reais, mas estão sendo usados para validar o sistema.
           </span>
         </div>
         {/* Banner verde */}
