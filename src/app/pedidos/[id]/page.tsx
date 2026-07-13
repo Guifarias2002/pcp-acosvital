@@ -4,7 +4,7 @@ import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedido, itemAcao } from '@/lib/api';
 import { Pedido, ItemPedido, COR_STATUS, STATUS_LABELS, PRIORIDADE_COR, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR } from '@/lib/types';
-import { getUser } from '@/lib/auth';
+import { getUser, getToken } from '@/lib/auth';
 import Link from 'next/link';
 import ConfirmModal from '@/components/ConfirmModal';
 import ReceberModal from '@/components/ReceberModal';
@@ -831,7 +831,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
             {/* Card de Desenho Técnico — visível a todos, upload/remoção só admin */}
             {(() => {
               const desenhosPedido: string[] = (pedido as any).desenhos || [];
-              const tokenPedido = typeof window !== 'undefined' ? (localStorage.getItem('token') || '') : '';
+              const tokenPedido = typeof window !== 'undefined' ? (localStorage.getItem('access_token') || '') : '';
               return (
               <div style={{ borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', padding: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -958,7 +958,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                 <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '0 0 4px' }}>Pedido de Venda</p>
                 {pedido.tem_pedido_venda ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <a href={`/api/pedidos/${id}/pedido-venda`} target="_blank" rel="noopener noreferrer"
+                    <a href={`/api/pedidos/${id}/pedido-venda?token=${encodeURIComponent(getToken() || '')}`} target="_blank" rel="noopener noreferrer"
                       style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', flex: 1 }}>
                       ✅ Ver / baixar pedido de venda
                     </a>
@@ -982,7 +982,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                 <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '0 0 4px' }}>Ordem de Produção</p>
                 {pedido.tem_ordem_producao ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <a href={`/api/pedidos/${id}/ordem-producao`} target="_blank" rel="noopener noreferrer"
+                    <a href={`/api/pedidos/${id}/ordem-producao?token=${encodeURIComponent(getToken() || '')}`} target="_blank" rel="noopener noreferrer"
                       style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', flex: 1 }}>
                       ✅ Ver / baixar ordem de produção
                     </a>

@@ -2124,7 +2124,7 @@ const FILTROS_LOGISTICA: { key: FiltroLogistica; label: string; icon: string; co
 ];
 
 function getDesenhoUrl(pedidoId: number) {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '';
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') || '' : '';
   return `/api/pedidos/${pedidoId}/desenho?token=${encodeURIComponent(token)}`;
 }
 

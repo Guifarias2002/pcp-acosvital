@@ -4,7 +4,7 @@ import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getItem, itemAcao, parcialAcao } from '@/lib/api';
 import { ItemPedido, SETOR_CHOICES, STATUS_LABELS, PRIORIDADE_COR, NOMES } from '@/lib/types';
-import { getUser } from '@/lib/auth';
+import { getUser, getToken } from '@/lib/auth';
 import { fmtData, fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
@@ -74,7 +74,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
     if (!item) return;
     const temDesenho = (item as any).tem_desenho;
     if (!temDesenho) { setDesenhoUrl(null); setDesenhoTipo(null); return; }
-    const token = localStorage.getItem('token') || '';
+    const token = localStorage.getItem('access_token') || '';
     const url = `/api/pedidos/${item.pedido_id}/desenho?token=${encodeURIComponent(token)}`;
     setDesenhoUrl(url);
     // Detecta se é imagem ou PDF via HEAD para escolher renderização
@@ -642,11 +642,11 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">📄 Documentos do Pedido</p>
                   <div className="space-y-1.5">
                     {(item as any).tem_pedido_venda && (
-                      <a href={`/api/pedidos/${item.pedido_id}/pedido-venda`} target="_blank" rel="noreferrer"
+                      <a href={`/api/pedidos/${item.pedido_id}/pedido-venda?token=${encodeURIComponent(getToken() || '')}`} target="_blank" rel="noreferrer"
                         className="block text-xs text-blue-700 hover:underline">✅ Ver / baixar pedido de venda</a>
                     )}
                     {(item as any).tem_ordem_producao && (
-                      <a href={`/api/pedidos/${item.pedido_id}/ordem-producao`} target="_blank" rel="noreferrer"
+                      <a href={`/api/pedidos/${item.pedido_id}/ordem-producao?token=${encodeURIComponent(getToken() || '')}`} target="_blank" rel="noreferrer"
                         className="block text-xs text-blue-700 hover:underline">✅ Ver / baixar ordem de produção</a>
                     )}
                   </div>
