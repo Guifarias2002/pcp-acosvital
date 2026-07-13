@@ -160,7 +160,15 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
         <div>
           {!ocultarCabecalhoPedido && (
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#1a3a5c' }}>{item.pedido_numero}</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#1a3a5c' }}>{item.pedido_numero}</div>
+              {(item as any).numero_op && (
+                <span style={{ fontSize: 12 }}>
+                  <span style={{ fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', fontSize: 9, letterSpacing: 0.5, marginRight: 4 }}>OP</span>
+                  <span style={{ fontWeight: 800, color: '#1a3a5c' }}>{(item as any).numero_op}</span>
+                </span>
+              )}
+            </div>
           )}
           <div style={{ fontSize: 13, color: '#555' }}>
             <strong>{item.codigo}</strong>
@@ -236,13 +244,13 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
         </div>
       )}
 
-      {/* Desenho técnico */}
-      {(item as any).tem_desenho && (
-        <a href={getDesenhoUrl(item.pedido_id)} target="_blank" rel="noopener noreferrer"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#1d4ed8', textDecoration: 'none', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 5, padding: '4px 10px', marginBottom: 8 }}>
-          📐 Ver Desenho Técnico
-        </a>
-      )}
+      {/* Documentos do pedido (PV / OP / Desenho) */}
+      <DocumentosPedidoLinks
+        pedidoId={item.pedido_id}
+        temPedidoVenda={(item as any).tem_pedido_venda}
+        temOrdemProducao={(item as any).tem_ordem_producao}
+        temDesenho={(item as any).tem_desenho}
+      />
 
       {/* Ações */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -870,6 +878,14 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <span style={{ fontSize: 11, color: '#94a3b8' }}>de {fmtQtd(parcial.quantidade_total_item)} totais</span>
           )}
         </div>
+
+        {/* Documentos do pedido (PV / OP / Desenho) */}
+        <DocumentosPedidoLinks
+          pedidoId={(parcial as any).pedido_id}
+          temPedidoVenda={(parcial as any).tem_pedido_venda}
+          temOrdemProducao={(parcial as any).tem_ordem_producao}
+          temDesenho={(parcial as any).tem_desenho}
+        />
 
         {/* Outras parciais do mesmo item */}
         {parcial.outras_parciais && parcial.outras_parciais.length > 0 && (
@@ -2126,6 +2142,49 @@ const FILTROS_LOGISTICA: { key: FiltroLogistica; label: string; icon: string; co
 function getDesenhoUrl(pedidoId: number) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') || '' : '';
   return `/api/pedidos/${pedidoId}/desenho?token=${encodeURIComponent(token)}`;
+}
+
+function getPedidoVendaUrl(pedidoId: number) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') || '' : '';
+  return `/api/pedidos/${pedidoId}/pedido-venda?token=${encodeURIComponent(token)}`;
+}
+
+function getOrdemProducaoUrl(pedidoId: number) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') || '' : '';
+  return `/api/pedidos/${pedidoId}/ordem-producao?token=${encodeURIComponent(token)}`;
+}
+
+// Linha de links dos documentos anexados ao pedido (PV / OP / Desenho).
+// Mostrada nos cards do painel de setor para o operador abrir/baixar direto da área.
+// Só renderiza os que existem; se nenhum existir, não aparece nada.
+function DocumentosPedidoLinks({ pedidoId, temPedidoVenda, temOrdemProducao, temDesenho }: {
+  pedidoId?: number; temPedidoVenda?: boolean; temOrdemProducao?: boolean; temDesenho?: boolean;
+}) {
+  if (!pedidoId || (!temPedidoVenda && !temOrdemProducao && !temDesenho)) return null;
+  const linkStyle: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600,
+    color: '#1d4ed8', textDecoration: 'none', background: '#eff6ff', border: '1px solid #bfdbfe',
+    borderRadius: 5, padding: '4px 10px',
+  };
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+      {temPedidoVenda && (
+        <a href={getPedidoVendaUrl(pedidoId)} target="_blank" rel="noopener noreferrer" style={linkStyle}>
+          📄 Pedido de Venda
+        </a>
+      )}
+      {temOrdemProducao && (
+        <a href={getOrdemProducaoUrl(pedidoId)} target="_blank" rel="noopener noreferrer" style={linkStyle}>
+          🗂 Ordem de Produção
+        </a>
+      )}
+      {temDesenho && (
+        <a href={getDesenhoUrl(pedidoId)} target="_blank" rel="noopener noreferrer" style={linkStyle}>
+          📐 Desenho Técnico
+        </a>
+      )}
+    </div>
+  );
 }
 
 export default function SetorPainelPage({ params }: { params: { setor: string } }) {

@@ -31,7 +31,10 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     sql`
       SELECT i.*, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
              p.prazo_entrega::text AS pedido_prazo, p.prioridade AS pedido_prioridade, p.roteiro_base,
-             (p.desenho_url IS NOT NULL OR COALESCE(array_length(p.desenhos,1),0) > 0) AS tem_desenho, p.desenho_url AS desenho_url
+             p.numero_op,
+             (p.desenho_url IS NOT NULL OR COALESCE(array_length(p.desenhos,1),0) > 0) AS tem_desenho, p.desenho_url AS desenho_url,
+             (p.pedido_venda_url IS NOT NULL) AS tem_pedido_venda,
+             (p.ordem_producao_url IS NOT NULL) AS tem_ordem_producao
       FROM producao_itempedido i JOIN producao_pedido p ON p.id = i.pedido_id
       WHERE i.setor_atual = ${setor} AND i.status != 'entregue'
         AND NOT EXISTS (
@@ -80,7 +83,9 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         i.id AS item_pedido_id, i.codigo AS item_codigo, i.unidade, i.descricao AS item_descricao,
         i.quantidade::text AS quantidade_total_item, i.roteiro_proprio,
         p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade, p.roteiro_base, p.prazo_entrega::text AS pedido_prazo,
-        (p.desenho_url IS NOT NULL OR COALESCE(array_length(p.desenhos,1),0) > 0) AS tem_desenho, p.desenho_url AS desenho_url
+        (p.desenho_url IS NOT NULL OR COALESCE(array_length(p.desenhos,1),0) > 0) AS tem_desenho, p.desenho_url AS desenho_url,
+        (p.pedido_venda_url IS NOT NULL) AS tem_pedido_venda,
+        (p.ordem_producao_url IS NOT NULL) AS tem_ordem_producao
       FROM producao_itemparcial pa
       JOIN producao_itempedido i ON i.id = pa.item_pedido_id
       JOIN producao_pedido p ON p.id = pa.pedido_id
@@ -218,6 +223,9 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       quantidade_total_item: p.quantidade_total_item,
       numero_pedido_venda: p.numero_pedido_venda,
       numero_op: p.numero_op ?? null,
+      tem_desenho: Boolean(p.tem_desenho),
+      tem_pedido_venda: Boolean(p.tem_pedido_venda),
+      tem_ordem_producao: Boolean(p.tem_ordem_producao),
       pedido_prazo: p.pedido_prazo ?? null,
       cliente: p.cliente,
       prioridade: p.prioridade,

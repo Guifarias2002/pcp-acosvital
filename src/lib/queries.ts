@@ -114,6 +114,10 @@ export function formatItem(row: any) {
     proximo_setor: prox,
     proximo_setor_nome: prox ? nomeSector(prox) : '',
     desenhos: (row.desenhos as string[]) || [],
+    numero_op: row.numero_op || '',
+    tem_desenho: !!row.desenho_url || ((row.desenhos as string[])?.length > 0),
+    tem_pedido_venda: row.tem_pedido_venda ?? !!row.pedido_venda_url,
+    tem_ordem_producao: row.tem_ordem_producao ?? !!row.ordem_producao_url,
   };
 }
 
