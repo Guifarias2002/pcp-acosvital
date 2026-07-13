@@ -687,6 +687,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const isPausado   = parcial.status === 'pausado';
   const isFinalizado = parcial.status === 'finalizado_setor';
   const isEmTransito = parcial.status === 'em_transito';
+  const isConcluida = parcial.status === 'concluida';
   const badge = BADGE_PARCIAL[parcial.status] || { bg: '#e2e3e5', color: '#333' };
   const foraDoRoteiro = !parcial.proximo_setor && !isLogistica;
 
@@ -1003,6 +1004,13 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
         {isFinalizado && isLogistica && (
           <button onClick={() => acao('retomar')} disabled={loading} style={btnStyle('#fd7e14')}>
             <i className="bi bi-arrow-counterclockwise" style={{ marginRight: 5 }} />Retomar etapa
+          </button>
+        )}
+
+        {/* ── Concluída: mesmo já encerrada, pode ser encaminhada pra outro setor ── */}
+        {isConcluida && (
+          <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
+            <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Encaminhar para setor
           </button>
         )}
 
@@ -1417,6 +1425,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   const isPausado   = p0.status === 'pausado';
   const isFinalizado = p0.status === 'finalizado_setor';
   const isEmTransito = p0.status === 'em_transito';
+  const isConcluida = p0.status === 'concluida';
 
   return (
     <>
@@ -1687,6 +1696,18 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             </button>
           </>
         )}
+        {/* ── Concluída: mesmo já encerrada, pode ser encaminhada pra outro setor ── */}
+        {isConcluida && (
+          <>
+            <button onClick={() => { setShowEnviar(v => !v); setShowEnviarParcial(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
+              <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Encaminhar tudo
+            </button>
+            <button onClick={() => { setShowEnviarParcial(v => !v); setShowEnviar(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#0d6efd')}>
+              <i className="bi bi-send" style={{ marginRight: 5 }} />Encaminhar parcial
+            </button>
+          </>
+        )}
+
         {/* Logística — despacho legado (finalizado_setor -> em_transito), mesmo caminho do ParcialCard */}
         {isLogistica && isFinalizado && (
           <button onClick={() => setShowDespacharGrupo(true)} disabled={loading} style={btnStyle('#fd7e14')}>

@@ -65,8 +65,14 @@ export async function POST(
   if (!user.is_staff && parcial.setor_atual !== user.setor)
     return NextResponse.json({ erro: 'Acesso negado: parcial não é do seu setor' }, { status: 403 });
 
-  // Parciais concluídas ou canceladas só aceitam 'apontar' e 'retomar' (admin)
-  if (['concluida', 'cancelada'].includes(parcial.status) && !['apontar', 'retomar'].includes(acao))
+  // Parciais canceladas só aceitam 'apontar' e 'retomar' (admin)
+  if (parcial.status === 'cancelada' && !['apontar', 'retomar'].includes(acao))
+    return NextResponse.json({ erro: `Parcial já está "${parcial.status}" e não pode ser alterada` }, { status: 400 });
+
+  // Parciais concluídas também podem ser encaminhadas pra outro setor ('mover'),
+  // além de 'apontar' e 'retomar' — pedido explícito: "concluída" não deve ser
+  // um beco sem saída, o operador tem que poder mandar pra frente se precisar.
+  if (parcial.status === 'concluida' && !['apontar', 'retomar', 'mover'].includes(acao))
     return NextResponse.json({ erro: `Parcial já está "${parcial.status}" e não pode ser alterada` }, { status: 400 });
 
   // Parciais pausadas só aceitam retomar, devolver, mover, concluir ou apontar
