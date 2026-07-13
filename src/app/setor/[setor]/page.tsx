@@ -710,7 +710,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   return (
     <>
     <Toast toast={toastParcial} fechar={fecharToastParcial} />
-    <div style={{ border: parcial.retrabalho ? '1.5px solid #fbbf24' : '1px solid #dde3f0', borderRadius: 10, overflow: 'hidden', background: '#fff', opacity: loading ? .6 : 1 }}>
+    <div style={{ border: (parcial.retrabalho || (parcial.devolvido_de && !parcial.origem_retrabalho)) ? '1.5px solid #fbbf24' : '1px solid #dde3f0', borderRadius: 10, overflow: 'hidden', background: '#fff', opacity: loading ? .6 : 1 }}>
       {confirm && (
         <ConfirmModal
           titulo={confirm.titulo}
@@ -833,16 +833,16 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           </div>
         )}
 
-        {/* Banner devolução/correção — peça voltou por engano/recebimento errado (não é retrabalho) */}
+        {/* Banner devolução/correção — peça voltou para correção (não é retrabalho de qualidade) */}
         {!parcial.retrabalho && parcial.devolvido_de && !parcial.origem_retrabalho && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '6px 10px', marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6, padding: '6px 10px', marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
             <span style={{ fontSize: 14 }}>↩️</span>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#991b1b' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>
                 Devolvido de {NOMES[parcial.devolvido_de] || parcial.devolvido_de} — correção
               </div>
               {parcial.motivo_retrabalho && (
-                <div style={{ fontSize: 11, color: '#7f1d1d' }}>Motivo: {parcial.motivo_retrabalho}</div>
+                <div style={{ fontSize: 11, color: '#78350f' }}>Motivo: {parcial.motivo_retrabalho}</div>
               )}
             </div>
           </div>
@@ -1518,11 +1518,11 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
         const dev = parciais.find(p => p.devolvido_de);
         const motivo = parciais.find(p => p.motivo_retrabalho)?.motivo_retrabalho;
         return (
-          <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 6, padding: '6px 10px', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#991b1b' }}>
+          <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6, padding: '6px 10px', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>
               ↩️ Devolvido de {NOMES[dev?.devolvido_de || ''] || dev?.devolvido_de} — correção
             </div>
-            {motivo && <div style={{ fontSize: 11, color: '#7f1d1d' }}>Motivo: {motivo}</div>}
+            {motivo && <div style={{ fontSize: 11, color: '#78350f' }}>Motivo: {motivo}</div>}
           </div>
         );
       })()}

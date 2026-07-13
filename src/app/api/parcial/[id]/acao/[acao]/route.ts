@@ -167,12 +167,28 @@ export async function POST(
           WHERE id = ${parcialId}
         `;
       } else {
-        // Move toda a parcial para o destino
-        await tx`
-          UPDATE producao_itemparcial
-          SET setor_atual = ${setor_destino}, status = 'em_aberto', atualizado_em = NOW()
-          WHERE id = ${parcialId}
-        `;
+        // Move toda a parcial para o destino. Ao AVANÇAR (destino diferente do
+        // setor de onde a peça foi devolvida), limpa os marcadores de
+        // correção/retrabalho para o aviso não "grudar" e reaparecer nos setores
+        // seguintes — ele vale só no setor que recebeu a peça pra corrigir.
+        // Se estiver VOLTANDO pro setor de origem da devolução (ex.: re-inspeção
+        // na Qualidade), mantém os marcadores.
+        const voltandoPraOrigem = parcial.devolvido_de && setor_destino === parcial.devolvido_de;
+        if (voltandoPraOrigem) {
+          await tx`
+            UPDATE producao_itemparcial
+            SET setor_atual = ${setor_destino}, status = 'em_aberto', atualizado_em = NOW()
+            WHERE id = ${parcialId}
+          `;
+        } else {
+          await tx`
+            UPDATE producao_itemparcial
+            SET setor_atual = ${setor_destino}, status = 'em_aberto',
+                devolvido_de = NULL, motivo_retrabalho = NULL, retrabalho = FALSE,
+                atualizado_em = NOW()
+            WHERE id = ${parcialId}
+          `;
+        }
       }
 
       // Cria parcial filha apenas se for divisão
