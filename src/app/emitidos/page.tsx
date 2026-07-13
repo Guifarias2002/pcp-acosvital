@@ -39,6 +39,16 @@ export default function EmitidosPage() {
 
   return (
     <AuthGuard>
+        {/* Aviso de fase de teste — remover quando o sistema entrar em produção real */}
+        <div style={{
+          background: '#fef9c3', border: '1px solid #fde047', borderRadius: 8,
+          padding: '8px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <i className="bi bi-cone-striped" style={{ color: '#92400e', fontSize: 14 }} />
+          <span style={{ fontSize: 12.5, color: '#92400e', fontWeight: 600 }}>
+            Sistema em fase de teste — os pedidos e números mostrados aqui ainda não são dados reais de produção.
+          </span>
+        </div>
         {/* Banner verde */}
         <div style={{ background: '#166534', borderRadius: 10, padding: '20px 22px', marginBottom: 18, color: '#fff' }}>
           <div className="flex items-center justify-between mb-4">
