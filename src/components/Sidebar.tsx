@@ -69,6 +69,10 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
   const isAdmin = user?.is_staff;
   const isSuperAdmin = user?.perfil === 'administrador' || (user?.is_staff && user?.perfil !== 'pcp' && user?.perfil !== 'lider');
   const meuSetor = user?.setor;
+  // Setores que o operador pode acessar (múltiplos). Fallback pro setor único.
+  const meusSetores = (user?.setores && user.setores.length > 0)
+    ? user.setores
+    : (meuSetor ? [meuSetor] : []);
 
   return (
     <>
@@ -107,14 +111,17 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
                 <NavItem key={cod} href={`/setor/${cod}`} label={nome} icon={SETOR_ICONS[cod]} onNav={fechar} />
               ))}
             </NavGroup>
-          ) : meuSetor ? (
+          ) : meusSetores.length > 0 ? (
             <NavGroup label="🔩 Flanges">
-              <NavItem
-                href={`/setor/${meuSetor}`}
-                label={NOMES[meuSetor] || meuSetor}
-                icon={SETOR_ICONS[meuSetor]}
-                onNav={fechar}
-              />
+              {meusSetores.map(cod => (
+                <NavItem
+                  key={cod}
+                  href={`/setor/${cod}`}
+                  label={NOMES[cod] || cod}
+                  icon={SETOR_ICONS[cod]}
+                  onNav={fechar}
+                />
+              ))}
             </NavGroup>
           ) : null}
 

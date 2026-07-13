@@ -21,21 +21,29 @@ export async function GET(req: Request) {
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   const users = await sql`
-    SELECT id, username, nome, is_staff, is_active, perfil, setor
+    SELECT id, username, nome, is_staff, is_active, perfil, setor, setores
     FROM usuarios_usuario
     ORDER BY is_active DESC, nome
   `;
 
-  return NextResponse.json(users.map(u => ({
-    id: u.id,
-    username: u.username,
-    nome: u.nome || u.username,
-    is_staff: u.is_staff,
-    is_active: u.is_active,
-    perfil: u.perfil || (u.is_staff ? 'administrador' : 'operador'),
-    setor: u.setor || null,
-    setor_nome: u.setor ? (NOMES[u.setor] || u.setor) : null,
-  })));
+  return NextResponse.json(users.map(u => {
+    // Lista efetiva de setores (fallback pro setor único de quem ainda não tem lista).
+    const setores: string[] = (Array.isArray(u.setores) && u.setores.length > 0)
+      ? u.setores
+      : (u.setor ? [u.setor] : []);
+    return {
+      id: u.id,
+      username: u.username,
+      nome: u.nome || u.username,
+      is_staff: u.is_staff,
+      is_active: u.is_active,
+      perfil: u.perfil || (u.is_staff ? 'administrador' : 'operador'),
+      setor: u.setor || null,
+      setor_nome: u.setor ? (NOMES[u.setor] || u.setor) : null,
+      setores,
+      setores_nomes: setores.map(s => NOMES[s] || s),
+    };
+  }));
 }
 
 export async function POST(req: Request) {
@@ -45,7 +53,7 @@ export async function POST(req: Request) {
   if (!checkMutationRateLimit(getClientIp(req)))
     return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
-  const { username, nome, senha, perfil, setor } = await req.json();
+  const { username, nome, senha, perfil, setor, setores } = await req.json();
 
   if (!username || !nome || !senha || !perfil)
     return NextResponse.json({ erro: 'Preencha todos os campos obrigatórios.' }, { status: 400 });
@@ -59,9 +67,16 @@ export async function POST(req: Request) {
   const hashed = await hashPassword(senha);
   const is_staff = perfil === 'administrador' || perfil === 'pcp';
 
+  // Aceita `setores` (lista) ou `setor` (único, compatibilidade). O setor
+  // principal (redirect da raiz / link) é o primeiro da lista.
+  const listaSetores: string[] = Array.isArray(setores)
+    ? setores.filter((s: unknown): s is string => typeof s === 'string' && !!s)
+    : (setor ? [setor] : []);
+  const setorPrincipal = listaSetores[0] || null;
+
   await sql`
-    INSERT INTO usuarios_usuario (username, nome, password, perfil, setor, is_staff, is_active, date_joined)
-    VALUES (${username}, ${nome}, ${hashed}, ${perfil}, ${setor || null}, ${is_staff}, true, NOW())
+    INSERT INTO usuarios_usuario (username, nome, password, perfil, setor, setores, is_staff, is_active, date_joined)
+    VALUES (${username}, ${nome}, ${hashed}, ${perfil}, ${setorPrincipal}, ${listaSetores}, ${is_staff}, true, NOW())
   `;
 
   return NextResponse.json({ ok: true });

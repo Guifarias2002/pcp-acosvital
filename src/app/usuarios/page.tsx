@@ -13,6 +13,8 @@ interface Usuario {
   perfil: string;
   setor: string | null;
   setor_nome: string | null;
+  setores: string[];
+  setores_nomes: string[];
 }
 
 const PERFIL_BADGE: Record<string, { bg: string; cor: string }> = {
@@ -24,15 +26,44 @@ const PERFIL_BADGE: Record<string, { bg: string; cor: string }> = {
 
 const PERFIS = ['administrador', 'pcp', 'lider', 'operador'];
 
+// Seletor de múltiplos setores (checkboxes). Usado no criar e no editar.
+function SetoresSelector({ valor, onChange }: { valor: string[]; onChange: (s: string[]) => void }) {
+  function toggle(cod: string) {
+    onChange(valor.includes(cod) ? valor.filter(s => s !== cod) : [...valor, cod]);
+  }
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, maxHeight: 200, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 6, padding: 10 }}>
+      {SETOR_CHOICES.map(([cod, nome]) => {
+        const marcado = valor.includes(cod);
+        return (
+          <label key={cod} style={{
+            display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer',
+            padding: '5px 8px', borderRadius: 5, background: marcado ? '#eff6ff' : 'transparent',
+            border: `1px solid ${marcado ? '#bfdbfe' : 'transparent'}`,
+          }}>
+            <input type="checkbox" checked={marcado} onChange={() => toggle(cod)} style={{ cursor: 'pointer' }} />
+            <span style={{ color: marcado ? '#1d4ed8' : '#444', fontWeight: marcado ? 600 : 400 }}>{nome}</span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiadoId, setCopiadoId] = useState<number | null>(null);
   const [copiadoLogin, setCopiadoLogin] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setor: '' });
+  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] as string[] });
   const [salvando, setSalvando] = useState(false);
   const [formMsg, setFormMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  // Edição de usuário existente
+  const [editUser, setEditUser] = useState<Usuario | null>(null);
+  const [editForm, setEditForm] = useState({ nome: '', perfil: 'operador', setores: [] as string[], is_active: true, senha: '' });
+  const [editMsg, setEditMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  const [editSalvando, setEditSalvando] = useState(false);
   const isAdmin = getUser()?.is_staff;
 
   function carregarUsuarios() {
@@ -72,14 +103,14 @@ export default function UsuariosPage() {
       const res = await fetch('/api/usuarios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
-        body: JSON.stringify({ ...form, setor: form.setor || null }),
+        body: JSON.stringify({ ...form, setores: form.setores }),
       });
       const data = await res.json();
       if (!res.ok) {
         setFormMsg({ tipo: 'erro', texto: data.erro || 'Erro ao criar usuário.' });
       } else {
         setFormMsg({ tipo: 'ok', texto: 'Usuário criado com sucesso!' });
-        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setor: '' });
+        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] });
         setShowForm(false);
         carregarUsuarios();
       }
@@ -87,6 +118,50 @@ export default function UsuariosPage() {
       setFormMsg({ tipo: 'erro', texto: 'Erro de conexão.' });
     } finally {
       setSalvando(false);
+    }
+  }
+
+  function abrirEdicao(u: Usuario) {
+    setEditUser(u);
+    setEditForm({
+      nome: u.nome,
+      perfil: u.perfil,
+      setores: u.setores || [],
+      is_active: u.is_active,
+      senha: '',
+    });
+    setEditMsg(null);
+  }
+
+  async function salvarEdicao(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editUser) return;
+    setEditSalvando(true);
+    setEditMsg(null);
+    try {
+      const body: Record<string, unknown> = {
+        nome: editForm.nome,
+        perfil: editForm.perfil,
+        setores: editForm.setores,
+        is_active: editForm.is_active,
+      };
+      if (editForm.senha) body.senha = editForm.senha;
+      const res = await fetch(`/api/usuarios/${editUser.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setEditMsg({ tipo: 'erro', texto: data.erro || 'Erro ao salvar.' });
+      } else {
+        setEditUser(null);
+        carregarUsuarios();
+      }
+    } catch {
+      setEditMsg({ tipo: 'erro', texto: 'Erro de conexão.' });
+    } finally {
+      setEditSalvando(false);
     }
   }
 
@@ -122,7 +197,7 @@ export default function UsuariosPage() {
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000,
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
         }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: '100%', maxWidth: 440, boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: '100%', maxWidth: 440, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h5 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c' }}>
                 <i className="bi bi-person-plus" style={{ marginRight: 8 }}></i>Criar Usuário
@@ -159,7 +234,7 @@ export default function UsuariosPage() {
                   type="password"
                   value={form.senha}
                   onChange={e => setForm(f => ({ ...f, senha: e.target.value }))}
-                  placeholder="Mínimo 4 caracteres"
+                  placeholder="Mínimo 8 caracteres"
                   required
                   style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13, boxSizing: 'border-box' }}
                 />
@@ -180,19 +255,10 @@ export default function UsuariosPage() {
 
               <div style={{ marginBottom: 20 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>
-                  Setor {form.perfil === 'lider' || form.perfil === 'operador' ? '*' : '(opcional)'}
+                  Setores {form.perfil === 'lider' || form.perfil === 'operador' ? '*' : '(opcional)'}
+                  <span style={{ fontWeight: 400, color: '#888', marginLeft: 6 }}>— pode marcar mais de um</span>
                 </label>
-                <select
-                  value={form.setor}
-                  onChange={e => setForm(f => ({ ...f, setor: e.target.value }))}
-                  required={form.perfil === 'lider' || form.perfil === 'operador'}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13, boxSizing: 'border-box' }}
-                >
-                  <option value="">— Sem setor —</option>
-                  {SETOR_CHOICES.map(([key, nome]) => (
-                    <option key={key} value={key}>{nome}</option>
-                  ))}
-                </select>
+                <SetoresSelector valor={form.setores} onChange={s => setForm(f => ({ ...f, setores: s }))} />
               </div>
 
               {formMsg && (
@@ -217,6 +283,103 @@ export default function UsuariosPage() {
                   padding: '8px 20px', fontSize: 13, fontWeight: 600, cursor: salvando ? 'not-allowed' : 'pointer',
                 }}>
                   {salvando ? 'Salvando...' : 'Criar Usuário'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal editar usuário */}
+      {editUser && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: '100%', maxWidth: 440, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h5 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c' }}>
+                <i className="bi bi-pencil-square" style={{ marginRight: 8 }}></i>Editar Usuário
+              </h5>
+              <button onClick={() => setEditUser(null)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#888' }}>✕</button>
+            </div>
+
+            <div style={{ fontSize: 12, color: '#888', marginBottom: 16, fontFamily: 'monospace' }}>
+              <i className="bi bi-person-circle" style={{ marginRight: 6 }}></i>{editUser.username}
+            </div>
+
+            <form onSubmit={salvarEdicao}>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>Nome completo *</label>
+                <input
+                  value={editForm.nome}
+                  onChange={e => setEditForm(f => ({ ...f, nome: e.target.value }))}
+                  required
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>Perfil *</label>
+                <select
+                  value={editForm.perfil}
+                  onChange={e => setEditForm(f => ({ ...f, perfil: e.target.value }))}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13, boxSizing: 'border-box' }}
+                >
+                  {PERFIS.map(p => (
+                    <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>
+                  Setores {editForm.perfil === 'lider' || editForm.perfil === 'operador' ? '*' : '(opcional)'}
+                  <span style={{ fontWeight: 400, color: '#888', marginLeft: 6 }}>— pode marcar mais de um</span>
+                </label>
+                <SetoresSelector valor={editForm.setores} onChange={s => setEditForm(f => ({ ...f, setores: s }))} />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>Nova senha (deixe em branco para manter)</label>
+                <input
+                  type="password"
+                  value={editForm.senha}
+                  onChange={e => setEditForm(f => ({ ...f, senha: e.target.value }))}
+                  placeholder="Mínimo 8 caracteres"
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#444', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={editForm.is_active} onChange={e => setEditForm(f => ({ ...f, is_active: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                  Usuário ativo
+                </label>
+              </div>
+
+              {editMsg && (
+                <div style={{
+                  marginBottom: 14, padding: '8px 12px', borderRadius: 6, fontSize: 13,
+                  background: editMsg.tipo === 'ok' ? '#d1e7dd' : '#f8d7da',
+                  color: editMsg.tipo === 'ok' ? '#0a3622' : '#842029',
+                }}>
+                  {editMsg.texto}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setEditUser(null)} style={{
+                  background: '#f0f0f0', color: '#333', border: 'none', borderRadius: 6,
+                  padding: '8px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                }}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={editSalvando} style={{
+                  background: editSalvando ? '#aaa' : '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6,
+                  padding: '8px 20px', fontSize: 13, fontWeight: 600, cursor: editSalvando ? 'not-allowed' : 'pointer',
+                }}>
+                  {editSalvando ? 'Salvando...' : 'Salvar alterações'}
                 </button>
               </div>
             </form>
@@ -252,22 +415,25 @@ export default function UsuariosPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#212529', color: '#fff' }}>
-                {['Nome','Username','Perfil','Setor','Situação','Link do Setor'].map(h => (
+                {['Nome','Username','Perfil','Setores','Situação','Link do Setor','Ações'].map(h => (
                   <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontWeight: 600, fontSize: 12 }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Carregando...</td></tr>
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Carregando...</td></tr>
               )}
               {!loading && usuarios.length === 0 && (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum usuário encontrado.</td></tr>
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum usuário encontrado.</td></tr>
               )}
               {usuarios.map((u, i) => {
                 const badgePerfil = PERFIL_BADGE[u.perfil] || { bg: '#6c757d', cor: '#fff' };
                 const linkSetor = u.setor ? `${typeof window !== 'undefined' ? window.location.origin : ''}/setor/${u.setor}` : null;
                 const copiado = copiadoId === u.id;
+                const setoresNomes = (u.setores_nomes && u.setores_nomes.length > 0)
+                  ? u.setores_nomes
+                  : (u.setor_nome ? [u.setor_nome] : []);
                 return (
                   <tr key={u.id} style={{
                     borderBottom: '1px solid #f0f0f0',
@@ -285,10 +451,12 @@ export default function UsuariosPage() {
                       </span>
                     </td>
                     <td style={{ padding: '9px 14px', color: '#444' }}>
-                      {u.setor_nome
-                        ? <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {setoresNomes.length > 0
+                        ? <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                             <i className="bi bi-building" style={{ color: '#888', fontSize: 12 }}></i>
-                            {u.setor_nome}
+                            {setoresNomes.map(nome => (
+                              <span key={nome} style={{ background: '#eef2ff', color: '#3730a3', fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>{nome}</span>
+                            ))}
                           </span>
                         : <span style={{ color: '#bbb', fontSize: 12 }}>—</span>
                       }
@@ -320,6 +488,14 @@ export default function UsuariosPage() {
                         <span style={{ color: '#bbb', fontSize: 12 }}>Sem setor definido</span>
                       )}
                     </td>
+                    <td style={{ padding: '9px 14px' }}>
+                      <button onClick={() => abrirEdicao(u)} style={{
+                        background: 'none', border: '1px solid #1a3a5c', color: '#1a3a5c',
+                        borderRadius: 4, padding: '3px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      }}>
+                        <i className="bi bi-pencil" style={{ marginRight: 4 }}></i>Editar
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -337,7 +513,7 @@ export default function UsuariosPage() {
       <div style={{ marginTop: 16, background: '#e7f3ff', border: '1px solid #b6d4fe', borderRadius: 8, padding: '12px 16px', fontSize: 13, color: '#084298' }}>
         <i className="bi bi-info-circle" style={{ marginRight: 8 }}></i>
         <strong>Como compartilhar:</strong> Copie o link do setor do colaborador, envie pelo WhatsApp ou e-mail.
-        Ele abrirá o login e ao entrar irá direto para o seu setor. O link de login acima pode ser salvo no celular como atalho.
+        Ele abrirá o login e ao entrar irá direto para o seu setor. Quem tem mais de um setor vê todos na barra lateral. O link de login acima pode ser salvo no celular como atalho.
       </div>
     </AuthGuard>
   );

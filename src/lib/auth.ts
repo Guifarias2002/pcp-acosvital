@@ -9,6 +9,9 @@ export interface JWTPayload {
   is_staff: boolean;
   perfil?: string;
   setor?: string;
+  // Lista completa de setores que o operador pode acessar. `setor` continua
+  // sendo o setor principal (redirect da raiz / link). Se vazio, o sistema usa [setor].
+  setores?: string[];
 }
 
 export async function signToken(payload: JWTPayload): Promise<string> {

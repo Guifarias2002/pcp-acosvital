@@ -30,6 +30,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   if (typeof body.nome === 'string' && body.nome.trim()) campos.nome = body.nome.trim().slice(0, 150);
   if (typeof body.setor === 'string') campos.setor = body.setor || null;
+  // Lista de setores (múltiplos). Quando enviada, o setor principal passa a ser
+  // o primeiro da lista, mantendo `setor` e `setores` coerentes.
+  if (Array.isArray(body.setores)) {
+    const lista = (body.setores as unknown[]).filter((s): s is string => typeof s === 'string' && !!s);
+    campos.setores = lista;
+    campos.setor = lista[0] || null;
+  }
   if (typeof body.perfil === 'string') campos.perfil = body.perfil || null;
   if (typeof body.is_active === 'boolean') campos.is_active = body.is_active;
   if (typeof body.is_staff === 'boolean') campos.is_staff = body.is_staff;
@@ -49,6 +56,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
     if (campos.setor !== undefined) {
       await tx`UPDATE usuarios_usuario SET setor = ${campos.setor as string | null} WHERE id = ${targetId}`;
+    }
+    if (campos.setores !== undefined) {
+      await tx`UPDATE usuarios_usuario SET setores = ${campos.setores as string[]} WHERE id = ${targetId}`;
     }
     if (campos.perfil !== undefined) {
       await tx`UPDATE usuarios_usuario SET perfil = ${campos.perfil as string | null} WHERE id = ${targetId}`;

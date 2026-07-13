@@ -80,4 +80,15 @@ export async function runMigrations() {
     UPDATE producao_pedido SET desenhos = ARRAY[desenho_url]
     WHERE desenho_url IS NOT NULL AND desenhos = '{}'
   `.catch(() => {});
+
+  // M09: múltiplos setores por usuário. Mantém a coluna `setor` como setor
+  // principal (redirect da raiz / link) e adiciona `setores` com a lista completa
+  // de setores que o usuário pode acessar. Backfill: quem já tem setor único
+  // passa a ter setores = [setor], deixando a UI e as checagens consistentes.
+  // Quando `setores` está vazio, o sistema cai no comportamento antigo ([setor]).
+  await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS setores TEXT[] NOT NULL DEFAULT '{}'`).catch(() => {});
+  await sql`
+    UPDATE usuarios_usuario SET setores = ARRAY[setor]
+    WHERE setor IS NOT NULL AND setor <> '' AND setores = '{}'
+  `.catch(() => {});
 }

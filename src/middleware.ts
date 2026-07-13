@@ -46,16 +46,21 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  let payload: { is_staff?: boolean; setor?: string } = {};
+  let payload: { is_staff?: boolean; setor?: string; setores?: string[] } = {};
   try {
     const { payload: p } = await jwtVerify(tokenCookie, secret);
-    payload = p as { is_staff?: boolean; setor?: string };
+    payload = p as { is_staff?: boolean; setor?: string; setores?: string[] };
   } catch {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
   const isAdmin = payload.is_staff === true;
   const meuSetor = payload.setor || '';
+  // Lista de setores que o operador pode acessar (múltiplos setores). Fallback
+  // para o setor único quando a lista não vem no token (tokens antigos/legado).
+  const meusSetores = (Array.isArray(payload.setores) && payload.setores.length > 0)
+    ? payload.setores
+    : (meuSetor ? [meuSetor] : []);
 
   // Redirecionar operadores da raiz para o painel do próprio setor
   if (!isAdmin && meuSetor && pathname === '/') {
@@ -78,11 +83,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL(destino, req.url));
   }
 
-  // Bloquear não-admins de ver setores de outros (se tiver setor definido)
-  if (!isAdmin && meuSetor && pathname.startsWith('/setor/')) {
+  // Bloquear não-admins de ver setores que não estão na sua lista de acesso.
+  // Um operador pode ter mais de um setor (ex.: acabamento + embalagem); só é
+  // barrado se o setor da rota não estiver entre os seus.
+  if (!isAdmin && meusSetores.length > 0 && pathname.startsWith('/setor/')) {
     let setorDaRota = pathname.split('/')[2];
     try { setorDaRota = decodeURIComponent(setorDaRota); } catch { /* já decodificado */ }
-    if (setorDaRota && setorDaRota !== meuSetor) {
+    if (setorDaRota && !meusSetores.includes(setorDaRota)) {
       return NextResponse.redirect(new URL(`/setor/${meuSetor}`, req.url));
     }
   }

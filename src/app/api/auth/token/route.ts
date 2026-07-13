@@ -76,7 +76,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: 'Usuario e senha obrigatorios' }, { status: 400 });
 
     const [user] = await sql`
-      SELECT id, username, password, nome, is_staff, is_active, perfil, setor
+      SELECT id, username, password, nome, is_staff, is_active, perfil, setor, setores
       FROM usuarios_usuario
       WHERE username = ${String(username).slice(0, 150)}
     `;
@@ -97,13 +97,20 @@ export async function POST(req: Request) {
     await registrarAuditoria(username, ip, true);
 
     const isAdmin = user.is_staff || user.perfil === 'administrador' || user.perfil === 'pcp';
+    // Lista efetiva de setores: usa `setores` se preenchido; senão cai no setor
+    // único (comportamento antigo). Garante que o setor principal esteja incluso.
+    const setoresLista: string[] = (Array.isArray(user.setores) && user.setores.length > 0)
+      ? (user.setores as string[])
+      : (user.setor ? [user.setor] : []);
+    const setorPrincipal = user.setor || setoresLista[0] || '';
     const token = await signToken({
       id: user.id,
       username: user.username,
       nome: user.nome || user.username,
       is_staff: isAdmin,
       perfil: user.perfil || (user.is_staff ? 'administrador' : 'operador'),
-      setor: user.setor || '',
+      setor: setorPrincipal,
+      setores: setoresLista,
     });
 
     const isProd = process.env.NODE_ENV === 'production';
@@ -114,7 +121,8 @@ export async function POST(req: Request) {
       nome: user.nome || user.username,
       is_staff: isAdmin,
       perfil: user.perfil || (user.is_staff ? 'administrador' : 'operador'),
-      setor: user.setor || '',
+      setor: setorPrincipal,
+      setores: setoresLista,
     };
 
     // Retorna o token (para localStorage) e os dados do usuário (para exibição)
