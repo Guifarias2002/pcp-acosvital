@@ -1,6 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
+import { podeAcessarSetor } from '@/lib/auth';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!item) return NextResponse.json({ erro: 'Item nao encontrado' }, { status: 404 });
 
   logAcesso(user, req, 'entregar');
-  if (!user.is_staff && item.setor_atual !== user.setor)
+  if (!user.is_staff && !podeAcessarSetor(user, item.setor_atual))
     return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
 
   const VALIDOS = ['finalizado_setor', 'aguardando', 'recebido', 'em_andamento', 'em_transito'];
@@ -135,7 +136,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!entrega) return NextResponse.json({ erro: 'Entrega nao encontrada' }, { status: 404 });
 
   logAcesso(user, req, 'entregar_comprovante');
-  if (!user.is_staff && entrega.setor_atual !== user.setor)
+  if (!user.is_staff && !podeAcessarSetor(user, entrega.setor_atual))
     return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
 
   let formData: FormData;

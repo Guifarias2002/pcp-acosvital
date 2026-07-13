@@ -1,6 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
+import { podeAcessarSetor } from '@/lib/auth';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
@@ -17,8 +18,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const [div] = await sql`SELECT * FROM producao_divergencia WHERE id = ${id}`;
   if (!div) return NextResponse.json({ erro: 'Divergencia nao encontrada' }, { status: 404 });
 
-  // Só admin/PCP ou o setor responsável pela divergência pode alterá-la
-  if (!user.is_staff && div.setor_responsavel !== user.setor)
+  // Só admin/PCP ou um setor responsável (na lista do usuário) pode alterá-la
+  if (!user.is_staff && !podeAcessarSetor(user, div.setor_responsavel))
     return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));

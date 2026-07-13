@@ -14,6 +14,20 @@ export interface JWTPayload {
   setores?: string[];
 }
 
+// Lista efetiva de setores que o usuário pode acessar. Usa `setores` (múltiplos)
+// quando preenchido; senão cai no setor único (comportamento antigo / tokens legado).
+export function setoresDoUsuario(u: { setor?: string; setores?: string[] } | null | undefined): string[] {
+  if (!u) return [];
+  return (Array.isArray(u.setores) && u.setores.length > 0)
+    ? u.setores
+    : (u.setor ? [u.setor] : []);
+}
+
+// Um operador (não-staff) pode agir/ver um setor se ele estiver na sua lista.
+export function podeAcessarSetor(u: { setor?: string; setores?: string[] } | null | undefined, setor: string): boolean {
+  return setoresDoUsuario(u).includes(setor);
+}
+
 export async function signToken(payload: JWTPayload): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })

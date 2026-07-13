@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
+import { podeAcessarSetor, setoresDoUsuario } from '@/lib/auth';
 import { formatItem, nomeSector, statusDisplay } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
@@ -33,14 +34,14 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   `;
   if (!row) return NextResponse.json({ erro: 'Nao encontrado' }, { status: 404 });
 
-  if (!user.is_staff && row.setor_atual !== user.setor) {
-    // Permite acesso se o usuário tem parcial ativa deste item no seu setor
+  if (!user.is_staff && !podeAcessarSetor(user, row.setor_atual)) {
+    // Permite acesso se o usuário tem parcial ativa deste item em algum dos seus setores
     // (caso de divergência: parcial movida para outro setor mas setor_atual do item desatualizado)
     const [{ tem_parcial }] = await sql`
       SELECT COUNT(*)::int > 0 AS tem_parcial
       FROM producao_itemparcial
       WHERE item_pedido_id = ${itemId}
-        AND setor_atual = ${user.setor ?? ''}
+        AND setor_atual = ANY(${setoresDoUsuario(user)})
         AND status NOT IN ('cancelada', 'concluida')
     `;
     if (!tem_parcial)

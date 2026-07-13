@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
+import { podeAcessarSetor } from '@/lib/auth';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 const ACOES_VALIDAS = ['receber', 'finalizar'];
@@ -27,7 +28,7 @@ export async function POST(req: Request, { params }: { params: { id: string; aca
   `;
   if (!lote) return NextResponse.json({ erro: 'Lote nao encontrado' }, { status: 404 });
 
-  if (!user.is_staff && lote.setor_destino !== user.setor)
+  if (!user.is_staff && !podeAcessarSetor(user, lote.setor_destino))
     return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
 
   try {

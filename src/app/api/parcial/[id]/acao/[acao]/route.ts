@@ -13,7 +13,7 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
-import { isAdministrador } from '@/lib/auth';
+import { isAdministrador, podeAcessarSetor } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
 import { SETOR_CHOICES } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
@@ -61,8 +61,8 @@ export async function POST(
   `;
   if (!parcial) return NextResponse.json({ erro: 'Parcial não encontrada' }, { status: 404 });
 
-  // Operadores só podem agir em parciais do próprio setor
-  if (!user.is_staff && parcial.setor_atual !== user.setor)
+  // Operadores só podem agir em parciais de um setor da sua lista (múltiplos setores)
+  if (!user.is_staff && !podeAcessarSetor(user, parcial.setor_atual))
     return NextResponse.json({ erro: 'Acesso negado: parcial não é do seu setor' }, { status: 403 });
 
   // Parciais canceladas só aceitam 'apontar' e 'retomar' (admin)

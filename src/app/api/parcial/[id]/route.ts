@@ -8,6 +8,7 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
+import { podeAcessarSetor } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
@@ -34,7 +35,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   `;
   if (!parcial) return NextResponse.json({ erro: 'Parcial não encontrada' }, { status: 404 });
 
-  if (!user.is_staff && parcial.setor_atual !== user.setor)
+  if (!user.is_staff && !podeAcessarSetor(user, parcial.setor_atual))
     return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
 
   const apontamentos = await sql`

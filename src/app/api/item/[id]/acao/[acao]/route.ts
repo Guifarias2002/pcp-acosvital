@@ -1,6 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
+import { podeAcessarSetor } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
 import { SETOR_CHOICES } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
@@ -185,7 +186,7 @@ export async function POST(
   `;
   if (!item) return NextResponse.json({ erro: 'Item nao encontrado' }, { status: 404 });
 
-  if (!user.is_staff && item.setor_atual !== user.setor)
+  if (!user.is_staff && !podeAcessarSetor(user, item.setor_atual))
     return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
 
   const statusesPermitidos = TRANSICOES[acao] || [];

@@ -1,6 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
+import { setoresDoUsuario } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,9 @@ export async function GET(req: Request) {
     const desdeRaw = searchParams.get('desde');
     const desde = desdeRaw && ISO_RE.test(desdeRaw) ? desdeRaw : null;
 
+    // Operador vê movimentações de qualquer um dos seus setores (múltiplos setores).
+    const meusSetores = setoresDoUsuario(user);
+
     const rows = await sql`
       SELECT m.id, m.criado_em,
              m.setor_origem, m.setor_destino,
@@ -27,7 +31,7 @@ export async function GET(req: Request) {
       JOIN producao_pedido p ON p.id = m.pedido_id
       LEFT JOIN usuarios_usuario u ON u.id = m.usuario_id
       WHERE (${desde}::timestamptz IS NULL OR m.criado_em > ${desde}::timestamptz)
-        AND (${user.is_staff} OR m.setor_destino = ${user.setor || ''} OR m.setor_origem = ${user.setor || ''})
+        AND (${user.is_staff} OR m.setor_destino = ANY(${meusSetores}) OR m.setor_origem = ANY(${meusSetores}))
       ORDER BY m.criado_em DESC
       LIMIT 20
     `;
