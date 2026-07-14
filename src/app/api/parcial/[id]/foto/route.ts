@@ -101,7 +101,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     const ext = (arquivo.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
     const ts = Date.now();
-    const storagePath = `fotos/parcial_${parcialId}_${ts}.${ext}`;
+    const rnd = Math.random().toString(36).slice(2, 8);
+    const storagePath = `fotos/parcial_${parcialId}_${ts}_${rnd}.${ext}`;
     const bytes = await arquivo.arrayBuffer();
 
     await uploadStorage(storagePath, bytes, arquivo.type);

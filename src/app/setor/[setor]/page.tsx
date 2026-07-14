@@ -2308,18 +2308,29 @@ function FotosParcial({ parcialId, inicial, editavel }: { parcialId: number; ini
   const token = getToken() || '';
   const urlFoto = (idx: number) => `/api/parcial/${parcialId}/foto?idx=${idx}&token=${encodeURIComponent(token)}`;
 
-  async function enviar(arquivo: File) {
+  // Envia UMA foto e retorna o path salvo (ou null em erro).
+  async function enviarUma(arquivo: File): Promise<string | null> {
+    const otimizada = await comprimirImagem(arquivo);
+    const fd = new FormData();
+    fd.append('arquivo', otimizada);
+    const res = await fetch(`/api/parcial/${parcialId}/foto`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { setErro(data.erro || 'Erro ao enviar foto'); return null; }
+    return data.path as string;
+  }
+
+  // Envia uma ou várias fotos em sequência (galeria com seleção múltipla ou 1 da câmera).
+  async function enviar(arquivos: FileList | File[]) {
+    const lista = Array.from(arquivos);
+    if (lista.length === 0) return;
     setEnviando(true); setErro('');
     try {
-      const otimizada = await comprimirImagem(arquivo);
-      const fd = new FormData();
-      fd.append('arquivo', otimizada);
-      const res = await fetch(`/api/parcial/${parcialId}/foto`, {
-        method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setErro(data.erro || 'Erro ao enviar foto'); return; }
-      setFotos(prev => [...prev, data.path]);
+      for (const arq of lista) {
+        const path = await enviarUma(arq);
+        if (path) setFotos(prev => [...prev, path]);
+      }
     } catch { setErro('Erro de conexão ao enviar a foto'); }
     finally { setEnviando(false); }
   }
@@ -2369,7 +2380,7 @@ function FotosParcial({ parcialId, inicial, editavel }: { parcialId: number; ini
               <i className="bi bi-camera-fill" style={{ fontSize: 18 }} />
               {enviando ? 'Enviando...' : 'Câmera'}
               <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} disabled={enviando}
-                onChange={e => { const f = e.target.files?.[0]; if (f) enviar(f); e.target.value = ''; }} />
+                onChange={e => { if (e.target.files?.length) enviar(e.target.files); e.target.value = ''; }} />
             </label>
             {/* Galeria: escolher uma imagem já salva no aparelho */}
             <label style={{
@@ -2379,8 +2390,8 @@ function FotosParcial({ parcialId, inicial, editavel }: { parcialId: number; ini
             }}>
               <i className="bi bi-images" style={{ fontSize: 18 }} />
               Galeria
-              <input type="file" accept="image/*" style={{ display: 'none' }} disabled={enviando}
-                onChange={e => { const f = e.target.files?.[0]; if (f) enviar(f); e.target.value = ''; }} />
+              <input type="file" accept="image/*" multiple style={{ display: 'none' }} disabled={enviando}
+                onChange={e => { if (e.target.files?.length) enviar(e.target.files); e.target.value = ''; }} />
             </label>
           </>
         )}
