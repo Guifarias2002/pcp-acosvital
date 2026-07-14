@@ -2267,9 +2267,39 @@ function PesosPalletsInfo({ pesos }: { pesos: number[] }) {
   );
 }
 
-// Fotos da parcial — tiradas no Acabamento/Embalagem, viajam com a peça e
-// aparecem também na Logística. `editavel` libera adicionar/excluir (só nos
-// setores de upload e para quem não é somente-leitura); caso contrário, só vê.
+// Comprime/redimensiona a foto no próprio aparelho antes de enviar. Fotos de
+// celular vêm com 5–12 MB, o que trava o upload no 4G e a renderização das
+// miniaturas. Reduz para no máx. 1600px e JPEG qualidade 0.8 (~200–400 KB).
+// Se o navegador não conseguir decodificar (ex.: HEIC), envia o arquivo original.
+async function comprimirImagem(file: File): Promise<File> {
+  if (!/image\/(jpe?g|png|webp)/i.test(file.type)) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const maxDim = 1600;
+    let { width, height } = bitmap;
+    if (width > maxDim || height > maxDim) {
+      const escala = maxDim / Math.max(width, height);
+      width = Math.round(width * escala);
+      height = Math.round(height * escala);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close?.();
+    const blob: Blob | null = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+    if (!blob || blob.size >= file.size) return file; // não melhorou → mantém original
+    const nome = (file.name || 'foto').replace(/\.[^.]+$/, '') + '.jpg';
+    return new File([blob], nome, { type: 'image/jpeg' });
+  } catch {
+    return file;
+  }
+}
+
+// Fotos da parcial — tiradas na Embalagem, viajam com a peça e aparecem também
+// na Logística. `editavel` libera adicionar/excluir (só na Embalagem e para quem
+// não é somente-leitura); caso contrário, só vê.
 function FotosParcial({ parcialId, inicial, editavel }: { parcialId: number; inicial: string[]; editavel: boolean }) {
   const [fotos, setFotos] = useState<string[]>(inicial || []);
   const [enviando, setEnviando] = useState(false);
@@ -2281,8 +2311,9 @@ function FotosParcial({ parcialId, inicial, editavel }: { parcialId: number; ini
   async function enviar(arquivo: File) {
     setEnviando(true); setErro('');
     try {
+      const otimizada = await comprimirImagem(arquivo);
       const fd = new FormData();
-      fd.append('arquivo', arquivo);
+      fd.append('arquivo', otimizada);
       const res = await fetch(`/api/parcial/${parcialId}/foto`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
       });
@@ -2316,7 +2347,7 @@ function FotosParcial({ parcialId, inicial, editavel }: { parcialId: number; ini
         {fotos.map((path, i) => (
           <div key={path} style={{ position: 'relative' }}>
             <img
-              src={urlFoto(i)} alt={`Foto ${i + 1}`} onClick={() => setAmpliada(i)}
+              src={urlFoto(i)} alt={`Foto ${i + 1}`} onClick={() => setAmpliada(i)} loading="lazy" decoding="async"
               style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 6, border: '1px solid #c4b5fd', cursor: 'pointer', background: '#fff' }}
             />
             {editavel && (
