@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getEntregues } from '@/lib/api';
-import { getToken, podeEditar } from '@/lib/auth';
+import { getToken, getUser, podeEditar } from '@/lib/auth';
 import { Pedido, PRIORIDADE_COR } from '@/lib/types';
 import Link from 'next/link';
 import AnexarComprovanteModal from '@/components/AnexarComprovanteModal';
@@ -47,6 +47,7 @@ export default function EntreguesPage() {
   const [divergencia, setDivergencia] = useState<{ pedidoId: number; pedidoNumero: string; itens: PedidoEntregue['itens'] } | null>(null);
   const [mensagem, setMensagem] = useState('');
   const [modalExcluir, setModalExcluir] = useState<{ id: number; numero: string; motivo: string; loading: boolean; erro?: string; requerConfirmacao?: boolean } | null>(null);
+  const isAdmin = getUser()?.is_staff === true;
 
   async function confirmarExcluir(forcar = false) {
     if (!modalExcluir) return;
@@ -366,7 +367,7 @@ export default function EntreguesPage() {
                           style={{ border: '1px solid #0d6efd', color: '#0d6efd', borderRadius: 4, padding: '2px 10px', textDecoration: 'none', fontSize: 12 }}>
                           <i className="bi bi-eye"></i>
                         </Link>
-                        {podeEditar() && (
+                        {podeEditar() && isAdmin && (
                         <button title="Excluir pedido"
                           onClick={() => setModalExcluir({ id: p.id, numero: p.numero_pedido_venda, motivo: '', loading: false })}
                           style={{ border: '1px solid #dc3545', color: '#dc3545', background: 'none', borderRadius: 4, padding: '2px 10px', cursor: 'pointer', fontSize: 12 }}>

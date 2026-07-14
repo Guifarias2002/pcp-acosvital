@@ -104,6 +104,10 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
                 <NavItem href="/divergencias" label="Divergências" icon="bi-exclamation-triangle" onNav={fechar} />
               </>
             )}
+            {/* Responsável pela Logística também acessa Entregues, sem o resto das telas admin. */}
+            {!isAdmin && meusSetores.includes('logistica') && (
+              <NavItem href="/entregues" label="Entregues" icon="bi-check-circle" onNav={fechar} />
+            )}
           </NavGroup>
 
           {isAdmin ? (

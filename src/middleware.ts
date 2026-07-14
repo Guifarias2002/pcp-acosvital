@@ -77,7 +77,10 @@ export async function middleware(req: NextRequest) {
   // com acesso legítimo, mandando de volta pro próprio setor sem nenhum aviso —
   // parecia que o botão "não fazia nada".
   const isPedidosLeitura = pathname === '/pedidos' || /^\/pedidos\/\d+(\/historico|\/relatorio)?$/.test(pathname);
-  const rotaBloqueada = ROTAS_ADMIN.some(r => pathname === r || pathname.startsWith(r + '/')) && !isPedidosLeitura;
+  // Responsável pela Logística também acessa a aba Entregas (mesma exceção
+  // de "leitura liberada por setor" usada acima pra Todos os Pedidos).
+  const podeVerEntregas = pathname === '/entregues' && meusSetores.includes('logistica');
+  const rotaBloqueada = ROTAS_ADMIN.some(r => pathname === r || pathname.startsWith(r + '/')) && !isPedidosLeitura && !podeVerEntregas;
   if (!isAdmin && rotaBloqueada) {
     const destino = meuSetor ? `/setor/${meuSetor}` : '/login';
     return NextResponse.redirect(new URL(destino, req.url));

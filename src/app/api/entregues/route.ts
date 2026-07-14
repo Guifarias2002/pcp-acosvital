@@ -2,13 +2,16 @@
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { withTimeout } from '@/lib/queryTimeout';
+import { setoresDoUsuario } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
   try {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
-  if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  // Responsável pela Logística também acessa (mesmo sem is_staff).
+  if (!user.is_staff && !setoresDoUsuario(user).includes('logistica'))
+    return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
   const cliente = searchParams.get('cliente') || '';
