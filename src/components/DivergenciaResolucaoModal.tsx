@@ -14,7 +14,7 @@ interface Props {
 }
 
 const SETORES = [
-  'emissao','compras','recebimento','estoque','plasma',
+  'emissao','compras','recebimento','estoque','plasma','laser',
   'macarico','usinagem','beneficiadores','inspecao','acabamento','embalagem','logistica',
 ];
 

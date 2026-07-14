@@ -3,6 +3,7 @@ export const SETOR_CHOICES: [string, string][] = [
   ['usinagem', 'Usinagem'],
   ['maçarico', 'Corte Macarico'],
   ['plasma', 'Corte Plasma'],
+  ['laser', 'Corte Laser'],
   ['estoque', 'Estoque'],
   ['furacao', 'Furação'],
   ['qualidade', 'Inspecao de Qualidade'],

@@ -5,7 +5,7 @@ import { getToken } from '@/lib/auth';
 
 const NOMES: Record<string, string> = {
   emissao: 'Emissão de Ordens', usinagem: 'Usinagem', 'maçarico': 'Maçarico',
-  plasma: 'Plasma', estoque: 'Estoque', furacao: 'Furação',
+  plasma: 'Plasma', laser: 'Laser', estoque: 'Estoque', furacao: 'Furação',
   qualidade: 'Inspeção de Qualidade', acabamento: 'Acabamento',
   logistica: 'Logística', recebimento: 'Recebimento', compras: 'Compras',
   beneficiadores: 'Beneficiadores', embalagem: 'Embalagem',

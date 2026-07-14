@@ -13,6 +13,7 @@ const SETOR_ICONS: Record<string, string> = {
   estoque: 'bi-box-seam',
   plasma: 'bi-lightning-charge',
   'maçarico': 'bi-fire',
+  laser: 'bi-scissors',
   usinagem: 'bi-tools',
   beneficiadores: 'bi-gear-wide',
   qualidade: 'bi-patch-check',
