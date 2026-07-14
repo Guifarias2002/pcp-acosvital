@@ -95,10 +95,10 @@ export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filt
     return () => clearInterval(intervalo);
   }, [filtroSetor, modo]);
 
-  // Fila do modo tela: mostra o primeiro por 10s, depois passa pro próximo.
+  // Fila do modo tela: mostra o primeiro por 5s, depois passa pro próximo.
   useEffect(() => {
     if (modo !== 'tela' || fila.length === 0) return;
-    const t = setTimeout(() => setFila(prev => prev.slice(1)), 10000);
+    const t = setTimeout(() => setFila(prev => prev.slice(1)), 5000);
     return () => clearTimeout(t);
   }, [modo, fila[0]?.key]);
 
