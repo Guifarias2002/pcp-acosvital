@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import AuthGuard from '@/components/AuthGuard';
-import { getUser, getToken } from '@/lib/auth';
+import { getUser, getToken, podeEditar } from '@/lib/auth';
 import { SETOR_CHOICES, NOMES } from '@/lib/types';
 
 interface Usuario {
@@ -15,6 +15,7 @@ interface Usuario {
   setor_nome: string | null;
   setores: string[];
   setores_nomes: string[];
+  somente_leitura: boolean;
 }
 
 const PERFIL_BADGE: Record<string, { bg: string; cor: string }> = {
@@ -56,12 +57,12 @@ export default function UsuariosPage() {
   const [copiadoId, setCopiadoId] = useState<number | null>(null);
   const [copiadoLogin, setCopiadoLogin] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] as string[] });
+  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] as string[], somente_leitura: false });
   const [salvando, setSalvando] = useState(false);
   const [formMsg, setFormMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   // Edição de usuário existente
   const [editUser, setEditUser] = useState<Usuario | null>(null);
-  const [editForm, setEditForm] = useState({ nome: '', perfil: 'operador', setores: [] as string[], is_active: true, senha: '' });
+  const [editForm, setEditForm] = useState({ nome: '', perfil: 'operador', setores: [] as string[], is_active: true, senha: '', somente_leitura: false });
   const [editMsg, setEditMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [editSalvando, setEditSalvando] = useState(false);
   const isAdmin = getUser()?.is_staff;
@@ -110,7 +111,7 @@ export default function UsuariosPage() {
         setFormMsg({ tipo: 'erro', texto: data.erro || 'Erro ao criar usuário.' });
       } else {
         setFormMsg({ tipo: 'ok', texto: 'Usuário criado com sucesso!' });
-        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] });
+        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setores: [], somente_leitura: false });
         setShowForm(false);
         carregarUsuarios();
       }
@@ -129,6 +130,7 @@ export default function UsuariosPage() {
       setores: u.setores || [],
       is_active: u.is_active,
       senha: '',
+      somente_leitura: u.somente_leitura || false,
     });
     setEditMsg(null);
   }
@@ -144,6 +146,7 @@ export default function UsuariosPage() {
         perfil: editForm.perfil,
         setores: editForm.setores,
         is_active: editForm.is_active,
+        somente_leitura: editForm.somente_leitura,
       };
       if (editForm.senha) body.senha = editForm.senha;
       const res = await fetch(`/api/usuarios/${editUser.id}`, {
@@ -183,12 +186,14 @@ export default function UsuariosPage() {
         <h4 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c' }}>
           <i className="bi bi-people" style={{ marginRight: 8 }}></i>Usuários do Sistema
         </h4>
+        {podeEditar() && (
         <button onClick={() => { setShowForm(true); setFormMsg(null); }} style={{
           background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6,
           padding: '8px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
         }}>
           <i className="bi bi-person-plus" style={{ marginRight: 6 }}></i>Novo Usuário
         </button>
+        )}
       </div>
 
       {/* Modal criar usuário */}
@@ -259,6 +264,16 @@ export default function UsuariosPage() {
                   <span style={{ fontWeight: 400, color: '#888', marginLeft: 6 }}>— pode marcar mais de um</span>
                 </label>
                 <SetoresSelector valor={form.setores} onChange={s => setForm(f => ({ ...f, setores: s }))} />
+              </div>
+
+              <div style={{ marginBottom: 20, background: '#fff8e1', border: '1px solid #ffe08a', borderRadius: 6, padding: '10px 12px' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#7a5b00', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={form.somente_leitura} onChange={e => setForm(f => ({ ...f, somente_leitura: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                  <span><i className="bi bi-eye" style={{ marginRight: 6 }}></i>Acesso somente leitura</span>
+                </label>
+                <div style={{ fontSize: 12, color: '#9a7b1a', marginTop: 4, paddingLeft: 24 }}>
+                  Vê tudo normalmente, mas não pode fazer nenhuma alteração no sistema.
+                </div>
               </div>
 
               {formMsg && (
@@ -351,11 +366,21 @@ export default function UsuariosPage() {
                 />
               </div>
 
-              <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 13, fontWeight: 600, color: '#444', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                   <input type="checkbox" checked={editForm.is_active} onChange={e => setEditForm(f => ({ ...f, is_active: e.target.checked }))} style={{ cursor: 'pointer' }} />
                   Usuário ativo
                 </label>
+              </div>
+
+              <div style={{ marginBottom: 20, background: '#fff8e1', border: '1px solid #ffe08a', borderRadius: 6, padding: '10px 12px' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#7a5b00', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={editForm.somente_leitura} onChange={e => setEditForm(f => ({ ...f, somente_leitura: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                  <span><i className="bi bi-eye" style={{ marginRight: 6 }}></i>Acesso somente leitura</span>
+                </label>
+                <div style={{ fontSize: 12, color: '#9a7b1a', marginTop: 4, paddingLeft: 24 }}>
+                  Vê tudo normalmente, mas não pode fazer nenhuma alteração no sistema.
+                </div>
               </div>
 
               {editMsg && (
@@ -449,6 +474,11 @@ export default function UsuariosPage() {
                       <span style={{ background: badgePerfil.bg, color: badgePerfil.cor, fontSize: 11, padding: '2px 10px', borderRadius: 4, fontWeight: 600 }}>
                         {u.perfil.charAt(0).toUpperCase() + u.perfil.slice(1)}
                       </span>
+                      {u.somente_leitura && (
+                        <span title="Somente leitura" style={{ display: 'inline-block', marginLeft: 6, background: '#fff3cd', color: '#7a5b00', fontSize: 10, padding: '2px 7px', borderRadius: 4, fontWeight: 700, border: '1px solid #ffe08a' }}>
+                          <i className="bi bi-eye" style={{ marginRight: 3 }}></i>Leitura
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: '9px 14px', color: '#444' }}>
                       {setoresNomes.length > 0
@@ -489,12 +519,14 @@ export default function UsuariosPage() {
                       )}
                     </td>
                     <td style={{ padding: '9px 14px' }}>
+                      {podeEditar() ? (
                       <button onClick={() => abrirEdicao(u)} style={{
                         background: 'none', border: '1px solid #1a3a5c', color: '#1a3a5c',
                         borderRadius: 4, padding: '3px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
                       }}>
                         <i className="bi bi-pencil" style={{ marginRight: 4 }}></i>Editar
                       </button>
+                      ) : <span style={{ color: '#bbb', fontSize: 12 }}>—</span>}
                     </td>
                   </tr>
                 );

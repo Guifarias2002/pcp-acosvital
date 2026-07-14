@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import Link from 'next/link';
-import { getToken } from '@/lib/auth';
+import { getToken, podeEditar } from '@/lib/auth';
 
 interface Divergencia {
   id: number;
@@ -239,7 +239,8 @@ export default function DivergenciasPage() {
                   </div>
                 </div>
 
-                {/* Ações rápidas */}
+                {/* Ações rápidas — escondidas para usuários somente leitura */}
+                {podeEditar() && (
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                   {d.status === 'aberta' && (
                     <button onClick={() => atualizarStatus(d.id, 'em_analise')}
@@ -260,6 +261,7 @@ export default function DivergenciasPage() {
                     </button>
                   )}
                 </div>
+                )}
 
                 <i className={`bi bi-chevron-${aberto ? 'up' : 'down'}`} style={{ color: '#aaa', flexShrink: 0 }} />
               </div>

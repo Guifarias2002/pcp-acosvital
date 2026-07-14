@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getEntregues } from '@/lib/api';
-import { getToken } from '@/lib/auth';
+import { getToken, podeEditar } from '@/lib/auth';
 import { Pedido, PRIORIDADE_COR } from '@/lib/types';
 import Link from 'next/link';
 import AnexarComprovanteModal from '@/components/AnexarComprovanteModal';
@@ -366,11 +366,13 @@ export default function EntreguesPage() {
                           style={{ border: '1px solid #0d6efd', color: '#0d6efd', borderRadius: 4, padding: '2px 10px', textDecoration: 'none', fontSize: 12 }}>
                           <i className="bi bi-eye"></i>
                         </Link>
+                        {podeEditar() && (
                         <button title="Excluir pedido"
                           onClick={() => setModalExcluir({ id: p.id, numero: p.numero_pedido_venda, motivo: '', loading: false })}
                           style={{ border: '1px solid #dc3545', color: '#dc3545', background: 'none', borderRadius: 4, padding: '2px 10px', cursor: 'pointer', fontSize: 12 }}>
                           <i className="bi bi-trash"></i>
                         </button>
+                        )}
                       </div>
                     </td>
                   </tr>

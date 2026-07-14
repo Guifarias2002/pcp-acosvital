@@ -4,7 +4,7 @@ import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedido, itemAcao } from '@/lib/api';
 import { Pedido, ItemPedido, COR_STATUS, STATUS_LABELS, PRIORIDADE_COR, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR } from '@/lib/types';
-import { getUser, getToken } from '@/lib/auth';
+import { getUser, getToken, podeEditar } from '@/lib/auth';
 import Link from 'next/link';
 import ConfirmModal from '@/components/ConfirmModal';
 import ReceberModal from '@/components/ReceberModal';
@@ -66,7 +66,12 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const [enviandoObs, setEnviandoObs] = useState<number | null>(null);
   const [erroObs, setErroObs] = useState<string | null>(null);
   const user = getUser();
-  const isAdmin = user?.is_staff;
+  // Usuário somente-leitura: vê tudo (inclusive financeiro), mas não pode agir.
+  // isAdmin passa a exigir editavel, então todos os botões de ação que dependem
+  // dele somem e os ternários caem no branch de leitura. verFinanceiro é
+  // independente — o read-only continua enxergando os valores.
+  const editavel = podeEditar(user);
+  const isAdmin = user?.is_staff && editavel;
   const verFinanceiro = user?.is_staff && user?.perfil !== 'lider';
 
   async function uploadAnexo(tipo: 'nota' | 'canhoto' | 'pendente', arquivo?: File) {
@@ -432,7 +437,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                 </div>
                 {(() => {
                   const itensAguardando = pedido.itens.filter(i =>
-                    i.status === 'aguardando' && (isAdmin || user?.setor === i.setor_atual)
+                    i.status === 'aguardando' && (isAdmin || (editavel && user?.setor === i.setor_atual))
                   );
                   const itensEmitidos = pedido.itens.filter(i => i.status === 'emitido');
                   return (
@@ -631,7 +636,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                         )}
 
                         {/* Receber (aguardando) */}
-                        {item.status === 'aguardando' && (isAdmin || user?.setor === item.setor_atual) && (
+                        {item.status === 'aguardando' && (isAdmin || (editavel && user?.setor === item.setor_atual)) && (
                           <button className="btn btn-sm"
                             style={{ background: '#92400e', color: '#fff', border: 'none' }}
                             onClick={() => setRecebendo(item.id)}>
@@ -640,7 +645,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                         )}
 
                         {/* Iniciar (recebido) */}
-                        {item.status === 'recebido' && (isAdmin || user?.setor === item.setor_atual) && (
+                        {item.status === 'recebido' && (isAdmin || (editavel && user?.setor === item.setor_atual)) && (
                           <button className="btn btn-sm"
                             style={{ background: '#16a34a', color: '#fff', border: 'none' }}
                             disabled={fazendo?.itemId === item.id}
@@ -656,7 +661,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                               const mov = item.movimentacoes?.find(m => m.status_novo === 'em_andamento');
                               return mov ? <Cronometro desde={mov.criado_em} /> : null;
                             })()}
-                            {(isAdmin || user?.setor === item.setor_atual) && (
+                            {(isAdmin || (editavel && user?.setor === item.setor_atual)) && (
                               <div className="flex gap-1">
                                 <button className="btn btn-sm"
                                   style={{ background: '#fd7e14', color: '#fff', border: 'none' }}
@@ -676,7 +681,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                         )}
 
                         {/* Pausado: retomar + finalizar */}
-                        {item.status === 'pausado' && (isAdmin || user?.setor === item.setor_atual) && (
+                        {item.status === 'pausado' && (isAdmin || (editavel && user?.setor === item.setor_atual)) && (
                           <div className="flex gap-1">
                             <button className="btn btn-sm"
                               style={{ background: '#16a34a', color: '#fff', border: 'none' }}
@@ -694,7 +699,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                         )}
 
                         {/* Finalizado: enviar tudo / parcial */}
-                        {item.status === 'finalizado_setor' && (isAdmin || user?.setor === item.setor_atual) && item.setor_atual !== 'logistica' && item.proximo_setor && (
+                        {item.status === 'finalizado_setor' && (isAdmin || (editavel && user?.setor === item.setor_atual)) && item.setor_atual !== 'logistica' && item.proximo_setor && (
                           <div className="flex gap-1">
                             <button className="btn btn-sm"
                               style={{ background: '#1a3a5c', color: '#fff', border: 'none' }}
@@ -783,7 +788,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                     {/* Painel de observações por item — visível a todos */}
                     {itemObsAberto === item.id && (() => {
                       const observacoes = item.observacoes || [];
-                      const podeComentar = true; // qualquer usuário autenticado pode comentar
+                      const podeComentar = editavel; // qualquer usuário autenticado pode comentar, exceto somente-leitura
                       return (
                         <div style={{ marginTop: 10, background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 8, padding: '12px 14px' }}>
                           <p style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8', margin: '0 0 8px' }}>

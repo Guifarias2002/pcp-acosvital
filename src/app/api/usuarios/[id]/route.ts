@@ -40,6 +40,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (typeof body.perfil === 'string') campos.perfil = body.perfil || null;
   if (typeof body.is_active === 'boolean') campos.is_active = body.is_active;
   if (typeof body.is_staff === 'boolean') campos.is_staff = body.is_staff;
+  if (typeof body.somente_leitura === 'boolean') campos.somente_leitura = body.somente_leitura;
   if (typeof body.senha === 'string' && body.senha) {
     if (body.senha.length < 8)
       return NextResponse.json({ erro: 'Senha deve ter pelo menos 8 caracteres' }, { status: 400 });
@@ -68,6 +69,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
     if (campos.is_staff !== undefined) {
       await tx`UPDATE usuarios_usuario SET is_staff = ${campos.is_staff as boolean} WHERE id = ${targetId}`;
+    }
+    if (campos.somente_leitura !== undefined) {
+      await tx`UPDATE usuarios_usuario SET somente_leitura = ${campos.somente_leitura as boolean} WHERE id = ${targetId}`;
     }
     if (campos.senha !== undefined) {
       const hashed = await hashPassword(campos.senha as string);

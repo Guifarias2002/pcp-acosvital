@@ -31,7 +31,7 @@ function Cronometro({ desde }: { desde: string }) {
   );
 }
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, setPesosPallets } from '@/lib/api';
-import { isAdministrador } from '@/lib/auth';
+import { isAdministrador, podeEditar } from '@/lib/auth';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
@@ -252,7 +252,8 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
         temDesenho={(item as any).tem_desenho}
       />
 
-      {/* Ações */}
+      {/* Ações — escondidas para usuários somente leitura */}
+      {podeEditar() && (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
 
         {/* LIBERAR — item ainda emitido, envia para o proximo setor do roteiro */}
@@ -388,6 +389,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
           </>
         )}
       </div>
+      )}
 
       {/* Modal receber */}
       {item.status === 'aguardando' && showReceber && (
@@ -554,14 +556,14 @@ function LoteCard({ lote, tipo, onRefresh }: { lote: LoteItem & Record<string, u
         <i className="bi bi-arrow-right" style={{ marginRight: 4 }}></i>De: {lote.setor_origem_nome}
       </div>
 
-      {tipo === 'chegando' && !showReceber && (
+      {podeEditar() && tipo === 'chegando' && !showReceber && (
         <button onClick={() => setShowReceber(true)} disabled={loading}
           style={{ width: '100%', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 5, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
           <i className="bi bi-box-arrow-in-down" style={{ marginRight: 6 }}></i>Receber lote
         </button>
       )}
 
-      {tipo === 'trabalho' && !showConfirmFinalizar && (
+      {podeEditar() && tipo === 'trabalho' && !showConfirmFinalizar && (
         <button onClick={() => setShowConfirmFinalizar(true)} disabled={loading}
           style={{ width: '100%', background: '#166534', color: '#fff', border: 'none', borderRadius: 5, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginTop: 4 }}>
           <i className="bi bi-check2-circle" style={{ marginRight: 6 }}></i>Liberar item para o setor
@@ -873,9 +875,12 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           temDesenho={(parcial as any).tem_desenho}
         />
 
-        {/* Peso da embalagem: editável na Embalagem, somente leitura na Logística */}
+        {/* Peso da embalagem: editável na Embalagem, somente leitura na Logística.
+            Usuário somente-leitura vê o valor (Info) mesmo na Embalagem, sem editar. */}
         {parcial.setor_atual === 'embalagem' && (
-          <PesosPalletsEditor parcialId={parcial.id as number} inicial={(parcial as any).pesos_pallets || []} />
+          podeEditar()
+            ? <PesosPalletsEditor parcialId={parcial.id as number} inicial={(parcial as any).pesos_pallets || []} />
+            : <PesosPalletsInfo pesos={(parcial as any).pesos_pallets || []} />
         )}
         {parcial.setor_atual === 'logistica' && (
           <PesosPalletsInfo pesos={(parcial as any).pesos_pallets || []} />
@@ -906,7 +911,8 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
         </a>
       )}
 
-      {/* Ações */}
+      {/* Ações — escondidas para usuários somente leitura */}
+      {podeEditar() && (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
 
         {/* ── Iniciar ─────────────────────────────────────────────────────── */}
@@ -1082,6 +1088,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           );
         })()}
       </div>
+      )}
 
       {/* Painel de observações por item — visível a todos */}
       {obsAberto && (() => {
@@ -1104,6 +1111,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
                 </div>
               ))}
             </div>
+            {podeEditar() && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
               <textarea value={novaObsTexto} onChange={e => setNovaObsTexto(e.target.value)}
                 placeholder="Adicionar observação..." rows={2}
@@ -1113,6 +1121,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
                 {enviandoObs ? '⏳' : 'Enviar'}
               </button>
             </div>
+            )}
             {erroObs && <p style={{ fontSize: 11, color: '#dc2626', marginTop: 6 }}>{erroObs}</p>}
           </div>
         );
@@ -1572,7 +1581,8 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
         </div>
       )}
 
-      {/* Ações combinadas */}
+      {/* Ações combinadas — escondidas para usuários somente leitura */}
+      {podeEditar() && (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {isLogistica && isAberto && (
           <button onClick={() => acaoTodos('iniciar')} disabled={loading} style={btnStyle('#0d6efd')}>
@@ -1747,6 +1757,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
           </button>
         )}
       </div>
+      )}
 
       {/* Modal receber grupo */}
       {!isLogistica && isAberto && showReceberModal && (
@@ -2075,7 +2086,7 @@ function PedidoGrupos({ grupos, onRefresh, onVerPedido, setor }: { grupos: [stri
                   <span><i className="bi bi-calendar3" style={{ marginRight: 4 }}></i>{rep.pedido_prazo}</span>
                 )}
                 <span style={{ fontWeight: 600 }}>{itens.length} {itens.length === 1 ? 'item' : 'itens'}</span>
-                {modoEmissao && emitidos.length > 0 && (
+                {modoEmissao && emitidos.length > 0 && podeEditar() && (
                   <button
                     disabled={carregandoInicio}
                     onClick={(e) => { e.stopPropagation(); iniciarProducao(numeroPedido, itens); }}
@@ -2467,6 +2478,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             <i className="bi bi-eye-fill" />
                           </button>
                           {(() => {
+                            if (!podeEditar()) return null;
                             const recebiveis = parciais.filter(p => p.status === 'em_aberto' && p.setor_atual !== 'logistica');
                             if (recebiveis.length === 0) return null;
                             const carregando = recebendoTudo.has(pedido_id);
@@ -2491,6 +2503,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             );
                           })()}
                           {(() => {
+                            if (!podeEditar()) return null;
                             const recebiveisCheck = parciais.some(p => p.status === 'em_aberto' && p.setor_atual !== 'logistica');
                             const enviaveis = parciais.filter(p =>
                               ['recebido', 'em_andamento', 'pausado', 'finalizado_setor'].includes(p.status)
@@ -2532,7 +2545,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             // Desfazer recebimento (só administrador): volta as parciais
                             // recebidas para "em aberto", fazendo o "Receber Tudo" reaparecer.
                             const desfaziveis = parciais.filter(p => p.status === 'recebido' && p.setor_atual !== 'logistica');
-                            if (!podeDesfazer || desfaziveis.length === 0) return null;
+                            if (!podeEditar() || !podeDesfazer || desfaziveis.length === 0) return null;
                             const temRecebiveis = parciais.some(p => p.status === 'em_aberto' && p.setor_atual !== 'logistica');
                             const temEnviaveis = parciais.some(p =>
                               ['recebido', 'em_andamento', 'pausado', 'finalizado_setor'].includes(p.status)

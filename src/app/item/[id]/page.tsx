@@ -4,7 +4,7 @@ import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getItem, itemAcao, parcialAcao } from '@/lib/api';
 import { ItemPedido, SETOR_CHOICES, STATUS_LABELS, PRIORIDADE_COR, NOMES } from '@/lib/types';
-import { getUser, getToken } from '@/lib/auth';
+import { getUser, getToken, podeEditar } from '@/lib/auth';
 import { fmtData, fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
@@ -162,8 +162,10 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
     carregar();
   }
 
-  const isAdmin = getUser()?.is_staff;
-  const podeComentar = true; // qualquer usuário autenticado pode comentar
+  // Usuário somente-leitura: vê tudo (desenho, documentos, histórico), mas sem ações.
+  const editavel = podeEditar();
+  const isAdmin = getUser()?.is_staff && editavel;
+  const podeComentar = editavel; // qualquer usuário autenticado pode comentar, exceto somente-leitura
 
   async function adicionarObservacao() {
     if (!novaObservacao.trim()) return;
@@ -386,10 +388,12 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                 <i className="bi bi-check-circle-fill text-green-600 text-4xl" />
                 <p className="font-bold text-green-700 mt-2 mb-1 text-base">Item Entregue</p>
                 <p className="text-xs text-gray-500 mb-3">Este item foi entregue ao cliente pela logística.</p>
+                {editavel && (
                 <button onClick={() => setShowAnexar(true)}
                   className="bg-white text-green-700 border border-green-300 rounded px-4 py-1.5 text-xs font-semibold hover:bg-green-50">
                   <i className="bi bi-paperclip mr-1" />Anexar comprovante
                 </button>
+                )}
               </div>
             )}
 
@@ -403,6 +407,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
             )}
 
             <div className="bg-white rounded-xl border shadow-sm p-4">
+              {editavel && (<>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Ações</p>
               {erroAcao && (
                 <div className="mb-3 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 flex items-start gap-2">
@@ -590,6 +595,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                   </button>
                 )}
               </div>
+              </>)}
 
               {/* Desenho técnico — preview + upload (admin) */}
               <div className="mt-4 border-t pt-4">

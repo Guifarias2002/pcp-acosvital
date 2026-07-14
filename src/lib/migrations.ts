@@ -95,4 +95,10 @@ export async function runMigrations() {
   // M10: peso da embalagem por parcial — lista de pesos (kg), um por pallet.
   // O setor de Embalagem registra 1+ pallets; o total é a soma. Vazio = não informado.
   await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS pesos_pallets NUMERIC(12,3)[] NOT NULL DEFAULT '{}'`).catch(() => {});
+
+  // M11: acesso somente-leitura por usuário. Quando true, o usuário vê tudo
+  // normalmente (inclusive telas administrativas e valores) mas NÃO pode fazer
+  // nenhuma alteração — o bloqueio é aplicado de forma central em `autenticar`,
+  // que barra qualquer método de escrita (POST/PUT/PATCH/DELETE).
+  await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS somente_leitura BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
 }

@@ -12,6 +12,10 @@ export interface JWTPayload {
   // Lista completa de setores que o operador pode acessar. `setor` continua
   // sendo o setor principal (redirect da raiz / link). Se vazio, o sistema usa [setor].
   setores?: string[];
+  // Acesso somente-leitura: vê tudo normalmente, mas não pode alterar nada.
+  // O bloqueio efetivo é feito no back (`autenticar` barra métodos de escrita);
+  // no front serve só para esconder botões de ação.
+  somente_leitura?: boolean;
 }
 
 // Lista efetiva de setores que o usuário pode acessar. Usa `setores` (múltiplos)
@@ -72,6 +76,13 @@ export function clearToken() {
 export function isAdministrador(u?: JWTPayload | null): boolean {
   const user = u ?? getUser();
   return !!user && (user.perfil === 'administrador' || (user.is_staff && user.perfil !== 'pcp' && user.perfil !== 'lider'));
+}
+
+// Pode editar/agir no sistema? Falso apenas para usuários somente-leitura.
+// Usado no client para esconder botões de ação. A garantia real está no back.
+export function podeEditar(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return !(user && user.somente_leitura === true);
 }
 
 export function getUser(): JWTPayload | null {

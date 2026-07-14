@@ -21,7 +21,7 @@ export async function GET(req: Request) {
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   const users = await sql`
-    SELECT id, username, nome, is_staff, is_active, perfil, setor, setores
+    SELECT id, username, nome, is_staff, is_active, perfil, setor, setores, somente_leitura
     FROM usuarios_usuario
     ORDER BY is_active DESC, nome
   `;
@@ -42,6 +42,7 @@ export async function GET(req: Request) {
       setor_nome: u.setor ? (NOMES[u.setor] || u.setor) : null,
       setores,
       setores_nomes: setores.map(s => NOMES[s] || s),
+      somente_leitura: u.somente_leitura === true,
     };
   }));
 }
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
   if (!checkMutationRateLimit(getClientIp(req)))
     return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
-  const { username, nome, senha, perfil, setor, setores } = await req.json();
+  const { username, nome, senha, perfil, setor, setores, somente_leitura } = await req.json();
 
   if (!username || !nome || !senha || !perfil)
     return NextResponse.json({ erro: 'Preencha todos os campos obrigatórios.' }, { status: 400 });
@@ -73,10 +74,11 @@ export async function POST(req: Request) {
     ? setores.filter((s: unknown): s is string => typeof s === 'string' && !!s)
     : (setor ? [setor] : []);
   const setorPrincipal = listaSetores[0] || null;
+  const soLeitura = somente_leitura === true;
 
   await sql`
-    INSERT INTO usuarios_usuario (username, nome, password, perfil, setor, setores, is_staff, is_active, date_joined)
-    VALUES (${username}, ${nome}, ${hashed}, ${perfil}, ${setorPrincipal}, ${listaSetores}, ${is_staff}, true, NOW())
+    INSERT INTO usuarios_usuario (username, nome, password, perfil, setor, setores, is_staff, is_active, somente_leitura, date_joined)
+    VALUES (${username}, ${nome}, ${hashed}, ${perfil}, ${setorPrincipal}, ${listaSetores}, ${is_staff}, true, ${soLeitura}, NOW())
   `;
 
   return NextResponse.json({ ok: true });

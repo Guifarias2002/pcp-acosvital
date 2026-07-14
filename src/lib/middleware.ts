@@ -16,12 +16,25 @@ export async function autenticar(req: Request): Promise<JWTPayload | NextRespons
   const token = getTokenFromCookie(req) || getTokenFromHeader(req);
   if (!token) return NextResponse.json({ erro: 'Nao autenticado' }, { status: 401 });
 
+  let payload: JWTPayload;
   try {
-    return await verifyToken(token);
+    payload = await verifyToken(token);
   } catch {
     return NextResponse.json({ erro: 'Token invalido ou expirado' }, { status: 401 });
   }
+
+  // Bloqueio central de escrita para usuários somente-leitura. Como todas as
+  // rotas de escrita (POST/PUT/PATCH/DELETE) começam chamando `autenticar`,
+  // barrar aqui garante que nenhuma alteração passe, sem precisar tocar em cada
+  // handler. GET (leitura) continua liberado; login/logout não passam por aqui.
+  if (payload.somente_leitura === true && ESCRITA.has(req.method)) {
+    return NextResponse.json({ erro: 'Acesso somente leitura: alteracoes nao permitidas' }, { status: 403 });
+  }
+
+  return payload;
 }
+
+const ESCRITA = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 // Registra acesso a uma rota de API na tabela auditoria_acesso (log estruturado LGPD/TI)
 export async function logAcesso(

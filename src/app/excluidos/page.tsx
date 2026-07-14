@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import AuthGuard from '@/components/AuthGuard';
-import { getToken, getUser } from '@/lib/auth';
+import { getToken, getUser, podeEditar } from '@/lib/auth';
 
 interface PedidoExcluido {
   id: number;
@@ -43,7 +43,7 @@ export default function ExcluidosPage() {
   const [sucesso, setSucesso] = useState('');
 
   const user = getUser();
-  const isSuperAdmin = user?.perfil === 'administrador' || (user?.is_staff && user?.perfil !== 'pcp' && user?.perfil !== 'lider');
+  const isSuperAdmin = (user?.perfil === 'administrador' || (user?.is_staff && user?.perfil !== 'pcp' && user?.perfil !== 'lider')) && podeEditar(user);
 
   async function carregar(b = '') {
     setLoading(true);
