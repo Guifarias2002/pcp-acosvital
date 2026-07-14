@@ -16,6 +16,7 @@ interface Notificacao {
   cliente?: string | null;
   vendedor?: string | null;
   usuario_nome: string;
+  qtd?: number;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -35,21 +36,24 @@ function acaoLabel(m: Notificacao): { texto: string; icone: string } {
   const dest = nomeSetor(m.setor_destino);
   const orig = nomeSetor(m.setor_origem);
   const mudouSetor = m.setor_destino && m.setor_origem && m.setor_destino !== m.setor_origem;
+  let r: { texto: string; icone: string };
   switch (m.status_novo) {
-    case 'criado':       return { icone: '🆕', texto: 'Pedido criado' };
+    case 'criado':       r = { icone: '🆕', texto: 'Pedido criado' }; break;
     case 'aguardando':
     case 'emitido':
-      return { icone: '📤', texto: mudouSetor ? `Enviado para ${dest || orig}` : `Liberado${dest ? ' — ' + dest : ''}` };
-    case 'recebido':      return { icone: '📥', texto: `Recebido em ${dest || orig}` };
-    case 'em_andamento':  return { icone: '⚙️', texto: `Em produção em ${dest || orig}` };
-    case 'pausado':       return { icone: '⏸️', texto: `Pausado em ${dest || orig}` };
-    case 'finalizado_setor': return { icone: '✅', texto: `Finalizado em ${dest || orig}` };
-    case 'em_transito':   return { icone: '🚚', texto: `Despachado (em trânsito)` };
-    case 'entregue':      return { icone: '🎉', texto: `Entregue ao cliente` };
-    case 'reprovado':     return { icone: '⚠️', texto: `Reprovado na Qualidade` };
-    case 'bloqueado':     return { icone: '🛑', texto: `Cancelado / bloqueado` };
-    default:              return { icone: '🔄', texto: STATUS_LABEL[m.status_novo] || m.status_novo };
+      r = { icone: '📤', texto: mudouSetor ? `Enviado para ${dest || orig}` : `Liberado${dest ? ' — ' + dest : ''}` }; break;
+    case 'recebido':      r = { icone: '📥', texto: `Recebido em ${dest || orig}` }; break;
+    case 'em_andamento':  r = { icone: '⚙️', texto: `Em produção em ${dest || orig}` }; break;
+    case 'pausado':       r = { icone: '⏸️', texto: `Pausado em ${dest || orig}` }; break;
+    case 'finalizado_setor': r = { icone: '✅', texto: `Finalizado em ${dest || orig}` }; break;
+    case 'em_transito':   r = { icone: '🚚', texto: `Despachado (em trânsito)` }; break;
+    case 'entregue':      r = { icone: '🎉', texto: `Entregue ao cliente` }; break;
+    case 'reprovado':     r = { icone: '⚠️', texto: `Reprovado na Qualidade` }; break;
+    case 'bloqueado':     r = { icone: '🛑', texto: `Cancelado / bloqueado` }; break;
+    default:              r = { icone: '🔄', texto: STATUS_LABEL[m.status_novo] || m.status_novo };
   }
+  if (m.qtd && m.qtd > 1) r = { ...r, texto: `${r.texto} — ${m.qtd} itens` };
+  return r;
 }
 
 export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filtroSetor?: string; modo?: 'toast' | 'tela' } = {}) {
@@ -80,11 +84,23 @@ export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filt
         if (filtradas.length === 0) return;
 
         // Chegam em ordem decrescente; na fila queremos mostrar da mais antiga p/ mais nova.
-        const novos = [...filtradas].reverse().map(m => ({ ...m, key: keyRef.current++ }));
+        const emOrdem = [...filtradas].reverse();
 
         if (modo === 'tela') {
+          // Agrupa movimentacoes do mesmo pedido/acao/setor (ex: liberar varios itens
+          // de uma vez gera uma linha por item) numa unica notificacao com contador.
+          const grupos: (Notificacao & { qtd: number })[] = [];
+          const porChave = new Map<string, Notificacao & { qtd: number }>();
+          for (const m of emOrdem) {
+            const chave = `${m.pedido_numero}|${m.status_novo}|${m.setor_origem}|${m.setor_destino}`;
+            const existente = porChave.get(chave);
+            if (existente) { existente.qtd++; }
+            else { const g = { ...m, qtd: 1 }; porChave.set(chave, g); grupos.push(g); }
+          }
+          const novos = grupos.map(m => ({ ...m, key: keyRef.current++ }));
           setFila(prev => [...prev, ...novos].slice(-20)); // limita fila pra não acumular sem fim
         } else {
+          const novos = emOrdem.map(m => ({ ...m, key: keyRef.current++ }));
           const novosDesc = novos.reverse();
           setToasts(prev => [...novosDesc, ...prev].slice(0, 5));
           novosDesc.forEach(n => {
@@ -181,7 +197,9 @@ export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filt
                 </div>
                 <div>
                   <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>ITEM</div>
-                  <div style={{ fontSize: 24, fontWeight: 800, color: '#475569' }}>{atual.item_codigo || '—'}</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: '#475569' }}>
+                    {atual.qtd && atual.qtd > 1 ? `${atual.qtd} itens` : (atual.item_codigo || '—')}
+                  </div>
                 </div>
               </>
             )}
