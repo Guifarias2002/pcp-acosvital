@@ -24,8 +24,8 @@ export async function GET(req: Request) {
   const prioridade = searchParams.get('prioridade') || '';
   const setor      = searchParams.get('setor') || '';
   const entregue   = searchParams.get('entregue') === '1';
-  const prazoDe    = searchParams.get('prazo_de') || '';
-  const prazoAte   = searchParams.get('prazo_ate') || '';
+  const prazoDe    = searchParams.get('prazo_de') || null;
+  const prazoAte   = searchParams.get('prazo_ate') || null;
   const page       = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const offset     = (page - 1) * PER_PAGE;
 
@@ -48,8 +48,8 @@ export async function GET(req: Request) {
       AND (${prioridade} = '' OR p.prioridade = ${prioridade})
       AND (${setor} = '' OR p.setor_atual = ${setor})
       AND (${entregue} = TRUE OR p.status != 'entregue')
-      AND (${prazoDe} = '' OR p.prazo_entrega >= ${prazoDe})
-      AND (${prazoAte} = '' OR p.prazo_entrega <= ${prazoAte})
+      AND (${prazoDe}::date IS NULL OR p.prazo_entrega >= ${prazoDe}::date)
+      AND (${prazoAte}::date IS NULL OR p.prazo_entrega <= ${prazoAte}::date)
     ORDER BY
       CASE p.prioridade WHEN 'urgente' THEN 1 WHEN 'alta' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
       p.prazo_entrega ASC NULLS LAST,
@@ -91,8 +91,8 @@ export async function GET(req: Request) {
         AND (${prioridade} = '' OR p.prioridade = ${prioridade})
         AND (${setor} = '' OR p.setor_atual = ${setor})
         AND (${entregue} = TRUE OR p.status != 'entregue')
-        AND (${prazoDe} = '' OR p.prazo_entrega >= ${prazoDe})
-        AND (${prazoAte} = '' OR p.prazo_entrega <= ${prazoAte})
+        AND (${prazoDe}::date IS NULL OR p.prazo_entrega >= ${prazoDe}::date)
+        AND (${prazoAte}::date IS NULL OR p.prazo_entrega <= ${prazoAte}::date)
     `,
   ]), 27000); // 27s — Vercel mata em 30s (temporario, ver vercel.json)
 
