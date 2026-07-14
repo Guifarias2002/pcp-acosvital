@@ -96,6 +96,7 @@ export function formatItem(row: any) {
     // ISO dava sempre errado (comparacao de texto, nao de data real).
     atrasado: row.pedido_prazo ? diasPrazo(row.pedido_prazo) < 0 : false,
     pedido_prazo: fmtData(row.pedido_prazo),
+    pedido_prazo_iso: row.pedido_prazo || null,
     pedido_prioridade: row.pedido_prioridade,
     codigo: row.codigo,
     descricao: row.descricao,

@@ -25,6 +25,7 @@ interface ItemKanban {
   pedido_numero: string;
   pedido_cliente: string;
   pedido_prioridade: string;
+  pedido_prazo_iso: string | null;
   codigo: string;
   quantidade_pendente: string;
   unidade: string;
@@ -46,6 +47,8 @@ export default function KanbanPage() {
   const [loading, setLoading] = useState(true);
   const [ultimaAtt, setUltimaAtt] = useState('');
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  const [fPrazoDe, setFPrazoDe] = useState('');
+  const [fPrazoAte, setFPrazoAte] = useState('');
 
   function toggleGrupo(key: string) {
     setExpandidos(prev => {
@@ -77,9 +80,23 @@ export default function KanbanPage() {
     carregarCallback,
   );
 
-  const total = setores.reduce((s, x) => s + x.itens.length, 0);
-  const totalChegando = setores.reduce((s, x) => s + x.chegando.length, 0);
-  const setoresAtivos = setores.filter(s => s.itens.length > 0 || s.chegando.length > 0);
+  const dentroDoPrazo = (prazo: string | null) => {
+    if (!prazo) return !fPrazoDe && !fPrazoAte;
+    if (fPrazoDe && prazo < fPrazoDe) return false;
+    if (fPrazoAte && prazo > fPrazoAte) return false;
+    return true;
+  };
+  const setoresFiltrados = (fPrazoDe || fPrazoAte)
+    ? setores.map(s => ({
+        ...s,
+        itens: s.itens.filter(i => dentroDoPrazo(i.pedido_prazo_iso)),
+        chegando: s.chegando.filter(l => dentroDoPrazo(l.pedido_prazo)),
+      }))
+    : setores;
+
+  const total = setoresFiltrados.reduce((s, x) => s + x.itens.length, 0);
+  const totalChegando = setoresFiltrados.reduce((s, x) => s + x.chegando.length, 0);
+  const setoresAtivos = setoresFiltrados.filter(s => s.itens.length > 0 || s.chegando.length > 0);
 
   return (
     <AuthGuard>
@@ -96,6 +113,24 @@ export default function KanbanPage() {
         <Link href="/pedidos/novo" className="btn btn-primary btn-sm">
           <i className="bi bi-plus-lg" /> Nova Ordem
         </Link>
+      </div>
+
+      {/* Filtro de prazo */}
+      <div className="card" style={{ padding: '10px 14px', marginBottom: 14, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, color: '#888' }}>Prazo:</span>
+        <input type="date" value={fPrazoDe} onChange={e => setFPrazoDe(e.target.value)}
+          title="Prazo de entrega — de"
+          style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13 }} />
+        <span style={{ fontSize: 12, color: '#888' }}>até</span>
+        <input type="date" value={fPrazoAte} onChange={e => setFPrazoAte(e.target.value)}
+          title="Prazo de entrega — até"
+          style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13 }} />
+        {(fPrazoDe || fPrazoAte) && (
+          <button onClick={() => { setFPrazoDe(''); setFPrazoAte(''); }}
+            style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 5, padding: '6px 12px', fontSize: 13, cursor: 'pointer', color: '#666' }}>
+            Limpar
+          </button>
+        )}
       </div>
 
       {loading && <p className="text-gray-400 text-sm">Carregando...</p>}

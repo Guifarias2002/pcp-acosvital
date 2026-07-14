@@ -414,6 +414,8 @@ export default function DashboardPage() {
   const [showMovDropdown, setShowMovDropdown] = useState(false);
   const [movFiltroItem, setMovFiltroItem] = useState<{ codigo: string; descricao: string; pv: string; op: string } | null>(null);
   const [fPrioridade, setFPrioridade] = useState('');
+  const [fPrazoDe, setFPrazoDe] = useState('');
+  const [fPrazoAte, setFPrazoAte] = useState('');
   const [filtroEtapa, setFiltroEtapa] = useState<string | null>(null);
   const pedidosRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -475,6 +477,8 @@ export default function DashboardPage() {
   const pedidosFiltrados = ultimosPedidos.filter(p => {
     if (busca && !p.numero_pedido_venda?.toLowerCase().includes(busca.toLowerCase()) && !p.cliente?.toLowerCase().includes(busca.toLowerCase())) return false;
     if (fPrioridade && p.prioridade !== fPrioridade) return false;
+    if (fPrazoDe && (!p.prazo_entrega || p.prazo_entrega < fPrazoDe)) return false;
+    if (fPrazoAte && (!p.prazo_entrega || p.prazo_entrega > fPrazoAte)) return false;
     if (filtroEtapa) {
       const e = getPedidoEtapa(p);
       const eNorm = e === 'ag_recebimento' ? 'produzindo' : e;
@@ -821,7 +825,17 @@ export default function DashboardPage() {
                 <option value="">Prioridade</option>
                 {['baixa','normal','alta','urgente'].map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</option>)}
               </select>
-              <button onClick={() => { setBusca(''); setFPrioridade(''); setFiltroEtapa(null); }}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 12, color: '#888' }}>Prazo:</span>
+                <input type="date" value={fPrazoDe} onChange={e => setFPrazoDe(e.target.value)}
+                  title="Prazo de entrega — de"
+                  style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13 }} />
+                <span style={{ fontSize: 12, color: '#888' }}>até</span>
+                <input type="date" value={fPrazoAte} onChange={e => setFPrazoAte(e.target.value)}
+                  title="Prazo de entrega — até"
+                  style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13 }} />
+              </div>
+              <button onClick={() => { setBusca(''); setFPrioridade(''); setFPrazoDe(''); setFPrazoAte(''); setFiltroEtapa(null); }}
                 className="btn btn-secondary">
                 Limpar
               </button>

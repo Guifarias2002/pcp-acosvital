@@ -48,6 +48,8 @@ function PedidosPageInner() {
   const [fStatus, setFStatus] = useState('');
   const [fPrioridade, setFPrioridade] = useState('');
   const [fSetor, setFSetor] = useState('');
+  const [fPrazoDe, setFPrazoDe] = useState('');
+  const [fPrazoAte, setFPrazoAte] = useState('');
   const [fEtapa, setFEtapa] = useState(etapaParam || '');
   const [modalExcluir, setModalExcluir] = useState<ModalExcluir | null>(null);
   const [modalExcluirLote, setModalExcluirLote] = useState<ModalExcluirLote | null>(null);
@@ -68,7 +70,7 @@ function PedidosPageInner() {
   function buscar(p = page) {
     setLoading(true);
     setSelectedIds(new Set());
-    const params: Record<string, string> = { cliente: fBusca, vendedor: fVendedor, status: fStatus, prioridade: fPrioridade, setor: fSetor, entregue: '1', page: String(p) };
+    const params: Record<string, string> = { cliente: fBusca, vendedor: fVendedor, status: fStatus, prioridade: fPrioridade, setor: fSetor, prazo_de: fPrazoDe, prazo_ate: fPrazoAte, entregue: '1', page: String(p) };
     if (fEtapa === 'entregue') params.entregue = '1';
     getPedidos(params).then(r => { setPedidos(r.pedidos); setPaginacao({ page: r.page, pages: r.pages, total: r.total }); }).catch(() => {}).finally(() => setLoading(false));
   }
@@ -238,13 +240,23 @@ function PedidosPageInner() {
           <option value="">Todos os setores</option>
           {SETOR_CHOICES.map(([cod, nome]) => <option key={cod} value={cod}>{nome}</option>)}
         </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 12, color: '#888' }}>Prazo:</span>
+          <input type="date" value={fPrazoDe} onChange={e => setFPrazoDe(e.target.value)}
+            title="Prazo de entrega — de"
+            style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13 }} />
+          <span style={{ fontSize: 12, color: '#888' }}>até</span>
+          <input type="date" value={fPrazoAte} onChange={e => setFPrazoAte(e.target.value)}
+            title="Prazo de entrega — até"
+            style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13 }} />
+        </div>
         <button onClick={() => buscar()} style={{
           background: '#1a3a5c', color: '#fff', border: 'none',
           borderRadius: 5, padding: '6px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap',
         }}>
           <i className="bi bi-search" style={{ marginRight: 4 }}></i>Filtrar
         </button>
-        <button onClick={() => { setFBusca(''); setFVendedor(''); setFStatus(''); setFPrioridade(''); setFSetor(''); setFEtapa(''); }}
+        <button onClick={() => { setFBusca(''); setFVendedor(''); setFStatus(''); setFPrioridade(''); setFSetor(''); setFPrazoDe(''); setFPrazoAte(''); setFEtapa(''); }}
           style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 5, padding: '6px 12px', fontSize: 13, cursor: 'pointer', color: '#666', whiteSpace: 'nowrap' }}>
           Limpar
         </button>
