@@ -51,6 +51,7 @@ function PedidosPageInner() {
   const [fPrazoDe, setFPrazoDe] = useState('');
   const [fPrazoAte, setFPrazoAte] = useState('');
   const [fEtapa, setFEtapa] = useState(etapaParam || '');
+  const [fOrdenar, setFOrdenar] = useState('');
   const [modalExcluir, setModalExcluir] = useState<ModalExcluir | null>(null);
   const [modalExcluirLote, setModalExcluirLote] = useState<ModalExcluirLote | null>(null);
   const [avisoProducao, setAvisoProducao] = useState<AvisoProducao | null>(null);
@@ -70,7 +71,7 @@ function PedidosPageInner() {
   function buscar(p = page) {
     setLoading(true);
     setSelectedIds(new Set());
-    const params: Record<string, string> = { cliente: fBusca, vendedor: fVendedor, status: fStatus, prioridade: fPrioridade, setor: fSetor, prazo_de: fPrazoDe, prazo_ate: fPrazoAte, entregue: '1', page: String(p) };
+    const params: Record<string, string> = { cliente: fBusca, vendedor: fVendedor, status: fStatus, prioridade: fPrioridade, setor: fSetor, prazo_de: fPrazoDe, prazo_ate: fPrazoAte, ordenar: fOrdenar, entregue: '1', page: String(p) };
     if (fEtapa === 'entregue') params.entregue = '1';
     getPedidos(params).then(r => { setPedidos(r.pedidos); setPaginacao({ page: r.page, pages: r.pages, total: r.total }); }).catch(() => {}).finally(() => setLoading(false));
   }
@@ -250,13 +251,20 @@ function PedidosPageInner() {
             title="Prazo de entrega — até"
             style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13 }} />
         </div>
+        <select value={fOrdenar} onChange={e => setFOrdenar(e.target.value)}
+          title="Ordenar por"
+          style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13, flex: '1 1 170px' }}>
+          <option value="">Ordenar: prioridade/prazo</option>
+          <option value="criado_desc">Criado: mais recente</option>
+          <option value="criado_asc">Criado: mais antigo</option>
+        </select>
         <button onClick={() => buscar()} style={{
           background: '#1a3a5c', color: '#fff', border: 'none',
           borderRadius: 5, padding: '6px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap',
         }}>
           <i className="bi bi-search" style={{ marginRight: 4 }}></i>Filtrar
         </button>
-        <button onClick={() => { setFBusca(''); setFVendedor(''); setFStatus(''); setFPrioridade(''); setFSetor(''); setFPrazoDe(''); setFPrazoAte(''); setFEtapa(''); }}
+        <button onClick={() => { setFBusca(''); setFVendedor(''); setFStatus(''); setFPrioridade(''); setFSetor(''); setFPrazoDe(''); setFPrazoAte(''); setFEtapa(''); setFOrdenar(''); }}
           style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 5, padding: '6px 12px', fontSize: 13, cursor: 'pointer', color: '#666', whiteSpace: 'nowrap' }}>
           Limpar
         </button>
@@ -316,17 +324,17 @@ function PedidosPageInner() {
                   title="Selecionar todos"
                 />
               </th>
-              {['Pedido','OP','Cliente','Vendedor','Setor Atual','Status','Prioridade','Prazo','Docs','Ações'].map(h => (
+              {['Criado em','Pedido','OP','Cliente','Vendedor','Setor Atual','Status','Prioridade','Prazo','Docs','Ações'].map(h => (
                 <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 600, fontSize: 12 }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={11} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Carregando...</td></tr>
+              <tr><td colSpan={12} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Carregando...</td></tr>
             )}
             {!loading && pedidosFiltrados.length === 0 && (
-              <tr><td colSpan={11} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum pedido encontrado.</td></tr>
+              <tr><td colSpan={12} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum pedido encontrado.</td></tr>
             )}
             {pedidosFiltrados.map(p => {
               const selected = selectedIds.has(p.id);
@@ -342,6 +350,9 @@ function PedidosPageInner() {
                       onChange={() => toggleOne(p.id)}
                       style={{ cursor: 'pointer', width: 15, height: 15, accentColor: '#1a3a5c' }}
                     />
+                  </td>
+                  <td style={{ padding: '8px 12px', color: '#666', fontSize: 12, whiteSpace: 'nowrap' }}>
+                    {fmtData(p.criado_em)}
                   </td>
                   <td style={{ padding: '8px 12px' }}>
                     <button onClick={() => abrirRastreio(p.id, p.numero_pedido_venda)}

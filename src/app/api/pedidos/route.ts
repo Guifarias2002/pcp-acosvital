@@ -28,6 +28,13 @@ export async function GET(req: Request) {
   const prazoAte   = searchParams.get('prazo_ate') || null;
   const page       = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const offset     = (page - 1) * PER_PAGE;
+  const ordenar    = searchParams.get('ordenar') || '';
+  const orderBy =
+    ordenar === 'criado_desc' ? sql`p.criado_em DESC` :
+    ordenar === 'criado_asc'  ? sql`p.criado_em ASC` :
+    sql`CASE p.prioridade WHEN 'urgente' THEN 1 WHEN 'alta' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
+        p.prazo_entrega ASC NULLS LAST,
+        p.id DESC`;
 
   try {
   // 1. Busca apenas os IDs da página corrente — query leve, usa índices
@@ -50,10 +57,7 @@ export async function GET(req: Request) {
       AND (${entregue} = TRUE OR p.status != 'entregue')
       AND (${prazoDe}::date IS NULL OR p.prazo_entrega >= ${prazoDe}::date)
       AND (${prazoAte}::date IS NULL OR p.prazo_entrega <= ${prazoAte}::date)
-    ORDER BY
-      CASE p.prioridade WHEN 'urgente' THEN 1 WHEN 'alta' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
-      p.prazo_entrega ASC NULLS LAST,
-      p.id DESC
+    ORDER BY ${orderBy}
     LIMIT ${PER_PAGE} OFFSET ${offset}
   `;
 
