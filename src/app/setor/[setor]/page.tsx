@@ -41,6 +41,7 @@ import { useRealtime } from '@/hooks/useRealtime';
 import ConfirmModal from '@/components/ConfirmModal';
 import EntregarModal from '@/components/EntregarModal';
 import DespacharModal from '@/components/DespacharModal';
+import IniciarEntregaModal from '@/components/IniciarEntregaModal';
 import DivergenciaResolucaoModal from '@/components/DivergenciaResolucaoModal';
 import RastreioModal from '@/components/RastreioModal';
 
@@ -641,6 +642,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void; perigo?: boolean } | null>(null);
   const [showDespacharParcial, setShowDespacharParcial] = useState(false);
   const [showEntregarParcial, setShowEntregarParcial] = useState(false);
+  const [showIniciarEntrega, setShowIniciarEntrega] = useState(false);
   const [obsAberto, setObsAberto] = useState(false);
   const [novaObsTexto, setNovaObsTexto] = useState('');
   const [enviandoObs, setEnviandoObs] = useState(false);
@@ -917,9 +919,21 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
 
         {/* ── Iniciar ─────────────────────────────────────────────────────── */}
         {isLogistica && isAberto && (
-          <button onClick={() => acao('iniciar')} disabled={loading} style={btnStyle('#0d6efd')}>
+          <button onClick={() => setShowIniciarEntrega(true)} disabled={loading} style={btnStyle('#0d6efd')}>
             <i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar entrega
           </button>
+        )}
+        {showIniciarEntrega && (
+          <IniciarEntregaModal
+            pedidoNumero={parcial.numero_pedido_venda ?? ''}
+            itemCodigo={parcial.item_codigo ?? ''}
+            loading={loading}
+            onClose={() => setShowIniciarEntrega(false)}
+            onConfirm={async (observacao) => {
+              await acao('iniciar', { observacao });
+              setShowIniciarEntrega(false);
+            }}
+          />
         )}
         {!isLogistica && isAberto && (
           <button onClick={() => setShowReceberModal(true)} disabled={loading} style={btnStyle('#d97706')}>
@@ -1349,6 +1363,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   const [expandido, setExpandido] = useState(false);
   const [showEntregarGrupo, setShowEntregarGrupo] = useState(false);
   const [showDespacharGrupo, setShowDespacharGrupo] = useState(false);
+  const [showIniciarEntregaGrupo, setShowIniciarEntregaGrupo] = useState(false);
 
   if (parciais.length === 1) return <ParcialCard parcial={parciais[0]} onRefresh={onRefresh} setor={setor} />;
 
@@ -1585,9 +1600,21 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
       {podeEditar() && (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {isLogistica && isAberto && (
-          <button onClick={() => acaoTodos('iniciar')} disabled={loading} style={btnStyle('#0d6efd')}>
+          <button onClick={() => setShowIniciarEntregaGrupo(true)} disabled={loading} style={btnStyle('#0d6efd')}>
             <i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar entrega
           </button>
+        )}
+        {showIniciarEntregaGrupo && (
+          <IniciarEntregaModal
+            pedidoNumero={p0.numero_pedido_venda ?? ''}
+            itemCodigo={p0.item_codigo ?? ''}
+            loading={loading}
+            onClose={() => setShowIniciarEntregaGrupo(false)}
+            onConfirm={async (observacao) => {
+              await acaoTodos('iniciar', { observacao });
+              setShowIniciarEntregaGrupo(false);
+            }}
+          />
         )}
         {!isLogistica && isAberto && (
           <button onClick={() => setShowReceberModal(true)} disabled={loading} style={btnStyle('#d97706')}>
