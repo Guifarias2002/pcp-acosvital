@@ -12,7 +12,7 @@ const BUCKET = 'desenhos'; // reaproveita o bucket existente; fotos ficam sob o 
 const MAX_SIZE = 25 * 1024 * 1024; // fotos de celular podem ser grandes
 const TIPOS_ACEITOS = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/heic', 'image/heif'];
 // Setores onde é permitido ADICIONAR fotos (a visualização é liberada em qualquer setor).
-const SETORES_UPLOAD = ['acabamento', 'embalagem'];
+const SETORES_UPLOAD = ['embalagem'];
 
 async function uploadStorage(path: string, body: ArrayBuffer, contentType: string) {
   const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, {
@@ -87,9 +87,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     // Permissão: admin ou operador do setor atual da parcial
     if (!user.is_staff && !podeAcessarSetor(user, parcial.setor_atual as string))
       return NextResponse.json({ erro: 'Sem permissao neste setor' }, { status: 403 });
-    // Fotos só podem ser adicionadas no Acabamento ou na Embalagem
+    // Fotos só podem ser adicionadas na Embalagem
     if (!SETORES_UPLOAD.includes(parcial.setor_atual as string))
-      return NextResponse.json({ erro: 'Fotos só podem ser adicionadas no Acabamento ou na Embalagem' }, { status: 400 });
+      return NextResponse.json({ erro: 'Fotos só podem ser adicionadas na Embalagem' }, { status: 400 });
 
     const formData = await req.formData();
     const arquivo = formData.get('arquivo') as File | null;

@@ -102,9 +102,9 @@ export async function runMigrations() {
   // que barra qualquer método de escrita (POST/PUT/PATCH/DELETE).
   await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS somente_leitura BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
 
-  // M12: fotos por parcial. Galeria única que acompanha a peça — tirada no
-  // Acabamento ou na Embalagem e visível também na Logística e no detalhe do
-  // pedido. Guarda os storage paths (Supabase Storage), mesmo padrão dos
+  // M12: fotos por parcial. Galeria única que acompanha a peça — tirada na
+  // Embalagem e visível também na Logística e no detalhe do pedido. Guarda os
+  // storage paths (Supabase Storage), mesmo padrão dos
   // desenhos (TEXT[]). Como é a mesma linha da parcial que avança de setor,
   // as fotos "viajam" junto (igual pesos_pallets).
   await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS fotos TEXT[] NOT NULL DEFAULT '{}'`).catch(() => {});

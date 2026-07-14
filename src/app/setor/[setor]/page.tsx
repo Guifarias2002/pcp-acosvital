@@ -888,12 +888,12 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           <PesosPalletsInfo pesos={(parcial as any).pesos_pallets || []} />
         )}
 
-        {/* Fotos da peça: adicionar no Acabamento/Embalagem; ver também na Logística */}
-        {['acabamento', 'embalagem', 'logistica'].includes(parcial.setor_atual) && (
+        {/* Fotos da peça: adicionar na Embalagem; ver também na Logística */}
+        {['embalagem', 'logistica'].includes(parcial.setor_atual) && (
           <FotosParcial
             parcialId={parcial.id as number}
             inicial={(parcial as any).fotos || []}
-            editavel={podeEditar() && ['acabamento', 'embalagem'].includes(parcial.setor_atual)}
+            editavel={podeEditar() && parcial.setor_atual === 'embalagem'}
           />
         )}
 
