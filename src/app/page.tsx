@@ -489,7 +489,7 @@ export default function DashboardPage() {
 
   return (
     <AuthGuard>
-      {isAdmin && <NotificacoesLive />}
+      {/* Aviso de movimentação (tela cheia) agora é global no AuthGuard, só ADM/PCP */}
       {/* Cabeçalho */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
         <div>

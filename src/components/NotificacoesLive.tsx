@@ -1,6 +1,7 @@
-﻿'use client';
+'use client';
 import { useEffect, useRef, useState } from 'react';
 import { getToken } from '@/lib/auth';
+import { NOMES } from '@/lib/types';
 
 interface Notificacao {
   id: number;
@@ -11,6 +12,7 @@ interface Notificacao {
   status_novo: string;
   item_codigo: string;
   pedido_numero: string;
+  numero_op?: string | null;
   usuario_nome: string;
 }
 
@@ -24,11 +26,34 @@ const STATUS_ICON: Record<string, string> = {
   finalizado_setor: '✅', entregue: '🚚', aguardando: '⏳',
 };
 
-export default function NotificacoesLive({ filtroSetor }: { filtroSetor?: string } = {}) {
+const nomeSetor = (cod?: string) => (cod ? (NOMES[cod] || cod) : '');
+
+// Rótulo amigável da AÇÃO a partir do status resultante + transição de setor.
+function acaoLabel(m: Notificacao): { texto: string; icone: string } {
+  const dest = nomeSetor(m.setor_destino);
+  const orig = nomeSetor(m.setor_origem);
+  const mudouSetor = m.setor_destino && m.setor_origem && m.setor_destino !== m.setor_origem;
+  switch (m.status_novo) {
+    case 'aguardando':
+    case 'emitido':
+      return { icone: '📤', texto: mudouSetor ? `Enviado para ${dest || orig}` : `Liberado${dest ? ' — ' + dest : ''}` };
+    case 'recebido':      return { icone: '📥', texto: `Recebido em ${dest || orig}` };
+    case 'em_andamento':  return { icone: '⚙️', texto: `Em produção em ${dest || orig}` };
+    case 'pausado':       return { icone: '⏸️', texto: `Pausado em ${dest || orig}` };
+    case 'finalizado_setor': return { icone: '✅', texto: `Finalizado em ${dest || orig}` };
+    case 'em_transito':   return { icone: '🚚', texto: `Despachado (em trânsito)` };
+    case 'entregue':      return { icone: '🎉', texto: `Entregue ao cliente` };
+    case 'reprovado':     return { icone: '⚠️', texto: `Reprovado na Qualidade` };
+    case 'bloqueado':     return { icone: '🛑', texto: `Cancelado / bloqueado` };
+    default:              return { icone: '🔄', texto: STATUS_LABEL[m.status_novo] || m.status_novo };
+  }
+}
+
+export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filtroSetor?: string; modo?: 'toast' | 'tela' } = {}) {
   const [toasts, setToasts] = useState<(Notificacao & { key: number })[]>([]);
+  const [fila, setFila] = useState<(Notificacao & { key: number })[]>([]);
   const desdeRef = useRef<string>('');
   const keyRef = useRef(0);
-  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
     if (!desdeRef.current) desdeRef.current = new Date().toISOString();
@@ -46,67 +71,133 @@ export default function NotificacoesLive({ filtroSetor }: { filtroSetor?: string
 
         desdeRef.current = movimentacoes[0].criado_em;
 
-        // Se filtroSetor definido, mostra só movimentações relevantes ao setor
-        const filtradas = filtroSetor
-          ? movimentacoes.filter((m: Notificacao) =>
-              m.setor_destino === filtroSetor || m.setor_origem === filtroSetor
-            )
+        const filtradas: Notificacao[] = filtroSetor
+          ? movimentacoes.filter((m: Notificacao) => m.setor_destino === filtroSetor || m.setor_origem === filtroSetor)
           : movimentacoes;
-
         if (filtradas.length === 0) return;
 
-        const novos = filtradas.map((m: Notificacao) => ({ ...m, key: keyRef.current++ }));
-        setToasts(prev => [...novos, ...prev].slice(0, 5));
+        // Chegam em ordem decrescente; na fila queremos mostrar da mais antiga p/ mais nova.
+        const novos = [...filtradas].reverse().map(m => ({ ...m, key: keyRef.current++ }));
 
-        novos.forEach((_: unknown, i: number) => {
-          const t = setTimeout(() => {
-            setToasts(prev => prev.filter(t => t.key !== novos[i].key));
-          }, 6000);
-          timersRef.current.push(t);
-        });
-      } catch {}
+        if (modo === 'tela') {
+          setFila(prev => [...prev, ...novos].slice(-20)); // limita fila pra não acumular sem fim
+        } else {
+          const novosDesc = novos.reverse();
+          setToasts(prev => [...novosDesc, ...prev].slice(0, 5));
+          novosDesc.forEach(n => {
+            setTimeout(() => setToasts(prev => prev.filter(t => t.key !== n.key)), 6000);
+          });
+        }
+      } catch { /* silencioso */ }
     }
 
-    const intervalo = setInterval(verificar, 30000);
-    return () => {
-      clearInterval(intervalo);
-      timersRef.current.forEach(clearTimeout);
-      timersRef.current = [];
-    };
-  }, [filtroSetor]);
+    const intervalo = setInterval(verificar, modo === 'tela' ? 10000 : 30000);
+    return () => clearInterval(intervalo);
+  }, [filtroSetor, modo]);
 
+  // Fila do modo tela: mostra o primeiro por 10s, depois passa pro próximo.
+  useEffect(() => {
+    if (modo !== 'tela' || fila.length === 0) return;
+    const t = setTimeout(() => setFila(prev => prev.slice(1)), 10000);
+    return () => clearTimeout(t);
+  }, [modo, fila[0]?.key]);
+
+  // ── Modo TELA CHEIA (ADM/PCP) ────────────────────────────────────────────────
+  if (modo === 'tela') {
+    const atual = fila[0];
+    if (!atual) return null;
+    const acao = acaoLabel(atual);
+    const mudouSetor = atual.setor_destino && atual.setor_origem && atual.setor_destino !== atual.setor_origem;
+    return (
+      <div
+        onClick={() => setFila(prev => prev.slice(1))}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 100000,
+          background: 'rgba(10,20,35,0.72)', backdropFilter: 'blur(2px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+          animation: 'notifFade .25s ease',
+        }}
+      >
+        <div style={{
+          background: '#fff', borderRadius: 18, padding: '32px 40px', maxWidth: 720, width: '100%',
+          boxShadow: '0 20px 70px rgba(0,0,0,0.5)', borderTop: '8px solid #0d6efd', textAlign: 'center',
+          position: 'relative',
+        }}>
+          <button onClick={(e) => { e.stopPropagation(); setFila(prev => prev.slice(1)); }}
+            style={{ position: 'absolute', top: 14, right: 18, background: 'none', border: 'none', fontSize: 24, color: '#94a3b8', cursor: 'pointer' }}>
+            ✕
+          </button>
+
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+            Movimentação
+          </div>
+
+          <div style={{ fontSize: 56, lineHeight: 1, margin: '6px 0 14px' }}>{acao.icone}</div>
+
+          <div style={{ fontSize: 30, fontWeight: 800, color: '#0f172a', marginBottom: 18 }}>
+            {acao.texto}
+          </div>
+
+          {mudouSetor && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 20, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 20, fontWeight: 700, color: '#475569', background: '#f1f5f9', borderRadius: 10, padding: '8px 18px' }}>
+                {nomeSetor(atual.setor_origem)}
+              </span>
+              <span style={{ fontSize: 28, color: '#0d6efd' }}>➜</span>
+              <span style={{ fontSize: 20, fontWeight: 800, color: '#fff', background: '#0d6efd', borderRadius: 10, padding: '8px 18px' }}>
+                {nomeSetor(atual.setor_destino)}
+              </span>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 32, flexWrap: 'wrap', borderTop: '1px solid #e2e8f0', paddingTop: 18 }}>
+            <div>
+              <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>PEDIDO</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#1a3a5c' }}>{atual.pedido_numero || '—'}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>OP</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#1a3a5c' }}>{atual.numero_op || '—'}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>ITEM</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#475569' }}>{atual.item_codigo || '—'}</div>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 16 }}>
+            por {atual.usuario_nome || 'Sistema'}
+            {fila.length > 1 && <span style={{ marginLeft: 10, color: '#0d6efd', fontWeight: 700 }}>+{fila.length - 1} na fila</span>}
+          </div>
+        </div>
+        <style>{`@keyframes notifFade { from { opacity:0 } to { opacity:1 } }`}</style>
+      </div>
+    );
+  }
+
+  // ── Modo TOAST (operadores no setor) ─────────────────────────────────────────
   if (toasts.length === 0) return null;
-
   return (
     <div style={{
       position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
-      display: 'flex', flexDirection: 'column-reverse', gap: 10,
-      maxWidth: 340,
+      display: 'flex', flexDirection: 'column-reverse', gap: 10, maxWidth: 340,
     }}>
       {toasts.map(t => (
         <div key={t.key} style={{
-          position: 'relative',
-          background: '#1a3a5c', color: '#fff',
-          borderRadius: 10, padding: '12px 16px',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
-          animation: 'slideIn .3s ease',
+          position: 'relative', background: '#1a3a5c', color: '#fff', borderRadius: 10, padding: '12px 16px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.25)', animation: 'slideIn .3s ease',
           borderLeft: `4px solid ${filtroSetor ? '#198754' : '#0d6efd'}`,
         }}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
             {STATUS_ICON[t.status_novo] || '🔄'} {filtroSetor ? 'Novo item no setor' : 'Movimentação'} — {t.pedido_numero}
           </div>
           <div style={{ fontSize: 12, color: '#b0c4de', marginBottom: 2 }}>
-            <strong style={{ color: '#fff' }}>{t.item_codigo}</strong>
-            {' → '}{STATUS_LABEL[t.status_novo] || t.status_novo}
+            <strong style={{ color: '#fff' }}>{t.item_codigo}</strong>{' → '}{STATUS_LABEL[t.status_novo] || t.status_novo}
           </div>
           {t.setor_destino && t.setor_destino !== t.setor_origem && !filtroSetor && (
-            <div style={{ fontSize: 11, color: '#8ab4d8' }}>
-              Setor: {t.setor_destino}
-            </div>
+            <div style={{ fontSize: 11, color: '#8ab4d8' }}>Setor: {nomeSetor(t.setor_destino)}</div>
           )}
-          <div style={{ fontSize: 11, color: '#7a9bbf', marginTop: 4 }}>
-            por {t.usuario_nome || 'Sistema'}
-          </div>
+          <div style={{ fontSize: 11, color: '#7a9bbf', marginTop: 4 }}>por {t.usuario_nome || 'Sistema'}</div>
           <button onClick={() => setToasts(p => p.filter(x => x.key !== t.key))}
             style={{ position: 'absolute', top: 8, right: 10, background: 'none', border: 'none', color: '#7a9bbf', cursor: 'pointer', fontSize: 14 }}>
             ✕
