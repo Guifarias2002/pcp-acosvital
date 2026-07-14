@@ -785,6 +785,25 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                       );
                     })()}
 
+                    {/* Fotos da peça (tiradas no Acabamento/Embalagem) — somente leitura */}
+                    {Array.isArray((item as any).fotos) && (item as any).fotos.length > 0 && (
+                      <div style={{ marginTop: 10, background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '12px 14px' }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: '#6d28d9', margin: '0 0 8px' }}>
+                          <i className="bi bi-camera" style={{ marginRight: 5 }} />Fotos da peça ({(item as any).fotos.length})
+                        </p>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {((item as any).fotos as { parcial_id: number; idx: number }[]).map((f, k) => {
+                            const url = `/api/parcial/${f.parcial_id}/foto?idx=${f.idx}&token=${encodeURIComponent(getToken() || '')}`;
+                            return (
+                              <a key={k} href={url} target="_blank" rel="noopener noreferrer">
+                                <img src={url} alt={`Foto ${k + 1}`} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid #c4b5fd', background: '#fff' }} />
+                              </a>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Painel de observações por item — visível a todos */}
                     {itemObsAberto === item.id && (() => {
                       const observacoes = item.observacoes || [];

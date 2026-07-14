@@ -196,10 +196,10 @@ export async function POST(
         await tx`
           INSERT INTO producao_itemparcial
             (item_pedido_id, pedido_id, parcial_origem_id, quantidade, setor_atual, status,
-             observacao, criado_por_id, criado_em, atualizado_em)
+             observacao, fotos, criado_por_id, criado_em, atualizado_em)
           VALUES
             (${parcial.item_id}, ${parcial.pedido_id}, ${parcialId}, ${qtdMover}, ${setor_destino},
-             'em_aberto', ${obs || null}, ${user.id}, NOW(), NOW())
+             'em_aberto', ${obs || null}, ${(parcial.fotos as string[]) || []}, ${user.id}, NOW(), NOW())
         `;
       }
 

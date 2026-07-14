@@ -31,7 +31,7 @@ function Cronometro({ desde }: { desde: string }) {
   );
 }
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, setPesosPallets } from '@/lib/api';
-import { isAdministrador, podeEditar } from '@/lib/auth';
+import { isAdministrador, podeEditar, getToken } from '@/lib/auth';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
@@ -886,6 +886,15 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
         )}
         {parcial.setor_atual === 'logistica' && (
           <PesosPalletsInfo pesos={(parcial as any).pesos_pallets || []} />
+        )}
+
+        {/* Fotos da peça: adicionar no Acabamento/Embalagem; ver também na Logística */}
+        {['acabamento', 'embalagem', 'logistica'].includes(parcial.setor_atual) && (
+          <FotosParcial
+            parcialId={parcial.id as number}
+            inicial={(parcial as any).fotos || []}
+            editavel={podeEditar() && ['acabamento', 'embalagem'].includes(parcial.setor_atual)}
+          />
         )}
 
         {/* Outras parciais do mesmo item */}
@@ -2254,6 +2263,106 @@ function PesosPalletsInfo({ pesos }: { pesos: number[] }) {
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+// Fotos da parcial — tiradas no Acabamento/Embalagem, viajam com a peça e
+// aparecem também na Logística. `editavel` libera adicionar/excluir (só nos
+// setores de upload e para quem não é somente-leitura); caso contrário, só vê.
+function FotosParcial({ parcialId, inicial, editavel }: { parcialId: number; inicial: string[]; editavel: boolean }) {
+  const [fotos, setFotos] = useState<string[]>(inicial || []);
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState('');
+  const [ampliada, setAmpliada] = useState<number | null>(null);
+  const token = getToken() || '';
+  const urlFoto = (idx: number) => `/api/parcial/${parcialId}/foto?idx=${idx}&token=${encodeURIComponent(token)}`;
+
+  async function enviar(arquivo: File) {
+    setEnviando(true); setErro('');
+    try {
+      const fd = new FormData();
+      fd.append('arquivo', arquivo);
+      const res = await fetch(`/api/parcial/${parcialId}/foto`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setErro(data.erro || 'Erro ao enviar foto'); return; }
+      setFotos(prev => [...prev, data.path]);
+    } catch { setErro('Erro de conexão ao enviar a foto'); }
+    finally { setEnviando(false); }
+  }
+
+  async function remover(path: string) {
+    setErro('');
+    try {
+      const res = await fetch(`/api/parcial/${parcialId}/foto`, {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ path }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); setErro(d.erro || 'Erro ao remover'); return; }
+      setFotos(prev => prev.filter(p => p !== path));
+    } catch { setErro('Erro de conexão ao remover a foto'); }
+  }
+
+  if (!editavel && fotos.length === 0) return null;
+
+  return (
+    <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#6d28d9', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+        📷 Fotos da peça {fotos.length > 0 && `(${fotos.length})`}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {fotos.map((path, i) => (
+          <div key={path} style={{ position: 'relative' }}>
+            <img
+              src={urlFoto(i)} alt={`Foto ${i + 1}`} onClick={() => setAmpliada(i)}
+              style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 6, border: '1px solid #c4b5fd', cursor: 'pointer', background: '#fff' }}
+            />
+            {editavel && (
+              <button type="button" onClick={() => remover(path)} title="Remover foto"
+                style={{ position: 'absolute', top: -6, right: -6, background: '#dc2626', color: '#fff', border: '2px solid #fff', borderRadius: '50%', width: 20, height: 20, fontSize: 11, lineHeight: 1, cursor: 'pointer', padding: 0 }}>
+                ✕
+              </button>
+            )}
+          </div>
+        ))}
+        {editavel && (
+          <>
+            {/* Câmera: abre a câmera do celular/tablet direto (capture) */}
+            <label style={{
+              width: 72, height: 72, borderRadius: 6, border: '1.5px dashed #a78bfa', color: '#7c3aed',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              cursor: enviando ? 'wait' : 'pointer', fontSize: 11, fontWeight: 600, textAlign: 'center', gap: 2,
+            }}>
+              <i className="bi bi-camera-fill" style={{ fontSize: 18 }} />
+              {enviando ? 'Enviando...' : 'Câmera'}
+              <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} disabled={enviando}
+                onChange={e => { const f = e.target.files?.[0]; if (f) enviar(f); e.target.value = ''; }} />
+            </label>
+            {/* Galeria: escolher uma imagem já salva no aparelho */}
+            <label style={{
+              width: 72, height: 72, borderRadius: 6, border: '1.5px dashed #c4b5fd', color: '#7c3aed',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              cursor: enviando ? 'wait' : 'pointer', fontSize: 11, fontWeight: 600, textAlign: 'center', gap: 2,
+            }}>
+              <i className="bi bi-images" style={{ fontSize: 18 }} />
+              Galeria
+              <input type="file" accept="image/*" style={{ display: 'none' }} disabled={enviando}
+                onChange={e => { const f = e.target.files?.[0]; if (f) enviar(f); e.target.value = ''; }} />
+            </label>
+          </>
+        )}
+      </div>
+      {erro && <p style={{ fontSize: 11, color: '#dc2626', marginTop: 6, marginBottom: 0 }}>{erro}</p>}
+
+      {/* Visualização ampliada */}
+      {ampliada !== null && fotos[ampliada] && (
+        <div onClick={() => setAmpliada(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <img src={urlFoto(ampliada)} alt="Foto ampliada" style={{ maxWidth: '95%', maxHeight: '95%', objectFit: 'contain', borderRadius: 8 }} />
+        </div>
+      )}
     </div>
   );
 }

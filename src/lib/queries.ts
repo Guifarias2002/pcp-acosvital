@@ -278,12 +278,34 @@ export async function getPedidoComItens(id: number) {
     }
   }
 
+  // Fotos das peças (tiradas no Acabamento/Embalagem) — agregadas por item.
+  // Cada foto é referenciada por (parcial_id, idx) para montar a URL no front:
+  // /api/parcial/{parcial_id}/foto?idx={idx}
+  const fotosPorItem: Record<number, { parcial_id: number; idx: number }[]> = {};
+  if (itemIds.length > 0) {
+    const fotoRows = await sql`
+      SELECT id, item_pedido_id, fotos
+      FROM producao_itemparcial
+      WHERE item_pedido_id = ANY(${itemIds})
+        AND status != 'cancelada'
+        AND COALESCE(array_length(fotos, 1), 0) > 0
+      ORDER BY item_pedido_id, id
+    `.catch(() => [] as Record<string, unknown>[]);
+    for (const r of fotoRows) {
+      const iid = Number(r.item_pedido_id);
+      const fotos = (r.fotos as string[]) || [];
+      if (!fotosPorItem[iid]) fotosPorItem[iid] = [];
+      fotos.forEach((_, idx) => fotosPorItem[iid].push({ parcial_id: Number(r.id), idx }));
+    }
+  }
+
   const itensComDetalhe = itens.map(i => ({
     ...i,
     lotes: lotes[i.id] || [],
     movimentacoes: movs[i.id] || [],
     parciais_por_setor: parciaisPorSetor[i.id] || [],
     observacoes: observacoes[i.id] || [],
+    fotos: fotosPorItem[i.id] || [],
   }));
 
   return formatPedido(pedRow, itensComDetalhe);

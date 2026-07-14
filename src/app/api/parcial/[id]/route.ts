@@ -70,6 +70,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     prazo_entrega: parcial.prazo_entrega ?? null,
     cliente: parcial.cliente,
     pesos_pallets: Array.isArray(parcial.pesos_pallets) ? (parcial.pesos_pallets as unknown[]).map(v => Number(v)) : [],
+    fotos: Array.isArray(parcial.fotos) ? (parcial.fotos as string[]) : [],
     criado_em: parcial.criado_em,
     atualizado_em: parcial.atualizado_em,
     apontamentos: apontamentos.map((a: Record<string, unknown>) => ({
