@@ -135,8 +135,10 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     return NextResponse.json({ erro: 'Sem permissao neste setor' }, { status: 403 });
 
   const fotos: string[] = parcial.fotos || [];
+  // Idempotente: se a foto já não está mais na parcial (tela desatualizada),
+  // trata como sucesso — o cliente só remove da exibição, sem erro assustador.
   if (!fotos.includes(path))
-    return NextResponse.json({ erro: 'Arquivo não pertence a esta parcial' }, { status: 400 });
+    return NextResponse.json({ ok: true, jaRemovido: true });
 
   await deleteStorage(path);
   await sql`

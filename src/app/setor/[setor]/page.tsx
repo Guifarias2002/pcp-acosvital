@@ -2308,6 +2308,15 @@ function FotosParcial({ parcialId, inicial, editavel }: { parcialId: number; ini
   const token = getToken() || '';
   const urlFoto = (idx: number) => `/api/parcial/${parcialId}/foto?idx=${idx}&token=${encodeURIComponent(token)}`;
 
+  // Mantém a lista em sincronia com o banco quando os dados recarregam (polling
+  // de 30s / refresh). Evita "foto fantasma" e mismatch no excluir. Não roda
+  // durante um envio em andamento pra não atropelar a inclusão otimista.
+  const inicialKey = (inicial || []).join('|');
+  useEffect(() => {
+    if (!enviando) setFotos(inicial || []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inicialKey]);
+
   // Envia UMA foto e retorna o path salvo (ou null em erro).
   async function enviarUma(arquivo: File): Promise<string | null> {
     const otimizada = await comprimirImagem(arquivo);
