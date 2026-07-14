@@ -13,6 +13,8 @@ interface Notificacao {
   item_codigo: string;
   pedido_numero: string;
   numero_op?: string | null;
+  cliente?: string | null;
+  vendedor?: string | null;
   usuario_nome: string;
 }
 
@@ -34,6 +36,7 @@ function acaoLabel(m: Notificacao): { texto: string; icone: string } {
   const orig = nomeSetor(m.setor_origem);
   const mudouSetor = m.setor_destino && m.setor_origem && m.setor_destino !== m.setor_origem;
   switch (m.status_novo) {
+    case 'criado':       return { icone: '🆕', texto: 'Pedido criado' };
     case 'aguardando':
     case 'emitido':
       return { icone: '📤', texto: mudouSetor ? `Enviado para ${dest || orig}` : `Liberado${dest ? ' — ' + dest : ''}` };
@@ -151,18 +154,37 @@ export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filt
           )}
 
           <div style={{ display: 'flex', justifyContent: 'center', gap: 32, flexWrap: 'wrap', borderTop: '1px solid #e2e8f0', paddingTop: 18 }}>
-            <div>
-              <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>PEDIDO</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#1a3a5c' }}>{atual.pedido_numero || '—'}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>OP</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#1a3a5c' }}>{atual.numero_op || '—'}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>ITEM</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#475569' }}>{atual.item_codigo || '—'}</div>
-            </div>
+            {atual.status_novo === 'criado' ? (
+              <>
+                <div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>PEDIDO</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: '#1a3a5c' }}>{atual.pedido_numero || '—'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>CLIENTE</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: '#1a3a5c' }}>{atual.cliente || '—'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>VENDEDOR</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: '#475569' }}>{atual.vendedor || '—'}</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>PEDIDO</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: '#1a3a5c' }}>{atual.pedido_numero || '—'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>OP</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: '#1a3a5c' }}>{atual.numero_op || '—'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>ITEM</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: '#475569' }}>{atual.item_codigo || '—'}</div>
+                </div>
+              </>
+            )}
           </div>
 
           <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 16 }}>

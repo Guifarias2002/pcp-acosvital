@@ -26,6 +26,8 @@ export async function GET(req: Request) {
              i.codigo AS item_codigo,
              p.numero_pedido_venda AS pedido_numero,
              p.numero_op AS numero_op,
+             p.cliente AS cliente,
+             p.vendedor AS vendedor,
              u.nome AS usuario_nome
       FROM producao_movimentacaoitem m
       JOIN producao_itempedido i ON i.id = m.item_id

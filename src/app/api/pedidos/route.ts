@@ -173,10 +173,11 @@ export async function POST(req: Request) {
         RETURNING id
       `;
 
+      let primeiroItemId: number | null = null;
       for (const item of itens) {
         const rotProprio = item.roteiro_proprio?.length > 0 ? item.roteiro_proprio : [];
         const primeiroSetor = rotProprio.length > 0 ? rotProprio[0] : roteiro_base[0];
-        await tx`
+        const [itemInserido] = await tx`
           INSERT INTO producao_itempedido
             (pedido_id, codigo, descricao, quantidade, unidade, valor_unitario,
              roteiro_proprio, setor_atual, status, quantidade_pendente, criado_em)
@@ -188,8 +189,17 @@ export async function POST(req: Request) {
             ${primeiroSetor}, 'emitido',
             ${item.quantidade}, NOW()
           )
+          RETURNING id
         `;
+        if (primeiroItemId === null) primeiroItemId = itemInserido.id;
       }
+
+      // Evento pra alerta de tela cheia (ADM/PCP) — um único aviso por pedido criado.
+      await tx`
+        INSERT INTO producao_movimentacaoitem
+          (item_id, pedido_id, usuario_id, setor_destino, status_novo, observacao, criado_em)
+        VALUES (${primeiroItemId}, ${pedido.id}, ${user.id}, ${roteiro_base[0]}, 'criado', 'Pedido criado', NOW())
+      `;
 
       await tx`
         UPDATE producao_pedido
