@@ -79,6 +79,16 @@ function PedidosPageInner() {
 
   useEffect(() => { setPage(1); buscarRef.current(1); }, []);
 
+  // Busca automática: qualquer mudança nos filtros já refaz a busca sozinha
+  // (debounce de 400ms pra não disparar uma requisição por tecla digitada),
+  // sem precisar clicar em "Filtrar".
+  const primeiraRef = useRef(true);
+  useEffect(() => {
+    if (primeiraRef.current) { primeiraRef.current = false; return; }
+    const t = setTimeout(() => { setPage(1); buscarRef.current(1); }, 400);
+    return () => clearTimeout(t);
+  }, [fBusca, fVendedor, fStatus, fPrioridade, fSetor, fPrazoDe, fPrazoAte, fOrdenar]);
+
   // Polling 10s — mantém lista sempre atualizada
   useEffect(() => {
     const t = setInterval(() => buscarRef.current(), 20 * 60 * 1000);

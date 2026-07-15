@@ -49,7 +49,7 @@ export async function GET(req: Request) {
     FROM producao_pedido p
     LEFT JOIN usuarios_usuario u ON u.id = p.criado_por_id
     WHERE 1=1
-      AND (${cliente} = '' OR p.cliente ILIKE ${'%' + cliente + '%'})
+      AND (${cliente} = '' OR p.cliente ILIKE ${'%' + cliente + '%'} OR p.numero_pedido_venda ILIKE ${'%' + cliente + '%'} OR p.numero_op ILIKE ${'%' + cliente + '%'})
       AND (${vendedor} = '' OR p.vendedor ILIKE ${'%' + vendedor + '%'})
       AND (${status}  = '' OR p.status = ${status})
       AND (${prioridade} = '' OR p.prioridade = ${prioridade})
@@ -89,7 +89,7 @@ export async function GET(req: Request) {
       SELECT COUNT(*)::int AS total
       FROM producao_pedido p
       WHERE 1=1
-        AND (${cliente} = '' OR p.cliente ILIKE ${'%' + cliente + '%'})
+        AND (${cliente} = '' OR p.cliente ILIKE ${'%' + cliente + '%'} OR p.numero_pedido_venda ILIKE ${'%' + cliente + '%'} OR p.numero_op ILIKE ${'%' + cliente + '%'})
         AND (${vendedor} = '' OR p.vendedor ILIKE ${'%' + vendedor + '%'})
         AND (${status}  = '' OR p.status = ${status})
         AND (${prioridade} = '' OR p.prioridade = ${prioridade})
