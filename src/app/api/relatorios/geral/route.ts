@@ -71,16 +71,16 @@ export async function GET(req: Request) {
 
   // Colaboradores (movimentações por usuário)
   const qColaboradores = sql`
-      SELECT u.id, u.first_name || ' ' || u.last_name AS nome,
+      SELECT u.id, u.nome AS nome,
              COUNT(m.id) AS total_acoes,
              COUNT(DISTINCT m.item_id) AS itens_movimentados,
              COUNT(DISTINCT m.setor_destino) AS setores_atendidos,
              MIN(m.criado_em) AS primeira_acao,
              MAX(m.criado_em) AS ultima_acao
-      FROM auth_user u
+      FROM usuarios_usuario u
       JOIN producao_movimentacaoitem m ON m.usuario_id = u.id
       WHERE m.criado_em BETWEEN ${deFiltro.toISOString()} AND ${ateFiltro.toISOString()}
-      GROUP BY u.id, u.first_name, u.last_name
+      GROUP BY u.id, u.nome
       ORDER BY total_acoes DESC
     `;
 
