@@ -97,8 +97,11 @@ export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filt
             if (existente) { existente.qtd++; }
             else { const g = { ...m, qtd: 1 }; porChave.set(chave, g); grupos.push(g); }
           }
-          const novos = grupos.map(m => ({ ...m, key: keyRef.current++ }));
-          setFila(prev => [...prev, ...novos].slice(-20)); // limita fila pra não acumular sem fim
+          // Sem fila: mostra só a movimentação mais recente, substituindo a
+          // anterior — em dia de produção corrida, empilhar avisos em tela
+          // cheia vira uma interrupção constante.
+          const maisRecente = grupos.slice(-1).map(m => ({ ...m, key: keyRef.current++ }));
+          setFila(maisRecente);
         } else {
           const novos = emOrdem.map(m => ({ ...m, key: keyRef.current++ }));
           const novosDesc = novos.reverse();
@@ -207,7 +210,6 @@ export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filt
 
           <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 16 }}>
             por {atual.usuario_nome || 'Sistema'}
-            {fila.length > 1 && <span style={{ marginLeft: 10, color: '#0d6efd', fontWeight: 700 }}>+{fila.length - 1} na fila</span>}
           </div>
         </div>
         <style>{`@keyframes notifFade { from { opacity:0 } to { opacity:1 } }`}</style>
