@@ -73,8 +73,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       });
       if (uploadRes.ok) {
         comprovanteUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/comprovantes/${path}`;
+      } else {
+        console.error('[entregar] upload comprovante falhou:', uploadRes.status, await uploadRes.text().catch(() => ''));
       }
-    } catch { /* upload failed, continue without file */ }
+    } catch (e) { console.error('[entregar] erro no upload do comprovante:', e); }
   }
 
   await sql.begin(async (tx) => {
@@ -178,8 +180,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       });
       if (uploadRes.ok) {
         comprovanteUrl = `${supabaseUrlPatch}/storage/v1/object/public/comprovantes/${path}`;
+      } else {
+        console.error('[entregar_comprovante] upload falhou:', uploadRes.status, await uploadRes.text().catch(() => ''));
       }
-    } catch { /* upload failed */ }
+    } catch (e) { console.error('[entregar_comprovante] erro no upload:', e); }
   } else {
     // sem Supabase configurado — salva nome do arquivo como referência
     comprovanteUrl = arquivo.name;
