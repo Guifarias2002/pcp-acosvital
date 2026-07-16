@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
+import { podeAcessarSetor } from '@/lib/auth';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -10,7 +11,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   try {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
-  if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  if (!user.is_staff && !podeAcessarSetor(user, 'logistica'))
+    return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
   if (!checkMutationRateLimit(getClientIp(req)))
     return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
@@ -63,7 +65,8 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   try {
     const user = await autenticar(req);
     if (user instanceof NextResponse) return user;
-    if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+    if (!user.is_staff && !podeAcessarSetor(user, 'logistica'))
+      return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
     const pedidoId = Number(params.id);
     const body = await req.json().catch(() => ({}));

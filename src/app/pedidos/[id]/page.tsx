@@ -4,7 +4,7 @@ import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedido, itemAcao } from '@/lib/api';
 import { Pedido, ItemPedido, COR_STATUS, STATUS_LABELS, PRIORIDADE_COR, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR } from '@/lib/types';
-import { getUser, getToken, podeEditar } from '@/lib/auth';
+import { getUser, getToken, podeEditar, podeAcessarSetor } from '@/lib/auth';
 import Link from 'next/link';
 import ConfirmModal from '@/components/ConfirmModal';
 import ReceberModal from '@/components/ReceberModal';
@@ -73,6 +73,9 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const editavel = podeEditar(user);
   const isAdmin = user?.is_staff && editavel;
   const verFinanceiro = user?.is_staff && user?.perfil !== 'lider';
+  // Documentos da Entrega (nota fiscal/canhoto): admin e PCP já são is_staff;
+  // Logística também pode anexar, mesmo sem ser staff.
+  const podeAnexarEntrega = editavel && (!!user?.is_staff || podeAcessarSetor(user, 'logistica'));
 
   async function uploadAnexo(tipo: 'nota' | 'canhoto' | 'pendente', arquivo?: File) {
     setUploadingAnexo(tipo === 'pendente' ? null : tipo);
@@ -901,7 +904,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
               );
             })()}
 
-            {/* Card de Anexos — visível a todos, upload/remoção só admin */}
+            {/* Card de Anexos — visível a todos, upload/remoção: admin, PCP e Logística */}
             <div style={{ borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', padding: 16 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 12px' }}>
                   📎 Documentos da Entrega
@@ -916,11 +919,11 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                         style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', flex: 1 }}>
                         ✅ Baixar nota fiscal
                       </a>
-                      {isAdmin && (
+                      {podeAnexarEntrega && (
                         <button onClick={() => removerAnexo('nota')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12 }}>✕</button>
                       )}
                     </div>
-                  ) : isAdmin ? (
+                  ) : podeAnexarEntrega ? (
                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: '#6b7280', border: '1px dashed #d1d5db', borderRadius: 6, padding: '6px 10px' }}>
                       <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
                         onChange={e => { const f = e.target.files?.[0]; if (f) uploadAnexo('nota', f); e.target.value = ''; }} />
@@ -940,11 +943,11 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                         style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', flex: 1 }}>
                         ✅ Baixar canhoto
                       </a>
-                      {isAdmin && (
+                      {podeAnexarEntrega && (
                         <button onClick={() => removerAnexo('canhoto')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12 }}>✕</button>
                       )}
                     </div>
-                  ) : isAdmin ? (
+                  ) : podeAnexarEntrega ? (
                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: '#6b7280', border: '1px dashed #d1d5db', borderRadius: 6, padding: '6px 10px' }}>
                       <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
                         onChange={e => { const f = e.target.files?.[0]; if (f) uploadAnexo('canhoto', f); e.target.value = ''; }} />
@@ -956,7 +959,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                 </div>
 
                 {/* Anexar depois */}
-                {isAdmin && !(pedido as any).nota_url && !(pedido as any).canhoto_url && (
+                {podeAnexarEntrega && !(pedido as any).nota_url && !(pedido as any).canhoto_url && (
                   <button onClick={() => uploadAnexo('pendente')}
                     style={{ width: '100%', fontSize: 12, color: '#6b7280', background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 0', cursor: 'pointer' }}>
                     🕐 Anexar depois
