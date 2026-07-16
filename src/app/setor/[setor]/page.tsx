@@ -1049,9 +1049,18 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
         {/* ── Concluída: mesmo já encerrada, pode ser encaminhada pra outro setor ──
              (não vale pra Logística: entrega concluída é o fim, não há próximo setor) */}
         {isConcluida && !isLogistica && (
-          <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
-            <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Encaminhar para setor
-          </button>
+          <>
+            {!showDivQualidade && (
+              <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
+                <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Encaminhar para setor
+              </button>
+            )}
+            {isQualidade && (
+              <button onClick={() => { setShowDivQualidade(v => !v); setShowEnviar(false); }} disabled={loading} style={btnStyle('#f97316')}>
+                ⚠ Divergência
+              </button>
+            )}
+          </>
         )}
 
         {/* DESPACHAR — logística only */}
@@ -1273,7 +1282,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
               setShowDivQualidade(false);
               setLoading(true);
               try {
-                if (parcial.status === 'finalizado_setor') await parcialAcao(parcial.id, 'retomar');
+                if (['finalizado_setor', 'concluida'].includes(parcial.status)) await parcialAcao(parcial.id, 'retomar');
                 await parcialAcao(parcial.id, 'pausar', { observacao: motivoDiv });
                 setMotivoDiv('');
                 onRefresh();
@@ -1752,12 +1761,21 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
              (não vale pra Logística: entrega concluída é o fim, não há próximo setor) */}
         {isConcluida && !isLogistica && (
           <>
-            <button onClick={() => { setShowEnviar(v => !v); setShowEnviarParcial(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
-              <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Encaminhar tudo
-            </button>
-            <button onClick={() => { setShowEnviarParcial(v => !v); setShowEnviar(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#0d6efd')}>
-              <i className="bi bi-send" style={{ marginRight: 5 }} />Encaminhar parcial
-            </button>
+            {!showDivQualidade && (
+              <>
+                <button onClick={() => { setShowEnviar(v => !v); setShowEnviarParcial(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
+                  <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Encaminhar tudo
+                </button>
+                <button onClick={() => { setShowEnviarParcial(v => !v); setShowEnviar(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#0d6efd')}>
+                  <i className="bi bi-send" style={{ marginRight: 5 }} />Encaminhar parcial
+                </button>
+              </>
+            )}
+            {isQualidadeGrupo && (
+              <button onClick={() => { setShowDivQualidade(v => !v); setShowEnviar(false); setShowEnviarParcial(false); }} disabled={loading} style={btnStyle('#f97316')}>
+                ⚠ Divergência
+              </button>
+            )}
           </>
         )}
 
@@ -1936,7 +1954,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
               setLoading(true);
               try {
                 const ids = parciais.map(p => p.id);
-                if (p0.status === 'finalizado_setor') {
+                if (['finalizado_setor', 'concluida'].includes(p0.status)) {
                   await parcialAcaoLote(ids, 'retomar');
                 }
                 await parcialAcaoLote(ids, 'pausar', { observacao: motivoDivGrupo });

@@ -72,7 +72,10 @@ export async function POST(
   // Parciais concluídas também podem ser encaminhadas pra outro setor ('mover'),
   // além de 'apontar' e 'retomar' — pedido explícito: "concluída" não deve ser
   // um beco sem saída, o operador tem que poder mandar pra frente se precisar.
-  if (parcial.status === 'concluida' && !['apontar', 'retomar', 'mover'].includes(acao))
+  // Na Qualidade, 'devolver' também é aceita: permite reportar divergência
+  // mesmo depois que a inspeção já foi marcada como concluída.
+  const concluidaPermiteDevolver = acao === 'devolver' && parcial.setor_atual === 'qualidade';
+  if (parcial.status === 'concluida' && !['apontar', 'retomar', 'mover'].includes(acao) && !concluidaPermiteDevolver)
     return NextResponse.json({ erro: `Parcial já está "${parcial.status}" e não pode ser alterada` }, { status: 400 });
 
   // Parciais pausadas só aceitam retomar, devolver, mover, concluir ou apontar
@@ -574,9 +577,12 @@ export async function POST(
 
   // ── retomar ───────────────────────────────────────────────────────────────
   } else if (acao === 'retomar') {
-    // Operadores podem retomar do estado pausado; admin pode retomar de qualquer estado inativo
+    // Operadores podem retomar do estado pausado; admin pode retomar de qualquer estado
+    // inativo; na Qualidade, qualquer operador pode retomar uma parcial concluída
+    // (fluxo de divergência: "segurar para revisão" mesmo após concluída).
     const podeRetomar = ['pausado', 'finalizado_setor'].includes(parcial.status)
-      || (user.is_staff && ['concluida', 'cancelada'].includes(parcial.status));
+      || (user.is_staff && ['concluida', 'cancelada'].includes(parcial.status))
+      || (parcial.setor_atual === 'qualidade' && parcial.status === 'concluida');
     if (!podeRetomar)
       return NextResponse.json({ erro: 'Apenas parciais pausadas (ou concluídas para admins) podem ser retomadas' }, { status: 403 });
 
