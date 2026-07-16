@@ -89,9 +89,21 @@ export default function RelatorioPage() {
 
   const { pedido, itens, movimentacoes, tempos_por_setor, entregas, lotes, divergencias } = rel;
 
-  // Todos os setores que aparecem nos tempos
-  const todosSetores = new Set<string>();
-  Object.values(tempos_por_setor).forEach(st => Object.keys(st).forEach(s => todosSetores.add(s)));
+  // Todos os setores do roteiro real de cada item — não só os que tiveram tempo
+  // registrado. Preserva a ordem do roteiro (próprio do item, senão o do pedido).
+  const roteiroBasePedido = (pedido.roteiro_base as unknown as string[]) || [];
+  const todosSetoresOrdenados: string[] = [];
+  itens.forEach(item => {
+    const roteiroItem = ((item as unknown as Record<string, unknown>).roteiro_proprio as string[] | null);
+    const efetivo = roteiroItem && roteiroItem.length > 0 ? roteiroItem : roteiroBasePedido;
+    efetivo.forEach(s => { if (!todosSetoresOrdenados.includes(s)) todosSetoresOrdenados.push(s); });
+  });
+  // Fallback: se algum setor só aparece nos tempos (ex: devolução pra fora do
+  // roteiro original) mas não em nenhum roteiro efetivo, ainda assim mostra.
+  Object.values(tempos_por_setor).forEach(st => Object.keys(st).forEach(s => {
+    if (!todosSetoresOrdenados.includes(s)) todosSetoresOrdenados.push(s);
+  }));
+  const todosSetores = new Set<string>(todosSetoresOrdenados);
 
   const valorTotal = Number(pedido.valor_calculado || pedido.valor_total || 0);
   // Só admin/PCP recebem valores da API; para os demais os campos vêm nulos.
@@ -384,7 +396,10 @@ export default function RelatorioPage() {
                 </tr>
               </thead>
               <tbody>
-                {linhas.map(({ item, tempos, totalMin }, i) => (
+                {linhas.map(({ item, tempos, totalMin }, i) => {
+                  const roteiroItem = ((item as unknown as Record<string, unknown>).roteiro_proprio as string[] | null);
+                  const efetivoItem = roteiroItem && roteiroItem.length > 0 ? roteiroItem : roteiroBasePedido;
+                  return (
                   <tr key={item.id}>
                     <td style={i % 2 ? s.tdAlt : s.td}><strong>{item.codigo}</strong> <span style={{ color: '#94a3b8', fontSize: 11 }}>{item.descricao}</span></td>
                     {setoresList.map(setor => (
@@ -394,6 +409,8 @@ export default function RelatorioPage() {
                             <strong>{fmtMin(tempos[setor])}</strong>
                             {tempos[setor] >= 60 && <span style={{ color: '#94a3b8', fontSize: 10, display: 'block' }}>{tempos[setor]} min</span>}
                           </span>
+                        ) : efetivoItem.includes(setor) ? (
+                          <span style={{ color: '#cbd5e1', fontSize: 10, fontStyle: 'italic' }}>Sem registro</span>
                         ) : <span style={{ color: '#cbd5e1', fontSize: 10, fontStyle: 'italic' }}>Não passou</span>}
                       </td>
                     ))}
@@ -406,7 +423,8 @@ export default function RelatorioPage() {
                       ) : '—'}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {/* Linha de totais */}
                 <tr style={{ background: '#1a3a5c', color: '#fff' }}>
                   <td style={{ padding: '8px 10px', fontWeight: 700 }}>TOTAL POR SETOR</td>
