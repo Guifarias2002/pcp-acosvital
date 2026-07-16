@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getToken, getUser, podeEditar } from '@/lib/auth';
 import Sidebar, { TopBar } from '@/components/Sidebar';
+import NotificacoesLive from '@/components/NotificacoesLive';
 
 interface Props {
   children: React.ReactNode;
@@ -17,6 +18,8 @@ export default function AuthGuard({ children, adminOnly }: Props) {
   const [sidebarAberta, setSidebarAberta] = useState(false);
   const [sidebarColapsada, setSidebarColapsada] = useState(false);
   const [somenteLeitura, setSomenteLeitura] = useState(false);
+  // Alerta de movimentação em tela cheia: só para perfis ADM e PCP.
+  const [mostraAvisos, setMostraAvisos] = useState(false);
 
   useEffect(() => {
     const token = getToken();
@@ -29,6 +32,8 @@ export default function AuthGuard({ children, adminOnly }: Props) {
       const isSuperAdmin = user?.perfil === 'administrador' || (user?.is_staff && user?.perfil !== 'pcp' && user?.perfil !== 'lider');
       if (!isSuperAdmin) { router.replace('/'); return; }
     }
+    const u = getUser();
+    setMostraAvisos(u?.perfil === 'administrador' || u?.perfil === 'pcp');
     setSomenteLeitura(!podeEditar());
     setOk(true);
   }, [router, adminOnly]);
@@ -58,6 +63,9 @@ export default function AuthGuard({ children, adminOnly }: Props) {
           {children}
         </div>
       </div>
+      {/* Alerta de movimentação em tela cheia — global, só ADM/PCP.
+          Aparece 1x por movimentação (mostra a mais recente por 5s) e some, voltando ao normal. */}
+      {mostraAvisos && <NotificacoesLive modo="tela" />}
     </>
   );
 }

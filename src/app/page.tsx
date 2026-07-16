@@ -7,7 +7,6 @@ import { useRealtime } from '@/hooks/useRealtime';
 import { DashboardData, STATUS_LABELS, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR, PARCIAL_STATUS_LABELS } from '@/lib/types';
 import { getUser, getToken } from '@/lib/auth';
 import Link from 'next/link';
-import NotificacoesLive from '@/components/NotificacoesLive';
 
 const NOMES_SETOR = Object.fromEntries(SETOR_CHOICES);
 
