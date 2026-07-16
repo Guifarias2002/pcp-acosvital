@@ -68,12 +68,16 @@ async function getParcialAtiva(
   itemId: number,
   setor: string,
 ) {
+  // Inclui 'pausado' e 'finalizado_setor': uma parcial pausada/finalizada ainda é
+  // ativa (só não está em andamento). Sem isso, o caller (ex: recebimento parcial)
+  // concluía "não existe parcial" e criava uma linha nova do zero, duplicando a
+  // quantidade em vez de reduzir a parcial que já existia (bug real, ver pedido 25790).
   const rows = await (tx as typeof sql)`
     SELECT id, quantidade::float AS quantidade
     FROM producao_itemparcial
     WHERE item_pedido_id = ${itemId}
       AND setor_atual = ${setor}
-      AND status IN ('em_aberto', 'recebido', 'em_andamento')
+      AND status IN ('em_aberto', 'recebido', 'em_andamento', 'pausado', 'finalizado_setor')
     ORDER BY criado_em ASC
     LIMIT 1
   `;
@@ -609,6 +613,11 @@ export async function POST(
       const idxAtual = roteiro.indexOf(item.setor_atual);
       const setorAnterior = idxAtual > 0 ? roteiro[idxAtual - 1] : item.setor_atual;
       await sql.begin(async (tx) => {
+        // Trava por item — se a internet cair e o operador clicar de novo (ou o
+        // navegador reenviar a requisição), a segunda chamada espera a primeira
+        // terminar em vez de rodar em paralelo e criar uma segunda parcial de resto.
+        await (tx as unknown as typeof sql)`SELECT pg_advisory_xact_lock(778899, ${item.id})`;
+
         // 1. Ajusta a parcial existente no setor atual: reduz para qtdReceber e marca como recebido.
         //    Nao inicia a producao automaticamente - precisa de um "iniciar" separado.
         //    Sem isso, a soma das parciais ativas ultrapassaria a quantidade total do item.
