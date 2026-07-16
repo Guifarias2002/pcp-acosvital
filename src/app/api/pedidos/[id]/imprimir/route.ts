@@ -50,6 +50,17 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         const ds: string[] = Array.isArray(ped.desenhos) ? ped.desenhos : [];
         if (ds.length) paths.push(...ds);
         else if (ped.desenho_url) paths.push(ped.desenho_url as string);
+        // Desenhos anexados por item (upload direto no item, não no pedido)
+        // tambem entram no PDF combinado — um pedido pode ter varios itens,
+        // cada um com seu proprio desenho.
+        const itensComDesenho = await sql`
+          SELECT desenhos FROM producao_itempedido
+          WHERE pedido_id = ${pedidoId} AND COALESCE(array_length(desenhos, 1), 0) > 0
+        `;
+        for (const it of itensComDesenho) {
+          const ids: string[] = Array.isArray(it.desenhos) ? it.desenhos : [];
+          paths.push(...ids);
+        }
       } else if (d === 'op' && ped.ordem_producao_url) {
         paths.push(ped.ordem_producao_url as string);
       } else if (d === 'pv' && ped.pedido_venda_url) {

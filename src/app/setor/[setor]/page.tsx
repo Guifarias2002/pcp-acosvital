@@ -875,6 +875,8 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           temPedidoVenda={(parcial as any).tem_pedido_venda}
           temOrdemProducao={(parcial as any).tem_ordem_producao}
           temDesenho={(parcial as any).tem_desenho}
+          itemId={parcial.item_pedido_id}
+          desenhoViaItem={(parcial as any).desenho_via_item}
         />
 
         {/* Peso da embalagem: editável na Embalagem, somente leitura na Logística.
@@ -916,7 +918,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
 
       {/* Desenho técnico */}
       {(parcial as any).tem_desenho && (
-        <a href={`/api/pedidos/${parcial.pedido_id}/desenho`} target="_blank" rel="noopener noreferrer"
+        <a href={(parcial as any).desenho_via_item ? getDesenhoUrlItem(parcial.item_pedido_id) : getDesenhoUrl(parcial.pedido_id)} target="_blank" rel="noopener noreferrer"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#1d4ed8', textDecoration: 'none', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 5, padding: '4px 10px', marginBottom: 8 }}>
           📐 Ver Desenho Técnico
         </a>
@@ -1620,6 +1622,8 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
         temPedidoVenda={(p0 as any).tem_pedido_venda}
         temOrdemProducao={(p0 as any).tem_ordem_producao}
         temDesenho={(p0 as any).tem_desenho}
+        itemId={p0.item_pedido_id}
+        desenhoViaItem={(p0 as any).desenho_via_item}
       />
 
       {/* Ações combinadas — escondidas para usuários somente leitura */}
@@ -2200,6 +2204,12 @@ function getDesenhoUrl(pedidoId: number) {
   return `/api/pedidos/${pedidoId}/desenho?token=${encodeURIComponent(token)}`;
 }
 
+// Desenho anexado no item (upload por item na tela /pedidos/[id]) em vez do pedido.
+function getDesenhoUrlItem(itemId: number) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') || '' : '';
+  return `/api/itens/${itemId}/desenho?token=${encodeURIComponent(token)}`;
+}
+
 function getPedidoVendaUrl(pedidoId: number) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') || '' : '';
   return `/api/pedidos/${pedidoId}/pedido-venda?token=${encodeURIComponent(token)}`;
@@ -2516,8 +2526,9 @@ function FotosParcial({ parcialId, inicial, editavel }: { parcialId: number; ini
 // Linha de links dos documentos anexados ao pedido (PV / OP / Desenho).
 // Mostrada nos cards do painel de setor para o operador abrir/baixar direto da área.
 // Só renderiza os que existem; se nenhum existir, não aparece nada.
-function DocumentosPedidoLinks({ pedidoId, temPedidoVenda, temOrdemProducao, temDesenho }: {
+function DocumentosPedidoLinks({ pedidoId, temPedidoVenda, temOrdemProducao, temDesenho, itemId, desenhoViaItem }: {
   pedidoId?: number; temPedidoVenda?: boolean; temOrdemProducao?: boolean; temDesenho?: boolean;
+  itemId?: number; desenhoViaItem?: boolean;
 }) {
   if (!pedidoId || (!temPedidoVenda && !temOrdemProducao && !temDesenho)) return null;
   const linkStyle: React.CSSProperties = {
@@ -2538,7 +2549,7 @@ function DocumentosPedidoLinks({ pedidoId, temPedidoVenda, temOrdemProducao, tem
         </a>
       )}
       {temDesenho && (
-        <a href={getDesenhoUrl(pedidoId)} target="_blank" rel="noopener noreferrer" style={linkStyle}>
+        <a href={desenhoViaItem && itemId ? getDesenhoUrlItem(itemId) : getDesenhoUrl(pedidoId)} target="_blank" rel="noopener noreferrer" style={linkStyle}>
           📐 Desenho Técnico
         </a>
       )}
@@ -2778,7 +2789,8 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                               setModalImprimir({
                                 pedidoId: pedido_id,
                                 numero: numero_pedido_venda,
-                                temDesenho: !!p0d?.tem_desenho,
+                                // Desenho pode estar anexado em qualquer item do pedido, não só no primeiro.
+                                temDesenho: parciais.some(p => (p as any).tem_desenho),
                                 temPV: !!p0d?.tem_pedido_venda,
                                 temOP: !!p0d?.tem_ordem_producao,
                               });
