@@ -2192,6 +2192,63 @@ function getOrdemProducaoUrl(pedidoId: number) {
   return `/api/pedidos/${pedidoId}/ordem-producao?token=${encodeURIComponent(token)}`;
 }
 
+// Modal de impressão: usuário escolhe Desenho / OP / PV / Relatório (um, vários ou
+// todos). Cada selecionado abre em nova aba, pronto pra imprimir pelo navegador.
+function ImprimirDocsModal({ pedidoId, numero, temDesenho, temPV, temOP, onClose }: {
+  pedidoId: number; numero: string; temDesenho: boolean; temPV: boolean; temOP: boolean; onClose: () => void;
+}) {
+  const [sel, setSel] = useState({ desenho: temDesenho, op: temOP, pv: temPV, relatorio: false });
+  const toggle = (k: keyof typeof sel) => setSel(s => ({ ...s, [k]: !s[k] }));
+
+  const nada = !((sel.desenho && temDesenho) || (sel.op && temOP) || (sel.pv && temPV) || sel.relatorio);
+
+  function imprimir() {
+    const urls: string[] = [];
+    if (sel.desenho && temDesenho) urls.push(getDesenhoUrl(pedidoId));
+    if (sel.op && temOP) urls.push(getOrdemProducaoUrl(pedidoId));
+    if (sel.pv && temPV) urls.push(getPedidoVendaUrl(pedidoId));
+    if (sel.relatorio) urls.push(`/pedidos/${pedidoId}/relatorio`);
+    urls.forEach(u => window.open(u, '_blank'));
+    onClose();
+  }
+
+  const linha = (k: keyof typeof sel, label: string, icon: string, disponivel: boolean) => (
+    <label style={{
+      display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, marginBottom: 8,
+      border: `1px solid ${sel[k] && disponivel ? '#0d6efd' : '#e2e8f0'}`,
+      background: sel[k] && disponivel ? '#eff6ff' : '#fff',
+      cursor: disponivel ? 'pointer' : 'not-allowed', opacity: disponivel ? 1 : 0.5,
+    }}>
+      <input type="checkbox" checked={sel[k] && disponivel} disabled={!disponivel} onChange={() => toggle(k)} style={{ cursor: disponivel ? 'pointer' : 'not-allowed', width: 16, height: 16 }} />
+      <i className={`bi ${icon}`} style={{ fontSize: 18, color: '#0d6efd' }} />
+      <span style={{ fontWeight: 600, fontSize: 14, color: '#1a3a5c' }}>{label}</span>
+      {!disponivel && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#94a3b8' }}>não anexado</span>}
+    </label>
+  );
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 430, boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <h5 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c' }}><i className="bi bi-printer-fill" style={{ marginRight: 8 }} />Imprimir — Pedido {numero}</h5>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#888' }}>✕</button>
+        </div>
+        <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 14px' }}>Marque o que deseja imprimir (abre em novas abas, prontas para impressão):</p>
+        {linha('desenho', 'Desenho técnico', 'bi-rulers', temDesenho)}
+        {linha('op', 'Ordem de Produção (OP)', 'bi-file-earmark-text', temOP)}
+        {linha('pv', 'Pedido de Venda (PV)', 'bi-receipt', temPV)}
+        {linha('relatorio', 'Relatório do pedido', 'bi-clipboard-data', true)}
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
+          <button onClick={onClose} style={{ background: '#f0f0f0', color: '#333', border: 'none', borderRadius: 6, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={imprimir} disabled={nada} style={{ background: nada ? '#aaa' : '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 20px', fontSize: 13, fontWeight: 700, cursor: nada ? 'not-allowed' : 'pointer' }}>
+            <i className="bi bi-printer-fill" style={{ marginRight: 6 }} />Imprimir
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function fmtPeso(n: number) {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
 }
@@ -2477,6 +2534,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const podeDesfazer = isAdministrador();
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
   const [modalRastreio, setModalRastreio] = useState<{ pedidoId: number; numero: string } | null>(null);
+  const [modalImprimir, setModalImprimir] = useState<{ pedidoId: number; numero: string; temDesenho: boolean; temPV: boolean; temOP: boolean } | null>(null);
   // Pedidos ja vistos nesta sessao da pagina - controla quais ja tiveram seu
   // estado de colapso inicializado, pra nao re-fechar um que o usuario abriu.
   const pedidosVistos = useRef<Set<number>>(new Set());
@@ -2538,6 +2596,16 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
       )}
       {modalRastreio && (
         <RastreioModal pedidoId={modalRastreio.pedidoId} numero={modalRastreio.numero} onClose={() => setModalRastreio(null)} />
+      )}
+      {modalImprimir && (
+        <ImprimirDocsModal
+          pedidoId={modalImprimir.pedidoId}
+          numero={modalImprimir.numero}
+          temDesenho={modalImprimir.temDesenho}
+          temPV={modalImprimir.temPV}
+          temOP={modalImprimir.temOP}
+          onClose={() => setModalImprimir(null)}
+        />
       )}
       <NotificacoesLive filtroSetor={setor} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: setor === 'logistica' ? 12 : 18, flexWrap: 'wrap', gap: 10 }}>
@@ -2673,8 +2741,18 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             <i className="bi bi-eye-fill" />
                           </button>
                           <button
-                            title="Imprimir pedido (relatório)"
-                            onClick={(e) => { e.stopPropagation(); window.open(`/pedidos/${pedido_id}/relatorio`, '_blank'); }}
+                            title="Imprimir desenho, OP, PV ou relatório"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const p0d = parciais[0] as any;
+                              setModalImprimir({
+                                pedidoId: pedido_id,
+                                numero: numero_pedido_venda,
+                                temDesenho: !!p0d?.tem_desenho,
+                                temPV: !!p0d?.tem_pedido_venda,
+                                temOP: !!p0d?.tem_ordem_producao,
+                              });
+                            }}
                             style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', borderRadius: 5, padding: '3px 10px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
                             <i className="bi bi-printer-fill" /> Imprimir
                           </button>
