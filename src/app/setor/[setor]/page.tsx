@@ -2192,23 +2192,31 @@ function getOrdemProducaoUrl(pedidoId: number) {
   return `/api/pedidos/${pedidoId}/ordem-producao?token=${encodeURIComponent(token)}`;
 }
 
-// Modal de impressão: usuário escolhe Desenho / OP / PV / Relatório (um, vários ou
-// todos). Cada selecionado abre em nova aba, pronto pra imprimir pelo navegador.
+// Modal de impressão: usuário escolhe Desenho / OP / PV (um, vários ou todos) e
+// os selecionados são juntados num ÚNICO PDF, aberto em uma só aba (imprime tudo
+// de uma vez, sem bloqueio de pop-up). O relatório do pedido é um botão à parte.
 function ImprimirDocsModal({ pedidoId, numero, temDesenho, temPV, temOP, onClose }: {
   pedidoId: number; numero: string; temDesenho: boolean; temPV: boolean; temOP: boolean; onClose: () => void;
 }) {
-  const [sel, setSel] = useState({ desenho: temDesenho, op: temOP, pv: temPV, relatorio: false });
+  const [sel, setSel] = useState({ desenho: temDesenho, op: temOP, pv: temPV });
   const toggle = (k: keyof typeof sel) => setSel(s => ({ ...s, [k]: !s[k] }));
 
-  const nada = !((sel.desenho && temDesenho) || (sel.op && temOP) || (sel.pv && temPV) || sel.relatorio);
+  const nada = !((sel.desenho && temDesenho) || (sel.op && temOP) || (sel.pv && temPV));
 
-  function imprimir() {
-    const urls: string[] = [];
-    if (sel.desenho && temDesenho) urls.push(getDesenhoUrl(pedidoId));
-    if (sel.op && temOP) urls.push(getOrdemProducaoUrl(pedidoId));
-    if (sel.pv && temPV) urls.push(getPedidoVendaUrl(pedidoId));
-    if (sel.relatorio) urls.push(`/pedidos/${pedidoId}/relatorio`);
-    urls.forEach(u => window.open(u, '_blank'));
+  function imprimirDocs() {
+    const docs: string[] = [];
+    if (sel.desenho && temDesenho) docs.push('desenho');
+    if (sel.op && temOP) docs.push('op');
+    if (sel.pv && temPV) docs.push('pv');
+    if (docs.length === 0) return;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') || '' : '';
+    // Uma aba só: o servidor junta os documentos num único PDF.
+    window.open(`/api/pedidos/${pedidoId}/imprimir?docs=${docs.join(',')}&token=${encodeURIComponent(token)}`, '_blank');
+    onClose();
+  }
+
+  function abrirRelatorio() {
+    window.open(`/pedidos/${pedidoId}/relatorio`, '_blank');
     onClose();
   }
 
@@ -2233,15 +2241,19 @@ function ImprimirDocsModal({ pedidoId, numero, temDesenho, temPV, temOP, onClose
           <h5 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c' }}><i className="bi bi-printer-fill" style={{ marginRight: 8 }} />Imprimir — Pedido {numero}</h5>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#888' }}>✕</button>
         </div>
-        <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 14px' }}>Marque o que deseja imprimir (abre em novas abas, prontas para impressão):</p>
+        <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 14px' }}>Marque os documentos — os selecionados saem juntos num único PDF, numa aba só:</p>
         {linha('desenho', 'Desenho técnico', 'bi-rulers', temDesenho)}
         {linha('op', 'Ordem de Produção (OP)', 'bi-file-earmark-text', temOP)}
         {linha('pv', 'Pedido de Venda (PV)', 'bi-receipt', temPV)}
-        {linha('relatorio', 'Relatório do pedido', 'bi-clipboard-data', true)}
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 6 }}>
           <button onClick={onClose} style={{ background: '#f0f0f0', color: '#333', border: 'none', borderRadius: 6, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
-          <button onClick={imprimir} disabled={nada} style={{ background: nada ? '#aaa' : '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 20px', fontSize: 13, fontWeight: 700, cursor: nada ? 'not-allowed' : 'pointer' }}>
-            <i className="bi bi-printer-fill" style={{ marginRight: 6 }} />Imprimir
+          <button onClick={imprimirDocs} disabled={nada} style={{ background: nada ? '#aaa' : '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 20px', fontSize: 13, fontWeight: 700, cursor: nada ? 'not-allowed' : 'pointer' }}>
+            <i className="bi bi-printer-fill" style={{ marginRight: 6 }} />Imprimir selecionados
+          </button>
+        </div>
+        <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 16, paddingTop: 14 }}>
+          <button onClick={abrirRelatorio} style={{ width: '100%', background: '#fff', color: '#1a3a5c', border: '1px solid #1a3a5c', borderRadius: 6, padding: '8px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <i className="bi bi-clipboard-data" />Relatório completo do pedido
           </button>
         </div>
       </div>
