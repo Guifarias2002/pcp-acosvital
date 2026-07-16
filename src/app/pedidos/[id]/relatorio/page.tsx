@@ -94,6 +94,8 @@ export default function RelatorioPage() {
   Object.values(tempos_por_setor).forEach(st => Object.keys(st).forEach(s => todosSetores.add(s)));
 
   const valorTotal = Number(pedido.valor_calculado || pedido.valor_total || 0);
+  // Só admin/PCP recebem valores da API; para os demais os campos vêm nulos.
+  const temFinanceiro = pedido.valor_calculado != null || pedido.valor_total != null;
 
   const s: Record<string, React.CSSProperties> = {
     page:    { fontFamily: 'Arial, sans-serif', fontSize: 13, color: '#1a1a1a', maxWidth: 900, margin: '0 auto', padding: '24px 32px' },
@@ -246,8 +248,12 @@ export default function RelatorioPage() {
         <div style={{ textAlign: 'right', fontSize: 12, color: '#64748b' }}>
           <div>Gerado em: <strong>{fmt(rel.gerado_em)}</strong></div>
           <div>Por: <strong>{rel.gerado_por}</strong></div>
-          <div style={{ marginTop: 8, fontSize: 20, fontWeight: 800, color: '#1a3a5c' }}>{fmtR$(pedido.valor_calculado || pedido.valor_total)}</div>
-          <div style={{ fontSize: 10 }}>Valor Total</div>
+          {temFinanceiro && (
+            <>
+              <div style={{ marginTop: 8, fontSize: 20, fontWeight: 800, color: '#1a3a5c' }}>{fmtR$(pedido.valor_calculado || pedido.valor_total)}</div>
+              <div style={{ fontSize: 10 }}>Valor Total</div>
+            </>
+          )}
         </div>
       </div>
 
@@ -276,7 +282,7 @@ export default function RelatorioPage() {
       <table style={s.table}>
         <thead>
           <tr>
-            {['Código', 'Descrição', 'Qtd', 'Un', 'Vlr Unit.', 'Vlr Total', 'Pendente', 'Entregue', 'Status'].map(h => (
+            {['Código', 'Descrição', 'Qtd', 'Un', ...(temFinanceiro ? ['Vlr Unit.', 'Vlr Total'] : []), 'Pendente', 'Entregue', 'Status'].map(h => (
               <th key={h} style={s.th}>{h}</th>
             ))}
           </tr>
@@ -288,8 +294,12 @@ export default function RelatorioPage() {
               <td style={i % 2 ? s.tdAlt : s.td}>{item.descricao}</td>
               <td style={i % 2 ? s.tdAlt : s.td}>{item.quantidade}</td>
               <td style={i % 2 ? s.tdAlt : s.td}>{item.unidade}</td>
-              <td style={i % 2 ? s.tdAlt : s.td}>{fmtR$(item.valor_unitario)}</td>
-              <td style={{ ...(i % 2 ? s.tdAlt : s.td), fontWeight: 700 }}>{fmtR$(item.valor_total_item)}</td>
+              {temFinanceiro && (
+                <>
+                  <td style={i % 2 ? s.tdAlt : s.td}>{fmtR$(item.valor_unitario)}</td>
+                  <td style={{ ...(i % 2 ? s.tdAlt : s.td), fontWeight: 700 }}>{fmtR$(item.valor_total_item)}</td>
+                </>
+              )}
               <td style={i % 2 ? s.tdAlt : s.td}>{item.quantidade_pendente}</td>
               <td style={i % 2 ? s.tdAlt : s.td}>{item.quantidade_entregue}</td>
               <td style={i % 2 ? s.tdAlt : s.td}>
@@ -299,11 +309,13 @@ export default function RelatorioPage() {
               </td>
             </tr>
           ))}
-          <tr style={{ background: '#1a3a5c', color: '#fff' }}>
-            <td colSpan={5} style={{ padding: '8px 10px', fontWeight: 700 }}>TOTAL</td>
-            <td style={{ padding: '8px 10px', fontWeight: 800, fontSize: 14 }}>{fmtR$(String(valorTotal))}</td>
-            <td colSpan={3} style={{ padding: '8px 10px' }}></td>
-          </tr>
+          {temFinanceiro && (
+            <tr style={{ background: '#1a3a5c', color: '#fff' }}>
+              <td colSpan={5} style={{ padding: '8px 10px', fontWeight: 700 }}>TOTAL</td>
+              <td style={{ padding: '8px 10px', fontWeight: 800, fontSize: 14 }}>{fmtR$(String(valorTotal))}</td>
+              <td colSpan={3} style={{ padding: '8px 10px' }}></td>
+            </tr>
+          )}
         </tbody>
       </table>
 

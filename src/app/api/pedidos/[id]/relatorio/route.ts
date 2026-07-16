@@ -5,7 +5,9 @@ import { autenticar } from '@/lib/middleware';
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
-  if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  // Liberado para todos os setores (leitura). Valores financeiros só para
+  // administrador/PCP — operador e líder não veem preços (mesma regra das demais telas).
+  const verFinanceiro = user.is_staff && user.perfil !== 'lider';
 
   const pedidoId = Number(params.id);
   if (!Number.isInteger(pedidoId) || pedidoId <= 0)
@@ -137,9 +139,17 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     `) as object[];
   } catch { /* tabela pode não existir */ }
 
+  // Esconde valores financeiros para quem não pode vê-los (operador/líder).
+  const pedidoOut = verFinanceiro
+    ? pedido
+    : { ...pedido, valor_total: null, valor_calculado: null };
+  const itensOut = verFinanceiro
+    ? itens
+    : itens.map(i => ({ ...i, valor_unitario: null, valor_total_item: null }));
+
   return NextResponse.json({
-    pedido,
-    itens,
+    pedido: pedidoOut,
+    itens: itensOut,
     movimentacoes,
     tempos_por_setor: temposPorSetor,
     entregas,

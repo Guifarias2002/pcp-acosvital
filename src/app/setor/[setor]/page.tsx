@@ -1605,6 +1605,14 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
         </div>
       )}
 
+      {/* Documentos do pedido (PV / OP / Desenho) — visível a todos, em todos os setores */}
+      <DocumentosPedidoLinks
+        pedidoId={(p0 as any).pedido_id}
+        temPedidoVenda={(p0 as any).tem_pedido_venda}
+        temOrdemProducao={(p0 as any).tem_ordem_producao}
+        temDesenho={(p0 as any).tem_desenho}
+      />
+
       {/* Ações combinadas — escondidas para usuários somente leitura */}
       {podeEditar() && (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -2663,6 +2671,12 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             onClick={(e) => { e.stopPropagation(); setModalRastreio({ pedidoId: pedido_id, numero: numero_pedido_venda }); }}
                             style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', borderRadius: 5, padding: '3px 8px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                             <i className="bi bi-eye-fill" />
+                          </button>
+                          <button
+                            title="Imprimir pedido (relatório)"
+                            onClick={(e) => { e.stopPropagation(); window.open(`/pedidos/${pedido_id}/relatorio`, '_blank'); }}
+                            style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', borderRadius: 5, padding: '3px 10px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <i className="bi bi-printer-fill" /> Imprimir
                           </button>
                           {(() => {
                             if (!podeEditar()) return null;
