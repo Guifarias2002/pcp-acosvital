@@ -50,6 +50,7 @@ export async function GET(req: Request) {
           JOIN producao_itempedido i ON i.id = pa.item_pedido_id
           JOIN producao_pedido p ON p.id = pa.pedido_id
           WHERE pa.status = ANY(${STATUS_PARCIAL_ATIVA}) AND pa.setor_atual = ${filtroSetor}
+            AND i.status != 'entregue'
           ORDER BY p.prioridade DESC, p.prazo_entrega ASC
         `
       : sql`
@@ -61,6 +62,7 @@ export async function GET(req: Request) {
           JOIN producao_itempedido i ON i.id = pa.item_pedido_id
           JOIN producao_pedido p ON p.id = pa.pedido_id
           WHERE pa.status = ANY(${STATUS_PARCIAL_ATIVA})
+            AND i.status != 'entregue'
           ORDER BY p.prioridade DESC, p.prazo_entrega ASC
         `;
 

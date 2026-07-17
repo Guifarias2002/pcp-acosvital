@@ -32,9 +32,15 @@ interface SetorKanban {
   nome: string;
   itens: ItemKanban[];
 }
+interface MesPedidos {
+  mes: string;
+  label: string;
+  qtd: number;
+}
 
 const CORES = ['#0d6efd', '#198754', '#fd7e14', '#6f42c1', '#dc3545', '#20c997', '#b45309', '#0dcaf0'];
 const PRIO_COR: Record<string, string> = { baixa: '#94a3b8', normal: '#0d6efd', alta: '#d97706', urgente: '#dc3545' };
+const DWELL_VIEW_MS = 25_000;
 
 function Barra({ label, qtd, pct, cor }: { label: string; qtd: number; pct: number; cor: string }) {
   return (
@@ -72,6 +78,9 @@ export default function TVMovimentacoesPage() {
   const [agora, setAgora] = useState('');
   const [setoresKanban, setSetoresKanban] = useState<SetorKanban[]>([]);
   const [semSessao, setSemSessao] = useState(false);
+  const [meses, setMeses] = useState<MesPedidos[]>([]);
+  const [variacaoPct, setVariacaoPct] = useState<number | null>(null);
+  const [view, setView] = useState<'kanban' | 'comparativo'>('kanban');
 
   const carregar = useCallback(() => {
     const token = getToken() || '';
@@ -97,6 +106,10 @@ export default function TVMovimentacoesPage() {
       })
       .then(data => { if (data) { setSemSessao(false); setSetoresKanban(data.setores || []); } })
       .catch(() => {});
+    fetch('/api/dashboard/pedidos-por-mes', { headers })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (data) { setMeses(data.meses || []); setVariacaoPct(data.variacao_pct ?? null); } })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -110,10 +123,17 @@ export default function TVMovimentacoesPage() {
 
   useRealtime(['producao_movimentacaoitem', 'producao_itemparcial'], carregar);
 
+  // Alterna entre Kanban e Comparativo mensal, com transicao suave (fade).
+  useEffect(() => {
+    const id = setInterval(() => setView(v => v === 'kanban' ? 'comparativo' : 'kanban'), DWELL_VIEW_MS);
+    return () => clearInterval(id);
+  }, []);
+
   const setoresAtivos = setoresKanban.filter(s => s.itens.length > 0);
   // Colunas em 2 blocos quando tem muita gente/setor, pra caber tudo sem rolar.
   const meioLideres = Math.ceil(lideres.length / 2);
   const meioSetores = Math.ceil(setoresStat.length / 2);
+  const maxMes = Math.max(1, ...meses.map(m => m.qtd));
 
   return (
     <div style={{
@@ -149,91 +169,144 @@ export default function TVMovimentacoesPage() {
         </div>
       )}
 
-      {/* % por líder / % por setor — altura fixa e enxuta, em ate 2 colunas internas */}
-      <div style={{ flex: '0 0 20%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, minHeight: 0 }}>
-        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 16px', boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-            <i className="bi bi-people-fill" style={{ color: '#0d6efd' }} /> % Movimentação por Líder
-          </div>
-          {lideres.length === 0 ? (
-            <div style={{ color: '#aaa', fontSize: 12, textAlign: 'center', margin: 'auto' }}>Sem movimentações registradas</div>
-          ) : (
-            <div style={{ flex: 1, display: 'grid', gridTemplateColumns: lideres.length > 6 ? '1fr 1fr' : '1fr', gap: '0 16px', alignContent: 'center' }}>
-              <div>{lideres.slice(0, lideres.length > 6 ? meioLideres : undefined).map((l, i) => (
-                <Barra key={l.usuario_id} label={l.usuario_nome} qtd={l.qtd} pct={l.pct} cor={CORES[i % CORES.length]} />
-              ))}</div>
-              {lideres.length > 6 && (
-                <div>{lideres.slice(meioLideres).map((l, i) => (
-                  <Barra key={l.usuario_id} label={l.usuario_nome} qtd={l.qtd} pct={l.pct} cor={CORES[(i + meioLideres) % CORES.length]} />
-                ))}</div>
-              )}
-            </div>
-          )}
-        </div>
+      {/* Área que alterna entre Kanban e Comparativo mensal, com fade suave */}
+      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
 
-        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 16px', boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-            <i className="bi bi-diagram-3-fill" style={{ color: '#0d6efd' }} /> % Movimentação por Setor
-          </div>
-          {setoresStat.length === 0 ? (
-            <div style={{ color: '#aaa', fontSize: 12, textAlign: 'center', margin: 'auto' }}>Sem movimentações registradas</div>
-          ) : (
-            <div style={{ flex: 1, display: 'grid', gridTemplateColumns: setoresStat.length > 6 ? '1fr 1fr' : '1fr', gap: '0 16px', alignContent: 'center' }}>
-              <div>{setoresStat.slice(0, setoresStat.length > 6 ? meioSetores : undefined).map((s, i) => (
-                <Barra key={s.setor} label={s.setor_nome} qtd={s.qtd} pct={s.pct} cor={CORES[i % CORES.length]} />
-              ))}</div>
-              {setoresStat.length > 6 && (
-                <div>{setoresStat.slice(meioSetores).map((s, i) => (
-                  <Barra key={s.setor} label={s.setor_nome} qtd={s.qtd} pct={s.pct} cor={CORES[(i + meioSetores) % CORES.length]} />
-                ))}</div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Kanban — todos os setores, em grade que se ajusta (quebra linha, nao arrasta) */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          <i className="bi bi-kanban-fill" style={{ color: '#0d6efd' }} /> Kanban de Produção — setores e pedidos
-        </div>
+        {/* ── VIEW: Kanban + % movimentação ─────────────────────────────────── */}
         <div style={{
-          flex: 1, minHeight: 0, display: 'grid',
-          gridTemplateColumns: `repeat(${Math.max(setoresAtivos.length, 1)}, 1fr)`,
-          gap: 10, overflow: 'hidden',
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 12,
+          opacity: view === 'kanban' ? 1 : 0, transition: 'opacity 1s ease',
+          pointerEvents: view === 'kanban' ? 'auto' : 'none',
         }}>
-          {setoresAtivos.length === 0 ? (
-            <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: 30, gridColumn: '1 / -1' }}>Nenhum pedido em produção agora</div>
-          ) : (
-            setoresAtivos.map(s => {
-              const pedidos = agruparPorPedido(s.itens);
-              return (
-                <div key={s.cod} style={{ display: 'flex', flexDirection: 'column', minWidth: 0, height: '100%' }}>
-                  <div style={{
-                    background: '#1a3a5c', color: '#fff', borderRadius: '8px 8px 0 0',
-                    padding: '5px 9px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: 4,
-                  }}>
-                    <span style={{ fontWeight: 700, fontSize: 11.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.nome}</span>
-                    <span style={{ background: '#0d6efd', color: '#fff', fontSize: 10, fontWeight: 700, minWidth: 16, height: 16, borderRadius: 8, padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      {pedidos.length}
-                    </span>
-                  </div>
-                  <div style={{ flex: 1, background: '#fff', border: '1px solid #e5e7eb', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 4, overflowY: 'auto', minHeight: 0 }}>
-                    {pedidos.map(p => (
-                      <div key={p.numero} style={{
-                        display: 'flex', alignItems: 'center', gap: 5, padding: '3px 5px', marginBottom: 2,
-                        borderLeft: `3px solid ${PRIO_COR[p.prioridade] || '#94a3b8'}`, background: '#f8fafc', borderRadius: 4,
-                      }}>
-                        <span style={{ fontWeight: 700, fontSize: 11, color: '#1a3a5c', flexShrink: 0 }}>{p.numero}</span>
-                        <span style={{ fontSize: 10, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{p.cliente}</span>
-                        <span style={{ fontSize: 10, color: '#555', flexShrink: 0, whiteSpace: 'nowrap' }}>{p.qtdTotal}{p.unidade}</span>
-                      </div>
-                    ))}
-                  </div>
+          <div style={{ flex: '0 0 20%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, minHeight: 0 }}>
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 16px', boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                <i className="bi bi-people-fill" style={{ color: '#0d6efd' }} /> % Movimentação por Líder
+              </div>
+              {lideres.length === 0 ? (
+                <div style={{ color: '#aaa', fontSize: 12, textAlign: 'center', margin: 'auto' }}>Sem movimentações registradas</div>
+              ) : (
+                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: lideres.length > 6 ? '1fr 1fr' : '1fr', gap: '0 16px', alignContent: 'center' }}>
+                  <div>{lideres.slice(0, lideres.length > 6 ? meioLideres : undefined).map((l, i) => (
+                    <Barra key={l.usuario_id} label={l.usuario_nome} qtd={l.qtd} pct={l.pct} cor={CORES[i % CORES.length]} />
+                  ))}</div>
+                  {lideres.length > 6 && (
+                    <div>{lideres.slice(meioLideres).map((l, i) => (
+                      <Barra key={l.usuario_id} label={l.usuario_nome} qtd={l.qtd} pct={l.pct} cor={CORES[(i + meioLideres) % CORES.length]} />
+                    ))}</div>
+                  )}
                 </div>
-              );
-            })
-          )}
+              )}
+            </div>
+
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 16px', boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                <i className="bi bi-diagram-3-fill" style={{ color: '#0d6efd' }} /> % Movimentação por Setor
+              </div>
+              {setoresStat.length === 0 ? (
+                <div style={{ color: '#aaa', fontSize: 12, textAlign: 'center', margin: 'auto' }}>Sem movimentações registradas</div>
+              ) : (
+                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: setoresStat.length > 6 ? '1fr 1fr' : '1fr', gap: '0 16px', alignContent: 'center' }}>
+                  <div>{setoresStat.slice(0, setoresStat.length > 6 ? meioSetores : undefined).map((s, i) => (
+                    <Barra key={s.setor} label={s.setor_nome} qtd={s.qtd} pct={s.pct} cor={CORES[i % CORES.length]} />
+                  ))}</div>
+                  {setoresStat.length > 6 && (
+                    <div>{setoresStat.slice(meioSetores).map((s, i) => (
+                      <Barra key={s.setor} label={s.setor_nome} qtd={s.qtd} pct={s.pct} cor={CORES[(i + meioSetores) % CORES.length]} />
+                    ))}</div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              <i className="bi bi-kanban-fill" style={{ color: '#0d6efd' }} /> Kanban de Produção — setores e pedidos
+            </div>
+            <div style={{
+              flex: 1, minHeight: 0, display: 'grid',
+              gridTemplateColumns: `repeat(${Math.max(setoresAtivos.length, 1)}, 1fr)`,
+              gap: 10, overflow: 'hidden',
+            }}>
+              {setoresAtivos.length === 0 ? (
+                <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: 30, gridColumn: '1 / -1' }}>Nenhum pedido em produção agora</div>
+              ) : (
+                setoresAtivos.map(s => {
+                  const pedidos = agruparPorPedido(s.itens);
+                  return (
+                    <div key={s.cod} style={{ display: 'flex', flexDirection: 'column', minWidth: 0, height: '100%' }}>
+                      <div style={{
+                        background: '#1a3a5c', color: '#fff', borderRadius: '8px 8px 0 0',
+                        padding: '5px 9px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: 4,
+                      }}>
+                        <span style={{ fontWeight: 700, fontSize: 11.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.nome}</span>
+                        <span style={{ background: '#0d6efd', color: '#fff', fontSize: 10, fontWeight: 700, minWidth: 16, height: 16, borderRadius: 8, padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {pedidos.length}
+                        </span>
+                      </div>
+                      <div style={{ flex: 1, background: '#fff', border: '1px solid #e5e7eb', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 4, overflowY: 'auto', minHeight: 0 }}>
+                        {pedidos.map(p => (
+                          <div key={p.numero} style={{
+                            display: 'flex', alignItems: 'center', gap: 5, padding: '3px 5px', marginBottom: 2,
+                            borderLeft: `3px solid ${PRIO_COR[p.prioridade] || '#94a3b8'}`, background: '#f8fafc', borderRadius: 4,
+                          }}>
+                            <span style={{ fontWeight: 700, fontSize: 11, color: '#1a3a5c', flexShrink: 0 }}>{p.numero}</span>
+                            <span style={{ fontSize: 10, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{p.cliente}</span>
+                            <span style={{ fontSize: 10, color: '#555', flexShrink: 0, whiteSpace: 'nowrap' }}>{p.qtdTotal}{p.unidade}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── VIEW: Comparativo mensal de pedidos criados ───────────────────── */}
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+          opacity: view === 'comparativo' ? 1 : 0, transition: 'opacity 1s ease',
+          pointerEvents: view === 'comparativo' ? 'auto' : 'none',
+          background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '20px 30px', boxShadow: '0 1px 3px rgba(0,0,0,.04)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexShrink: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#1a3a5c', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <i className="bi bi-bar-chart-line-fill" style={{ color: '#0d6efd' }} /> Comparativo de Pedidos Criados por Mês
+            </div>
+            {variacaoPct !== null && (
+              <span style={{
+                fontSize: 13, fontWeight: 700, padding: '4px 12px', borderRadius: 20,
+                background: variacaoPct >= 0 ? '#dcfce7' : '#fee2e2', color: variacaoPct >= 0 ? '#166534' : '#991b1b',
+              }}>
+                <i className={`bi ${variacaoPct >= 0 ? 'bi-arrow-up' : 'bi-arrow-down'}`} /> {Math.abs(variacaoPct)}% vs mês anterior
+              </span>
+            )}
+          </div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', gap: 24, minHeight: 0, paddingBottom: 8 }}>
+            {meses.length === 0 ? (
+              <div style={{ color: '#aaa', fontSize: 14, margin: 'auto' }}>Sem dados de pedidos ainda</div>
+            ) : (
+              meses.map((m, i) => {
+                const isAtual = i === meses.length - 1;
+                const alturaPct = Math.round((m.qtd / maxMes) * 100);
+                return (
+                  <div key={m.mes} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: isAtual ? '#0d6efd' : '#1a3a5c', marginBottom: 8 }}>{m.qtd}</div>
+                    <div style={{
+                      width: '100%', maxWidth: 90, height: `${Math.max(alturaPct, 3)}%`, minHeight: 4,
+                      background: isAtual ? '#0d6efd' : '#c7d2fe', borderRadius: '8px 8px 0 0', transition: 'height .8s ease',
+                    }} />
+                    <div style={{ fontSize: 13, fontWeight: isAtual ? 700 : 600, color: isAtual ? '#1a3a5c' : '#64748b', marginTop: 10 }}>
+                      {m.label}{isAtual && <span style={{ display: 'block', fontSize: 10, color: '#0d6efd', fontWeight: 700 }}>ATUAL</span>}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
 
