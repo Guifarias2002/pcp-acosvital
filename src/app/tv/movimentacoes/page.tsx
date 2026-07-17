@@ -154,9 +154,10 @@ export default function TVMovimentacoesPage() {
   const [variacaoPct, setVariacaoPct] = useState<number | null>(null);
   const [atrasados, setAtrasados] = useState<PedidoAtrasado[]>([]);
   const [parados, setParados] = useState<ItemParado[]>([]);
+  const [velHoje, setVelHoje] = useState<VelocidadePeriodo>(VEL_VAZIO);
   const [velMes, setVelMes] = useState<VelocidadePeriodo>(VEL_VAZIO);
   const [velOntem, setVelOntem] = useState<VelocidadePeriodo>(VEL_VAZIO);
-  const [velPeriodo, setVelPeriodo] = useState<'mes' | 'ontem'>('mes');
+  const [velPeriodo, setVelPeriodo] = useState<'hoje' | 'mes' | 'ontem'>('hoje');
   const [view, setView] = useState<'kanban' | 'comparativo' | 'analise' | 'velocidade'>('kanban');
 
   const carregar = useCallback(() => {
@@ -192,7 +193,7 @@ export default function TVMovimentacoesPage() {
       .catch(() => {});
     fetch('/api/dashboard/comparativo-velocidade', { headers })
       .then(r => (r.ok ? r.json() : null))
-      .then(data => { if (data) { setVelMes(data.mes || VEL_VAZIO); setVelOntem(data.ontem || VEL_VAZIO); } })
+      .then(data => { if (data) { setVelHoje(data.hoje || VEL_VAZIO); setVelMes(data.mes || VEL_VAZIO); setVelOntem(data.ontem || VEL_VAZIO); } })
       .catch(() => {});
   }, []);
 
@@ -214,9 +215,10 @@ export default function TVMovimentacoesPage() {
     return () => clearInterval(id);
   }, []);
 
-  // Na tela de velocidade, alterna sozinho entre "Mês atual" e "Ontem".
+  // Na tela de velocidade, alterna sozinho entre Hoje, Mês atual e Ontem.
   useEffect(() => {
-    const id = setInterval(() => setVelPeriodo(p => (p === 'mes' ? 'ontem' : 'mes')), 8000);
+    const ordem: Array<'hoje' | 'mes' | 'ontem'> = ['hoje', 'mes', 'ontem'];
+    const id = setInterval(() => setVelPeriodo(p => ordem[(ordem.indexOf(p) + 1) % ordem.length]), 8000);
     return () => clearInterval(id);
   }, []);
 
@@ -235,10 +237,11 @@ export default function TVMovimentacoesPage() {
   const totalPedidosPeriodo = mesesVisiveis.reduce((s, m) => s + m.qtd, 0);
   // Comparativo de velocidade: usa o período em foco (mês atual ou ontem).
   // As listas já vêm ordenadas da API do mais rápido (menor média) pro mais devagar.
-  const velAtual = velPeriodo === 'mes' ? velMes : velOntem;
+  const velAtual = velPeriodo === 'hoje' ? velHoje : velPeriodo === 'mes' ? velMes : velOntem;
   const velSetores = velAtual.setores;
   const velUsuarios = velAtual.usuarios;
-  const velPeriodoLabel = velPeriodo === 'mes' ? 'Mês atual' : 'Ontem';
+  const velPeriodoLabel = velPeriodo === 'hoje' ? 'Hoje' : velPeriodo === 'mes' ? 'Mês atual' : 'Ontem';
+  const velPeriodoVazioLabel = velPeriodo === 'hoje' ? 'hoje' : velPeriodo === 'mes' ? 'neste mês' : 'ontem';
   const maxVelSetor = Math.max(1, ...velSetores.map(s => s.tempo_medio_min));
   const maxVelUsuario = Math.max(1, ...velUsuarios.map(u => u.tempo_medio_min));
   const setorMaisAgil = velSetores[0] || null;
@@ -503,7 +506,7 @@ export default function TVMovimentacoesPage() {
           <div style={{ fontSize: 14, fontWeight: 700, color: '#1a3a5c', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <i className="bi bi-speedometer" style={{ color: '#0d6efd' }} /> Comparativo de Velocidade
             <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', background: '#0d6efd', borderRadius: 20, padding: '2px 12px' }}>{velPeriodoLabel}</span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>· barra = média por peça · alterna mês ⇄ ontem</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>· barra = média por peça · alterna hoje ⇄ mês ⇄ ontem</span>
           </div>
 
           {/* Cardzinhos de destaque: setor mais ágil e mais devagar */}
@@ -536,7 +539,7 @@ export default function TVMovimentacoesPage() {
               </div>
               <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                 {velSetores.length === 0 ? (
-                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', paddingTop: 20 }}>Sem movimentações {velPeriodo === 'mes' ? 'neste mês' : 'ontem'}</div>
+                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', paddingTop: 20 }}>Sem movimentações {velPeriodoVazioLabel}</div>
                 ) : (
                   velSetores.map(s => (
                     <BarraH key={s.setor} label={s.setor_nome} valorLabel={formatarTempo(s.tempo_medio_min)} subLabel={`total ${formatarTempo(s.tempo_total_min)}`} pct={(s.tempo_medio_min / maxVelSetor) * 100} cor={corVelocidade(s.tempo_medio_min, maxVelSetor)} />
@@ -550,7 +553,7 @@ export default function TVMovimentacoesPage() {
               </div>
               <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                 {velUsuarios.length === 0 ? (
-                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', paddingTop: 20 }}>Sem movimentações {velPeriodo === 'mes' ? 'neste mês' : 'ontem'}</div>
+                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', paddingTop: 20 }}>Sem movimentações {velPeriodoVazioLabel}</div>
                 ) : (
                   velUsuarios.map(u => (
                     <BarraH key={u.id} label={u.nome} valorLabel={formatarTempo(u.tempo_medio_min)} subLabel={`total ${formatarTempo(u.tempo_total_min)}`} pct={(u.tempo_medio_min / maxVelUsuario) * 100} cor={corVelocidade(u.tempo_medio_min, maxVelUsuario)} />

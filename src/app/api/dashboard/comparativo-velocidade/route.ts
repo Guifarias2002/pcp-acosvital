@@ -52,7 +52,10 @@ export async function GET(req: Request) {
         COUNT(*)          FILTER (WHERE mes_local = date_trunc('month', (NOW() AT TIME ZONE ${TZ})))::int AS mes_amostras,
         ROUND(AVG(minutos) FILTER (WHERE dia_local = ((NOW() AT TIME ZONE ${TZ})::date - 1)))::int AS ontem_medio,
         ROUND(SUM(minutos) FILTER (WHERE dia_local = ((NOW() AT TIME ZONE ${TZ})::date - 1)))::int AS ontem_total,
-        COUNT(*)          FILTER (WHERE dia_local = ((NOW() AT TIME ZONE ${TZ})::date - 1))::int AS ontem_amostras
+        COUNT(*)          FILTER (WHERE dia_local = ((NOW() AT TIME ZONE ${TZ})::date - 1))::int AS ontem_amostras,
+        ROUND(AVG(minutos) FILTER (WHERE dia_local = (NOW() AT TIME ZONE ${TZ})::date))::int AS hoje_medio,
+        ROUND(SUM(minutos) FILTER (WHERE dia_local = (NOW() AT TIME ZONE ${TZ})::date))::int AS hoje_total,
+        COUNT(*)          FILTER (WHERE dia_local = (NOW() AT TIME ZONE ${TZ})::date)::int AS hoje_amostras
       FROM dwell
       GROUP BY setor
     `;
@@ -80,7 +83,10 @@ export async function GET(req: Request) {
         COUNT(*)          FILTER (WHERE mes_local = date_trunc('month', (NOW() AT TIME ZONE ${TZ})))::int AS mes_amostras,
         ROUND(AVG(minutos) FILTER (WHERE dia_local = ((NOW() AT TIME ZONE ${TZ})::date - 1)))::int AS ontem_medio,
         ROUND(SUM(minutos) FILTER (WHERE dia_local = ((NOW() AT TIME ZONE ${TZ})::date - 1)))::int AS ontem_total,
-        COUNT(*)          FILTER (WHERE dia_local = ((NOW() AT TIME ZONE ${TZ})::date - 1))::int AS ontem_amostras
+        COUNT(*)          FILTER (WHERE dia_local = ((NOW() AT TIME ZONE ${TZ})::date - 1))::int AS ontem_amostras,
+        ROUND(AVG(minutos) FILTER (WHERE dia_local = (NOW() AT TIME ZONE ${TZ})::date))::int AS hoje_medio,
+        ROUND(SUM(minutos) FILTER (WHERE dia_local = (NOW() AT TIME ZONE ${TZ})::date))::int AS hoje_total,
+        COUNT(*)          FILTER (WHERE dia_local = (NOW() AT TIME ZONE ${TZ})::date)::int AS hoje_amostras
       FROM dwell d
       JOIN usuarios_usuario u ON u.id = d.usuario_id
       GROUP BY d.usuario_id, u.nome
@@ -94,7 +100,7 @@ export async function GET(req: Request) {
 
     // Monta os dois períodos a partir das linhas achatadas, filtra quem não teve
     // amostra no período e ordena do mais rápido (menor média) pro mais devagar.
-    const setorPeriodo = (janela: 'mes' | 'ontem') =>
+    const setorPeriodo = (janela: 'mes' | 'ontem' | 'hoje') =>
       setores
         .map(r => ({
           setor: r.setor,
@@ -106,7 +112,7 @@ export async function GET(req: Request) {
         .filter(x => x.amostras > 0)
         .sort((a, b) => a.tempo_medio_min - b.tempo_medio_min);
 
-    const usuarioPeriodo = (janela: 'mes' | 'ontem') =>
+    const usuarioPeriodo = (janela: 'mes' | 'ontem' | 'hoje') =>
       usuarios
         .map(r => ({
           id: r.uid,
@@ -119,6 +125,7 @@ export async function GET(req: Request) {
         .sort((a, b) => a.tempo_medio_min - b.tempo_medio_min);
 
     return NextResponse.json({
+      hoje: { setores: setorPeriodo('hoje'), usuarios: usuarioPeriodo('hoje') },
       mes: { setores: setorPeriodo('mes'), usuarios: usuarioPeriodo('mes') },
       ontem: { setores: setorPeriodo('ontem'), usuarios: usuarioPeriodo('ontem') },
     });
