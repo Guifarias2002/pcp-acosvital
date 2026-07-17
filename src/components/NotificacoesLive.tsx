@@ -56,7 +56,7 @@ function acaoLabel(m: Notificacao): { texto: string; icone: string } {
   return r;
 }
 
-export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filtroSetor?: string; modo?: 'toast' | 'tela' } = {}) {
+export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filtroSetor?: string; modo?: 'toast' | 'tela' | 'tv' } = {}) {
   const [toasts, setToasts] = useState<(Notificacao & { key: number })[]>([]);
   const [fila, setFila] = useState<(Notificacao & { key: number })[]>([]);
   const desdeRef = useRef<string>('');
@@ -86,7 +86,7 @@ export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filt
         // Chegam em ordem decrescente; na fila queremos mostrar da mais antiga p/ mais nova.
         const emOrdem = [...filtradas].reverse();
 
-        if (modo === 'tela') {
+        if (modo === 'tela' || modo === 'tv') {
           // Agrupa movimentacoes do mesmo pedido/acao/setor (ex: liberar varios itens
           // de uma vez gera uma linha por item) numa unica notificacao com contador.
           const grupos: (Notificacao & { qtd: number })[] = [];
@@ -97,11 +97,17 @@ export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filt
             if (existente) { existente.qtd++; }
             else { const g = { ...m, qtd: 1 }; porChave.set(chave, g); grupos.push(g); }
           }
-          // Sem fila: mostra só a movimentação mais recente, substituindo a
-          // anterior — em dia de produção corrida, empilhar avisos em tela
-          // cheia vira uma interrupção constante.
-          const maisRecente = grupos.slice(-1).map(m => ({ ...m, key: keyRef.current++ }));
-          setFila(maisRecente);
+          if (modo === 'tv') {
+            // TV dedicada: mostra CADA movimentação (agrupada), uma vez, em fila -
+            // nada se perde, só espera a vez em vez de ser substituída.
+            setFila(prev => [...prev, ...grupos.map(m => ({ ...m, key: keyRef.current++ }))]);
+          } else {
+            // Tela cheia no sistema normal (Adm/PCP): sem fila, mostra só a mais
+            // recente, substituindo a anterior — em dia de produção corrida,
+            // empilhar avisos aqui vira uma interrupção constante no trabalho.
+            const maisRecente = grupos.slice(-1).map(m => ({ ...m, key: keyRef.current++ }));
+            setFila(maisRecente);
+          }
         } else {
           const novos = emOrdem.map(m => ({ ...m, key: keyRef.current++ }));
           const novosDesc = novos.reverse();
@@ -113,22 +119,23 @@ export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filt
       } catch { /* silencioso */ }
     }
 
-    // modo "tela" (Adm/PCP, tela cheia) - intervalo mais espacado que antes (era
-    // 10s) porque em dia de producao corrida virava uma interrupcao constante
-    // no trabalho normal; 45s ainda avisa rapido sem atrapalhar tanto.
-    const intervalo = setInterval(verificar, modo === 'tela' ? 45000 : 30000);
+    // modo "tela" (Adm/PCP, tela cheia no sistema normal) - intervalo mais espacado
+    // que antes (era 10s) porque em dia de producao corrida virava uma interrupcao
+    // constante no trabalho normal; 45s ainda avisa rapido sem atrapalhar tanto.
+    // modo "tv" (tela dedicada) - pode checar mais rapido, é pra isso que ela existe.
+    const intervalo = setInterval(verificar, modo === 'tela' ? 45000 : modo === 'tv' ? 10000 : 30000);
     return () => clearInterval(intervalo);
   }, [filtroSetor, modo]);
 
-  // Fila do modo tela: mostra o primeiro por 5s, depois passa pro próximo.
+  // Fila dos modos tela/tv: mostra o primeiro por 5s, depois passa pro próximo.
   useEffect(() => {
-    if (modo !== 'tela' || fila.length === 0) return;
+    if ((modo !== 'tela' && modo !== 'tv') || fila.length === 0) return;
     const t = setTimeout(() => setFila(prev => prev.slice(1)), 5000);
     return () => clearTimeout(t);
   }, [modo, fila[0]?.key]);
 
-  // ── Modo TELA CHEIA (ADM/PCP) ────────────────────────────────────────────────
-  if (modo === 'tela') {
+  // ── Modo TELA CHEIA (ADM/PCP no sistema normal, ou TV dedicada) ──────────────
+  if (modo === 'tela' || modo === 'tv') {
     const atual = fila[0];
     if (!atual) return null;
     const acao = acaoLabel(atual);
