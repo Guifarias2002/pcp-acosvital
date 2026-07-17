@@ -8,10 +8,6 @@ interface LinhaStat {
   qtd: number;
   pct: number;
 }
-interface LiderStat extends LinhaStat {
-  usuario_id: number;
-  usuario_nome: string;
-}
 interface SetorStat extends LinhaStat {
   setor: string;
   setor_nome: string;
@@ -36,6 +32,22 @@ interface MesPedidos {
   mes: string;
   label: string;
   qtd: number;
+}
+interface PedidoAtrasado {
+  id: number;
+  numero_pedido_venda: string;
+  cliente: string;
+  prioridade: string;
+  dias_atraso: number;
+}
+interface ItemParado {
+  id: number;
+  setor: string;
+  setor_nome: string;
+  codigo: string;
+  numero_pedido_venda: string;
+  cliente: string;
+  dias_parado: number;
 }
 
 const CORES = ['#0d6efd', '#198754', '#fd7e14', '#6f42c1', '#dc3545', '#20c997', '#b45309', '#0dcaf0'];
@@ -72,7 +84,6 @@ function agruparPorPedido(itens: ItemKanban[]) {
 }
 
 export default function TVMovimentacoesPage() {
-  const [lideres, setLideres] = useState<LiderStat[]>([]);
   const [setoresStat, setSetoresStat] = useState<SetorStat[]>([]);
   const [totalMov, setTotalMov] = useState(0);
   const [agora, setAgora] = useState('');
@@ -80,7 +91,9 @@ export default function TVMovimentacoesPage() {
   const [semSessao, setSemSessao] = useState(false);
   const [meses, setMeses] = useState<MesPedidos[]>([]);
   const [variacaoPct, setVariacaoPct] = useState<number | null>(null);
-  const [view, setView] = useState<'kanban' | 'comparativo'>('kanban');
+  const [atrasados, setAtrasados] = useState<PedidoAtrasado[]>([]);
+  const [parados, setParados] = useState<ItemParado[]>([]);
+  const [view, setView] = useState<'kanban' | 'comparativo' | 'analise'>('kanban');
 
   const carregar = useCallback(() => {
     const token = getToken() || '';
@@ -94,7 +107,6 @@ export default function TVMovimentacoesPage() {
       .then(data => {
         if (!data) return;
         setSemSessao(false);
-        setLideres(data.lideres || []);
         setSetoresStat(data.setores || []);
         setTotalMov(data.total_movimentacoes || 0);
       })
@@ -110,6 +122,10 @@ export default function TVMovimentacoesPage() {
       .then(r => (r.ok ? r.json() : null))
       .then(data => { if (data) { setMeses(data.meses || []); setVariacaoPct(data.variacao_pct ?? null); } })
       .catch(() => {});
+    fetch('/api/dashboard/analise-producao', { headers })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (data) { setAtrasados(data.atrasados || []); setParados(data.parados || []); } })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -123,17 +139,26 @@ export default function TVMovimentacoesPage() {
 
   useRealtime(['producao_movimentacaoitem', 'producao_itemparcial'], carregar);
 
-  // Alterna entre Kanban e Comparativo mensal, com transicao suave (fade).
+  // Alterna entre Kanban, Comparativo mensal e Analise, com transicao suave (fade).
   useEffect(() => {
-    const id = setInterval(() => setView(v => v === 'kanban' ? 'comparativo' : 'kanban'), DWELL_VIEW_MS);
+    const ordem: Array<'kanban' | 'comparativo' | 'analise'> = ['kanban', 'comparativo', 'analise'];
+    const id = setInterval(() => setView(v => ordem[(ordem.indexOf(v) + 1) % ordem.length]), DWELL_VIEW_MS);
     return () => clearInterval(id);
   }, []);
 
   const setoresAtivos = setoresKanban.filter(s => s.itens.length > 0);
-  // Colunas em 2 blocos quando tem muita gente/setor, pra caber tudo sem rolar.
-  const meioLideres = Math.ceil(lideres.length / 2);
+  // Colunas em 2 blocos quando tem muito setor, pra caber tudo sem rolar.
   const meioSetores = Math.ceil(setoresStat.length / 2);
-  const maxMes = Math.max(1, ...meses.map(m => m.qtd));
+  // Corta os meses anteriores ao primeiro que teve pedido - sem meses vazios
+  // no comeco do grafico so porque o sistema comecou a ser usado depois.
+  const primeiroComDado = meses.findIndex(m => m.qtd > 0);
+  const mesesVisiveis = primeiroComDado === -1 ? meses.slice(-1) : meses.slice(primeiroComDado);
+  const maxMes = Math.max(1, ...mesesVisiveis.map(m => m.qtd));
+  // Setor gargalo: o que tem mais peca parada agora (proxy de fila/WIP).
+  const setorGargalo = setoresAtivos.length > 0
+    ? setoresAtivos.reduce((maior, s) => (s.itens.length > maior.itens.length ? s : maior), setoresAtivos[0])
+    : null;
+  const totalWipGargalo = setoresAtivos.reduce((s, x) => s + x.itens.length, 0);
 
   return (
     <div style={{
@@ -178,43 +203,21 @@ export default function TVMovimentacoesPage() {
           opacity: view === 'kanban' ? 1 : 0, transition: 'opacity 1s ease',
           pointerEvents: view === 'kanban' ? 'auto' : 'none',
         }}>
-          <div style={{ flex: '0 0 20%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, minHeight: 0 }}>
-            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 16px', boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                <i className="bi bi-people-fill" style={{ color: '#0d6efd' }} /> % Movimentação por Líder
-              </div>
-              {lideres.length === 0 ? (
-                <div style={{ color: '#aaa', fontSize: 12, textAlign: 'center', margin: 'auto' }}>Sem movimentações registradas</div>
-              ) : (
-                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: lideres.length > 6 ? '1fr 1fr' : '1fr', gap: '0 16px', alignContent: 'center' }}>
-                  <div>{lideres.slice(0, lideres.length > 6 ? meioLideres : undefined).map((l, i) => (
-                    <Barra key={l.usuario_id} label={l.usuario_nome} qtd={l.qtd} pct={l.pct} cor={CORES[i % CORES.length]} />
-                  ))}</div>
-                  {lideres.length > 6 && (
-                    <div>{lideres.slice(meioLideres).map((l, i) => (
-                      <Barra key={l.usuario_id} label={l.usuario_nome} qtd={l.qtd} pct={l.pct} cor={CORES[(i + meioLideres) % CORES.length]} />
-                    ))}</div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 16px', boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+          <div style={{ flex: '0 0 20%', minHeight: 0 }}>
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 16px', boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', height: '100%' }}>
               <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 <i className="bi bi-diagram-3-fill" style={{ color: '#0d6efd' }} /> % Movimentação por Setor
               </div>
               {setoresStat.length === 0 ? (
                 <div style={{ color: '#aaa', fontSize: 12, textAlign: 'center', margin: 'auto' }}>Sem movimentações registradas</div>
               ) : (
-                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: setoresStat.length > 6 ? '1fr 1fr' : '1fr', gap: '0 16px', alignContent: 'center' }}>
-                  <div>{setoresStat.slice(0, setoresStat.length > 6 ? meioSetores : undefined).map((s, i) => (
+                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: setoresStat.length > 5 ? '1fr 1fr 1fr' : '1fr 1fr', gap: '0 20px', alignContent: 'center' }}>
+                  <div>{setoresStat.slice(0, meioSetores).map((s, i) => (
                     <Barra key={s.setor} label={s.setor_nome} qtd={s.qtd} pct={s.pct} cor={CORES[i % CORES.length]} />
                   ))}</div>
-                  {setoresStat.length > 6 && (
-                    <div>{setoresStat.slice(meioSetores).map((s, i) => (
-                      <Barra key={s.setor} label={s.setor_nome} qtd={s.qtd} pct={s.pct} cor={CORES[(i + meioSetores) % CORES.length]} />
-                    ))}</div>
-                  )}
+                  <div>{setoresStat.slice(meioSetores).map((s, i) => (
+                    <Barra key={s.setor} label={s.setor_nome} qtd={s.qtd} pct={s.pct} cor={CORES[(i + meioSetores) % CORES.length]} />
+                  ))}</div>
                 </div>
               )}
             </div>
@@ -286,11 +289,11 @@ export default function TVMovimentacoesPage() {
             )}
           </div>
           <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', gap: 24, minHeight: 0, paddingBottom: 8 }}>
-            {meses.length === 0 ? (
+            {mesesVisiveis.length === 0 ? (
               <div style={{ color: '#aaa', fontSize: 14, margin: 'auto' }}>Sem dados de pedidos ainda</div>
             ) : (
-              meses.map((m, i) => {
-                const isAtual = i === meses.length - 1;
+              mesesVisiveis.map((m, i) => {
+                const isAtual = i === mesesVisiveis.length - 1;
                 const alturaPct = Math.round((m.qtd / maxMes) * 100);
                 return (
                   <div key={m.mes} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
@@ -306,6 +309,87 @@ export default function TVMovimentacoesPage() {
                 );
               })
             )}
+          </div>
+        </div>
+
+        {/* ── VIEW: Análise de Produção (gargalo, atrasados, parados) ───────── */}
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 12,
+          opacity: view === 'analise' ? 1 : 0, transition: 'opacity 1s ease',
+          pointerEvents: view === 'analise' ? 'auto' : 'none',
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#1a3a5c', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <i className="bi bi-clipboard-data-fill" style={{ color: '#0d6efd' }} /> Análise de Produção
+          </div>
+
+          {/* Setor gargalo */}
+          <div style={{
+            flexShrink: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 22px',
+            boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', alignItems: 'center', gap: 18,
+          }}>
+            <div style={{ width: 46, height: 46, borderRadius: '50%', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <i className="bi bi-exclamation-triangle-fill" style={{ color: '#d97706', fontSize: 20 }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8 }}>Setor Gargalo Agora</div>
+              {setorGargalo ? (
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#1a3a5c' }}>
+                  {setorGargalo.nome}
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#d97706', marginLeft: 10 }}>
+                    {setorGargalo.itens.length} peças paradas
+                    {totalWipGargalo > 0 && ` · ${Math.round((setorGargalo.itens.length / totalWipGargalo) * 100)}% do total em produção`}
+                  </span>
+                </div>
+              ) : (
+                <div style={{ fontSize: 14, color: '#aaa' }}>Sem peças em produção agora</div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            {/* Atrasados */}
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                <i className="bi bi-calendar-x-fill" style={{ color: '#dc3545' }} /> Pedidos Atrasados
+              </div>
+              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                {atrasados.length === 0 ? (
+                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', margin: 'auto', paddingTop: 20 }}>Nenhum pedido atrasado 🎉</div>
+                ) : (
+                  atrasados.map(a => (
+                    <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', marginBottom: 4, background: '#fef2f2', borderRadius: 6, borderLeft: '3px solid #dc3545' }}>
+                      <span style={{ fontWeight: 700, fontSize: 12.5, color: '#1a3a5c', flexShrink: 0 }}>{a.numero_pedido_venda}</span>
+                      <span style={{ fontSize: 11.5, color: '#94a3b8', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.cliente}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#dc3545', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                        {a.dias_atraso}d atraso
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Parados ha mais tempo */}
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                <i className="bi bi-hourglass-split" style={{ color: '#d97706' }} /> Parados Há Mais Tempo
+              </div>
+              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                {parados.length === 0 ? (
+                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', margin: 'auto', paddingTop: 20 }}>Nada parado agora 🎉</div>
+                ) : (
+                  parados.map(p => (
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', marginBottom: 4, background: '#fffbeb', borderRadius: 6, borderLeft: '3px solid #d97706' }}>
+                      <span style={{ fontWeight: 700, fontSize: 12.5, color: '#1a3a5c', flexShrink: 0 }}>{p.numero_pedido_venda}</span>
+                      <span style={{ fontSize: 11.5, color: '#94a3b8', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.setor_nome}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#d97706', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                        {p.dias_parado}d parado
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
