@@ -23,9 +23,10 @@ const PERFIL_BADGE: Record<string, { bg: string; cor: string }> = {
   pcp:           { bg: '#6f42c1', cor: '#fff' },
   lider:         { bg: '#0d6efd', cor: '#fff' },
   operador:      { bg: '#6c757d', cor: '#fff' },
+  vendedor:      { bg: '#20c997', cor: '#fff' },
 };
 
-const PERFIS = ['administrador', 'pcp', 'lider', 'operador'];
+const PERFIS = ['administrador', 'pcp', 'lider', 'operador', 'vendedor'];
 
 // Seletor de múltiplos setores (checkboxes). Usado no criar e no editar.
 function SetoresSelector({ valor, onChange }: { valor: string[]; onChange: (s: string[]) => void }) {
@@ -258,23 +259,37 @@ export default function UsuariosPage() {
                 </select>
               </div>
 
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>
-                  Setores {form.perfil === 'lider' || form.perfil === 'operador' ? '*' : '(opcional)'}
-                  <span style={{ fontWeight: 400, color: '#888', marginLeft: 6 }}>— pode marcar mais de um</span>
-                </label>
-                <SetoresSelector valor={form.setores} onChange={s => setForm(f => ({ ...f, setores: s }))} />
-              </div>
-
-              <div style={{ marginBottom: 20, background: '#fff8e1', border: '1px solid #ffe08a', borderRadius: 6, padding: '10px 12px' }}>
-                <label style={{ fontSize: 13, fontWeight: 600, color: '#7a5b00', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={form.somente_leitura} onChange={e => setForm(f => ({ ...f, somente_leitura: e.target.checked }))} style={{ cursor: 'pointer' }} />
-                  <span><i className="bi bi-eye" style={{ marginRight: 6 }}></i>Acesso somente leitura</span>
-                </label>
-                <div style={{ fontSize: 12, color: '#9a7b1a', marginTop: 4, paddingLeft: 24 }}>
-                  Vê tudo normalmente, mas não pode fazer nenhuma alteração no sistema.
+              {form.perfil === 'vendedor' ? (
+                <div style={{ marginBottom: 20, background: '#e6fcf5', border: '1px solid #96f2d7', borderRadius: 6, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#087f5b', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <i className="bi bi-eye"></i>Acesso de Vendedor (somente leitura)
+                  </div>
+                  <div style={{ fontSize: 12, color: '#0c8c6c', marginTop: 4 }}>
+                    Vê apenas os pedidos em que o campo <strong>Vendedor</strong> bate com o <strong>Nome completo</strong> preenchido acima
+                    (a comparação ignora maiúsculas/minúsculas). Não pode editar, criar ou excluir nada. Não precisa marcar setor.
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>
+                    Setores {form.perfil === 'lider' || form.perfil === 'operador' ? '*' : '(opcional)'}
+                    <span style={{ fontWeight: 400, color: '#888', marginLeft: 6 }}>— pode marcar mais de um</span>
+                  </label>
+                  <SetoresSelector valor={form.setores} onChange={s => setForm(f => ({ ...f, setores: s }))} />
+                </div>
+              )}
+
+              {form.perfil !== 'vendedor' && (
+                <div style={{ marginBottom: 20, background: '#fff8e1', border: '1px solid #ffe08a', borderRadius: 6, padding: '10px 12px' }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#7a5b00', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={form.somente_leitura} onChange={e => setForm(f => ({ ...f, somente_leitura: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                    <span><i className="bi bi-eye" style={{ marginRight: 6 }}></i>Acesso somente leitura</span>
+                  </label>
+                  <div style={{ fontSize: 12, color: '#9a7b1a', marginTop: 4, paddingLeft: 24 }}>
+                    Vê tudo normalmente, mas não pode fazer nenhuma alteração no sistema.
+                  </div>
+                </div>
+              )}
 
               {formMsg && (
                 <div style={{
@@ -347,13 +362,25 @@ export default function UsuariosPage() {
                 </select>
               </div>
 
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>
-                  Setores {editForm.perfil === 'lider' || editForm.perfil === 'operador' ? '*' : '(opcional)'}
-                  <span style={{ fontWeight: 400, color: '#888', marginLeft: 6 }}>— pode marcar mais de um</span>
-                </label>
-                <SetoresSelector valor={editForm.setores} onChange={s => setEditForm(f => ({ ...f, setores: s }))} />
-              </div>
+              {editForm.perfil === 'vendedor' ? (
+                <div style={{ marginBottom: 14, background: '#e6fcf5', border: '1px solid #96f2d7', borderRadius: 6, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#087f5b', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <i className="bi bi-eye"></i>Acesso de Vendedor (somente leitura)
+                  </div>
+                  <div style={{ fontSize: 12, color: '#0c8c6c', marginTop: 4 }}>
+                    Vê apenas os pedidos em que o campo <strong>Vendedor</strong> bate com o <strong>Nome completo</strong> acima
+                    (ignora maiúsculas/minúsculas). Não pode editar, criar ou excluir nada.
+                  </div>
+                </div>
+              ) : (
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>
+                    Setores {editForm.perfil === 'lider' || editForm.perfil === 'operador' ? '*' : '(opcional)'}
+                    <span style={{ fontWeight: 400, color: '#888', marginLeft: 6 }}>— pode marcar mais de um</span>
+                  </label>
+                  <SetoresSelector valor={editForm.setores} onChange={s => setEditForm(f => ({ ...f, setores: s }))} />
+                </div>
+              )}
 
               <div style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>Nova senha (deixe em branco para manter)</label>
@@ -373,15 +400,17 @@ export default function UsuariosPage() {
                 </label>
               </div>
 
-              <div style={{ marginBottom: 20, background: '#fff8e1', border: '1px solid #ffe08a', borderRadius: 6, padding: '10px 12px' }}>
-                <label style={{ fontSize: 13, fontWeight: 600, color: '#7a5b00', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={editForm.somente_leitura} onChange={e => setEditForm(f => ({ ...f, somente_leitura: e.target.checked }))} style={{ cursor: 'pointer' }} />
-                  <span><i className="bi bi-eye" style={{ marginRight: 6 }}></i>Acesso somente leitura</span>
-                </label>
-                <div style={{ fontSize: 12, color: '#9a7b1a', marginTop: 4, paddingLeft: 24 }}>
-                  Vê tudo normalmente, mas não pode fazer nenhuma alteração no sistema.
+              {editForm.perfil !== 'vendedor' && (
+                <div style={{ marginBottom: 20, background: '#fff8e1', border: '1px solid #ffe08a', borderRadius: 6, padding: '10px 12px' }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#7a5b00', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={editForm.somente_leitura} onChange={e => setEditForm(f => ({ ...f, somente_leitura: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                    <span><i className="bi bi-eye" style={{ marginRight: 6 }}></i>Acesso somente leitura</span>
+                  </label>
+                  <div style={{ fontSize: 12, color: '#9a7b1a', marginTop: 4, paddingLeft: 24 }}>
+                    Vê tudo normalmente, mas não pode fazer nenhuma alteração no sistema.
+                  </div>
                 </div>
-              </div>
+              )}
 
               {editMsg && (
                 <div style={{

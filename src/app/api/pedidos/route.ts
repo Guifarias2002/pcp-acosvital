@@ -19,7 +19,12 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const cliente    = searchParams.get('cliente') || '';
-  const vendedor   = searchParams.get('vendedor') || '';
+  // Perfil vendedor só pode ver os próprios pedidos — o filtro é travado no
+  // nome do próprio usuário, ignorando qualquer coisa que venha na URL.
+  // Match exato (case-insensitive), não parcial, pra não vazar pedidos de
+  // vendedores com nome parecido (ex.: "Ana" não deve casar com "Ana Paula").
+  const vendedor   = user.perfil === 'vendedor' ? (user.nome || '__nunca__') : (searchParams.get('vendedor') || '');
+  const vendedorExato = user.perfil === 'vendedor';
   const status     = searchParams.get('status') || '';
   const prioridade = searchParams.get('prioridade') || '';
   const setor      = searchParams.get('setor') || '';
@@ -50,7 +55,7 @@ export async function GET(req: Request) {
     LEFT JOIN usuarios_usuario u ON u.id = p.criado_por_id
     WHERE 1=1
       AND (${cliente} = '' OR p.cliente ILIKE ${'%' + cliente + '%'} OR p.numero_pedido_venda ILIKE ${'%' + cliente + '%'} OR p.numero_op ILIKE ${'%' + cliente + '%'})
-      AND (${vendedor} = '' OR p.vendedor ILIKE ${'%' + vendedor + '%'})
+      AND (${vendedor} = '' OR (${vendedorExato} AND lower(p.vendedor) = lower(${vendedor})) OR (NOT ${vendedorExato} AND p.vendedor ILIKE ${'%' + vendedor + '%'}))
       AND (${status}  = '' OR p.status = ${status})
       AND (${prioridade} = '' OR p.prioridade = ${prioridade})
       AND (${setor} = '' OR p.setor_atual = ${setor})
@@ -90,7 +95,7 @@ export async function GET(req: Request) {
       FROM producao_pedido p
       WHERE 1=1
         AND (${cliente} = '' OR p.cliente ILIKE ${'%' + cliente + '%'} OR p.numero_pedido_venda ILIKE ${'%' + cliente + '%'} OR p.numero_op ILIKE ${'%' + cliente + '%'})
-        AND (${vendedor} = '' OR p.vendedor ILIKE ${'%' + vendedor + '%'})
+        AND (${vendedor} = '' OR (${vendedorExato} AND lower(p.vendedor) = lower(${vendedor})) OR (NOT ${vendedorExato} AND p.vendedor ILIKE ${'%' + vendedor + '%'}))
         AND (${status}  = '' OR p.status = ${status})
         AND (${prioridade} = '' OR p.prioridade = ${prioridade})
         AND (${setor} = '' OR p.setor_atual = ${setor})

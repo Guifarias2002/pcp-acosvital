@@ -46,10 +46,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  let payload: { is_staff?: boolean; setor?: string; setores?: string[] } = {};
+  let payload: { is_staff?: boolean; perfil?: string; setor?: string; setores?: string[] } = {};
   try {
     const { payload: p } = await jwtVerify(tokenCookie, secret);
-    payload = p as { is_staff?: boolean; setor?: string; setores?: string[] };
+    payload = p as { is_staff?: boolean; perfil?: string; setor?: string; setores?: string[] };
   } catch {
     return NextResponse.redirect(new URL('/login', req.url));
   }
@@ -62,9 +62,17 @@ export async function middleware(req: NextRequest) {
     ? payload.setores
     : (meuSetor ? [meuSetor] : []);
 
+  const isVendedor = !isAdmin && payload.perfil === 'vendedor';
+
   // Redirecionar operadores da raiz para o painel do próprio setor
   if (!isAdmin && meuSetor && pathname === '/') {
     return NextResponse.redirect(new URL(`/setor/${meuSetor}`, req.url));
+  }
+
+  // Vendedor não tem setor e não deve ver o dashboard geral de produção — vai
+  // direto pra "Todos os Pedidos", que já filtra pra mostrar só os dele.
+  if (isVendedor && pathname === '/') {
+    return NextResponse.redirect(new URL('/pedidos', req.url));
   }
 
   // Bloquear não-admins em rotas restritas — exceto as partes de /pedidos que
@@ -82,14 +90,18 @@ export async function middleware(req: NextRequest) {
   const podeVerEntregas = pathname === '/entregues' && meusSetores.includes('logistica');
   const rotaBloqueada = ROTAS_ADMIN.some(r => pathname === r || pathname.startsWith(r + '/')) && !isPedidosLeitura && !podeVerEntregas;
   if (!isAdmin && rotaBloqueada) {
-    const destino = meuSetor ? `/setor/${meuSetor}` : '/login';
+    const destino = meuSetor ? `/setor/${meuSetor}` : (isVendedor ? '/pedidos' : '/login');
     return NextResponse.redirect(new URL(destino, req.url));
   }
 
   // Bloquear não-admins de ver setores que não estão na sua lista de acesso.
   // Um operador pode ter mais de um setor (ex.: acabamento + embalagem); só é
   // barrado se o setor da rota não estiver entre os seus.
-  if (!isAdmin && meusSetores.length > 0 && pathname.startsWith('/setor/')) {
+  if (!isAdmin && pathname.startsWith('/setor/')) {
+    if (meusSetores.length === 0) {
+      // Sem nenhum setor (caso do vendedor) — não tem painel de setor pra ver.
+      return NextResponse.redirect(new URL('/pedidos', req.url));
+    }
     let setorDaRota = pathname.split('/')[2];
     try { setorDaRota = decodeURIComponent(setorDaRota); } catch { /* já decodificado */ }
     if (setorDaRota && !meusSetores.includes(setorDaRota)) {

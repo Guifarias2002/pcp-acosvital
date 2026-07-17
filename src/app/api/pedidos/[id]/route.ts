@@ -21,6 +21,17 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   // a aba "Todos os Pedidos" mostra a lista completa pra todos os setores.
   // A edição (PATCH abaixo) continua restrita a is_staff, então essa leitura
   // não abre brecha de escrita fora do próprio setor.
+  //
+  // Exceção: vendedor só pode ver os próprios pedidos. Sem essa checagem, ele
+  // poderia abrir o pedido de outro vendedor só trocando o ID na URL, já que a
+  // lista (GET /api/pedidos) filtra mas o detalhe por ID não filtrava nada.
+  if (user.perfil === 'vendedor') {
+    const meuNome = (user.nome || '').trim().toLowerCase();
+    const nomeVendedor = ((pedido as { vendedor?: string }).vendedor || '').trim().toLowerCase();
+    if (!meuNome || nomeVendedor !== meuNome) {
+      return NextResponse.json({ erro: 'Nao encontrado' }, { status: 404 });
+    }
+  }
 
   // Líderes e operadores não veem valores financeiros
   const verFinanceiro = user.is_staff && user.perfil !== 'lider';

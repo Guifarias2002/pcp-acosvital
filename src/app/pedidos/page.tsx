@@ -65,6 +65,7 @@ function PedidosPageInner() {
   const editavel = podeEditar(_u);
   const isAdmin = _u?.is_staff && editavel;
   const isSuperAdmin = (_u?.perfil === 'administrador' || (_u?.is_staff && _u?.perfil !== 'pcp' && _u?.perfil !== 'lider')) && editavel;
+  const isVendedor = !_u?.is_staff && _u?.perfil === 'vendedor';
 
   const buscarRef = useRef<(p?: number) => void>(() => {});
 
@@ -230,10 +231,12 @@ function PedidosPageInner() {
           onKeyDown={e => e.key === 'Enter' && buscar()}
           placeholder="Buscar por pedido, cliente, OP..."
           style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 10px', fontSize: 13, flex: '1 1 160px', minWidth: 0 }} />
-        <input value={fVendedor} onChange={e => setFVendedor(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && buscar()}
-          placeholder="Vendedor..."
-          style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 10px', fontSize: 13, flex: '1 1 130px', minWidth: 0 }} />
+        {!isVendedor && (
+          <input value={fVendedor} onChange={e => setFVendedor(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && buscar()}
+            placeholder="Vendedor..."
+            style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 10px', fontSize: 13, flex: '1 1 130px', minWidth: 0 }} />
+        )}
         <select value={fStatus} onChange={e => setFStatus(e.target.value)}
           style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13, flex: '1 1 140px' }}>
           <option value="">Todos os status</option>

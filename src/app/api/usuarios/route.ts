@@ -74,7 +74,8 @@ export async function POST(req: Request) {
     ? setores.filter((s: unknown): s is string => typeof s === 'string' && !!s)
     : (setor ? [setor] : []);
   const setorPrincipal = listaSetores[0] || null;
-  const soLeitura = somente_leitura === true;
+  // Vendedor é sempre somente leitura, independente do que vier no corpo da requisição.
+  const soLeitura = perfil === 'vendedor' ? true : somente_leitura === true;
 
   await sql`
     INSERT INTO usuarios_usuario (username, nome, password, perfil, setor, setores, is_staff, is_active, somente_leitura, date_joined)

@@ -69,6 +69,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
 
   const isAdmin = user?.is_staff;
   const isSuperAdmin = user?.perfil === 'administrador' || (user?.is_staff && user?.perfil !== 'pcp' && user?.perfil !== 'lider');
+  const isVendedor = !isAdmin && user?.perfil === 'vendedor';
   const meuSetor = user?.setor;
   // Setores que o operador pode acessar (múltiplos). Fallback pro setor único.
   const meusSetores = (user?.setores && user.setores.length > 0)
@@ -93,8 +94,8 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
         </div>
         <nav>
           <NavGroup label="Geral">
-            <NavItem href="/" label="Dashboard" icon="bi-speedometer2" onNav={fechar} />
-            <NavItem href="/pedidos" label="Todos os Pedidos" icon="bi-list-ul" onNav={fechar} />
+            {!isVendedor && <NavItem href="/" label="Dashboard" icon="bi-speedometer2" onNav={fechar} />}
+            <NavItem href="/pedidos" label={isVendedor ? 'Meus Pedidos' : 'Todos os Pedidos'} icon="bi-list-ul" onNav={fechar} />
             {isAdmin && (
               <>
                 <NavItem href="/kanban" label="Kanban" icon="bi-kanban" onNav={fechar} />
@@ -177,9 +178,10 @@ export function TopBar({ onHamburger, colapsada, onExpandir }: TopBarProps) {
 
   useEffect(() => { setUser(getUser()); }, []);
 
+  const isVendedor = !user?.is_staff && user?.perfil === 'vendedor';
   const titles: Record<string, string> = {
     '/': 'Dashboard',
-    '/pedidos': 'Todos os Pedidos',
+    '/pedidos': isVendedor ? 'Meus Pedidos' : 'Todos os Pedidos',
     '/kanban': 'Kanban',
     '/por-lider': 'Painel por Líder',
     '/emitidos': 'Ordens de Produção Emitidas',

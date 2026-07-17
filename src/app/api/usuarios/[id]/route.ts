@@ -41,6 +41,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (typeof body.is_active === 'boolean') campos.is_active = body.is_active;
   if (typeof body.is_staff === 'boolean') campos.is_staff = body.is_staff;
   if (typeof body.somente_leitura === 'boolean') campos.somente_leitura = body.somente_leitura;
+
+  // Perfil vendedor: sempre não-staff e sempre somente leitura, independente
+  // do que vier no corpo (defesa em profundidade — o front já não manda esses
+  // campos pra vendedor, mas o back não pode depender só disso).
+  if (campos.perfil === 'vendedor') {
+    campos.is_staff = false;
+    campos.somente_leitura = true;
+  }
   if (typeof body.senha === 'string' && body.senha) {
     if (body.senha.length < 8)
       return NextResponse.json({ erro: 'Senha deve ter pelo menos 8 caracteres' }, { status: 400 });
