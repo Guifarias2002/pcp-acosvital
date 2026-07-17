@@ -103,7 +103,7 @@ const DWELL_VIEW_MS = 25_000;
 // Rodízio das telas com tempo por tela: as de "totais" (números) passam rápido
 // (5s), as mais cheias ficam ~25s pra dar tempo de ler.
 type TVView = 'kanban' | 'painel' | 'dia' | 'semana' | 'ritmo' | 'comparativo' | 'analise' | 'velocidade';
-const VIEW_ORDEM: TVView[] = ['kanban', 'painel', 'dia', 'semana', 'ritmo', 'comparativo', 'analise', 'velocidade'];
+const VIEW_ORDEM: TVView[] = ['kanban', 'painel', 'dia', 'semana', 'ritmo', 'comparativo', 'analise'];
 const VIEW_DWELL: Record<TVView, number> = {
   kanban: 25_000, painel: 25_000, comparativo: 25_000, analise: 25_000, velocidade: 45 * 60_000,
   dia: 20_000, semana: 20_000, ritmo: 20_000,
