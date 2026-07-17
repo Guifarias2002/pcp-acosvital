@@ -105,7 +105,7 @@ const DWELL_VIEW_MS = 25_000;
 type TVView = 'kanban' | 'painel' | 'dia' | 'semana' | 'ritmo' | 'comparativo' | 'analise' | 'velocidade';
 const VIEW_ORDEM: TVView[] = ['kanban', 'painel', 'dia', 'semana', 'ritmo', 'comparativo', 'velocidade', 'analise'];
 const VIEW_DWELL: Record<TVView, number> = {
-  kanban: 25_000, painel: 25_000, comparativo: 25_000, analise: 25_000, velocidade: 45 * 60_000,
+  kanban: 25_000, painel: 25_000, comparativo: 25_000, analise: 45_000, velocidade: 45_000,
   dia: 20_000, semana: 20_000, ritmo: 20_000,
 };
 
