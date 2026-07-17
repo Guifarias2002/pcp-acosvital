@@ -93,6 +93,7 @@ interface PedidoPainel {
   nome_setor_atual?: string;
   atrasado?: boolean;
   setores_parciais?: string[];
+  setores_atuais?: string[];
   itens?: { status: string }[];
 }
 
@@ -790,7 +791,14 @@ export default function TVMovimentacoesPage() {
                       <tr key={p.id} style={{ borderTop: '1px solid #f1f5f9' }}>
                         <td style={{ padding: '6px 16px', color: '#1a3a5c', fontWeight: 700 }}>{p.numero_pedido_venda}</td>
                         <td style={{ padding: '6px 8px', color: '#555' }}>{p.cliente}</td>
-                        <td style={{ padding: '6px 8px', color: '#888' }}>{p.nome_setor_atual || NOMES[p.setor_atual] || p.setor_atual || '—'}</td>
+                        <td style={{ padding: '6px 8px', color: '#888' }}>{(() => {
+                          const setores = (p.setores_atuais && p.setores_atuais.length > 0)
+                            ? [...p.setores_atuais].sort((a, b) => posSetorRoteiro(a) - posSetorRoteiro(b))
+                            : (p.setor_atual ? [p.setor_atual] : []);
+                          if (setores.length === 0) return p.nome_setor_atual || '—';
+                          const nomes = setores.map(s => NOMES[s] || s);
+                          return nomes.length <= 3 ? nomes.join(', ') : `${nomes.slice(0, 3).join(', ')} +${nomes.length - 3}`;
+                        })()}</td>
                         <td style={{ padding: '6px 8px' }}>
                           <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600, color: '#fff', background: p.prioridade === 'urgente' ? '#dc3545' : p.prioridade === 'alta' ? '#fd7e14' : '#0d6efd' }}>
                             {p.prioridade?.charAt(0).toUpperCase() + p.prioridade?.slice(1)}

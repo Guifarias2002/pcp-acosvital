@@ -9,8 +9,8 @@ export async function GET(req: Request) {
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
-  // Duas queries simples em paralelo em vez de CTE com json_agg
-  const [pedidos, itens] = await Promise.all([
+  // Queries simples em paralelo em vez de CTE com json_agg
+  const [pedidos, itens, parciais] = await Promise.all([
     sql`
       SELECT p.id, p.numero_pedido_venda, p.numero_op, p.cliente, p.vendedor,
              p.prazo_entrega::text, p.prioridade, p.status, p.setor_atual,
@@ -29,6 +29,17 @@ export async function GET(req: Request) {
         SELECT id FROM producao_pedido WHERE status != 'entregue' LIMIT 100
       )
     `,
+    // Setores onde o pedido tem parcial ATIVA agora (pra mostrar "Setor Atual"
+    // real quando as peças estão espalhadas). Só leitura, não afeta etapa.
+    sql`
+      SELECT DISTINCT pa.pedido_id, pa.setor_atual
+      FROM producao_itemparcial pa
+      WHERE pa.pedido_id IN (
+        SELECT id FROM producao_pedido WHERE status != 'entregue' LIMIT 100
+      )
+        AND pa.status IN ('em_aberto','recebido','em_andamento','finalizado_setor','pausado','concluida')
+        AND pa.setor_atual IS NOT NULL AND pa.setor_atual != ''
+    `,
   ]);
 
   type ItemRow = (typeof itens)[0];
@@ -40,10 +51,18 @@ export async function GET(req: Request) {
     itensPorPedido[pid].push(item);
   }
 
+  // Setores atuais (distintos) por pedido, a partir das parciais ativas.
+  const setoresAtuaisPorPedido: Record<number, string[]> = {};
+  for (const pa of parciais) {
+    const pid = Number(pa.pedido_id);
+    (setoresAtuaisPorPedido[pid] ??= []).push(pa.setor_atual as string);
+  }
+
   const resultado = pedidos.map(p => ({
     ...p,
     valor_calculado: '0',
     setores_parciais: [],
+    setores_atuais: setoresAtuaisPorPedido[Number(p.id)] ?? [],
     itens: itensPorPedido[Number(p.id)] ?? [],
   }));
 
