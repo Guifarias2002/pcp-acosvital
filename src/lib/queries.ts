@@ -5,11 +5,13 @@ import { NOMES } from './types';
 
 export function nomeSector(cod: string) { return NOMES[cod] || cod; }
 
-function corStatus(status: string): string {
+export function corStatus(status: string): string {
   const m: Record<string, string> = {
     aguardando: 'secondary', recebido: 'info', em_andamento: 'warning',
     pausado: 'warning', finalizado_setor: 'success', entregue: 'success',
     bloqueado: 'danger', reprovado: 'danger', aprovado: 'success', emitido: 'secondary',
+    // Vocabulário de parcial (producao_itemparcial), além do de item acima.
+    em_aberto: 'secondary', concluida: 'success', cancelada: 'danger', em_transito: 'info',
   };
   return m[status] || 'secondary';
 }
@@ -18,6 +20,7 @@ export function statusDisplay(s: string): string {
   const m: Record<string, string> = {
     emitido: 'Emitido', aguardando: 'Aguardando', recebido: 'Recebido',
     em_andamento: 'Em Andamento', pausado: 'Pausado', finalizado_setor: 'Finalizado no Setor',
+    em_aberto: 'Em Aberto', concluida: 'Concluída', cancelada: 'Cancelada',
     em_transito: 'Em Trânsito', bloqueado: 'Bloqueado', reprovado: 'Reprovado',
     aprovado: 'Aprovado', entregue: 'Entregue',
   };

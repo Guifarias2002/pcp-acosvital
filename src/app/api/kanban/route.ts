@@ -2,8 +2,13 @@
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { SETOR_CHOICES } from '@/lib/types';
-import { formatItem, nomeSector } from '@/lib/queries';
+import { nomeSector, corStatus, statusDisplay } from '@/lib/queries';
 import { withTimeout } from '@/lib/queryTimeout';
+
+// Parciais ativas — mesmo conjunto de status usado nas telas de setor
+// (/api/setor/[setor]), pra o Kanban ser um espelho fiel de onde a peça
+// realmente está (um item pode ter parciais em vários setores ao mesmo tempo).
+const STATUS_PARCIAL_ATIVA = ['em_aberto', 'recebido', 'em_andamento', 'finalizado_setor', 'pausado', 'concluida'];
 
 export const dynamic = 'force-dynamic';
 
@@ -37,19 +42,25 @@ export async function GET(req: Request) {
   const qItens =
     filtroSetor
       ? sql`
-          SELECT i.*, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
-                 p.prazo_entrega::text AS pedido_prazo, p.prioridade AS pedido_prioridade, p.roteiro_base
-          FROM producao_itempedido i
-          JOIN producao_pedido p ON p.id = i.pedido_id
-          WHERE i.status NOT IN ('entregue', 'emitido') AND i.setor_atual = ${filtroSetor}
+          SELECT pa.id, pa.quantidade::text AS quantidade_pendente, pa.status, pa.setor_atual,
+                 i.codigo, i.unidade, i.id AS item_pedido_id,
+                 p.id AS pedido_id, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
+                 p.prazo_entrega::text AS pedido_prazo_iso, p.prioridade AS pedido_prioridade
+          FROM producao_itemparcial pa
+          JOIN producao_itempedido i ON i.id = pa.item_pedido_id
+          JOIN producao_pedido p ON p.id = pa.pedido_id
+          WHERE pa.status = ANY(${STATUS_PARCIAL_ATIVA}) AND pa.setor_atual = ${filtroSetor}
           ORDER BY p.prioridade DESC, p.prazo_entrega ASC
         `
       : sql`
-          SELECT i.*, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
-                 p.prazo_entrega::text AS pedido_prazo, p.prioridade AS pedido_prioridade, p.roteiro_base
-          FROM producao_itempedido i
-          JOIN producao_pedido p ON p.id = i.pedido_id
-          WHERE i.status NOT IN ('entregue', 'emitido')
+          SELECT pa.id, pa.quantidade::text AS quantidade_pendente, pa.status, pa.setor_atual,
+                 i.codigo, i.unidade, i.id AS item_pedido_id,
+                 p.id AS pedido_id, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
+                 p.prazo_entrega::text AS pedido_prazo_iso, p.prioridade AS pedido_prioridade
+          FROM producao_itemparcial pa
+          JOIN producao_itempedido i ON i.id = pa.item_pedido_id
+          JOIN producao_pedido p ON p.id = pa.pedido_id
+          WHERE pa.status = ANY(${STATUS_PARCIAL_ATIVA})
           ORDER BY p.prioridade DESC, p.prazo_entrega ASC
         `;
 
@@ -92,10 +103,24 @@ export async function GET(req: Request) {
   const setores = setoresFiltrados.map(([cod, nome]) => ({
     cod,
     nome,
-    itens: itens.filter(i => i.setor_atual === cod).map(i => {
-      const item = formatItem(i);
-      return verFinanceiro ? item : { ...item, valor_unitario: null };
-    }),
+    // Cada card representa uma PARCIAL (não o item inteiro) — assim um item
+    // dividido entre setores aparece em cada coluna onde de fato tem peça,
+    // com a quantidade real daquele pedaço (espelha a tela de setor).
+    itens: itens.filter(i => i.setor_atual === cod).map(i => ({
+      id: i.id,
+      pedido_id: i.pedido_id,
+      pedido_numero: i.pedido_numero,
+      pedido_cliente: i.pedido_cliente,
+      pedido_prioridade: i.pedido_prioridade,
+      pedido_prazo_iso: i.pedido_prazo_iso,
+      codigo: i.codigo,
+      quantidade_pendente: i.quantidade_pendente,
+      unidade: i.unidade,
+      status: i.status,
+      cor_status: corStatus(i.status),
+      status_display: statusDisplay(i.status),
+      valor_unitario: null,
+    })),
     chegando: lotes
       .filter(l => l.setor_destino === cod)
       .map(l => ({
