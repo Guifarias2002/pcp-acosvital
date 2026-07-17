@@ -105,7 +105,7 @@ const DWELL_VIEW_MS = 25_000;
 type TVView = 'kanban' | 'painel' | 'dia' | 'semana' | 'ritmo' | 'comparativo' | 'analise' | 'velocidade';
 const VIEW_ORDEM: TVView[] = ['kanban', 'painel', 'dia', 'semana', 'ritmo', 'comparativo', 'analise', 'velocidade'];
 const VIEW_DWELL: Record<TVView, number> = {
-  kanban: 25_000, painel: 25_000, comparativo: 25_000, analise: 25_000, velocidade: 25_000,
+  kanban: 25_000, painel: 25_000, comparativo: 25_000, analise: 25_000, velocidade: 36_000,
   dia: 20_000, semana: 20_000, ritmo: 20_000,
 };
 
@@ -282,7 +282,7 @@ export default function TVMovimentacoesPage() {
   // Na tela de velocidade, alterna sozinho entre Hoje, Mês atual e Ontem.
   useEffect(() => {
     const ordem: Array<'hoje' | 'mes' | 'ontem'> = ['hoje', 'mes', 'ontem'];
-    const id = setInterval(() => setVelPeriodo(p => ordem[(ordem.indexOf(p) + 1) % ordem.length]), 8000);
+    const id = setInterval(() => setVelPeriodo(p => ordem[(ordem.indexOf(p) + 1) % ordem.length]), 12000);
     return () => clearInterval(id);
   }, []);
 
