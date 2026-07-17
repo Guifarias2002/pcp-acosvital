@@ -102,6 +102,10 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
                 <NavItem href="/emitidos" label="Em Produção" icon="bi-send-fill" onNav={fechar} />
                 <NavItem href="/entregues" label="Entregues" icon="bi-check-circle" onNav={fechar} />
                 <NavItem href="/divergencias" label="Divergências" icon="bi-exclamation-triangle" onNav={fechar} />
+                <a href="/tv/movimentacoes" target="_blank" rel="noopener noreferrer" className="nav-link" title="Abre em nova aba — pra deixar ligado numa TV/monitor">
+                  <i className="bi bi-tv-fill"></i>
+                  <span>TV Movimentação</span>
+                </a>
               </>
             )}
             {/* Responsável pela Logística também acessa Entregues, sem o resto das telas admin. */}
