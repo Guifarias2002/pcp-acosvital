@@ -60,6 +60,7 @@ export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filt
   const [toasts, setToasts] = useState<(Notificacao & { key: number })[]>([]);
   const [fila, setFila] = useState<(Notificacao & { key: number })[]>([]);
   const desdeRef = useRef<string>('');
+  const ultimoIdRef = useRef<number | null>(null);
   const keyRef = useRef(0);
 
   useEffect(() => {
@@ -78,9 +79,21 @@ export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filt
 
         desdeRef.current = movimentacoes[0].criado_em;
 
+        // Dedupe pelo id (monotônico). O cursor por timestamp reentregava a mesma
+        // linha porque o Postgres guarda microssegundos e o ISO do JSON só tem
+        // milissegundos — por isso a mesma movimentação reaparecia várias vezes.
+        // Na primeira leva o desde=agora já limita ao período pós-abertura da tela.
+        const prevId = ultimoIdRef.current;
+        const maxId = Math.max(...movimentacoes.map((m: Notificacao) => m.id));
+        ultimoIdRef.current = prevId == null ? maxId : Math.max(prevId, maxId);
+        const novas: Notificacao[] = prevId == null
+          ? movimentacoes
+          : movimentacoes.filter((m: Notificacao) => m.id > prevId);
+        if (novas.length === 0) return;
+
         const filtradas: Notificacao[] = filtroSetor
-          ? movimentacoes.filter((m: Notificacao) => m.setor_destino === filtroSetor || m.setor_origem === filtroSetor)
-          : movimentacoes;
+          ? novas.filter((m: Notificacao) => m.setor_destino === filtroSetor || m.setor_origem === filtroSetor)
+          : novas;
         if (filtradas.length === 0) return;
 
         // Chegam em ordem decrescente; na fila queremos mostrar da mais antiga p/ mais nova.
