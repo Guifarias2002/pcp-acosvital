@@ -113,7 +113,10 @@ export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filt
       } catch { /* silencioso */ }
     }
 
-    const intervalo = setInterval(verificar, modo === 'tela' ? 10000 : 30000);
+    // modo "tela" (Adm/PCP, tela cheia) - intervalo mais espacado que antes (era
+    // 10s) porque em dia de producao corrida virava uma interrupcao constante
+    // no trabalho normal; 45s ainda avisa rapido sem atrapalhar tanto.
+    const intervalo = setInterval(verificar, modo === 'tela' ? 45000 : 30000);
     return () => clearInterval(intervalo);
   }, [filtroSetor, modo]);
 
