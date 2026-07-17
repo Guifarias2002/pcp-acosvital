@@ -740,6 +740,7 @@ export default function TVMovimentacoesPage() {
         }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: '#1a3a5c', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <span style={{ fontSize: 19 }}>🏭</span> Painel de Produção
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', background: '#1a3a5c', borderRadius: 20, padding: '2px 12px', letterSpacing: 1 }}>FLANGES</span>
             <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>· pedidos por etapa</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, flexShrink: 0 }}>
