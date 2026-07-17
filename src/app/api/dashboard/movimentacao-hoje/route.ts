@@ -5,7 +5,7 @@ import { nomeSector } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
 
-// % de movimentações de hoje por líder e por setor — usado na TV de movimentação.
+// % de movimentações (todo o historico) por líder e por setor — usado na TV de movimentação.
 export async function GET(req: Request) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
@@ -14,7 +14,6 @@ export async function GET(req: Request) {
     SELECT u.id AS usuario_id, u.nome AS usuario_nome, COUNT(*)::int AS qtd
     FROM producao_movimentacaoitem m
     JOIN usuarios_usuario u ON u.id = m.usuario_id
-    WHERE m.criado_em >= CURRENT_DATE AND m.criado_em < CURRENT_DATE + INTERVAL '1 day'
     GROUP BY u.id, u.nome
     ORDER BY qtd DESC
   `;
@@ -22,8 +21,7 @@ export async function GET(req: Request) {
   const porSetor = await sql`
     SELECT COALESCE(m.setor_origem, '') AS setor, COUNT(*)::int AS qtd
     FROM producao_movimentacaoitem m
-    WHERE m.criado_em >= CURRENT_DATE AND m.criado_em < CURRENT_DATE + INTERVAL '1 day'
-      AND m.setor_origem IS NOT NULL AND m.setor_origem != ''
+    WHERE m.setor_origem IS NOT NULL AND m.setor_origem != ''
     GROUP BY m.setor_origem
     ORDER BY qtd DESC
   `;

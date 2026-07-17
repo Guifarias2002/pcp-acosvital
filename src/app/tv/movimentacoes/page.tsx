@@ -59,22 +59,31 @@ export default function TVMovimentacoesPage() {
   const [agora, setAgora] = useState('');
   const [setoresKanban, setSetoresKanban] = useState<SetorKanban[]>([]);
   const [setorIdx, setSetorIdx] = useState(0);
+  const [semSessao, setSemSessao] = useState(false);
 
   const carregar = useCallback(() => {
     const token = getToken() || '';
+    if (!token) { setSemSessao(true); return; }
     const headers = { Authorization: `Bearer ${token}` };
     fetch('/api/dashboard/movimentacao-hoje', { headers })
-      .then(r => r.ok ? r.json() : null)
+      .then(r => {
+        if (r.status === 401) { setSemSessao(true); return null; }
+        return r.ok ? r.json() : null;
+      })
       .then(data => {
         if (!data) return;
+        setSemSessao(false);
         setLideres(data.lideres || []);
         setSetoresStat(data.setores || []);
         setTotalMov(data.total_movimentacoes || 0);
       })
       .catch(() => {});
     fetch('/api/kanban', { headers })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setSetoresKanban(data.setores || []); })
+      .then(r => {
+        if (r.status === 401) { setSemSessao(true); return null; }
+        return r.ok ? r.json() : null;
+      })
+      .then(data => { if (data) { setSemSessao(false); setSetoresKanban(data.setores || []); } })
       .catch(() => {});
   }, []);
 
@@ -130,18 +139,31 @@ export default function TVMovimentacoesPage() {
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 30, fontWeight: 800, color: '#fff', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{agora}</div>
-          <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{totalMov} movimentações hoje</div>
+          <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{totalMov} movimentações no total</div>
         </div>
       </div>
+
+      {semSessao && (
+        <div style={{
+          background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.4)', borderRadius: 12,
+          padding: '14px 20px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0,
+        }}>
+          <i className="bi bi-exclamation-triangle-fill" style={{ color: '#f87171', fontSize: 20 }} />
+          <div style={{ color: '#fecaca', fontSize: 14 }}>
+            <strong>Sessão não encontrada nesta aba.</strong> Faça login no sistema neste navegador (uma vez só) pra essa tela
+            voltar a atualizar sozinha — <a href="/login" style={{ color: '#fff', textDecoration: 'underline' }}>abrir login</a>.
+          </div>
+        </div>
+      )}
 
       {/* % por líder / % por setor — faixa compacta no topo */}
       <div style={{ flex: '0 0 34%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, minHeight: 0, marginBottom: 20 }}>
         <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '18px 22px', overflowY: 'auto' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <i className="bi bi-people-fill" /> % Movimentação por Líder — hoje
+            <i className="bi bi-people-fill" /> % Movimentação por Líder
           </div>
           {lideres.length === 0 ? (
-            <div style={{ color: '#475569', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Sem movimentações registradas hoje</div>
+            <div style={{ color: '#475569', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Sem movimentações registradas</div>
           ) : (
             lideres.map((l, i) => (
               <Barra key={l.usuario_id} label={l.usuario_nome} qtd={l.qtd} pct={l.pct} cor={CORES[i % CORES.length]} />
@@ -151,10 +173,10 @@ export default function TVMovimentacoesPage() {
 
         <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '18px 22px', overflowY: 'auto' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <i className="bi bi-diagram-3-fill" /> % Movimentação por Setor — hoje
+            <i className="bi bi-diagram-3-fill" /> % Movimentação por Setor
           </div>
           {setoresStat.length === 0 ? (
-            <div style={{ color: '#475569', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Sem movimentações registradas hoje</div>
+            <div style={{ color: '#475569', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Sem movimentações registradas</div>
           ) : (
             setoresStat.map((s, i) => (
               <Barra key={s.setor} label={s.setor_nome} qtd={s.qtd} pct={s.pct} cor={CORES[i % CORES.length]} />
