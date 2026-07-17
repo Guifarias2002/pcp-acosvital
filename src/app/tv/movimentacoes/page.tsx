@@ -282,7 +282,7 @@ export default function TVMovimentacoesPage() {
   // Na tela de velocidade, alterna sozinho entre Hoje, Mês atual e Ontem.
   useEffect(() => {
     const ordem: Array<'hoje' | 'mes' | 'ontem'> = ['hoje', 'mes', 'ontem'];
-    const id = setInterval(() => setVelPeriodo(p => ordem[(ordem.indexOf(p) + 1) % ordem.length]), 15 * 60_000);
+    const id = setInterval(() => setVelPeriodo(p => ordem[(ordem.indexOf(p) + 1) % ordem.length]), 15_000);
     return () => clearInterval(id);
   }, []);
 
