@@ -38,6 +38,25 @@ function fmt(s: string | null) {
   return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+// Extrai "quanto foi encaminhado x quanto ficou" da observação automática dos
+// envios parciais, pra mostrar em destaque no lugar do texto cru. Formatos:
+//   "Parcial #12: 30 pç → Usinagem. Saldo em Estoque: 20 pç."   (dividiu)
+//   "Parcial: 30 pç → Usinagem. Saldo em origem: 20 pç"          (dividiu)
+//   "Parcial #5: 10 un → Furação."                                (moveu tudo)
+// Não bate? Devolve null e a tela mostra a observação normal.
+function parseEnvioParcial(obs: string): { qtd: string; unidade: string; destino: string; saldo: string | null; origem: string | null } | null {
+  const re = /Parcial\s*(?:#\d+)?:\s*([\d.,]+)\s*(\S+?)\s*→\s*([^.]+?)\s*(?:\.\s*Saldo em\s+([^:]+?):\s*([\d.,]+)\s*\S+)?\.?\s*$/i;
+  const m = obs.match(re);
+  if (!m) return null;
+  return {
+    qtd: m[1],
+    unidade: m[2],
+    destino: m[3].trim(),
+    saldo: m[5] ?? null,
+    origem: m[4] ? m[4].trim() : null,
+  };
+}
+
 interface Mov {
   id: number;
   item_id: number;
@@ -222,12 +241,29 @@ export default function HistoricoPage() {
                           </div>
                         )}
 
-                        {/* Observação */}
-                        {mov.observacao && (
-                          <div style={{ marginTop: 8, fontSize: 12, color: '#475569', background: '#f8fafc', borderRadius: 6, padding: '6px 10px', borderLeft: '3px solid #cbd5e1' }}>
-                            <i className="bi bi-chat-text" style={{ marginRight: 6 }} />{mov.observacao}
-                          </div>
-                        )}
+                        {/* Observação — se for envio parcial, mostra "quanto foi / quanto ficou" em destaque */}
+                        {mov.observacao && (() => {
+                          const envio = parseEnvioParcial(mov.observacao);
+                          if (envio) {
+                            return (
+                              <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: '#065f46', background: '#d1fae5', borderRadius: 6, padding: '5px 10px' }}>
+                                  <i className="bi bi-box-arrow-right" /> Encaminhado {envio.qtd} {envio.unidade} → {envio.destino}
+                                </span>
+                                {envio.saldo !== null && (
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: '#854d0e', background: '#fef9c3', borderRadius: 6, padding: '5px 10px' }}>
+                                    <i className="bi bi-box-seam" /> Ficou {envio.saldo} {envio.unidade}{envio.origem ? ` em ${envio.origem}` : ''}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div style={{ marginTop: 8, fontSize: 12, color: '#475569', background: '#f8fafc', borderRadius: 6, padding: '6px 10px', borderLeft: '3px solid #cbd5e1' }}>
+                              <i className="bi bi-chat-text" style={{ marginRight: 6 }} />{mov.observacao}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   );
