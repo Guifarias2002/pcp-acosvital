@@ -158,8 +158,10 @@ export default function TVMovimentacoesPage() {
   const setoresAtivos = setoresKanban
     .filter(s => s.itens.length > 0)
     .sort((a, b) => posSetorTV(a.cod) - posSetorTV(b.cod));
+  // Barras de % movimentacao tambem na ordem do roteiro, igual ao Kanban.
+  const setoresStatOrdenados = [...setoresStat].sort((a, b) => posSetorTV(a.setor) - posSetorTV(b.setor));
   // Colunas em 2 blocos quando tem muito setor, pra caber tudo sem rolar.
-  const meioSetores = Math.ceil(setoresStat.length / 2);
+  const meioSetores = Math.ceil(setoresStatOrdenados.length / 2);
   // Corta os meses anteriores ao primeiro que teve pedido - sem meses vazios
   // no comeco do grafico so porque o sistema comecou a ser usado depois.
   const primeiroComDado = meses.findIndex(m => m.qtd > 0);
@@ -222,11 +224,11 @@ export default function TVMovimentacoesPage() {
               {setoresStat.length === 0 ? (
                 <div style={{ color: '#aaa', fontSize: 12, textAlign: 'center', margin: 'auto' }}>Sem movimentações registradas</div>
               ) : (
-                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: setoresStat.length > 5 ? '1fr 1fr 1fr' : '1fr 1fr', gap: '0 20px', alignContent: 'center' }}>
-                  <div>{setoresStat.slice(0, meioSetores).map((s, i) => (
+                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: setoresStatOrdenados.length > 5 ? '1fr 1fr 1fr' : '1fr 1fr', gap: '0 20px', alignContent: 'center' }}>
+                  <div>{setoresStatOrdenados.slice(0, meioSetores).map((s, i) => (
                     <Barra key={s.setor} label={s.setor_nome} qtd={s.qtd} pct={s.pct} cor={CORES[i % CORES.length]} />
                   ))}</div>
-                  <div>{setoresStat.slice(meioSetores).map((s, i) => (
+                  <div>{setoresStatOrdenados.slice(meioSetores).map((s, i) => (
                     <Barra key={s.setor} label={s.setor_nome} qtd={s.qtd} pct={s.pct} cor={CORES[(i + meioSetores) % CORES.length]} />
                   ))}</div>
                 </div>
