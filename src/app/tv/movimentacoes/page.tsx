@@ -54,14 +54,21 @@ interface VelocidadeSetor {
   setor: string;
   setor_nome: string;
   tempo_medio_min: number;
+  tempo_total_min: number;
   amostras: number;
 }
 interface VelocidadeUsuario {
   id: number;
   nome: string;
   tempo_medio_min: number;
+  tempo_total_min: number;
   amostras: number;
 }
+interface VelocidadePeriodo {
+  setores: VelocidadeSetor[];
+  usuarios: VelocidadeUsuario[];
+}
+const VEL_VAZIO: VelocidadePeriodo = { setores: [], usuarios: [] };
 
 const CORES = ['#0d6efd', '#198754', '#fd7e14', '#6f42c1', '#dc3545', '#20c997', '#b45309', '#0dcaf0'];
 const PRIO_COR: Record<string, string> = { baixa: '#94a3b8', normal: '#0d6efd', alta: '#d97706', urgente: '#dc3545' };
@@ -115,16 +122,19 @@ function corVelocidade(min: number, maxMin: number) {
   return '#dc3545';                 // devagar
 }
 
-// Barra horizontal do comparativo de velocidade: nome à esquerda, barra no meio,
-// valor à direita.
-function BarraH({ label, valorLabel, pct, cor }: { label: string; valorLabel: string; pct: number; cor: string }) {
+// Barra horizontal do comparativo de velocidade: nome à esquerda, barra (média
+// por peça) no meio, e à direita a média em destaque + o total somado embaixo.
+function BarraH({ label, valorLabel, subLabel, pct, cor }: { label: string; valorLabel: string; subLabel?: string; pct: number; cor: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
       <span style={{ width: 150, flexShrink: 0, fontSize: 12.5, fontWeight: 700, color: '#1a3a5c', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
       <div style={{ flex: 1, background: '#eef2f7', borderRadius: 5, height: 16, overflow: 'hidden' }}>
         <div style={{ width: `${Math.max(pct, 3)}%`, height: '100%', background: cor, borderRadius: 5, transition: 'width .6s ease' }} />
       </div>
-      <span style={{ width: 82, flexShrink: 0, fontSize: 12, fontWeight: 700, color: '#1a3a5c', textAlign: 'right' }}>{valorLabel}</span>
+      <span style={{ width: 92, flexShrink: 0, textAlign: 'right', lineHeight: 1.15 }}>
+        <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: '#1a3a5c' }}>{valorLabel}</span>
+        {subLabel && <span style={{ display: 'block', fontSize: 9.5, fontWeight: 600, color: '#94a3b8' }}>{subLabel}</span>}
+      </span>
     </div>
   );
 }
@@ -152,8 +162,9 @@ export default function TVMovimentacoesPage() {
   const [variacaoPct, setVariacaoPct] = useState<number | null>(null);
   const [atrasados, setAtrasados] = useState<PedidoAtrasado[]>([]);
   const [parados, setParados] = useState<ItemParado[]>([]);
-  const [velSetores, setVelSetores] = useState<VelocidadeSetor[]>([]);
-  const [velUsuarios, setVelUsuarios] = useState<VelocidadeUsuario[]>([]);
+  const [velMes, setVelMes] = useState<VelocidadePeriodo>(VEL_VAZIO);
+  const [velOntem, setVelOntem] = useState<VelocidadePeriodo>(VEL_VAZIO);
+  const [velPeriodo, setVelPeriodo] = useState<'mes' | 'ontem'>('mes');
   const [view, setView] = useState<'kanban' | 'comparativo' | 'analise' | 'velocidade'>('kanban');
 
   const carregar = useCallback(() => {
@@ -189,7 +200,7 @@ export default function TVMovimentacoesPage() {
       .catch(() => {});
     fetch('/api/dashboard/comparativo-velocidade', { headers })
       .then(r => (r.ok ? r.json() : null))
-      .then(data => { if (data) { setVelSetores(data.setores || []); setVelUsuarios(data.usuarios || []); } })
+      .then(data => { if (data) { setVelMes(data.mes || VEL_VAZIO); setVelOntem(data.ontem || VEL_VAZIO); } })
       .catch(() => {});
   }, []);
 
@@ -211,6 +222,12 @@ export default function TVMovimentacoesPage() {
     return () => clearInterval(id);
   }, []);
 
+  // Na tela de velocidade, alterna sozinho entre "Mês atual" e "Ontem".
+  useEffect(() => {
+    const id = setInterval(() => setVelPeriodo(p => (p === 'mes' ? 'ontem' : 'mes')), 8000);
+    return () => clearInterval(id);
+  }, []);
+
   const setoresAtivos = setoresKanban
     .filter(s => s.itens.length > 0)
     .sort((a, b) => posSetorTV(a.cod) - posSetorTV(b.cod));
@@ -224,7 +241,12 @@ export default function TVMovimentacoesPage() {
   const mesesVisiveis = primeiroComDado === -1 ? meses.slice(-1) : meses.slice(primeiroComDado);
   const maxMes = Math.max(1, ...mesesVisiveis.map(m => m.qtd));
   const totalPedidosPeriodo = mesesVisiveis.reduce((s, m) => s + m.qtd, 0);
-  // Comparativo de velocidade: escalas e destaques (listas já vêm ordenadas do rápido -> devagar).
+  // Comparativo de velocidade: usa o período em foco (mês atual ou ontem).
+  // As listas já vêm ordenadas da API do mais rápido (menor média) pro mais devagar.
+  const velAtual = velPeriodo === 'mes' ? velMes : velOntem;
+  const velSetores = velAtual.setores;
+  const velUsuarios = velAtual.usuarios;
+  const velPeriodoLabel = velPeriodo === 'mes' ? 'Mês atual' : 'Ontem';
   const maxVelSetor = Math.max(1, ...velSetores.map(s => s.tempo_medio_min));
   const maxVelUsuario = Math.max(1, ...velUsuarios.map(u => u.tempo_medio_min));
   const setorMaisAgil = velSetores[0] || null;
@@ -488,7 +510,8 @@ export default function TVMovimentacoesPage() {
         }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#1a3a5c', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <i className="bi bi-speedometer" style={{ color: '#0d6efd' }} /> Comparativo de Velocidade
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>· média dos últimos 90 dias</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', background: '#0d6efd', borderRadius: 20, padding: '2px 12px' }}>{velPeriodoLabel}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>· barra = média por peça · alterna mês ⇄ ontem</span>
           </div>
 
           {/* Cardzinhos de destaque: setor mais ágil e mais devagar */}
@@ -521,10 +544,10 @@ export default function TVMovimentacoesPage() {
               </div>
               <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                 {velSetores.length === 0 ? (
-                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', paddingTop: 20 }}>Sem dados suficientes ainda</div>
+                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', paddingTop: 20 }}>Sem movimentações {velPeriodo === 'mes' ? 'neste mês' : 'ontem'}</div>
                 ) : (
                   velSetores.map(s => (
-                    <BarraH key={s.setor} label={s.setor_nome} valorLabel={formatarTempo(s.tempo_medio_min)} pct={(s.tempo_medio_min / maxVelSetor) * 100} cor={corVelocidade(s.tempo_medio_min, maxVelSetor)} />
+                    <BarraH key={s.setor} label={s.setor_nome} valorLabel={formatarTempo(s.tempo_medio_min)} subLabel={`total ${formatarTempo(s.tempo_total_min)}`} pct={(s.tempo_medio_min / maxVelSetor) * 100} cor={corVelocidade(s.tempo_medio_min, maxVelSetor)} />
                   ))
                 )}
               </div>
@@ -535,10 +558,10 @@ export default function TVMovimentacoesPage() {
               </div>
               <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                 {velUsuarios.length === 0 ? (
-                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', paddingTop: 20 }}>Sem dados suficientes ainda</div>
+                  <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', paddingTop: 20 }}>Sem movimentações {velPeriodo === 'mes' ? 'neste mês' : 'ontem'}</div>
                 ) : (
                   velUsuarios.map(u => (
-                    <BarraH key={u.id} label={u.nome} valorLabel={formatarTempo(u.tempo_medio_min)} pct={(u.tempo_medio_min / maxVelUsuario) * 100} cor={corVelocidade(u.tempo_medio_min, maxVelUsuario)} />
+                    <BarraH key={u.id} label={u.nome} valorLabel={formatarTempo(u.tempo_medio_min)} subLabel={`total ${formatarTempo(u.tempo_total_min)}`} pct={(u.tempo_medio_min / maxVelUsuario) * 100} cor={corVelocidade(u.tempo_medio_min, maxVelUsuario)} />
                   ))
                 )}
               </div>

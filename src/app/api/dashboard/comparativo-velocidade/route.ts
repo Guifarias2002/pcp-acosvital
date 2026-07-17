@@ -6,51 +6,84 @@ import { withTimeout } from '@/lib/queryTimeout';
 
 export const dynamic = 'force-dynamic';
 
-// Comparativo de velocidade da produção (últimos 90 dias) — usado na 4ª tela da
-// TV de movimentação. Mede quem/qual é mais rápido ou mais devagar a partir do
-// tempo entre a peça CHEGAR num setor e SAIR dele (mesma lógica do relatório
-// "Tempo em Cada Área"): o auto-join casa cada entrada (m.setor_destino) com a
-// saída seguinte daquele mesmo setor (m2.setor_origem = m.setor_destino).
-//   • Setores  → tempo médio que a peça fica parada no setor.
-//   • Usuários → tempo médio de resposta: quanto o usuário que ENCAMINHOU a peça
-//                (m2.usuario_id) demorou desde a chegada dela.
-// Só entram setores/usuários com pelo menos 2 amostras, pra não rankear ruído.
+// Fuso da fábrica — "ontem" e "mês atual" têm que ser no horário local (Brasil),
+// senão o corte do dia sai errado à noite (servidor roda em UTC).
+const TZ = 'America/Sao_Paulo';
+
+// Comparativo de velocidade da produção — usado na 4ª tela da TV de movimentação.
+// Mede quem/qual é mais rápido a partir do tempo que a peça fica em cada setor.
+//
+// Precisão ("tem que ser real"): pareia cada entrada da peça num setor com a
+// movimentação IMEDIATAMENTE seguinte dela (LEAD na linha do tempo do item), em
+// vez de casar com todas as saídas seguintes. Assim uma peça que volta pro mesmo
+// setor (retrabalho) não infla o tempo com pares fantasmas.
+//   • Setores  → tempo entre a peça chegar no setor e a próxima ação nela.
+//   • Usuários → mesmo tempo, atribuído a quem fez a próxima ação (encaminhou).
+//
+// Períodos: mês atual e dia anterior (ontem), ancorados em quando a ação que
+// FECHOU o intervalo aconteceu (proximo_em). Cada um traz média por peça, total
+// somado e nº de amostras.
 export async function GET(req: Request) {
   try {
     const user = await autenticar(req);
     if (user instanceof NextResponse) return user;
 
     const qSetores = sql`
-      SELECT m.setor_destino AS setor,
-             ROUND(AVG(EXTRACT(EPOCH FROM (m2.criado_em - m.criado_em)) / 60))::int AS tempo_medio_min,
-             COUNT(*)::int AS amostras
-      FROM producao_movimentacaoitem m
-      JOIN producao_movimentacaoitem m2
-        ON m2.item_id = m.item_id
-        AND m2.setor_origem = m.setor_destino
-        AND m2.criado_em > m.criado_em
-      WHERE m.criado_em >= NOW() - INTERVAL '90 days'
-        AND m.setor_destino != ''
-      GROUP BY m.setor_destino
-      HAVING COUNT(*) >= 2
-      ORDER BY tempo_medio_min ASC
+      WITH mov AS (
+        SELECT m.item_id,
+               m.setor_destino AS setor,
+               m.criado_em,
+               LEAD(m.criado_em)  OVER (PARTITION BY m.item_id ORDER BY m.criado_em) AS proximo_em,
+               LEAD(m.usuario_id) OVER (PARTITION BY m.item_id ORDER BY m.criado_em) AS proximo_usuario
+        FROM producao_movimentacaoitem m
+        WHERE m.setor_destino != ''
+      ),
+      dwell AS (
+        SELECT setor,
+               EXTRACT(EPOCH FROM (proximo_em - criado_em)) / 60.0 AS minutos,
+               (proximo_em AT TIME ZONE ${TZ})::date AS dia_local,
+               date_trunc('month', (proximo_em AT TIME ZONE ${TZ})) AS mes_local
+        FROM mov
+        WHERE proximo_em IS NOT NULL
+      )
+      SELECT setor,
+        ROUND(AVG(minutos) FILTER (WHERE mes_local = date_trunc('month', (NOW() AT TIME ZONE ${TZ}))))::int AS mes_medio,
+        ROUND(SUM(minutos) FILTER (WHERE mes_local = date_trunc('month', (NOW() AT TIME ZONE ${TZ}))))::int AS mes_total,
+        COUNT(*)          FILTER (WHERE mes_local = date_trunc('month', (NOW() AT TIME ZONE ${TZ})))::int AS mes_amostras,
+        ROUND(AVG(minutos) FILTER (WHERE dia_local = ((NOW() AT TIME ZONE ${TZ})::date - 1)))::int AS ontem_medio,
+        ROUND(SUM(minutos) FILTER (WHERE dia_local = ((NOW() AT TIME ZONE ${TZ})::date - 1)))::int AS ontem_total,
+        COUNT(*)          FILTER (WHERE dia_local = ((NOW() AT TIME ZONE ${TZ})::date - 1))::int AS ontem_amostras
+      FROM dwell
+      GROUP BY setor
     `;
 
     const qUsuarios = sql`
-      SELECT m2.usuario_id AS uid, u.nome AS nome,
-             ROUND(AVG(EXTRACT(EPOCH FROM (m2.criado_em - m.criado_em)) / 60))::int AS tempo_medio_min,
-             COUNT(*)::int AS amostras
-      FROM producao_movimentacaoitem m
-      JOIN producao_movimentacaoitem m2
-        ON m2.item_id = m.item_id
-        AND m2.setor_origem = m.setor_destino
-        AND m2.criado_em > m.criado_em
-      JOIN usuarios_usuario u ON u.id = m2.usuario_id
-      WHERE m.criado_em >= NOW() - INTERVAL '90 days'
-        AND m.setor_destino != ''
-      GROUP BY m2.usuario_id, u.nome
-      HAVING COUNT(*) >= 2
-      ORDER BY tempo_medio_min ASC
+      WITH mov AS (
+        SELECT m.item_id,
+               m.criado_em,
+               LEAD(m.criado_em)  OVER (PARTITION BY m.item_id ORDER BY m.criado_em) AS proximo_em,
+               LEAD(m.usuario_id) OVER (PARTITION BY m.item_id ORDER BY m.criado_em) AS proximo_usuario
+        FROM producao_movimentacaoitem m
+        WHERE m.setor_destino != ''
+      ),
+      dwell AS (
+        SELECT proximo_usuario AS usuario_id,
+               EXTRACT(EPOCH FROM (proximo_em - criado_em)) / 60.0 AS minutos,
+               (proximo_em AT TIME ZONE ${TZ})::date AS dia_local,
+               date_trunc('month', (proximo_em AT TIME ZONE ${TZ})) AS mes_local
+        FROM mov
+        WHERE proximo_em IS NOT NULL AND proximo_usuario IS NOT NULL
+      )
+      SELECT d.usuario_id AS uid, u.nome AS nome,
+        ROUND(AVG(minutos) FILTER (WHERE mes_local = date_trunc('month', (NOW() AT TIME ZONE ${TZ}))))::int AS mes_medio,
+        ROUND(SUM(minutos) FILTER (WHERE mes_local = date_trunc('month', (NOW() AT TIME ZONE ${TZ}))))::int AS mes_total,
+        COUNT(*)          FILTER (WHERE mes_local = date_trunc('month', (NOW() AT TIME ZONE ${TZ})))::int AS mes_amostras,
+        ROUND(AVG(minutos) FILTER (WHERE dia_local = ((NOW() AT TIME ZONE ${TZ})::date - 1)))::int AS ontem_medio,
+        ROUND(SUM(minutos) FILTER (WHERE dia_local = ((NOW() AT TIME ZONE ${TZ})::date - 1)))::int AS ontem_total,
+        COUNT(*)          FILTER (WHERE dia_local = ((NOW() AT TIME ZONE ${TZ})::date - 1))::int AS ontem_amostras
+      FROM dwell d
+      JOIN usuarios_usuario u ON u.id = d.usuario_id
+      GROUP BY d.usuario_id, u.nome
     `;
 
     const [setores, usuarios] = await withTimeout(
@@ -59,19 +92,35 @@ export async function GET(req: Request) {
       [qSetores, qUsuarios],
     );
 
+    // Monta os dois períodos a partir das linhas achatadas, filtra quem não teve
+    // amostra no período e ordena do mais rápido (menor média) pro mais devagar.
+    const setorPeriodo = (janela: 'mes' | 'ontem') =>
+      setores
+        .map(r => ({
+          setor: r.setor,
+          setor_nome: nomeSector(r.setor),
+          tempo_medio_min: Number(r[`${janela}_medio`] || 0),
+          tempo_total_min: Number(r[`${janela}_total`] || 0),
+          amostras: Number(r[`${janela}_amostras`] || 0),
+        }))
+        .filter(x => x.amostras > 0)
+        .sort((a, b) => a.tempo_medio_min - b.tempo_medio_min);
+
+    const usuarioPeriodo = (janela: 'mes' | 'ontem') =>
+      usuarios
+        .map(r => ({
+          id: r.uid,
+          nome: r.nome || 'Sem nome',
+          tempo_medio_min: Number(r[`${janela}_medio`] || 0),
+          tempo_total_min: Number(r[`${janela}_total`] || 0),
+          amostras: Number(r[`${janela}_amostras`] || 0),
+        }))
+        .filter(x => x.amostras > 0)
+        .sort((a, b) => a.tempo_medio_min - b.tempo_medio_min);
+
     return NextResponse.json({
-      setores: setores.map(r => ({
-        setor: r.setor,
-        setor_nome: nomeSector(r.setor),
-        tempo_medio_min: Number(r.tempo_medio_min || 0),
-        amostras: Number(r.amostras),
-      })),
-      usuarios: usuarios.map(r => ({
-        id: r.uid,
-        nome: r.nome || 'Sem nome',
-        tempo_medio_min: Number(r.tempo_medio_min || 0),
-        amostras: Number(r.amostras),
-      })),
+      mes: { setores: setorPeriodo('mes'), usuarios: usuarioPeriodo('mes') },
+      ontem: { setores: setorPeriodo('ontem'), usuarios: usuarioPeriodo('ontem') },
     });
   } catch (e) {
     console.error('[comparativo-velocidade]', e);
