@@ -373,7 +373,7 @@ export default function TVMovimentacoesPage() {
           opacity: view === 'kanban' ? 1 : 0, transition: 'opacity 1s ease',
           pointerEvents: view === 'kanban' ? 'auto' : 'none',
         }}>
-          <div style={{ flex: '0 0 20%', minHeight: 0 }}>
+          <div style={{ flex: '0 0 27%', minHeight: 0 }}>
             <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 16px', boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', height: '100%' }}>
               <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 <i className="bi bi-diagram-3-fill" style={{ color: '#0d6efd' }} /> % Movimentação por Setor
