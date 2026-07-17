@@ -54,6 +54,15 @@ const CORES = ['#0d6efd', '#198754', '#fd7e14', '#6f42c1', '#dc3545', '#20c997',
 const PRIO_COR: Record<string, string> = { baixa: '#94a3b8', normal: '#0d6efd', alta: '#d97706', urgente: '#dc3545' };
 const DWELL_VIEW_MS = 25_000;
 
+// Ordem fixa dos setores no Kanban da TV — segue o roteiro real de produção,
+// não a ordem que a API devolve (SETOR_CHOICES). Setor fora desta lista vai pro
+// fim, sem sumir.
+const ORDEM_SETORES_TV = ['estoque', 'maçarico', 'plasma', 'laser', 'usinagem', 'furacao', 'qualidade', 'acabamento', 'embalagem', 'logistica'];
+const posSetorTV = (cod: string) => {
+  const i = ORDEM_SETORES_TV.indexOf(cod);
+  return i === -1 ? ORDEM_SETORES_TV.length : i;
+};
+
 function Barra({ label, qtd, pct, cor }: { label: string; qtd: number; pct: number; cor: string }) {
   return (
     <div style={{ marginBottom: 8 }}>
@@ -137,7 +146,7 @@ export default function TVMovimentacoesPage() {
     return () => { clearInterval(t); clearInterval(clock); };
   }, [carregar]);
 
-  useRealtime(['producao_movimentacaoitem', 'producao_itemparcial'], carregar);
+  useRealtime(['producao_movimentacaoitem', 'producao_itemparcial', 'producao_itempedido', 'producao_pedido'], carregar);
 
   // Alterna entre Kanban, Comparativo mensal e Analise, com transicao suave (fade).
   useEffect(() => {
@@ -146,7 +155,9 @@ export default function TVMovimentacoesPage() {
     return () => clearInterval(id);
   }, []);
 
-  const setoresAtivos = setoresKanban.filter(s => s.itens.length > 0);
+  const setoresAtivos = setoresKanban
+    .filter(s => s.itens.length > 0)
+    .sort((a, b) => posSetorTV(a.cod) - posSetorTV(b.cod));
   // Colunas em 2 blocos quando tem muito setor, pra caber tudo sem rolar.
   const meioSetores = Math.ceil(setoresStat.length / 2);
   // Corta os meses anteriores ao primeiro que teve pedido - sem meses vazios
