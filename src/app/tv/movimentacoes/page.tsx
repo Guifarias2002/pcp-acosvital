@@ -71,9 +71,29 @@ interface VelocidadePeriodo {
 }
 const VEL_VAZIO: VelocidadePeriodo = { setores: [], usuarios: [] };
 
+interface PedidoProd {
+  id: number;
+  numero: string;
+  cliente: string;
+  prioridade: string;
+  hora: string;
+  dia: string;
+}
+interface ContagemProd { hoje: number; semana: number; mes: number; }
+const CONTAGEM_VAZIA: ContagemProd = { hoje: 0, semana: 0, mes: 0 };
+
 const CORES = ['#0d6efd', '#198754', '#fd7e14', '#6f42c1', '#dc3545', '#20c997', '#b45309', '#0dcaf0'];
 const PRIO_COR: Record<string, string> = { baixa: '#94a3b8', normal: '#0d6efd', alta: '#d97706', urgente: '#dc3545' };
 const DWELL_VIEW_MS = 25_000;
+
+// Rodízio das telas com tempo por tela: as de "totais" (números) passam rápido
+// (5s), as mais cheias ficam ~25s pra dar tempo de ler.
+type TVView = 'kanban' | 'dia' | 'semana' | 'ritmo' | 'comparativo' | 'analise' | 'velocidade';
+const VIEW_ORDEM: TVView[] = ['kanban', 'dia', 'semana', 'ritmo', 'comparativo', 'analise', 'velocidade'];
+const VIEW_DWELL: Record<TVView, number> = {
+  kanban: 25_000, comparativo: 25_000, analise: 25_000, velocidade: 25_000,
+  dia: 5_000, semana: 5_000, ritmo: 5_000,
+};
 
 function Barra({ label, qtd, pct, cor }: { label: string; qtd: number; pct: number; cor: string }) {
   return (
@@ -158,7 +178,10 @@ export default function TVMovimentacoesPage() {
   const [velMes, setVelMes] = useState<VelocidadePeriodo>(VEL_VAZIO);
   const [velOntem, setVelOntem] = useState<VelocidadePeriodo>(VEL_VAZIO);
   const [velPeriodo, setVelPeriodo] = useState<'hoje' | 'mes' | 'ontem'>('hoje');
-  const [view, setView] = useState<'kanban' | 'comparativo' | 'analise' | 'velocidade'>('kanban');
+  const [prodContagem, setProdContagem] = useState<ContagemProd>(CONTAGEM_VAZIA);
+  const [prodHoje, setProdHoje] = useState<PedidoProd[]>([]);
+  const [prodSemana, setProdSemana] = useState<PedidoProd[]>([]);
+  const [view, setView] = useState<TVView>('kanban');
 
   const carregar = useCallback(() => {
     const token = getToken() || '';
@@ -195,6 +218,10 @@ export default function TVMovimentacoesPage() {
       .then(r => (r.ok ? r.json() : null))
       .then(data => { if (data) { setVelHoje(data.hoje || VEL_VAZIO); setVelMes(data.mes || VEL_VAZIO); setVelOntem(data.ontem || VEL_VAZIO); } })
       .catch(() => {});
+    fetch('/api/dashboard/producao-periodo', { headers })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (data) { setProdContagem(data.contagem || CONTAGEM_VAZIA); setProdHoje(data.hoje || []); setProdSemana(data.semana || []); } })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -208,12 +235,13 @@ export default function TVMovimentacoesPage() {
 
   useRealtime(['producao_movimentacaoitem', 'producao_itemparcial', 'producao_itempedido', 'producao_pedido'], carregar);
 
-  // Alterna entre Kanban, Comparativo mensal, Analise e Velocidade, com fade suave.
+  // Rodízio com tempo por tela (fade suave). Cada tela agenda a próxima com sua
+  // própria duração — telas de totais passam rápido (5s), as cheias ~25s.
   useEffect(() => {
-    const ordem: Array<'kanban' | 'comparativo' | 'analise' | 'velocidade'> = ['kanban', 'comparativo', 'analise', 'velocidade'];
-    const id = setInterval(() => setView(v => ordem[(ordem.indexOf(v) + 1) % ordem.length]), DWELL_VIEW_MS);
-    return () => clearInterval(id);
-  }, []);
+    const prox = VIEW_ORDEM[(VIEW_ORDEM.indexOf(view) + 1) % VIEW_ORDEM.length];
+    const t = setTimeout(() => setView(prox), VIEW_DWELL[view] ?? DWELL_VIEW_MS);
+    return () => clearTimeout(t);
+  }, [view]);
 
   // Na tela de velocidade, alterna sozinho entre Hoje, Mês atual e Ontem.
   useEffect(() => {
@@ -561,6 +589,96 @@ export default function TVMovimentacoesPage() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* ── VIEW: Produção do Dia (pedidos encaminhados hoje) ─────────────── */}
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 12,
+          opacity: view === 'dia' ? 1 : 0, transition: 'opacity .6s ease',
+          pointerEvents: view === 'dia' ? 'auto' : 'none',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#1a3a5c', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <span style={{ fontSize: 19 }}>🔥</span> Produção do Dia
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>· pedidos que entraram na produção hoje</span>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 16 }}>
+            <div style={{ flex: '0 0 280px', background: 'linear-gradient(135deg, #0d6efd, #1a3a5c)', borderRadius: 16, color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+              <div style={{ fontSize: 120, fontWeight: 800, lineHeight: 1 }}>{prodContagem.hoje}</div>
+              <div style={{ fontSize: 17, fontWeight: 600, opacity: 0.92, marginTop: 10, textAlign: 'center' }}>pedidos na produção hoje</div>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, flexShrink: 0 }}>Pedidos encaminhados hoje</div>
+              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 16px', alignContent: 'start' }}>
+                {prodHoje.length === 0 ? (
+                  <div style={{ color: '#aaa', fontSize: 14, gridColumn: '1 / -1', textAlign: 'center', paddingTop: 30 }}>Nenhum pedido entrou na produção hoje ainda</div>
+                ) : prodHoje.map(p => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', borderLeft: `3px solid ${PRIO_COR[p.prioridade] || '#94a3b8'}`, background: '#f8fafc', borderRadius: 5 }}>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: '#1a3a5c', flexShrink: 0 }}>{p.numero}</span>
+                    <span style={{ fontSize: 12, color: '#94a3b8', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.cliente}</span>
+                    <span style={{ fontSize: 11.5, fontWeight: 600, color: '#64748b', flexShrink: 0 }}>{p.hora}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── VIEW: A Semana na Produção ────────────────────────────────────── */}
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 12,
+          opacity: view === 'semana' ? 1 : 0, transition: 'opacity .6s ease',
+          pointerEvents: view === 'semana' ? 'auto' : 'none',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#1a3a5c', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <span style={{ fontSize: 19 }}>📅</span> A Semana na Produção
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>· pedidos que entraram na produção nesta semana</span>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 16 }}>
+            <div style={{ flex: '0 0 280px', background: 'linear-gradient(135deg, #16a34a, #14532d)', borderRadius: 16, color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+              <div style={{ fontSize: 120, fontWeight: 800, lineHeight: 1 }}>{prodContagem.semana}</div>
+              <div style={{ fontSize: 17, fontWeight: 600, opacity: 0.92, marginTop: 10, textAlign: 'center' }}>pedidos na produção nesta semana</div>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, flexShrink: 0 }}>Pedidos encaminhados na semana</div>
+              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 16px', alignContent: 'start' }}>
+                {prodSemana.length === 0 ? (
+                  <div style={{ color: '#aaa', fontSize: 14, gridColumn: '1 / -1', textAlign: 'center', paddingTop: 30 }}>Nenhum pedido entrou na produção nesta semana</div>
+                ) : prodSemana.map(p => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', borderLeft: `3px solid ${PRIO_COR[p.prioridade] || '#94a3b8'}`, background: '#f8fafc', borderRadius: 5 }}>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: '#1a3a5c', flexShrink: 0 }}>{p.numero}</span>
+                    <span style={{ fontSize: 12, color: '#94a3b8', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.cliente}</span>
+                    <span style={{ fontSize: 11.5, fontWeight: 600, color: '#64748b', flexShrink: 0 }}>{p.dia}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── VIEW: Ritmo de Produção (Hoje × Semana × Mês) ─────────────────── */}
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 12,
+          opacity: view === 'ritmo' ? 1 : 0, transition: 'opacity .6s ease',
+          pointerEvents: view === 'ritmo' ? 'auto' : 'none',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#1a3a5c', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <span style={{ fontSize: 19 }}>📊</span> Ritmo de Produção
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>· pedidos encaminhados — hoje, semana e mês</span>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+            {[
+              { label: 'Hoje', valor: prodContagem.hoje, g: 'linear-gradient(135deg, #0d6efd, #1a3a5c)', icon: '🔥' },
+              { label: 'Esta Semana', valor: prodContagem.semana, g: 'linear-gradient(135deg, #16a34a, #14532d)', icon: '📅' },
+              { label: 'Este Mês', valor: prodContagem.mes, g: 'linear-gradient(135deg, #d97706, #7c2d12)', icon: '🗓️' },
+            ].map(c => (
+              <div key={c.label} style={{ background: c.g, borderRadius: 16, color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                <div style={{ fontSize: 20, opacity: 0.9 }}>{c.icon}</div>
+                <div style={{ fontSize: 120, fontWeight: 800, lineHeight: 1, margin: '4px 0' }}>{c.valor}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, opacity: 0.95, textTransform: 'uppercase', letterSpacing: 1 }}>{c.label}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.8, marginTop: 4 }}>pedidos na produção</div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
