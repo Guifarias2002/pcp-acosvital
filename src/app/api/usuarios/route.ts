@@ -77,10 +77,23 @@ export async function POST(req: Request) {
   // Vendedor é sempre somente leitura, independente do que vier no corpo da requisição.
   const soLeitura = perfil === 'vendedor' ? true : somente_leitura === true;
 
-  await sql`
-    INSERT INTO usuarios_usuario (username, nome, password, perfil, setor, setores, is_staff, is_active, somente_leitura, date_joined)
-    VALUES (${username}, ${nome}, ${hashed}, ${perfil}, ${setorPrincipal}, ${listaSetores}, ${is_staff}, true, ${soLeitura}, NOW())
-  `;
+  try {
+    await sql`
+      INSERT INTO usuarios_usuario (username, nome, password, perfil, setor, setores, is_staff, is_active, somente_leitura, date_joined)
+      VALUES (${username}, ${nome}, ${hashed}, ${perfil}, ${setorPrincipal}, ${listaSetores}, ${is_staff}, true, ${soLeitura}, NOW())
+    `;
+  } catch (e: unknown) {
+    console.error('[POST /api/usuarios]', e);
+    const pgErr = e as { code?: string; message?: string; constraint_name?: string };
+    // 23514 = check_violation — provavelmente uma trava antiga no banco limitando
+    // os valores aceitos em `perfil` (só existia administrador/pcp/lider/operador).
+    if (pgErr?.code === '23514') {
+      return NextResponse.json({
+        erro: `O banco de dados ainda não aceita o perfil "${perfil}" (trava/constraint antiga na coluna perfil: ${pgErr.constraint_name || 'desconhecida'}). Peça pro time de TI atualizar a constraint.`,
+      }, { status: 500 });
+    }
+    return NextResponse.json({ erro: 'Erro ao criar usuário no banco de dados.', detalhe: pgErr?.message }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true });
 }

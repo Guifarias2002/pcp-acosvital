@@ -59,33 +59,44 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (Object.keys(campos).length === 0)
     return NextResponse.json({ erro: 'Nenhum campo para atualizar' }, { status: 400 });
 
-  await sql.begin(async (tx) => {
-    if (campos.nome !== undefined) {
-      await tx`UPDATE usuarios_usuario SET nome = ${campos.nome as string} WHERE id = ${targetId}`;
+  try {
+    await sql.begin(async (tx) => {
+      if (campos.nome !== undefined) {
+        await tx`UPDATE usuarios_usuario SET nome = ${campos.nome as string} WHERE id = ${targetId}`;
+      }
+      if (campos.setor !== undefined) {
+        await tx`UPDATE usuarios_usuario SET setor = ${campos.setor as string | null} WHERE id = ${targetId}`;
+      }
+      if (campos.setores !== undefined) {
+        await tx`UPDATE usuarios_usuario SET setores = ${campos.setores as string[]} WHERE id = ${targetId}`;
+      }
+      if (campos.perfil !== undefined) {
+        await tx`UPDATE usuarios_usuario SET perfil = ${campos.perfil as string | null} WHERE id = ${targetId}`;
+      }
+      if (campos.is_active !== undefined) {
+        await tx`UPDATE usuarios_usuario SET is_active = ${campos.is_active as boolean} WHERE id = ${targetId}`;
+      }
+      if (campos.is_staff !== undefined) {
+        await tx`UPDATE usuarios_usuario SET is_staff = ${campos.is_staff as boolean} WHERE id = ${targetId}`;
+      }
+      if (campos.somente_leitura !== undefined) {
+        await tx`UPDATE usuarios_usuario SET somente_leitura = ${campos.somente_leitura as boolean} WHERE id = ${targetId}`;
+      }
+      if (campos.senha !== undefined) {
+        const hashed = await hashPassword(campos.senha as string);
+        await tx`UPDATE usuarios_usuario SET password = ${hashed} WHERE id = ${targetId}`;
+      }
+    });
+  } catch (e: unknown) {
+    console.error('[PATCH /api/usuarios/:id]', e);
+    const pgErr = e as { code?: string; message?: string; constraint_name?: string };
+    if (pgErr?.code === '23514') {
+      return NextResponse.json({
+        erro: `O banco de dados ainda não aceita o perfil "${campos.perfil}" (trava/constraint antiga na coluna perfil: ${pgErr.constraint_name || 'desconhecida'}).`,
+      }, { status: 500 });
     }
-    if (campos.setor !== undefined) {
-      await tx`UPDATE usuarios_usuario SET setor = ${campos.setor as string | null} WHERE id = ${targetId}`;
-    }
-    if (campos.setores !== undefined) {
-      await tx`UPDATE usuarios_usuario SET setores = ${campos.setores as string[]} WHERE id = ${targetId}`;
-    }
-    if (campos.perfil !== undefined) {
-      await tx`UPDATE usuarios_usuario SET perfil = ${campos.perfil as string | null} WHERE id = ${targetId}`;
-    }
-    if (campos.is_active !== undefined) {
-      await tx`UPDATE usuarios_usuario SET is_active = ${campos.is_active as boolean} WHERE id = ${targetId}`;
-    }
-    if (campos.is_staff !== undefined) {
-      await tx`UPDATE usuarios_usuario SET is_staff = ${campos.is_staff as boolean} WHERE id = ${targetId}`;
-    }
-    if (campos.somente_leitura !== undefined) {
-      await tx`UPDATE usuarios_usuario SET somente_leitura = ${campos.somente_leitura as boolean} WHERE id = ${targetId}`;
-    }
-    if (campos.senha !== undefined) {
-      const hashed = await hashPassword(campos.senha as string);
-      await tx`UPDATE usuarios_usuario SET password = ${hashed} WHERE id = ${targetId}`;
-    }
-  });
+    return NextResponse.json({ erro: 'Erro ao atualizar usuário no banco de dados.', detalhe: pgErr?.message }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true });
 }
