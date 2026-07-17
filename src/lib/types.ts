@@ -17,6 +17,16 @@ export const SETOR_CHOICES: [string, string][] = [
 
 export const NOMES: Record<string, string> = Object.fromEntries(SETOR_CHOICES);
 
+// Ordem real do roteiro de produção — usada pra ordenar as colunas dos Kanbans
+// (sistema e TV), em vez da ordem do SETOR_CHOICES. Setor fora desta lista
+// (ex: emissão, recebimento, compras) vai pro fim, sem sumir. Fonte única:
+// mudou o roteiro, muda aqui e reflete nos dois lugares.
+export const ORDEM_SETORES = ['estoque', 'maçarico', 'plasma', 'laser', 'usinagem', 'furacao', 'qualidade', 'acabamento', 'embalagem', 'logistica'];
+export const posSetorRoteiro = (cod: string) => {
+  const i = ORDEM_SETORES.indexOf(cod);
+  return i === -1 ? ORDEM_SETORES.length : i;
+};
+
 export const STATUS_LABELS: Record<string, string> = {
   emitido: 'Emitido',
   aguardando: 'Aguardando',

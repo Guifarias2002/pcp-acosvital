@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import { getToken } from '@/lib/auth';
+import { posSetorRoteiro } from '@/lib/types';
 import NotificacoesLive from '@/components/NotificacoesLive';
 
 interface LinhaStat {
@@ -73,15 +74,6 @@ const VEL_VAZIO: VelocidadePeriodo = { setores: [], usuarios: [] };
 const CORES = ['#0d6efd', '#198754', '#fd7e14', '#6f42c1', '#dc3545', '#20c997', '#b45309', '#0dcaf0'];
 const PRIO_COR: Record<string, string> = { baixa: '#94a3b8', normal: '#0d6efd', alta: '#d97706', urgente: '#dc3545' };
 const DWELL_VIEW_MS = 25_000;
-
-// Ordem fixa dos setores no Kanban da TV — segue o roteiro real de produção,
-// não a ordem que a API devolve (SETOR_CHOICES). Setor fora desta lista vai pro
-// fim, sem sumir.
-const ORDEM_SETORES_TV = ['estoque', 'maçarico', 'plasma', 'laser', 'usinagem', 'furacao', 'qualidade', 'acabamento', 'embalagem', 'logistica'];
-const posSetorTV = (cod: string) => {
-  const i = ORDEM_SETORES_TV.indexOf(cod);
-  return i === -1 ? ORDEM_SETORES_TV.length : i;
-};
 
 function Barra({ label, qtd, pct, cor }: { label: string; qtd: number; pct: number; cor: string }) {
   return (
@@ -230,9 +222,9 @@ export default function TVMovimentacoesPage() {
 
   const setoresAtivos = setoresKanban
     .filter(s => s.itens.length > 0)
-    .sort((a, b) => posSetorTV(a.cod) - posSetorTV(b.cod));
+    .sort((a, b) => posSetorRoteiro(a.cod) - posSetorRoteiro(b.cod));
   // Barras de % movimentacao tambem na ordem do roteiro, igual ao Kanban.
-  const setoresStatOrdenados = [...setoresStat].sort((a, b) => posSetorTV(a.setor) - posSetorTV(b.setor));
+  const setoresStatOrdenados = [...setoresStat].sort((a, b) => posSetorRoteiro(a.setor) - posSetorRoteiro(b.setor));
   // Colunas em 2 blocos quando tem muito setor, pra caber tudo sem rolar.
   const meioSetores = Math.ceil(setoresStatOrdenados.length / 2);
   // Corta os meses anteriores ao primeiro que teve pedido - sem meses vazios

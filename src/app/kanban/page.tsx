@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
-import { PRIORIDADE_COR, COR_STATUS, STATUS_LABELS } from '@/lib/types';
+import { PRIORIDADE_COR, COR_STATUS, STATUS_LABELS, posSetorRoteiro } from '@/lib/types';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 
@@ -100,7 +100,9 @@ export default function KanbanPage() {
   const totalPedidos = new Set(todasParciais.map(i => i.pedido_id)).size;
   const totalItens = new Set(todasParciais.map(i => i.item_pedido_id)).size;
   const totalChegando = setoresFiltrados.reduce((s, x) => s + x.chegando.length, 0);
-  const setoresAtivos = setoresFiltrados.filter(s => s.itens.length > 0 || s.chegando.length > 0);
+  const setoresAtivos = setoresFiltrados
+    .filter(s => s.itens.length > 0 || s.chegando.length > 0)
+    .sort((a, b) => posSetorRoteiro(a.cod) - posSetorRoteiro(b.cod));
 
   return (
     <AuthGuard>
