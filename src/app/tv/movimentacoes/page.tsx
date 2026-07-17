@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import { getToken } from '@/lib/auth';
-import { posSetorRoteiro } from '@/lib/types';
+import { posSetorRoteiro, getPedidoEtapa, Etapa } from '@/lib/types';
 import NotificacoesLive from '@/components/NotificacoesLive';
 
 interface LinhaStat {
@@ -82,18 +82,42 @@ interface PedidoProd {
 interface ContagemProd { hoje: number; semana: number; mes: number; }
 const CONTAGEM_VAZIA: ContagemProd = { hoje: 0, semana: 0, mes: 0 };
 
+interface PedidoPainel {
+  id: number;
+  numero_pedido_venda: string;
+  cliente: string;
+  prazo_entrega: string | null;
+  prioridade: string;
+  status: string;
+  setor_atual: string;
+  nome_setor_atual?: string;
+  atrasado?: boolean;
+  setores_parciais?: string[];
+  itens?: { status: string }[];
+}
+
 const CORES = ['#0d6efd', '#198754', '#fd7e14', '#6f42c1', '#dc3545', '#20c997', '#b45309', '#0dcaf0'];
 const PRIO_COR: Record<string, string> = { baixa: '#94a3b8', normal: '#0d6efd', alta: '#d97706', urgente: '#dc3545' };
 const DWELL_VIEW_MS = 25_000;
 
 // Rodízio das telas com tempo por tela: as de "totais" (números) passam rápido
 // (5s), as mais cheias ficam ~25s pra dar tempo de ler.
-type TVView = 'kanban' | 'dia' | 'semana' | 'ritmo' | 'comparativo' | 'analise' | 'velocidade';
-const VIEW_ORDEM: TVView[] = ['kanban', 'dia', 'semana', 'ritmo', 'comparativo', 'analise', 'velocidade'];
+type TVView = 'kanban' | 'painel' | 'dia' | 'semana' | 'ritmo' | 'comparativo' | 'analise' | 'velocidade';
+const VIEW_ORDEM: TVView[] = ['kanban', 'painel', 'dia', 'semana', 'ritmo', 'comparativo', 'analise', 'velocidade'];
 const VIEW_DWELL: Record<TVView, number> = {
-  kanban: 25_000, comparativo: 25_000, analise: 25_000, velocidade: 25_000,
+  kanban: 25_000, painel: 25_000, comparativo: 25_000, analise: 25_000, velocidade: 25_000,
   dia: 5_000, semana: 5_000, ritmo: 5_000,
 };
+
+// Painel de Produção — mesmas etapas/cores do card "Painel de Produção" do
+// Dashboard e da TV /tv/kanban, pra TV e sistema não divergirem.
+const ETAPAS_META: { etapa: Etapa; bg: string; label: string; sub: string; icon: string }[] = [
+  { etapa: 'a_produzir', bg: '#1a3a5c', label: 'A Produzir', sub: 'OPs emitidas aguardando início', icon: 'bi-hourglass-split' },
+  { etapa: 'produzindo', bg: '#1d4ed8', label: 'Produzindo', sub: 'em trabalho nos setores', icon: 'bi-gear-fill' },
+  { etapa: 'mat_concluido', bg: '#b45309', label: 'Mat. Concluído', sub: 'produção ok, na logística', icon: 'bi-truck' },
+  { etapa: 'entregue', bg: '#166534', label: 'Entregue', sub: 'materiais entregues ao cliente', icon: 'bi-check-circle-fill' },
+];
+const PAINEL_ETAPAS: Etapa[] = ETAPAS_META.map(e => e.etapa);
 
 function Barra({ label, qtd, pct, cor }: { label: string; qtd: number; pct: number; cor: string }) {
   return (
@@ -181,6 +205,8 @@ export default function TVMovimentacoesPage() {
   const [prodContagem, setProdContagem] = useState<ContagemProd>(CONTAGEM_VAZIA);
   const [prodHoje, setProdHoje] = useState<PedidoProd[]>([]);
   const [prodSemana, setProdSemana] = useState<PedidoProd[]>([]);
+  const [painelPedidos, setPainelPedidos] = useState<PedidoPainel[]>([]);
+  const [painelEtapaIdx, setPainelEtapaIdx] = useState(0);
   const [view, setView] = useState<TVView>('kanban');
 
   const carregar = useCallback(() => {
@@ -222,6 +248,16 @@ export default function TVMovimentacoesPage() {
       .then(r => (r.ok ? r.json() : null))
       .then(data => { if (data) { setProdContagem(data.contagem || CONTAGEM_VAZIA); setProdHoje(data.hoje || []); setProdSemana(data.semana || []); } })
       .catch(() => {});
+    // Painel de Produção (quadro de etapas) — junta abertos + entregues, igual à /tv/kanban.
+    Promise.all([
+      fetch('/api/dashboard/pedidos', { headers }).then(r => (r.ok ? r.json() : { pedidos: [] })).catch(() => ({ pedidos: [] })),
+      fetch('/api/entregues', { headers }).then(r => (r.ok ? r.json() : { pedidos: [] })).catch(() => ({ pedidos: [] })),
+    ]).then(([abertos, entregues]) => {
+      const mapa = new Map<number, PedidoPainel>();
+      for (const p of (abertos.pedidos || [])) mapa.set(p.id, p);
+      for (const p of (entregues.pedidos || [])) if (!mapa.has(p.id)) mapa.set(p.id, p);
+      setPainelPedidos(Array.from(mapa.values()));
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -250,6 +286,12 @@ export default function TVMovimentacoesPage() {
     return () => clearInterval(id);
   }, []);
 
+  // No Painel de Produção, roda as 4 etapas (mostra a tabela de uma por vez).
+  useEffect(() => {
+    const id = setInterval(() => setPainelEtapaIdx(i => (i + 1) % PAINEL_ETAPAS.length), 6000);
+    return () => clearInterval(id);
+  }, []);
+
   const setoresAtivos = setoresKanban
     .filter(s => s.itens.length > 0)
     .sort((a, b) => posSetorRoteiro(a.cod) - posSetorRoteiro(b.cod));
@@ -274,6 +316,14 @@ export default function TVMovimentacoesPage() {
   const maxVelUsuario = Math.max(1, ...velUsuarios.map(u => u.tempo_medio_min));
   const setorMaisAgil = velSetores[0] || null;
   const setorMaisLento = velSetores.length > 1 ? velSetores[velSetores.length - 1] : null;
+  // Painel de Produção: agrupa os pedidos nas 4 etapas (ag_recebimento conta em
+  // Produzindo, igual ao Dashboard/tv-kanban).
+  const painelGrupos: Record<Etapa, PedidoPainel[]> = { a_produzir: [], ag_recebimento: [], produzindo: [], mat_concluido: [], entregue: [] };
+  for (const p of painelPedidos) {
+    try { const e = getPedidoEtapa(p); painelGrupos[e === 'ag_recebimento' ? 'produzindo' : e].push(p); } catch { /* dados incompletos */ }
+  }
+  const painelMeta = ETAPAS_META[painelEtapaIdx];
+  const painelLista = painelGrupos[painelMeta.etapa];
   // Setor gargalo: o que tem mais peca parada agora (proxy de fila/WIP).
   const setorGargalo = setoresAtivos.length > 0
     ? setoresAtivos.reduce((maior, s) => (s.itens.length > maior.itens.length ? s : maior), setoresAtivos[0])
@@ -679,6 +729,82 @@ export default function TVMovimentacoesPage() {
                 <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.8, marginTop: 4 }}>pedidos na produção</div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* ── VIEW: Painel de Produção (quadro de etapas, igual ao sistema) ── */}
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 12,
+          opacity: view === 'painel' ? 1 : 0, transition: 'opacity .6s ease',
+          pointerEvents: view === 'painel' ? 'auto' : 'none',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#1a3a5c', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <span style={{ fontSize: 19 }}>🏭</span> Painel de Produção
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>· pedidos por etapa</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, flexShrink: 0 }}>
+            {ETAPAS_META.map((c, i) => {
+              const ativo = i === painelEtapaIdx;
+              return (
+                <div key={c.etapa} style={{
+                  background: c.bg, color: '#fff', padding: '14px 18px', borderRadius: 10,
+                  outline: ativo ? '3px solid #fff' : 'none',
+                  boxShadow: ativo ? `0 0 0 4px ${c.bg}, 0 0 0 6px #fff, 0 4px 16px rgba(0,0,0,.2)` : 'none',
+                  transform: ativo ? 'scale(1.02)' : 'scale(1)', opacity: ativo ? 1 : 0.72, transition: 'all .3s',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, opacity: 0.85 }}>{c.label}</div>
+                      <div style={{ fontSize: 40, fontWeight: 800, lineHeight: 1, margin: '6px 0 2px' }}>{painelGrupos[c.etapa].length}</div>
+                      <div style={{ fontSize: 10, opacity: 0.65 }}>{c.sub}</div>
+                    </div>
+                    <i className={`bi ${c.icon}`} style={{ fontSize: 26, opacity: 0.35 }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ flex: 1, minHeight: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '10px 16px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <i className={`bi ${painelMeta.icon}`} style={{ color: painelMeta.bg }} />
+              <strong style={{ fontSize: 14, color: '#1a3a5c' }}>{painelMeta.label}</strong>
+              <span style={{ background: painelMeta.bg, color: '#fff', fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 10 }}>{painelLista.length}</span>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              {painelLista.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: '#aaa', fontSize: 14 }}>Nenhum pedido nesta etapa</div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ textAlign: 'left', color: '#64748b', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      <th style={{ padding: '6px 16px' }}>Pedido</th>
+                      <th style={{ padding: '6px 8px' }}>Cliente</th>
+                      <th style={{ padding: '6px 8px' }}>Setor Atual</th>
+                      <th style={{ padding: '6px 8px' }}>Prioridade</th>
+                      <th style={{ padding: '6px 8px' }}>Prazo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {painelLista.map(p => (
+                      <tr key={p.id} style={{ borderTop: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '6px 16px', color: '#1a3a5c', fontWeight: 700 }}>{p.numero_pedido_venda}</td>
+                        <td style={{ padding: '6px 8px', color: '#555' }}>{p.cliente}</td>
+                        <td style={{ padding: '6px 8px', color: '#888' }}>{p.nome_setor_atual || '—'}</td>
+                        <td style={{ padding: '6px 8px' }}>
+                          <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600, color: '#fff', background: p.prioridade === 'urgente' ? '#dc3545' : p.prioridade === 'alta' ? '#fd7e14' : '#0d6efd' }}>
+                            {p.prioridade?.charAt(0).toUpperCase() + p.prioridade?.slice(1)}
+                          </span>
+                        </td>
+                        <td style={{ padding: '6px 8px', color: p.atrasado ? '#dc3545' : '#555', fontWeight: p.atrasado ? 700 : 400 }}>
+                          {p.atrasado && <i className="bi bi-exclamation-circle-fill" style={{ marginRight: 4 }} />}
+                          {p.prazo_entrega || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         </div>
       </div>
