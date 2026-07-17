@@ -252,6 +252,17 @@ export function TopBar({ onHamburger, colapsada, onExpandir }: TopBarProps) {
             </span>
           </>
         )}
+        {user?.is_staff && (
+          <a href="/tv/movimentacoes" target="_blank" rel="noopener noreferrer" title="TV Movimentação — abre em nova aba"
+            style={{
+              fontSize: 12, border: '1px solid #0d6efd', color: '#0d6efd',
+              background: 'none', borderRadius: 4, padding: '3px 10px', cursor: 'pointer',
+              whiteSpace: 'nowrap', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4,
+            }}>
+            <i className="bi bi-tv-fill"></i>
+            <span className="topbar-nome">TV</span>
+          </a>
+        )}
         <button onClick={logout} style={{
           fontSize: 12, border: '1px solid #dc3545', color: '#dc3545',
           background: 'none', borderRadius: 4, padding: '3px 10px', cursor: 'pointer', whiteSpace: 'nowrap',
