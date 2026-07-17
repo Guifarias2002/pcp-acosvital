@@ -21,6 +21,7 @@ interface LoteChegando {
 
 interface ItemKanban {
   id: number;
+  item_pedido_id: number;
   pedido_id: number;
   pedido_numero: string;
   pedido_cliente: string;
@@ -94,7 +95,10 @@ export default function KanbanPage() {
       }))
     : setores;
 
-  const total = setoresFiltrados.reduce((s, x) => s + x.itens.length, 0);
+  const todasParciais = setoresFiltrados.flatMap(x => x.itens);
+  const totalParciais = todasParciais.length;
+  const totalPedidos = new Set(todasParciais.map(i => i.pedido_id)).size;
+  const totalItens = new Set(todasParciais.map(i => i.item_pedido_id)).size;
   const totalChegando = setoresFiltrados.reduce((s, x) => s + x.chegando.length, 0);
   const setoresAtivos = setoresFiltrados.filter(s => s.itens.length > 0 || s.chegando.length > 0);
 
@@ -105,7 +109,7 @@ export default function KanbanPage() {
         <div>
           <h1 className="text-xl font-bold text-gray-800">Kanban de Produção</h1>
           <p className="text-xs text-gray-400 mt-0.5">
-            {total} item{total !== 1 ? 's' : ''} em produção
+            {totalPedidos} pedido{totalPedidos !== 1 ? 's' : ''} · {totalItens} ite{totalItens !== 1 ? 'ns' : 'm'} · {totalParciais} parcial{totalParciais !== 1 ? 'is' : ''} em produção
             {totalChegando > 0 && <span className="ml-2 text-blue-500">· {totalChegando} lote{totalChegando !== 1 ? 's' : ''} a caminho</span>}
             {ultimaAtt && <span className="ml-3 text-green-600">· ✓ atualizado às {ultimaAtt}</span>}
           </p>

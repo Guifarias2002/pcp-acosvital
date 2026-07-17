@@ -108,6 +108,7 @@ export async function GET(req: Request) {
     // com a quantidade real daquele pedaço (espelha a tela de setor).
     itens: itens.filter(i => i.setor_atual === cod).map(i => ({
       id: i.id,
+      item_pedido_id: i.item_pedido_id,
       pedido_id: i.pedido_id,
       pedido_numero: i.pedido_numero,
       pedido_cliente: i.pedido_cliente,
