@@ -10,6 +10,10 @@ export const dynamic = 'force-dynamic';
 // senão o corte do dia sai errado à noite (servidor roda em UTC).
 const TZ = 'America/Sao_Paulo';
 
+// Usuários que NÃO entram no ranking de velocidade (perfis que não representam
+// produção real — pedido do usuário). Danilo Barranco = id 6.
+const EXCLUIR_RANKING_USUARIOS = [6];
+
 // Comparativo de velocidade da produção — usado na 4ª tela da TV de movimentação.
 // Mede quem/qual é mais rápido a partir do tempo que a peça fica em cada setor.
 //
@@ -89,6 +93,7 @@ export async function GET(req: Request) {
         COUNT(*)          FILTER (WHERE dia_local = (NOW() AT TIME ZONE ${TZ})::date)::int AS hoje_amostras
       FROM dwell d
       JOIN usuarios_usuario u ON u.id = d.usuario_id
+      WHERE d.usuario_id <> ALL(${EXCLUIR_RANKING_USUARIOS})
       GROUP BY d.usuario_id, u.nome
     `;
 
