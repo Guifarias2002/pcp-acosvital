@@ -3,6 +3,11 @@ import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { nomeSector } from '@/lib/queries';
 import { withTimeout } from '@/lib/queryTimeout';
+import { getFresh, setCache, getStale } from '@/lib/apiCache';
+
+const CACHE_KEY = 'comparativo-velocidade';
+const FRESH_MS = 30_000;              // agregado que muda devagar — 30s serve
+const MAX_STALE_MS = 10 * 60_000;     // fallback de erro
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +36,9 @@ export async function GET(req: Request) {
   try {
     const user = await autenticar(req);
     if (user instanceof NextResponse) return user;
+
+    const cached = getFresh(CACHE_KEY, FRESH_MS);
+    if (cached) return NextResponse.json(cached);
 
     const qSetores = sql`
       WITH mov AS (
@@ -129,13 +137,17 @@ export async function GET(req: Request) {
         .filter(x => x.amostras > 0)
         .sort((a, b) => a.tempo_medio_min - b.tempo_medio_min);
 
-    return NextResponse.json({
+    const result = {
       hoje: { setores: setorPeriodo('hoje'), usuarios: usuarioPeriodo('hoje') },
       mes: { setores: setorPeriodo('mes'), usuarios: usuarioPeriodo('mes') },
       ontem: { setores: setorPeriodo('ontem'), usuarios: usuarioPeriodo('ontem') },
-    });
+    };
+    setCache(CACHE_KEY, result);
+    return NextResponse.json(result);
   } catch (e) {
     console.error('[comparativo-velocidade]', e);
+    const stale = getStale(CACHE_KEY, MAX_STALE_MS);
+    if (stale) return NextResponse.json(stale);
     return NextResponse.json({ erro: 'Erro ao carregar comparativo de velocidade' }, { status: 500 });
   }
 }

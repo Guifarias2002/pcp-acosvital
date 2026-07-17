@@ -2,10 +2,14 @@ import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { withTimeout } from '@/lib/queryTimeout';
+import { getFresh, setCache, getStale } from '@/lib/apiCache';
 
 export const dynamic = 'force-dynamic';
 
 const TZ = 'America/Sao_Paulo';
+const CACHE_KEY = 'producao-periodo';
+const FRESH_MS = 30_000;
+const MAX_STALE_MS = 10 * 60_000;
 
 // Pedidos encaminhados para a produção por período (hoje, semana, mês) — usado
 // nas telas de "totais" da TV. "Encaminhado" = quando o pedido entrou na
@@ -16,6 +20,9 @@ export async function GET(req: Request) {
   try {
     const user = await autenticar(req);
     if (user instanceof NextResponse) return user;
+
+    const cached = getFresh(CACHE_KEY, FRESH_MS);
+    if (cached) return NextResponse.json(cached);
 
     const q = sql`
       WITH prim AS (
@@ -52,7 +59,7 @@ export async function GET(req: Request) {
     const hoje = rows.filter(r => r.is_hoje).map(mapa);
     const semana = rows.filter(r => r.is_semana).map(mapa);
 
-    return NextResponse.json({
+    const result = {
       contagem: {
         hoje: rows.filter(r => r.is_hoje).length,
         semana: rows.filter(r => r.is_semana).length,
@@ -60,9 +67,13 @@ export async function GET(req: Request) {
       },
       hoje,
       semana,
-    });
+    };
+    setCache(CACHE_KEY, result);
+    return NextResponse.json(result);
   } catch (e) {
     console.error('[producao-periodo]', e);
+    const stale = getStale(CACHE_KEY, MAX_STALE_MS);
+    if (stale) return NextResponse.json(stale);
     return NextResponse.json({ erro: 'Erro ao carregar produção por período' }, { status: 500 });
   }
 }

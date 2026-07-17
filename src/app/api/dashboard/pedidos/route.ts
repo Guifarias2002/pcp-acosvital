@@ -1,13 +1,22 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
+import { getFresh, setCache, getStale } from '@/lib/apiCache';
 
 export const dynamic = 'force-dynamic';
 
+const CACHE_KEY = 'dashboard-pedidos';
+const FRESH_MS = 15_000;
+const MAX_STALE_MS = 10 * 60_000;
+
 export async function GET(req: Request) {
+  try {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+
+  const cached = getFresh(CACHE_KEY, FRESH_MS);
+  if (cached) return NextResponse.json(cached);
 
   // Queries simples em paralelo em vez de CTE com json_agg
   const [pedidos, itens, parciais] = await Promise.all([
@@ -66,5 +75,13 @@ export async function GET(req: Request) {
     itens: itensPorPedido[Number(p.id)] ?? [],
   }));
 
-  return NextResponse.json({ pedidos: resultado });
+  const payload = { pedidos: resultado };
+  setCache(CACHE_KEY, payload);
+  return NextResponse.json(payload);
+  } catch (e) {
+    console.error('[dashboard/pedidos]', e);
+    const stale = getStale(CACHE_KEY, MAX_STALE_MS);
+    if (stale) return NextResponse.json(stale);
+    return NextResponse.json({ erro: 'Erro ao carregar pedidos' }, { status: 500 });
+  }
 }
