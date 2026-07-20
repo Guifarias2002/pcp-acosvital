@@ -103,11 +103,11 @@ const DWELL_VIEW_MS = 25_000;
 
 // Rodízio das telas com tempo por tela: as de "totais" (números) passam rápido
 // (5s), as mais cheias ficam ~25s pra dar tempo de ler.
-type TVView = 'kanban' | 'painel' | 'dia' | 'semana' | 'ritmo' | 'comparativo' | 'analise' | 'velocidade';
-const VIEW_ORDEM: TVView[] = ['kanban', 'painel', 'dia', 'semana', 'ritmo', 'comparativo', 'velocidade', 'analise'];
+type TVView = 'kanban' | 'painel' | 'vendas' | 'ranking' | 'dia' | 'semana' | 'ritmo' | 'comparativo' | 'analise' | 'velocidade';
+const VIEW_ORDEM: TVView[] = ['kanban', 'painel', 'vendas', 'ranking', 'dia', 'semana', 'ritmo', 'comparativo', 'velocidade', 'analise'];
 const VIEW_DWELL: Record<TVView, number> = {
   kanban: 25_000, painel: 25_000, comparativo: 25_000, analise: 45_000, velocidade: 45_000,
-  dia: 20_000, semana: 20_000, ritmo: 20_000,
+  dia: 20_000, semana: 20_000, ritmo: 20_000, vendas: 20_000, ranking: 20_000,
 };
 
 // Painel de Produção — mesmas etapas/cores do card "Painel de Produção" do
@@ -119,6 +119,21 @@ const ETAPAS_META: { etapa: Etapa; bg: string; label: string; sub: string; icon:
   { etapa: 'entregue', bg: '#166534', label: 'Entregue', sub: 'materiais entregues ao cliente', icon: 'bi-check-circle-fill' },
 ];
 const PAINEL_ETAPAS: Etapa[] = ETAPAS_META.map(e => e.etapa);
+
+// Telas de vendas (valores em R$).
+interface VendaPedido { numero: string; cliente: string; vendedor: string; valor: number; }
+interface VendedorRank { nome: string; pedidos: number; valor: number; }
+interface VendaPeriodo { pedidos: number; valor_total: number; top: VendaPedido[]; vendedores: VendedorRank[]; }
+interface VendasData { hoje: VendaPeriodo; semana: VendaPeriodo; mes: VendaPeriodo; }
+const VENDA_PERIODO_VAZIO: VendaPeriodo = { pedidos: 0, valor_total: 0, top: [], vendedores: [] };
+const VENDAS_VAZIO: VendasData = { hoje: VENDA_PERIODO_VAZIO, semana: VENDA_PERIODO_VAZIO, mes: VENDA_PERIODO_VAZIO };
+
+// R$ compacto pra TV (sem centavos): "R$ 183.215". Valores grandes viram "R$ 1,2 mi".
+function formatarReal(v: number) {
+  if (!v) return 'R$ 0';
+  if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1).replace('.', ',')} mi`;
+  return `R$ ${Math.round(v).toLocaleString('pt-BR')}`;
+}
 
 function Barra({ label, qtd, pct, cor }: { label: string; qtd: number; pct: number; cor: string }) {
   return (
@@ -208,6 +223,8 @@ export default function TVMovimentacoesPage() {
   const [prodSemana, setProdSemana] = useState<PedidoProd[]>([]);
   const [painelPedidos, setPainelPedidos] = useState<PedidoPainel[]>([]);
   const [painelEtapaIdx, setPainelEtapaIdx] = useState(0);
+  const [vendas, setVendas] = useState<VendasData>(VENDAS_VAZIO);
+  const [vendasPeriodo, setVendasPeriodo] = useState<'hoje' | 'semana' | 'mes'>('hoje');
   const [view, setView] = useState<TVView>('kanban');
 
   const carregar = useCallback(() => {
@@ -259,6 +276,10 @@ export default function TVMovimentacoesPage() {
       for (const p of (entregues.pedidos || [])) if (!mapa.has(p.id)) mapa.set(p.id, p);
       setPainelPedidos(Array.from(mapa.values()));
     }).catch(() => {});
+    fetch('/api/dashboard/vendas', { headers })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (data && data.hoje) setVendas(data); })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -290,6 +311,13 @@ export default function TVMovimentacoesPage() {
   // No Painel de Produção, roda as 4 etapas (mostra a tabela de uma por vez).
   useEffect(() => {
     const id = setInterval(() => setPainelEtapaIdx(i => (i + 1) % PAINEL_ETAPAS.length), 6000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Telas de vendas alternam Hoje -> Semana -> Mês.
+  useEffect(() => {
+    const ordem: Array<'hoje' | 'semana' | 'mes'> = ['hoje', 'semana', 'mes'];
+    const id = setInterval(() => setVendasPeriodo(p => ordem[(ordem.indexOf(p) + 1) % ordem.length]), 7000);
     return () => clearInterval(id);
   }, []);
 
@@ -325,6 +353,10 @@ export default function TVMovimentacoesPage() {
   }
   const painelMeta = ETAPAS_META[painelEtapaIdx];
   const painelLista = painelGrupos[painelMeta.etapa];
+  // Vendas: período em foco (Hoje/Semana/Mês).
+  const vendaAtual = vendas[vendasPeriodo];
+  const vendaPeriodoLabel = vendasPeriodo === 'hoje' ? 'Hoje' : vendasPeriodo === 'semana' ? 'Esta Semana' : 'Este Mês';
+  const maxVendedorValor = Math.max(1, ...vendaAtual.vendedores.map(v => v.valor));
   // Setor gargalo: o que tem mais peca parada agora (proxy de fila/WIP).
   const setorGargalo = setoresAtivos.length > 0
     ? setoresAtivos.reduce((maior, s) => (s.itens.length > maior.itens.length ? s : maior), setoresAtivos[0])
@@ -813,6 +845,78 @@ export default function TVMovimentacoesPage() {
                   </tbody>
                 </table>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── VIEW: Maiores Pedidos por valor (Hoje/Semana/Mês) ─────────────── */}
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 12,
+          opacity: view === 'vendas' ? 1 : 0, transition: 'opacity .6s ease',
+          pointerEvents: view === 'vendas' ? 'auto' : 'none',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#1a3a5c', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <span style={{ fontSize: 19 }}>💰</span> Maiores Pedidos
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', background: '#16a34a', borderRadius: 20, padding: '2px 12px' }}>{vendaPeriodoLabel}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>· maiores pedidos por valor · alterna hoje ⇄ semana ⇄ mês</span>
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexShrink: 0 }}>
+            <div style={{ flex: 1, background: 'linear-gradient(135deg, #16a34a, #14532d)', borderRadius: 12, color: '#fff', padding: '12px 18px' }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.9, textTransform: 'uppercase', letterSpacing: 0.8 }}>Pedidos no período</div>
+              <div style={{ fontSize: 34, fontWeight: 800, lineHeight: 1.1 }}>{vendaAtual.pedidos}</div>
+            </div>
+            <div style={{ flex: 2, background: 'linear-gradient(135deg, #0d6efd, #1a3a5c)', borderRadius: 12, color: '#fff', padding: '12px 18px' }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.9, textTransform: 'uppercase', letterSpacing: 0.8 }}>Valor total vendido</div>
+              <div style={{ fontSize: 34, fontWeight: 800, lineHeight: 1.1 }}>{formatarReal(vendaAtual.valor_total)}</div>
+            </div>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, padding: '12px 18px 8px' }}>Maiores pedidos por valor</div>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 12px 12px' }}>
+              {vendaAtual.top.length === 0 ? (
+                <div style={{ color: '#aaa', fontSize: 14, textAlign: 'center', paddingTop: 24 }}>Nenhum pedido no período</div>
+              ) : vendaAtual.top.map((p, i) => (
+                <div key={p.numero} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderBottom: '1px solid #f1f5f9' }}>
+                  <span style={{ width: 24, flexShrink: 0, fontSize: 15, fontWeight: 800, color: i === 0 ? '#16a34a' : '#94a3b8', textAlign: 'center' }}>{i + 1}</span>
+                  <span style={{ width: 72, flexShrink: 0, fontWeight: 700, fontSize: 13.5, color: '#1a3a5c' }}>{p.numero}</span>
+                  <span style={{ flex: 1, fontSize: 13, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.cliente}</span>
+                  <span style={{ width: 150, flexShrink: 0, fontSize: 12, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.vendedor}</span>
+                  <span style={{ width: 120, flexShrink: 0, fontSize: 15, fontWeight: 800, color: '#16a34a', textAlign: 'right' }}>{formatarReal(p.valor)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── VIEW: Ranking de Vendedores (valor + nº pedidos) ──────────────── */}
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 12,
+          opacity: view === 'ranking' ? 1 : 0, transition: 'opacity .6s ease',
+          pointerEvents: view === 'ranking' ? 'auto' : 'none',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#1a3a5c', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <span style={{ fontSize: 19 }}>🏆</span> Ranking de Vendedores
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', background: '#16a34a', borderRadius: 20, padding: '2px 12px' }}>{vendaPeriodoLabel}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>· por valor vendido e nº de pedidos · alterna hoje ⇄ semana ⇄ mês</span>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column', padding: '12px 18px' }}>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              {vendaAtual.vendedores.length === 0 ? (
+                <div style={{ color: '#aaa', fontSize: 14, textAlign: 'center', paddingTop: 24 }}>Nenhuma venda no período</div>
+              ) : vendaAtual.vendedores.map((v, i) => {
+                const medalha = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}º`;
+                return (
+                  <div key={v.nome} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 9 }}>
+                    <span style={{ width: 34, flexShrink: 0, fontSize: i < 3 ? 20 : 14, fontWeight: 800, color: '#64748b', textAlign: 'center' }}>{medalha}</span>
+                    <span style={{ width: 190, flexShrink: 0, fontSize: 14, fontWeight: 700, color: '#1a3a5c', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.nome}</span>
+                    <div style={{ flex: 1, background: '#eef2f7', borderRadius: 6, height: 22, overflow: 'hidden', position: 'relative' }}>
+                      <div style={{ width: `${Math.max((v.valor / maxVendedorValor) * 100, 4)}%`, height: '100%', background: i === 0 ? '#16a34a' : '#4ade80', borderRadius: 6, transition: 'width .6s ease' }} />
+                    </div>
+                    <span style={{ width: 130, flexShrink: 0, fontSize: 15, fontWeight: 800, color: '#16a34a', textAlign: 'right' }}>{formatarReal(v.valor)}</span>
+                    <span style={{ width: 78, flexShrink: 0, fontSize: 12.5, fontWeight: 700, color: '#64748b', textAlign: 'right' }}>{v.pedidos} pedido{v.pedidos !== 1 ? 's' : ''}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
