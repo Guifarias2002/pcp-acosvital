@@ -30,7 +30,7 @@ function Cronometro({ desde }: { desde: string }) {
     </span>
   );
 }
-import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, setPesosPallets } from '@/lib/api';
+import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, setPesosPallets, inativarItem } from '@/lib/api';
 import { isAdministrador, podeEditar, getToken } from '@/lib/auth';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
@@ -682,6 +682,16 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
     finally { setLoading(false); }
   }
 
+  async function inativar() {
+    if (loading) return;
+    setLoading(true);
+    try {
+      await inativarItem(parcial.item_pedido_id as number, true);
+      onRefresh();
+    } catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
+    finally { setLoading(false); }
+  }
+
   async function enviarObservacao() {
     if (!novaObsTexto.trim()) return;
     setEnviandoObs(true);
@@ -1121,6 +1131,23 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             </button>
           );
         })()}
+
+        {/* Inativar item — só admin. Item some do painel do operador ao inativar;
+            reativação é feita no detalhe do pedido. */}
+        {isAdministrador() && (
+          <button
+            onClick={() => setConfirm({
+              titulo: 'Inativar item',
+              mensagem: `Inativar o item ${parcial.item_codigo || ''}? Ele some das telas do operador. Você pode reativar depois no detalhe do pedido.`,
+              acao: inativar,
+            })}
+            disabled={loading}
+            title="Inativar item (some para o operador)"
+            style={btnStyle('#b45309', true)}
+          >
+            <i className="bi bi-eye-slash" style={{ marginRight: 5 }} />Inativar
+          </button>
+        )}
       </div>
       )}
 
