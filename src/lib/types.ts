@@ -177,6 +177,10 @@ export interface ItemPedido {
   tem_pedido_venda?: boolean;
   tem_ordem_producao?: boolean;
   atrasado?: boolean;
+  inativo?: boolean;
+  inativado_em?: string | null;
+  inativado_por?: string | null;
+  motivo_inativacao?: string | null;
 }
 
 export interface ItemObservacao {

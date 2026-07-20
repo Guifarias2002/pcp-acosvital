@@ -29,6 +29,7 @@ export async function GET(req: Request) {
       LEFT JOIN usuarios_usuario u ON u.id = d.usuario_id
       LEFT JOIN usuarios_usuario r ON r.id = d.resolvido_por_id
       WHERE 1=1
+        AND (i.id IS NULL OR i.inativo = false)
         ${status ? sql`AND d.status = ${status}` : sql``}
         ${tipo ? sql`AND d.tipo = ${tipo}` : sql``}
         ${pedidoId ? sql`AND d.pedido_id = ${Number(pedidoId)}` : sql``}

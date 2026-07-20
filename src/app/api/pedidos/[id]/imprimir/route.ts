@@ -55,7 +55,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         // cada um com seu proprio desenho.
         const itensComDesenho = await sql`
           SELECT desenhos FROM producao_itempedido
-          WHERE pedido_id = ${pedidoId} AND COALESCE(array_length(desenhos, 1), 0) > 0
+          WHERE pedido_id = ${pedidoId} AND COALESCE(array_length(desenhos, 1), 0) > 0 AND inativo = false
         `;
         for (const it of itensComDesenho) {
           const ids: string[] = Array.isArray(it.desenhos) ? it.desenhos : [];

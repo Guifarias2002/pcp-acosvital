@@ -35,7 +35,7 @@ export async function GET(req: Request) {
             'status', i.status,
             'setor_atual', i.setor_atual
           ) ORDER BY i.codigo
-        ) FILTER (WHERE i.id IS NOT NULL),
+        ) FILTER (WHERE i.id IS NOT NULL AND i.inativo = false),
         '[]'
       ) AS itens,
       COALESCE(

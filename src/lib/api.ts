@@ -55,6 +55,11 @@ export const itemAcao = (id: number, acao: string, body?: Record<string, unknown
 export const adicionarObservacaoItem = (id: number, texto: string) =>
   api.post(`/api/item/${id}/observacao`, { texto }).then(r => r.data);
 
+// Inativa/reativa um item (admin only). Item inativo some das telas do operador
+// e aparece cinza para o admin. `motivo` é opcional.
+export const inativarItem = (id: number, inativo: boolean, motivo?: string) =>
+  api.post(`/api/item/${id}/inativar`, { inativo, motivo }).then(r => r.data);
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export const getDashboard = () =>
   api.get('/api/dashboard').then(r => r.data);

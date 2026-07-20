@@ -34,6 +34,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   `;
   if (!row) return NextResponse.json({ erro: 'Nao encontrado' }, { status: 404 });
 
+  // Item inativado não existe para o operador — só o admin enxerga (em cinza).
+  if (row.inativo && !user.is_staff)
+    return NextResponse.json({ erro: 'Nao encontrado' }, { status: 404 });
+
   if (!user.is_staff && !podeAcessarSetor(user, row.setor_atual)) {
     // Permite acesso se o usuário tem parcial ativa deste item em algum dos seus setores
     // (caso de divergência: parcial movida para outro setor mas setor_atual do item desatualizado)

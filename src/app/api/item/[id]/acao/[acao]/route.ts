@@ -190,6 +190,11 @@ export async function POST(
   `;
   if (!item) return NextResponse.json({ erro: 'Item nao encontrado' }, { status: 404 });
 
+  // Item inativado não aceita ações de produção (aba antiga / clique atrasado).
+  // Reative o item antes de movimentá-lo.
+  if (item.inativo)
+    return NextResponse.json({ erro: 'Item inativado — reative-o antes de movimentar.' }, { status: 409 });
+
   if (!user.is_staff && !podeAcessarSetor(user, item.setor_atual))
     return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
 

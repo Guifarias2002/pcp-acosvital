@@ -37,15 +37,18 @@ export async function GET(req: Request) {
       WHERE i.pedido_id IN (
         SELECT id FROM producao_pedido WHERE status != 'entregue' LIMIT 100
       )
+        AND i.inativo = false
     `,
     // Setores onde o pedido tem parcial ATIVA agora (pra mostrar "Setor Atual"
     // real quando as peças estão espalhadas). Só leitura, não afeta etapa.
     sql`
       SELECT DISTINCT pa.pedido_id, pa.setor_atual
       FROM producao_itemparcial pa
+      JOIN producao_itempedido i ON i.id = pa.item_pedido_id
       WHERE pa.pedido_id IN (
         SELECT id FROM producao_pedido WHERE status != 'entregue' LIMIT 100
       )
+        AND i.inativo = false
         AND pa.status IN ('em_aberto','recebido','em_andamento','finalizado_setor','pausado','concluida')
         AND pa.setor_atual IS NOT NULL AND pa.setor_atual != ''
     `,

@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
-import { getItem, itemAcao, parcialAcao } from '@/lib/api';
+import { getItem, itemAcao, parcialAcao, inativarItem } from '@/lib/api';
 import { ItemPedido, SETOR_CHOICES, STATUS_LABELS, PRIORIDADE_COR, NOMES } from '@/lib/types';
 import { getUser, getToken, podeEditar } from '@/lib/auth';
 import { fmtData, fmtQtd } from '@/lib/format';
@@ -53,6 +53,10 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   const [novaObservacao, setNovaObservacao] = useState('');
   const [enviandoObservacao, setEnviandoObservacao] = useState(false);
   const [erroObservacao, setErroObservacao] = useState('');
+  const [showInativar, setShowInativar] = useState(false);
+  const [motivoInativar, setMotivoInativar] = useState('');
+  const [inativando, setInativando] = useState(false);
+  const [erroInativar, setErroInativar] = useState('');
 
   const carregarRef = useRef<() => void>(() => {});
   function carregar() {
@@ -162,6 +166,22 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
     carregar();
   }
 
+  async function confirmarInativar(inativo: boolean) {
+    if (!item) return;
+    setInativando(true);
+    setErroInativar('');
+    try {
+      await inativarItem(item.id, inativo, inativo ? motivoInativar.trim() : undefined);
+      setShowInativar(false);
+      setMotivoInativar('');
+      carregar();
+    } catch (e: unknown) {
+      setErroInativar((e as { response?: { data?: { erro?: string } } }).response?.data?.erro || 'Erro ao atualizar item');
+    } finally {
+      setInativando(false);
+    }
+  }
+
   // Usuário somente-leitura: vê tudo (desenho, documentos, histórico), mas sem ações.
   const editavel = podeEditar();
   const isAdmin = getUser()?.is_staff && editavel;
@@ -265,6 +285,11 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
             <span className={`text-xs px-2 py-1 rounded font-bold ${corStatusClass(item.cor_status)}`}>
               {STATUS_LABELS[item.status]}
             </span>
+            {item.inativo && (
+              <span className="text-xs px-2 py-1 rounded font-bold bg-gray-300 text-gray-700">
+                <i className="bi bi-eye-slash mr-1" />Inativado
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {(item as any).tem_desenho && (
@@ -820,7 +845,77 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
           onReativar={reativarParcial}
           loading={atuando}
         />
+
+        {/* ── Inativar / Ativar item (somente administrador) ────────────────── */}
+        {isAdmin && (
+          <div className={`rounded-xl border shadow-sm p-4 mt-4 ${item.inativo ? 'bg-gray-100 border-gray-300' : 'bg-white border-amber-200'}`}>
+            <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${item.inativo ? 'text-gray-500' : 'text-amber-600'}`}>
+              <i className={`bi ${item.inativo ? 'bi-eye-slash' : 'bi-eye'} mr-1`} />
+              {item.inativo ? 'Item inativado' : 'Visibilidade do item'}
+            </p>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-sm text-gray-600">
+                {item.inativo ? (
+                  <>Este item está <strong>inativado</strong> e não aparece para os operadores.
+                    {item.inativado_por && <> Inativado por <strong>{item.inativado_por}</strong>.</>}
+                    {item.motivo_inativacao && <> Motivo: <em>{item.motivo_inativacao}</em></>}
+                  </>
+                ) : (
+                  <>Inativar esconde o item de todas as telas do operador. Ele continua visível (cinza) para administradores e pode ser reativado a qualquer momento.</>
+                )}
+              </p>
+              {item.inativo ? (
+                <button onClick={() => confirmarInativar(false)} disabled={inativando}
+                  className="bg-green-600 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-green-700 whitespace-nowrap disabled:opacity-50">
+                  <i className="bi bi-arrow-counterclockwise mr-1" />{inativando ? 'Ativando...' : 'Ativar item'}
+                </button>
+              ) : (
+                <button onClick={() => { setShowInativar(true); setMotivoInativar(''); setErroInativar(''); }}
+                  className="bg-amber-600 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-amber-700 whitespace-nowrap">
+                  <i className="bi bi-eye-slash mr-1" />Inativar item
+                </button>
+              )}
+            </div>
+            {erroInativar && <p className="text-xs text-red-600 mt-2">{erroInativar}</p>}
+          </div>
+        )}
       </div>
+
+      {/* Modal inativar item */}
+      {showInativar && item && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center" style={{ background: 'rgba(0,0,0,.5)' }}>
+          <div className="bg-white rounded-xl p-6 w-[92%] max-w-md shadow-xl">
+            <h5 className="text-amber-700 font-bold text-base m-0 mb-1">
+              <i className="bi bi-eye-slash mr-2" />Inativar item
+            </h5>
+            <p className="text-sm text-gray-700 mt-2 mb-1">
+              O item <strong>{item.codigo}</strong> ({item.descricao}) vai <strong>sumir das telas do operador</strong>.
+              Ele continua visível (cinza) para administradores e pode ser reativado depois.
+            </p>
+            {!entregue && item.status !== 'emitido' && (
+              <p className="text-xs bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg px-3 py-2 mb-2 mt-2">
+                <i className="bi bi-info-circle mr-1" />
+                Este item está <strong>em movimentação</strong> — mesmo assim será inativado.
+              </p>
+            )}
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Motivo (opcional)</label>
+            <textarea value={motivoInativar} onChange={e => setMotivoInativar(e.target.value)} rows={3}
+              placeholder="Ex.: item cancelado pelo cliente, duplicado, etc."
+              className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-amber-400" />
+            {erroInativar && <p className="text-xs text-red-600 mt-2">{erroInativar}</p>}
+            <div className="flex gap-2 justify-end mt-4">
+              <button onClick={() => setShowInativar(false)} disabled={inativando}
+                className="border border-gray-300 text-gray-600 rounded px-4 py-2 text-sm font-semibold hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button onClick={() => confirmarInativar(true)} disabled={inativando}
+                className="bg-amber-600 text-white rounded px-5 py-2 text-sm font-bold hover:bg-amber-700 disabled:opacity-50">
+                {inativando ? 'Inativando...' : 'Confirmar inativação'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AuthGuard>
   );
 }

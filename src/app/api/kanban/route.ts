@@ -50,7 +50,7 @@ export async function GET(req: Request) {
           JOIN producao_itempedido i ON i.id = pa.item_pedido_id
           JOIN producao_pedido p ON p.id = pa.pedido_id
           WHERE pa.status = ANY(${STATUS_PARCIAL_ATIVA}) AND pa.setor_atual = ${filtroSetor}
-            AND i.status != 'entregue'
+            AND i.status != 'entregue' AND i.inativo = false
           ORDER BY p.prioridade DESC, p.prazo_entrega ASC
         `
       : sql`
@@ -62,7 +62,7 @@ export async function GET(req: Request) {
           JOIN producao_itempedido i ON i.id = pa.item_pedido_id
           JOIN producao_pedido p ON p.id = pa.pedido_id
           WHERE pa.status = ANY(${STATUS_PARCIAL_ATIVA})
-            AND i.status != 'entregue'
+            AND i.status != 'entregue' AND i.inativo = false
           ORDER BY p.prioridade DESC, p.prazo_entrega ASC
         `;
 
@@ -77,7 +77,7 @@ export async function GET(req: Request) {
           FROM producao_loteitem l
           JOIN producao_itempedido i ON i.id = l.item_pedido_id
           JOIN producao_pedido p ON p.id = i.pedido_id
-          WHERE l.status = 'em_producao' AND l.setor_destino = ${filtroSetor}
+          WHERE l.status = 'em_producao' AND l.setor_destino = ${filtroSetor} AND i.inativo = false
           ORDER BY p.prazo_entrega ASC
         `
       : sql`
@@ -89,7 +89,7 @@ export async function GET(req: Request) {
           FROM producao_loteitem l
           JOIN producao_itempedido i ON i.id = l.item_pedido_id
           JOIN producao_pedido p ON p.id = i.pedido_id
-          WHERE l.status = 'em_producao'
+          WHERE l.status = 'em_producao' AND i.inativo = false
           ORDER BY p.prazo_entrega ASC
         `;
 

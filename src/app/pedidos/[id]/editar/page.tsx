@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
-import { getPedido, editarPedido, api } from '@/lib/api';
+import { getPedido, editarPedido, inativarItem } from '@/lib/api';
 import { SETOR_CHOICES } from '@/lib/types';
 import { getUser } from '@/lib/auth';
 
@@ -14,7 +14,15 @@ interface ItemForm {
   unidade: string;
   valor_unitario: string;
   roteiro_proprio: string[];
+  status?: string;
+  quantidade_entregue?: number;
+  inativo?: boolean;
   _remover?: boolean;
+}
+
+// Item já entrou em produção? (não está mais só "emitido" ou já teve entrega)
+function emProducao(it: ItemForm): boolean {
+  return !!it.id && (it.status !== 'emitido' || Number(it.quantidade_entregue || 0) > 0);
 }
 
 const UNIDADES = ['un', 'kg', 'm', 'pc', 'jg', 'cx', 'lt'];
@@ -39,6 +47,13 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
   const [roteiro, setRoteiro] = useState<string[]>(['emissao']);
   const [itens, setItens] = useState<ItemForm[]>([]);
 
+  // Modal de inativação (item em movimentação) — chama o endpoint imediatamente,
+  // fora do batch de "Salvar Alterações". Motivo opcional.
+  const [inativarModal, setInativarModal] = useState<{ index: number; item: ItemForm } | null>(null);
+  const [motivoInativar, setMotivoInativar] = useState('');
+  const [inativando, setInativando] = useState(false);
+  const [erroInativar, setErroInativar] = useState('');
+
   useEffect(() => {
     getPedido(Number(id)).then((pedido) => {
       setPv(pedido.numero_pedido_venda || '');
@@ -57,6 +72,9 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
         unidade: String(i.unidade || 'un'),
         valor_unitario: i.valor_unitario ? String(i.valor_unitario) : '',
         roteiro_proprio: (i.roteiro_proprio as string[]) || [],
+        status: i.status as string | undefined,
+        quantidade_entregue: Number(i.quantidade_entregue || 0),
+        inativo: Boolean(i.inativo),
       })));
       setLoading(false);
     }).catch(() => {
@@ -75,7 +93,36 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
   }
 
   function remItem(i: number) {
-    setItens(prev => prev.map((it, idx) => idx === i ? { ...it, _remover: true } : it));
+    const it = itens[i];
+    // Item em movimentação: não pode ser removido, mas pode ser inativado.
+    if (emProducao(it)) {
+      setMotivoInativar('');
+      setErroInativar('');
+      setInativarModal({ index: i, item: it });
+      return;
+    }
+    // Item ainda não produzido (ou novo, não salvo): marcação simples no batch.
+    setItens(prev => prev.map((item, idx) => idx === i ? { ...item, _remover: true } : item));
+  }
+
+  // Alterna inativo/ativo de um item (imediato, fora do batch). Ao inativar abre
+  // o modal para o motivo opcional; ao ativar age direto.
+  async function toggleInativo(i: number, inativo: boolean) {
+    const it = itens[i];
+    if (!it.id) return;
+    if (inativo && !inativarModal) { setMotivoInativar(''); setErroInativar(''); setInativarModal({ index: i, item: it }); return; }
+    setInativando(true);
+    setErroInativar('');
+    try {
+      await inativarItem(it.id, inativo, inativo ? motivoInativar.trim() || undefined : undefined);
+      const idx = i;
+      setItens(prev => prev.map((item, j) => j === idx ? { ...item, inativo } : item));
+      setInativarModal(null);
+    } catch (e: unknown) {
+      setErroInativar((e as { response?: { data?: { erro?: string } } }).response?.data?.erro || 'Erro ao atualizar item');
+    } finally {
+      setInativando(false);
+    }
   }
 
   function setItemField(i: number, field: keyof ItemForm, val: string) {
@@ -228,17 +275,42 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {itens.map((item, i) => item._remover ? null : (
-                  <div key={i} style={{ border: '1px solid #e9ecef', borderRadius: 8, padding: 12, background: item.id ? '#f8faff' : '#f0fff4' }}>
+                  <div key={i} style={{ border: '1px solid #e9ecef', borderRadius: 8, padding: 12, background: item.inativo ? '#f1f3f5' : item.id ? '#f8faff' : '#f0fff4', opacity: item.inativo ? 0.7 : 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#1a3a5c' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: item.inativo ? '#868e96' : '#1a3a5c' }}>
                         <i className="bi bi-box" style={{ marginRight: 5 }} />
                         {item.id ? `Item existente` : 'Novo item'}
                         {item.id && <span style={{ color: '#888', fontWeight: 400, marginLeft: 6 }}>ID #{item.id}</span>}
+                        {item.inativo && (
+                          <span style={{ marginLeft: 8, background: '#dee2e6', color: '#495057', borderRadius: 4, padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>
+                            <i className="bi bi-eye-slash" style={{ marginRight: 3 }} />Inativado
+                          </span>
+                        )}
+                        {!item.inativo && emProducao(item) && (
+                          <span style={{ marginLeft: 8, background: '#fff3cd', color: '#7a5a00', borderRadius: 4, padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>
+                            <i className="bi bi-arrow-repeat" style={{ marginRight: 3 }} />Em movimentação
+                          </span>
+                        )}
                       </span>
-                      <button type="button" onClick={() => remItem(i)}
-                        style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 5, padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-                        <i className="bi bi-trash" style={{ marginRight: 3 }} />Remover
-                      </button>
+                      {item.inativo ? (
+                        <button type="button" onClick={() => toggleInativo(i, false)} disabled={inativando}
+                          title="Reativar item (volta a aparecer para o operador)"
+                          style={{ background: '#d1e7dd', color: '#0a5c36', border: 'none', borderRadius: 5, padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                          <i className="bi bi-arrow-counterclockwise" style={{ marginRight: 3 }} />Ativar
+                        </button>
+                      ) : emProducao(item) ? (
+                        <button type="button" onClick={() => remItem(i)}
+                          title="Inativar item em movimentação (some para o operador)"
+                          style={{ background: '#fff3cd', color: '#7a5a00', border: 'none', borderRadius: 5, padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                          <i className="bi bi-eye-slash" style={{ marginRight: 3 }} />Inativar
+                        </button>
+                      ) : (
+                        <button type="button" onClick={() => remItem(i)}
+                          title="Remover item"
+                          style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 5, padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                          <i className="bi bi-trash" style={{ marginRight: 3 }} />Remover
+                        </button>
+                      )}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1fr 1fr', gap: 8 }}>
                       <div>
@@ -356,6 +428,36 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
           </div>
         </div>
       </form>
+
+      {/* Modal inativar item em movimentação — imediato, fora do batch */}
+      {inativarModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="card" style={{ padding: 24, maxWidth: 460, width: '92%' }}>
+            <h5 style={{ margin: '0 0 6px', color: '#b45309', fontWeight: 700 }}>
+              <i className="bi bi-eye-slash" style={{ marginRight: 8 }} />Inativar item
+            </h5>
+            <p style={{ fontSize: 14, color: '#333', margin: '6px 0' }}>
+              O item <strong>{inativarModal.item.codigo}</strong> vai <strong>sumir das telas do operador</strong>.
+              Ele continua visível (cinza) para administradores e pode ser reativado a qualquer momento.
+            </p>
+            <label className={labelCls}>Motivo (opcional)</label>
+            <textarea value={motivoInativar} onChange={e => setMotivoInativar(e.target.value)} rows={3}
+              placeholder="Ex.: item cancelado pelo cliente, duplicado, etc."
+              className={inputCls} style={{ resize: 'vertical' }} />
+            {erroInativar && <p style={{ color: '#dc2626', fontSize: 12, marginTop: 8 }}>{erroInativar}</p>}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+              <button type="button" onClick={() => setInativarModal(null)} disabled={inativando}
+                style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 6, padding: '8px 18px', fontSize: 13, cursor: 'pointer', color: '#555', fontWeight: 600 }}>
+                Cancelar
+              </button>
+              <button type="button" onClick={() => toggleInativo(inativarModal.index, true)} disabled={inativando}
+                style={{ background: '#b45309', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 22px', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: inativando ? 0.5 : 1 }}>
+                {inativando ? 'Inativando...' : 'Confirmar inativação'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AuthGuard>
   );
 }

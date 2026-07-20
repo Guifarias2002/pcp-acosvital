@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
-import { getPedido, itemAcao } from '@/lib/api';
+import { getPedido, itemAcao, inativarItem } from '@/lib/api';
 import { Pedido, ItemPedido, COR_STATUS, STATUS_LABELS, PRIORIDADE_COR, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR } from '@/lib/types';
 import { getUser, getToken, podeEditar, podeAcessarSetor } from '@/lib/auth';
 import Link from 'next/link';
@@ -259,6 +259,15 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   }
   carregarRef.current = carregar;
 
+  async function toggleInativoItem(item: ItemPedido, inativo: boolean) {
+    try {
+      await inativarItem(item.id, inativo);
+      carregar();
+    } catch (e: unknown) {
+      setErroAcao((e as { response?: { data?: { erro?: string } } }).response?.data?.erro || 'Erro ao atualizar item');
+    }
+  }
+
   useEffect(() => { setLoading(true); carregarRef.current(); }, [id]);
 
   // Polling a cada 10s — atualiza automático para todos os usuários
@@ -490,7 +499,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
               </div>
               <div className="divide-y">
                 {pedido.itens.map((item, idx) => (
-                  <div key={item.id} className="p-4">
+                  <div key={item.id} className={`p-4 ${item.inativo ? 'bg-gray-100 opacity-70' : ''}`}>
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
@@ -498,6 +507,29 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                           <span className={`text-xs px-2 py-0.5 rounded font-semibold ${item.cor_status === 'info' ? 'bg-blue-500 text-white' : item.cor_status === 'primary' ? 'bg-blue-600 text-white' : item.cor_status === 'success' ? 'bg-green-500 text-white' : 'bg-yellow-100 text-yellow-800'}`}>
                             {item.status_display}
                           </span>
+                          {item.inativo && (
+                            <span className="text-xs px-2 py-0.5 rounded font-semibold bg-gray-300 text-gray-700" title={item.motivo_inativacao || undefined}>
+                              <i className="bi bi-eye-slash mr-1" />Inativado
+                            </span>
+                          )}
+                          {isAdmin && (
+                            item.inativo ? (
+                              <button onClick={() => toggleInativoItem(item, false)}
+                                className="text-xs px-2 py-0.5 rounded font-semibold border border-green-600 text-green-700 hover:bg-green-50">
+                                <i className="bi bi-arrow-counterclockwise mr-1" />Ativar
+                              </button>
+                            ) : (
+                              <button onClick={() => setConfirm({
+                                titulo: 'Inativar item',
+                                mensagem: `Inativar o item ${item.codigo}? Ele some das telas do operador e fica cinza para os administradores. Você pode reativar depois.`,
+                                acao: () => toggleInativoItem(item, true),
+                              })}
+                                title="Inativar item (some para o operador)"
+                                className="text-xs px-2 py-0.5 rounded font-semibold border border-amber-500 text-amber-700 hover:bg-amber-50">
+                                <i className="bi bi-eye-slash mr-1" />Inativar
+                              </button>
+                            )
+                          )}
                         </div>
                         <p className="font-semibold text-gray-800">{item.descricao}</p>
                         <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">

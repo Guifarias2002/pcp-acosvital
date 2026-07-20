@@ -23,7 +23,7 @@ export async function GET(req: Request) {
   const qPorSetor = sql`
       SELECT setor_atual, COUNT(*) AS qtd
       FROM producao_itempedido
-      WHERE status NOT IN ('entregue', 'cancelado')
+      WHERE status NOT IN ('entregue', 'cancelado') AND inativo = false
       GROUP BY setor_atual
     `;
   const qUltMovs = sql`
@@ -34,6 +34,7 @@ export async function GET(req: Request) {
       JOIN producao_itempedido i ON i.id = m.item_id
       LEFT JOIN producao_pedido p ON p.id = i.pedido_id
       LEFT JOIN usuarios_usuario u ON u.id = m.usuario_id
+      WHERE i.inativo = false
       ORDER BY m.criado_em DESC
       LIMIT 15
     `;

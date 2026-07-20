@@ -17,7 +17,7 @@ export async function GET(req: Request) {
 
     const qRows = sql`
       SELECT p.*, u.nome AS criado_por_nome,
-             COALESCE((SELECT SUM(i2.quantidade * COALESCE(i2.valor_unitario,0)) FROM producao_itempedido i2 WHERE i2.pedido_id = p.id), 0)::text AS valor_calculado
+             COALESCE((SELECT SUM(i2.quantidade * COALESCE(i2.valor_unitario,0)) FROM producao_itempedido i2 WHERE i2.pedido_id = p.id AND i2.inativo = false), 0)::text AS valor_calculado
       FROM producao_pedido p
       LEFT JOIN usuarios_usuario u ON u.id = p.criado_por_id
       WHERE p.status != 'entregue'
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
           p.roteiro_base
         FROM producao_itempedido i
         JOIN producao_pedido p ON p.id = i.pedido_id
-        WHERE i.pedido_id = ANY(${ids})
+        WHERE i.pedido_id = ANY(${ids}) AND i.inativo = false
         ORDER BY p.numero_pedido_venda, i.codigo
       `;
       const itenRows = await withTimeout(qItenRows, 13000, [qItenRows]);

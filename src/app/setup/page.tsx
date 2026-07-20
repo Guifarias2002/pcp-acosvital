@@ -21,6 +21,14 @@ const SCRIPTS = [
     url: '/api/setup/excluidos',
   },
   {
+    id: 'inativar-item',
+    label: 'Inativação de Itens',
+    desc: 'Adiciona as colunas de inativação em producao_itempedido (inativo, quem/quando, motivo)',
+    icon: 'bi-eye-slash-fill',
+    color: '#b45309',
+    url: '/api/setup/inativar-item',
+  },
+  {
     id: 'hardening',
     label: 'Hardening do Banco',
     desc: 'Adiciona constraints, índices, FKs e triggers de integridade em todas as tabelas',

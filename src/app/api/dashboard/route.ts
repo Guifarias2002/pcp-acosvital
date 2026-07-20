@@ -60,7 +60,7 @@ export async function GET(req: Request) {
   const qPorSetor = sql`
     SELECT setor_atual, COUNT(*) AS qtd
     FROM producao_itempedido
-    WHERE status NOT IN ('entregue', 'cancelado')
+    WHERE status NOT IN ('entregue', 'cancelado') AND inativo = false
     GROUP BY setor_atual
   `;
 
@@ -72,7 +72,7 @@ export async function GET(req: Request) {
            p.prazo_entrega::text AS pedido_prazo, p.prioridade AS pedido_prioridade, p.roteiro_base
     FROM producao_itempedido i
     JOIN producao_pedido p ON p.id = i.pedido_id
-    WHERE i.status NOT IN ('entregue', 'cancelado')
+    WHERE i.status NOT IN ('entregue', 'cancelado') AND i.inativo = false
     ORDER BY p.prioridade DESC, p.prazo_entrega ASC
   `;
 
@@ -93,6 +93,7 @@ export async function GET(req: Request) {
     JOIN producao_itempedido i ON i.id = m.item_id
     LEFT JOIN producao_pedido p ON p.id = i.pedido_id
     LEFT JOIN usuarios_usuario u ON u.id = m.usuario_id
+    WHERE i.inativo = false
     ORDER BY m.criado_em DESC
     LIMIT 15
   `;

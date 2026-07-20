@@ -49,7 +49,7 @@ function corPrazo(prazo: string, status: string): string {
 
 // ── Itens ─────────────────────────────────────────────────────────────────────
 
-export async function queryItens(pedidoId: number) {
+export async function queryItens(pedidoId: number, incluirInativos = false) {
   const rows = await sql`
     SELECT
       i.id, i.pedido_id, i.codigo, i.descricao,
@@ -58,6 +58,7 @@ export async function queryItens(pedidoId: number) {
       i.quantidade_pendente::text,
       i.quantidade_entregue::text,
       i.valor_unitario::text,
+      i.inativo, i.inativado_em::text AS inativado_em, i.inativado_por, i.motivo_inativacao,
       COALESCE(i.desenhos, '{}') AS desenhos,
       p.numero_pedido_venda AS pedido_numero,
       p.cliente AS pedido_cliente,
@@ -67,6 +68,7 @@ export async function queryItens(pedidoId: number) {
     FROM producao_itempedido i
     JOIN producao_pedido p ON p.id = i.pedido_id
     WHERE i.pedido_id = ${pedidoId}
+      AND (${incluirInativos} OR i.inativo = false)
     ORDER BY p.numero_pedido_venda, i.codigo
   `;
 
@@ -122,6 +124,10 @@ export function formatItem(row: any) {
     tem_desenho: !!row.desenho_url || ((row.desenhos as string[])?.length > 0),
     tem_pedido_venda: row.tem_pedido_venda ?? !!row.pedido_venda_url,
     tem_ordem_producao: row.tem_ordem_producao ?? !!row.ordem_producao_url,
+    inativo: !!row.inativo,
+    inativado_em: row.inativado_em || null,
+    inativado_por: row.inativado_por || null,
+    motivo_inativacao: row.motivo_inativacao || null,
   };
 }
 
@@ -165,16 +171,16 @@ export function formatPedido(row: any, itens: unknown[] = []) {
   };
 }
 
-export async function getPedidoComItens(id: number) {
+export async function getPedidoComItens(id: number, incluirInativos = false) {
   const [pedRow] = await sql`
     SELECT p.*, u.nome AS criado_por_nome,
-           COALESCE((SELECT SUM(i2.quantidade * COALESCE(i2.valor_unitario,0)) FROM producao_itempedido i2 WHERE i2.pedido_id = p.id), 0)::text AS valor_calculado
+           COALESCE((SELECT SUM(i2.quantidade * COALESCE(i2.valor_unitario,0)) FROM producao_itempedido i2 WHERE i2.pedido_id = p.id AND (${incluirInativos} OR i2.inativo = false)), 0)::text AS valor_calculado
     FROM producao_pedido p
     LEFT JOIN usuarios_usuario u ON u.id = p.criado_por_id
     WHERE p.id = ${id}
   `;
   if (!pedRow) return null;
-  const itens = await queryItens(id);
+  const itens = await queryItens(id, incluirInativos);
 
   // lotes e movimentacoes por item
   const itemIds = itens.map(i => i.id);

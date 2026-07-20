@@ -41,7 +41,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
              (p.pedido_venda_url IS NOT NULL) AS tem_pedido_venda,
              (p.ordem_producao_url IS NOT NULL) AS tem_ordem_producao
       FROM producao_itempedido i JOIN producao_pedido p ON p.id = i.pedido_id
-      WHERE i.setor_atual = ${setor} AND i.status != 'entregue'
+      WHERE i.setor_atual = ${setor} AND i.status != 'entregue' AND i.inativo = false
         AND NOT EXISTS (
           SELECT 1 FROM producao_itemparcial pa
           WHERE pa.item_pedido_id = i.id
@@ -59,7 +59,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       FROM producao_loteitem l
       JOIN producao_itempedido i ON i.id = l.item_pedido_id
       JOIN producao_pedido p ON p.id = i.pedido_id
-      WHERE l.setor_destino = ${setor} AND l.status = 'em_producao'
+      WHERE l.setor_destino = ${setor} AND l.status = 'em_producao' AND i.inativo = false
       ORDER BY l.criado_em ASC
     `,
 
@@ -71,7 +71,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       FROM producao_loteitem l
       JOIN producao_itempedido i ON i.id = l.item_pedido_id
       JOIN producao_pedido p ON p.id = i.pedido_id
-      WHERE l.setor_destino = ${setor} AND l.status = 'em_trabalho'
+      WHERE l.setor_destino = ${setor} AND l.status = 'em_trabalho' AND i.inativo = false
       ORDER BY l.criado_em ASC
     `,
 
@@ -101,6 +101,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       WHERE pa.setor_atual = ${setor}
         AND pa.status IN ('em_aberto', 'recebido', 'em_andamento', 'finalizado_setor', 'pausado', 'concluida')
         AND i.status != 'entregue'
+        AND i.inativo = false
       ORDER BY p.numero_pedido_venda, i.codigo, pa.criado_em
     `.catch(() => [] as Record<string, unknown>[]),
 
@@ -116,6 +117,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       FROM producao_itemparcial pa
       JOIN producao_itempedido i ON i.id = pa.item_pedido_id
       WHERE pa.status NOT IN ('cancelada', 'concluida')
+        AND i.inativo = false
         AND pa.setor_atual != ${setor}
         AND pa.item_pedido_id IN (
           SELECT DISTINCT item_pedido_id FROM producao_itemparcial
@@ -141,6 +143,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       JOIN producao_itempedido i ON i.id = pa.item_pedido_id
       JOIN producao_pedido p ON p.id = pa.pedido_id
       WHERE pa.status != 'cancelada'
+        AND i.inativo = false
         AND EXISTS (
           SELECT 1 FROM producao_itemparcial px
           WHERE px.item_pedido_id = pa.item_pedido_id

@@ -26,7 +26,7 @@ export async function GET(req: Request) {
            p.numero_pedido_venda, p.cliente, p.prioridade, p.prazo_entrega
     FROM producao_itempedido i
     JOIN producao_pedido p ON p.id = i.pedido_id
-    WHERE i.status NOT IN ('entregue', 'emitido')
+    WHERE i.status NOT IN ('entregue', 'emitido') AND i.inativo = false
     ORDER BY p.prazo_entrega ASC
   `;
 

@@ -14,7 +14,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const pedidoId = Number(params.id);
   if (!Number.isInteger(pedidoId) || pedidoId <= 0)
     return NextResponse.json({ erro: 'ID invalido' }, { status: 400 });
-  const pedido = await getPedidoComItens(pedidoId);
+  // Admin (is_staff) vê itens inativados (em cinza); operador não os recebe.
+  const pedido = await getPedidoComItens(pedidoId, user.is_staff);
   if (!pedido) return NextResponse.json({ erro: 'Nao encontrado' }, { status: 404 });
 
   // Qualquer usuário autenticado pode ler (somente leitura) qualquer pedido —
@@ -166,7 +167,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ erro: err?.message || 'Erro ao atualizar pedido' }, { status });
   }
 
-  const pedidoAtualizado = await getPedidoComItens(pedidoId);
+  const pedidoAtualizado = await getPedidoComItens(pedidoId, true);
   return NextResponse.json(pedidoAtualizado);
 }
 

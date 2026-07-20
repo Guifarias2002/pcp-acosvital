@@ -79,7 +79,7 @@ export async function GET(req: Request) {
              SUM(quantidade * COALESCE(valor_unitario, 0))::text AS valor_calculado,
              json_agg(json_build_object('id', id, 'status', status)) AS itens
       FROM producao_itempedido
-      WHERE pedido_id = ANY(${ids})
+      WHERE pedido_id = ANY(${ids}) AND inativo = false
       GROUP BY pedido_id
     `,
     sql`
@@ -87,6 +87,7 @@ export async function GET(req: Request) {
       FROM producao_itemparcial pa
       JOIN producao_itempedido ii ON ii.id = pa.item_pedido_id
       WHERE ii.pedido_id = ANY(${ids})
+        AND ii.inativo = false
         AND pa.status NOT IN ('cancelada', 'concluida')
       GROUP BY ii.pedido_id
     `,

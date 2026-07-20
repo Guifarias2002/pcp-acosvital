@@ -25,7 +25,7 @@ export async function GET(req: Request) {
   const qPorProduto = sql`
       SELECT i.codigo, COUNT(*) AS total,
              COALESCE(SUM(i.valor_unitario * i.quantidade), 0)::text AS valor_total
-      FROM producao_itempedido i GROUP BY i.codigo ORDER BY total DESC LIMIT 15
+      FROM producao_itempedido i WHERE i.inativo = false GROUP BY i.codigo ORDER BY total DESC LIMIT 15
     `;
   const qTopClientes = sql`
       SELECT p.cliente, COUNT(DISTINCT p.id) AS total,
