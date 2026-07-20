@@ -103,11 +103,11 @@ const DWELL_VIEW_MS = 25_000;
 
 // Rodízio das telas com tempo por tela: as de "totais" (números) passam rápido
 // (5s), as mais cheias ficam ~25s pra dar tempo de ler.
-type TVView = 'kanban' | 'painel' | 'vendas' | 'ranking' | 'dia' | 'semana' | 'ritmo' | 'comparativo' | 'analise' | 'velocidade';
-const VIEW_ORDEM: TVView[] = ['kanban', 'painel', 'vendas', 'ranking', 'dia', 'semana', 'ritmo', 'comparativo', 'velocidade', 'analise'];
+type TVView = 'kanban' | 'painel' | 'vendas' | 'ranking' | 'flanges' | 'dia' | 'semana' | 'ritmo' | 'comparativo' | 'analise' | 'velocidade';
+const VIEW_ORDEM: TVView[] = ['kanban', 'painel', 'vendas', 'ranking', 'flanges', 'dia', 'semana', 'ritmo', 'comparativo', 'velocidade', 'analise'];
 const VIEW_DWELL: Record<TVView, number> = {
   kanban: 25_000, painel: 25_000, comparativo: 25_000, analise: 45_000, velocidade: 45_000,
-  dia: 20_000, semana: 20_000, ritmo: 20_000, vendas: 20_000, ranking: 20_000,
+  dia: 20_000, semana: 20_000, ritmo: 20_000, vendas: 20_000, ranking: 20_000, flanges: 20_000,
 };
 
 // Painel de Produção — mesmas etapas/cores do card "Painel de Produção" do
@@ -123,9 +123,10 @@ const PAINEL_ETAPAS: Etapa[] = ETAPAS_META.map(e => e.etapa);
 // Telas de vendas (valores em R$).
 interface VendaPedido { numero: string; cliente: string; vendedor: string; valor: number; }
 interface VendedorRank { nome: string; pedidos: number; valor: number; }
-interface VendaPeriodo { pedidos: number; valor_total: number; top: VendaPedido[]; vendedores: VendedorRank[]; }
+interface FlangeRank { codigo: string; descricao: string; unidade: string; qtd: number; }
+interface VendaPeriodo { pedidos: number; valor_total: number; top: VendaPedido[]; vendedores: VendedorRank[]; flanges: FlangeRank[]; }
 interface VendasData { hoje: VendaPeriodo; semana: VendaPeriodo; mes: VendaPeriodo; }
-const VENDA_PERIODO_VAZIO: VendaPeriodo = { pedidos: 0, valor_total: 0, top: [], vendedores: [] };
+const VENDA_PERIODO_VAZIO: VendaPeriodo = { pedidos: 0, valor_total: 0, top: [], vendedores: [], flanges: [] };
 const VENDAS_VAZIO: VendasData = { hoje: VENDA_PERIODO_VAZIO, semana: VENDA_PERIODO_VAZIO, mes: VENDA_PERIODO_VAZIO };
 
 // R$ compacto pra TV (sem centavos): "R$ 183.215". Valores grandes viram "R$ 1,2 mi".
@@ -357,6 +358,7 @@ export default function TVMovimentacoesPage() {
   const vendaAtual = vendas[vendasPeriodo];
   const vendaPeriodoLabel = vendasPeriodo === 'hoje' ? 'Hoje' : vendasPeriodo === 'semana' ? 'Esta Semana' : 'Este Mês';
   const maxVendedorValor = Math.max(1, ...vendaAtual.vendedores.map(v => v.valor));
+  const maxFlangeQtd = Math.max(1, ...vendaAtual.flanges.map(f => f.qtd));
   // Setor gargalo: o que tem mais peca parada agora (proxy de fila/WIP).
   const setorGargalo = setoresAtivos.length > 0
     ? setoresAtivos.reduce((maior, s) => (s.itens.length > maior.itens.length ? s : maior), setoresAtivos[0])
@@ -917,6 +919,36 @@ export default function TVMovimentacoesPage() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+
+        {/* ── VIEW: Flanges mais fabricados (por quantidade) ────────────────── */}
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 12,
+          opacity: view === 'flanges' ? 1 : 0, transition: 'opacity .6s ease',
+          pointerEvents: view === 'flanges' ? 'auto' : 'none',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#1a3a5c', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <span style={{ fontSize: 19 }}>⚙️</span> Flanges Mais Fabricados
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', background: '#b45309', borderRadius: 20, padding: '2px 12px' }}>{vendaPeriodoLabel}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>· por quantidade · alterna hoje ⇄ semana ⇄ mês</span>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column', padding: '12px 18px' }}>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              {vendaAtual.flanges.length === 0 ? (
+                <div style={{ color: '#aaa', fontSize: 14, textAlign: 'center', paddingTop: 24 }}>Nenhum flange fabricado no período</div>
+              ) : vendaAtual.flanges.map((f, i) => (
+                <div key={f.codigo} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 9 }}>
+                  <span style={{ width: 30, flexShrink: 0, fontSize: 15, fontWeight: 800, color: i === 0 ? '#b45309' : '#94a3b8', textAlign: 'center' }}>{i + 1}º</span>
+                  <span style={{ width: 130, flexShrink: 0, fontSize: 13.5, fontWeight: 700, color: '#1a3a5c', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.codigo}</span>
+                  <span style={{ width: 260, flexShrink: 0, fontSize: 12, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.descricao}</span>
+                  <div style={{ flex: 1, background: '#eef2f7', borderRadius: 6, height: 22, overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.max((f.qtd / maxFlangeQtd) * 100, 4)}%`, height: '100%', background: i === 0 ? '#b45309' : '#f59e0b', borderRadius: 6, transition: 'width .6s ease' }} />
+                  </div>
+                  <span style={{ width: 90, flexShrink: 0, fontSize: 16, fontWeight: 800, color: '#b45309', textAlign: 'right' }}>{Math.round(f.qtd).toLocaleString('pt-BR')} {f.unidade}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
