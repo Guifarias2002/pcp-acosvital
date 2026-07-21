@@ -139,7 +139,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
           {/* Caldeiraria — linha própria, separada dos Flanges */}
           {(isAdmin || meusSetores.includes('caldeiraria')) && (
             <NavGroup label="🏗 Caldeiraria" defaultOpen={true}>
-              <NavItem href="/setor/caldeiraria" label="Caldeiraria" icon={SETOR_ICONS.caldeiraria} onNav={fechar} />
+              <NavItem href="/setor/caldeiraria" label="Recebimento" icon={SETOR_ICONS.caldeiraria} onNav={fechar} />
             </NavGroup>
           )}
 

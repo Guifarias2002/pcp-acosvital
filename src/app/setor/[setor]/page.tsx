@@ -944,17 +944,6 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar entrega
           </button>
         )}
-        {isLogistica && isAberto && (
-          <button
-            onClick={() => setConfirm({
-              titulo: 'Enviar para Caldeiraria',
-              mensagem: 'Enviar esta parcial diretamente para a Caldeiraria (solda)?',
-              acao: () => acao('mover', { setor_destino: 'caldeiraria' }),
-            })}
-            disabled={loading} style={btnStyle('#c2410c', true)}>
-            <i className="bi bi-hammer" style={{ marginRight: 5 }} />Enviar p/ Caldeiraria
-          </button>
-        )}
         {showIniciarEntrega && (
           <IniciarEntregaModal
             pedidoNumero={parcial.numero_pedido_venda ?? ''}
@@ -1674,17 +1663,6 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
         {isLogistica && isAberto && (
           <button onClick={() => setShowIniciarEntregaGrupo(true)} disabled={loading} style={btnStyle('#0d6efd')}>
             <i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar entrega
-          </button>
-        )}
-        {isLogistica && isAberto && (
-          <button
-            onClick={() => setConfirm({
-              titulo: 'Enviar para Caldeiraria',
-              mensagem: `Enviar ${parciais.length > 1 ? 'estas parciais' : 'esta parcial'} diretamente para a Caldeiraria (solda)?`,
-              acao: () => acaoTodos('mover', { setor_destino: 'caldeiraria' }),
-            })}
-            disabled={loading} style={btnStyle('#c2410c', true)}>
-            <i className="bi bi-hammer" style={{ marginRight: 5 }} />Enviar p/ Caldeiraria
           </button>
         )}
         {showIniciarEntregaGrupo && (
