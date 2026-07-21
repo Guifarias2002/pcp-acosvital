@@ -108,8 +108,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
             WHERE id = ${Number(item.id)} AND pedido_id = ${pedidoId}
           `;
           if (!atual) continue;
-          if (atual.status !== 'emitido' || Number(atual.quantidade_entregue) > 0) {
-            throw Object.assign(new Error(`Item ${item.id} já entrou em produção (status: ${atual.status}) e não pode ser removido.`), { status: 409 });
+          // Pode remover enquanto o item ainda NÃO iniciou produção de fato nem
+          // teve entrega. Os status pré-produção (emitido/aguardando/recebido)
+          // são seguros: o ON DELETE CASCADE remove parciais e movimentações
+          // junto. A partir de "em produção" ou com algo entregue, use "Inativar".
+          const STATUS_REMOVIVEIS = ['emitido', 'aguardando', 'recebido'];
+          if (!STATUS_REMOVIVEIS.includes(String(atual.status)) || Number(atual.quantidade_entregue) > 0) {
+            throw Object.assign(new Error(`Item ${item.id} já entrou em produção (status: ${atual.status}) e não pode ser removido. Use "Inativar".`), { status: 409 });
           }
           await tx`DELETE FROM producao_itempedido WHERE id = ${Number(item.id)} AND pedido_id = ${pedidoId}`;
           continue;
