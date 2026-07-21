@@ -19,6 +19,12 @@ export async function GET(req: Request) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  // Conta somente-leitura (ex.: "VISUALIZAÇÃO COMPARTILHADA", perfil pcp) nunca
+  // acessa gestão de usuários — nem para LER a lista. O menu já esconde a tela,
+  // mas contas pcp são is_staff=true, então o check acima sozinho deixaria a
+  // lista acessível via API direta. Escrita já é barrada no middleware; aqui
+  // fechamos a leitura.
+  if (user.somente_leitura === true) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   const users = await sql`
     SELECT id, username, nome, is_staff, is_active, perfil, setor, setores, somente_leitura
