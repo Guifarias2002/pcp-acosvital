@@ -16,6 +16,7 @@ const SETOR_ICONS: Record<string, string> = {
   laser: 'bi-scissors',
   usinagem: 'bi-tools',
   beneficiadores: 'bi-gear-wide',
+  caldeiraria: 'bi-hammer',
   qualidade: 'bi-patch-check',
   furacao: 'bi-circle',
   acabamento: 'bi-brush',
@@ -117,13 +118,13 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
 
           {isAdmin ? (
             <NavGroup label="🔩 Flanges" defaultOpen={true}>
-              {SETOR_CHOICES.map(([cod, nome]) => (
+              {SETOR_CHOICES.filter(([cod]) => cod !== 'caldeiraria').map(([cod, nome]) => (
                 <NavItem key={cod} href={`/setor/${cod}`} label={nome} icon={SETOR_ICONS[cod]} onNav={fechar} />
               ))}
             </NavGroup>
-          ) : meusSetores.length > 0 ? (
+          ) : meusSetores.filter(cod => cod !== 'caldeiraria').length > 0 ? (
             <NavGroup label="🔩 Flanges">
-              {meusSetores.map(cod => (
+              {meusSetores.filter(cod => cod !== 'caldeiraria').map(cod => (
                 <NavItem
                   key={cod}
                   href={`/setor/${cod}`}
@@ -135,12 +136,16 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
             </NavGroup>
           ) : null}
 
+          {/* Caldeiraria — linha própria, separada dos Flanges */}
+          {(isAdmin || meusSetores.includes('caldeiraria')) && (
+            <NavGroup label="🏗 Caldeiraria" defaultOpen={true}>
+              <NavItem href="/setor/caldeiraria" label="Caldeiraria" icon={SETOR_ICONS.caldeiraria} onNav={fechar} />
+            </NavGroup>
+          )}
+
           {/* Futuras linhas de produto */}
           {isAdmin && (
             <>
-              <NavGroup label="🏗 Caldeiraria" defaultOpen={false}>
-                <span style={{ fontSize: 11, color: '#666', padding: '4px 16px', display: 'block', fontStyle: 'italic' }}>Em breve</span>
-              </NavGroup>
               <NavGroup label="🔧 Serralheria" defaultOpen={false}>
                 <span style={{ fontSize: 11, color: '#666', padding: '4px 16px', display: 'block', fontStyle: 'italic' }}>Em breve</span>
               </NavGroup>

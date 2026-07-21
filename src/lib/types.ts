@@ -12,6 +12,7 @@ export const SETOR_CHOICES: [string, string][] = [
   ['recebimento', 'Recebimento'],
   ['compras', 'Compras'],
   ['beneficiadores', 'Beneficiadores'],
+  ['caldeiraria', 'Caldeiraria'],
   ['embalagem', 'Embalagem'],
 ];
 

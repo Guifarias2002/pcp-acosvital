@@ -10,7 +10,7 @@ const NOMES: Record<string, string> = {
   plasma: 'Plasma', laser: 'Laser', estoque: 'Estoque', furacao: 'Furação',
   qualidade: 'Qualidade', acabamento: 'Acabamento',
   logistica: 'Logística', recebimento: 'Recebimento', compras: 'Compras',
-  beneficiadores: 'Beneficiadores', embalagem: 'Embalagem',
+  beneficiadores: 'Beneficiadores', caldeiraria: 'Caldeiraria', embalagem: 'Embalagem',
 };
 const STATUS_LABEL: Record<string, string> = {
   emitido: 'Emitido', aguardando: 'Aguardando', recebido: 'Recebido',

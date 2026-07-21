@@ -944,14 +944,29 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar entrega
           </button>
         )}
+        {isLogistica && isAberto && (
+          <button
+            onClick={() => setConfirm({
+              titulo: 'Enviar para Caldeiraria',
+              mensagem: 'Enviar esta parcial diretamente para a Caldeiraria (solda)?',
+              acao: () => acao('mover', { setor_destino: 'caldeiraria' }),
+            })}
+            disabled={loading} style={btnStyle('#c2410c', true)}>
+            <i className="bi bi-hammer" style={{ marginRight: 5 }} />Enviar p/ Caldeiraria
+          </button>
+        )}
         {showIniciarEntrega && (
           <IniciarEntregaModal
             pedidoNumero={parcial.numero_pedido_venda ?? ''}
             itemCodigo={parcial.item_codigo ?? ''}
             loading={loading}
             onClose={() => setShowIniciarEntrega(false)}
-            onConfirm={async (observacao) => {
-              await acao('iniciar', { observacao });
+            onConfirm={async (resultado) => {
+              if (resultado.tipo === 'externa') {
+                await acao('iniciar', { observacao: resultado.observacao });
+              } else {
+                await acao('mover', { setor_destino: resultado.servico, observacao: resultado.observacao });
+              }
               setShowIniciarEntrega(false);
             }}
           />
@@ -1661,14 +1676,29 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             <i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar entrega
           </button>
         )}
+        {isLogistica && isAberto && (
+          <button
+            onClick={() => setConfirm({
+              titulo: 'Enviar para Caldeiraria',
+              mensagem: `Enviar ${parciais.length > 1 ? 'estas parciais' : 'esta parcial'} diretamente para a Caldeiraria (solda)?`,
+              acao: () => acaoTodos('mover', { setor_destino: 'caldeiraria' }),
+            })}
+            disabled={loading} style={btnStyle('#c2410c', true)}>
+            <i className="bi bi-hammer" style={{ marginRight: 5 }} />Enviar p/ Caldeiraria
+          </button>
+        )}
         {showIniciarEntregaGrupo && (
           <IniciarEntregaModal
             pedidoNumero={p0.numero_pedido_venda ?? ''}
             itemCodigo={p0.item_codigo ?? ''}
             loading={loading}
             onClose={() => setShowIniciarEntregaGrupo(false)}
-            onConfirm={async (observacao) => {
-              await acaoTodos('iniciar', { observacao });
+            onConfirm={async (resultado) => {
+              if (resultado.tipo === 'externa') {
+                await acaoTodos('iniciar', { observacao: resultado.observacao });
+              } else {
+                await acaoTodos('mover', { setor_destino: resultado.servico, observacao: resultado.observacao });
+              }
               setShowIniciarEntregaGrupo(false);
             }}
           />
