@@ -99,6 +99,14 @@ export async function runMigrations() {
   // pesos_pallets). Vazio = pallet sem identificacao (mostra "Palet N" pelo indice).
   await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS nomes_pallets TEXT[] NOT NULL DEFAULT '{}'`).catch(() => {});
 
+  // M11: resumo consolidado da Embalagem por PEDIDO (opcional; complementa o peso
+  // por parcial). Colunas simples: identificação do pallet, nº de pallets, peso
+  // total (kg) e total de unidades (peças). Vazio/0 = não informado.
+  await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS embalagem_identificacao TEXT`).catch(() => {});
+  await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS embalagem_qtd_pallets INTEGER`).catch(() => {});
+  await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS embalagem_peso_total NUMERIC(12,3)`).catch(() => {});
+  await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS embalagem_total_unidades INTEGER`).catch(() => {});
+
   // M11: acesso somente-leitura por usuário. Quando true, o usuário vê tudo
   // normalmente (inclusive telas administrativas e valores) mas NÃO pode fazer
   // nenhuma alteração — o bloqueio é aplicado de forma central em `autenticar`,

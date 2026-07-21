@@ -94,6 +94,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         i.id AS item_pedido_id, i.codigo AS item_codigo, i.unidade, i.descricao AS item_descricao,
         i.quantidade::text AS quantidade_total_item, i.roteiro_proprio,
         p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade, p.roteiro_base, p.prazo_entrega::text AS pedido_prazo,
+        p.embalagem_identificacao, p.embalagem_qtd_pallets, p.embalagem_peso_total, p.embalagem_total_unidades,
         (p.desenho_url IS NOT NULL OR COALESCE(array_length(p.desenhos,1),0) > 0) AS pedido_tem_desenho,
         (COALESCE(array_length(i.desenhos,1),0) > 0) AS item_tem_desenho,
         (p.pedido_venda_url IS NOT NULL) AS tem_pedido_venda,
@@ -190,6 +191,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         i.id AS item_pedido_id, i.codigo AS item_codigo, i.unidade, i.descricao AS item_descricao,
         i.quantidade::text AS quantidade_total_item, i.roteiro_proprio,
         p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade, p.roteiro_base, p.prazo_entrega::text AS pedido_prazo,
+        p.embalagem_identificacao, p.embalagem_qtd_pallets, p.embalagem_peso_total, p.embalagem_total_unidades,
         (p.pedido_venda_url IS NOT NULL) AS tem_pedido_venda,
         (p.ordem_producao_url IS NOT NULL) AS tem_ordem_producao
       FROM producao_itemparcial pa
@@ -288,6 +290,12 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       tem_ordem_producao: Boolean(p.tem_ordem_producao),
       pesos_pallets: Array.isArray(p.pesos_pallets) ? (p.pesos_pallets as unknown[]).map(v => Number(v)) : [],
       nomes_pallets: Array.isArray(p.nomes_pallets) ? (p.nomes_pallets as unknown[]).map(v => String(v)) : [],
+      embalagem_resumo: {
+        identificacao: (p.embalagem_identificacao as string) ?? '',
+        qtd_pallets: p.embalagem_qtd_pallets != null ? Number(p.embalagem_qtd_pallets) : null,
+        peso_total: p.embalagem_peso_total != null ? Number(p.embalagem_peso_total) : null,
+        total_unidades: p.embalagem_total_unidades != null ? Number(p.embalagem_total_unidades) : null,
+      },
       peso_total_embalagem: Array.isArray(p.pesos_pallets)
         ? (p.pesos_pallets as unknown[]).reduce((s: number, v) => s + Number(v), 0)
         : 0,

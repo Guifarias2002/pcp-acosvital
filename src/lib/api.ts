@@ -91,6 +91,12 @@ export const parcialAcao = (id: number, acao: string, body?: Record<string, unkn
 export const setPesosPallets = (id: number, pesos_pallets: number[], nomes_pallets: string[] = []) =>
   api.patch(`/api/parcial/${id}`, { pesos_pallets, nomes_pallets }).then(r => r.data);
 
+// Salva o resumo consolidado da Embalagem por pedido (opcional).
+export const setEmbalagemResumo = (
+  pedidoId: number,
+  resumo: { identificacao?: string; qtd_pallets?: number | null; peso_total?: number | null; total_unidades?: number | null },
+) => api.patch(`/api/pedidos/${pedidoId}/embalagem`, resumo).then(r => r.data);
+
 // Mesma acao aplicada a varias parciais numa unica requisicao (evita 1 round-trip por item).
 // A rota aceita no maximo 50 ids por chamada - grupos maiores sao divididos em pedacos
 // e enviados em sequencia, com os resultados combinados como se fosse uma chamada so.

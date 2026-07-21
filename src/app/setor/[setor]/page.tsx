@@ -30,7 +30,7 @@ function Cronometro({ desde }: { desde: string }) {
     </span>
   );
 }
-import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, setPesosPallets, inativarItem, editarPedido } from '@/lib/api';
+import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, setPesosPallets, setEmbalagemResumo, inativarItem, editarPedido } from '@/lib/api';
 import { isAdministrador, podeEditar, getToken } from '@/lib/auth';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
@@ -2505,6 +2505,67 @@ function PesosPalletsInfo({ pesos, nomes }: { pesos: number[]; nomes?: string[] 
   );
 }
 
+// Resumo consolidado da Embalagem por PEDIDO — opção adicional (não substitui o
+// peso por parcial). Fica logo abaixo do cabeçalho do pedido, só na Embalagem.
+type ResumoEmb = { identificacao?: string; qtd_pallets?: number | null; peso_total?: number | null; total_unidades?: number | null };
+function EmbalagemResumoEditor({ pedidoId, inicial }: { pedidoId: number; inicial?: ResumoEmb }) {
+  const [ident, setIdent] = useState(inicial?.identificacao || '');
+  const [qtdPallets, setQtdPallets] = useState(inicial?.qtd_pallets != null ? String(inicial.qtd_pallets) : '');
+  const [pesoTotal, setPesoTotal] = useState(inicial?.peso_total != null ? String(inicial.peso_total) : '');
+  const [totalUn, setTotalUn] = useState(inicial?.total_unidades != null ? String(inicial.total_unidades) : '');
+  const [salvando, setSalvando] = useState(false);
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
+  const preenchido = !!(inicial?.identificacao || inicial?.qtd_pallets || inicial?.peso_total || inicial?.total_unidades);
+  const [aberto, setAberto] = useState(preenchido);
+
+  async function salvar() {
+    setSalvando(true); setMsg(null);
+    try {
+      await setEmbalagemResumo(pedidoId, {
+        identificacao: ident.trim(),
+        qtd_pallets: qtdPallets ? Number(qtdPallets.replace(',', '.')) : null,
+        peso_total: pesoTotal ? Number(pesoTotal.replace(',', '.')) : null,
+        total_unidades: totalUn ? Number(totalUn.replace(',', '.')) : null,
+      });
+      setMsg({ tipo: 'ok', texto: 'Resumo salvo' });
+      setTimeout(() => setMsg(null), 2500);
+    } catch { setMsg({ tipo: 'erro', texto: 'Erro ao salvar' }); }
+    finally { setSalvando(false); }
+  }
+
+  const campo = (label: string, val: string, set: (v: string) => void, tipo: 'text' | 'number', w = 110, ph = '') => (
+    <label style={{ fontSize: 11, color: '#78350f', fontWeight: 600, display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {label}
+      <input type={tipo} min={tipo === 'number' ? '0' : undefined} step={tipo === 'number' ? 'any' : undefined}
+        value={val} onChange={e => set(e.target.value)} placeholder={ph}
+        style={{ border: '1px solid #fcd34d', borderRadius: 5, padding: '5px 8px', fontSize: 13, width: w }} />
+    </label>
+  );
+
+  return (
+    <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 12px', margin: '12px' }}>
+      <button onClick={() => setAberto(v => !v)}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 12, fontWeight: 700, color: '#92400e', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <i className={`bi bi-chevron-${aberto ? 'down' : 'right'}`} />
+        📦 Embalagem consolidada do pedido (opcional)
+      </button>
+      {aberto && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginTop: 10 }}>
+          {campo('Pallet (identificação)', ident, setIdent, 'text', 150, 'ex.: P-01')}
+          {campo('Qtd. de pallets', qtdPallets, setQtdPallets, 'number')}
+          {campo('Peso total (kg)', pesoTotal, setPesoTotal, 'number')}
+          {campo('Total de unidades', totalUn, setTotalUn, 'number')}
+          <button onClick={salvar} disabled={salvando}
+            style={{ background: salvando ? '#fbbf24' : '#d97706', color: '#fff', border: 'none', borderRadius: 5, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: salvando ? 'not-allowed' : 'pointer' }}>
+            {salvando ? 'Salvando...' : 'Salvar resumo'}
+          </button>
+          {msg && <span style={{ fontSize: 12, fontWeight: 600, color: msg.tipo === 'ok' ? '#16a34a' : '#dc2626' }}>{msg.texto}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Comprime/redimensiona a foto no próprio aparelho antes de enviar. Fotos de
 // celular vêm com 5–12 MB, o que trava o upload no 4G e a renderização das
 // miniaturas. Reduz para no máx. 1600px e JPEG qualidade 0.8 (~200–400 KB).
@@ -3142,6 +3203,14 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                         </div>
                         {/* Produtos do pedido */}
                         {!pedidosColapsados.has(pedido_id) && <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          {/* Resumo consolidado da Embalagem por pedido — opção adicional,
+                              logo abaixo do cabeçalho. Não substitui o peso por parcial. */}
+                          {setor === 'embalagem' && podeEditar() && (
+                            <EmbalagemResumoEditor
+                              pedidoId={pedido_id}
+                              inicial={(parciais[0] as unknown as { embalagem_resumo?: ResumoEmb }).embalagem_resumo}
+                            />
+                          )}
                           {itemGrupos.map((grupo, itemIdx) => {
                             const p0 = grupo[0];
                             return (
