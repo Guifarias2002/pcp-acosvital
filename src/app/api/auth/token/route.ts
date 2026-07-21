@@ -103,7 +103,11 @@ export async function POST(req: Request) {
       ? (user.setores as string[])
       : (user.setor ? [user.setor] : []);
     const setorPrincipal = user.setor || setoresLista[0] || '';
-    const somenteLeitura = user.somente_leitura === true;
+    // Vendedor é SEMPRE somente-leitura (já forçado na criação/edição de
+    // usuário). Forçamos também aqui, no login, pra fechar o caso de linha
+    // legada/editada direto no banco com somente_leitura=false — assim contas
+    // de visualização (perfil vendedor + ve_todos_pedidos) nunca gravam nada.
+    const somenteLeitura = user.perfil === 'vendedor' ? true : user.somente_leitura === true;
     const veTodosPedidos = user.ve_todos_pedidos === true;
     const token = await signToken({
       id: user.id,
