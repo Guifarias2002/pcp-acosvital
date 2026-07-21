@@ -148,6 +148,10 @@ export function formatPedido(row: any, itens: unknown[] = []) {
     setor_atual: row.setor_atual || '',
     nome_setor_atual: nomeSector(row.setor_atual || ''),
     roteiro_base: row.roteiro_base || [],
+    // Pedido "de Caldeiraria": ou nasceu direto lá (roteiro_base), ou tem algum
+    // item avulso com roteiro próprio passando por lá (ex: um Tubo anexado a
+    // um pedido de Flanges). Usado só pra exibir o tipo na lista de pedidos.
+    envolve_caldeiraria: !!(row.roteiro_base || []).includes('caldeiraria') || !!row.tem_item_caldeiraria,
     observacoes: row.observacoes || '',
     atrasado: diasPrazo(row.prazo_entrega) < 0 && row.status !== 'entregue',
     dias_prazo: diasPrazo(row.prazo_entrega),

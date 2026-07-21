@@ -49,7 +49,7 @@ export default function IniciarEntregaModal({ pedidoNumero, itemCodigo, onClose,
           <div>
             <h5 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c' }}>
               <i className="bi bi-truck" style={{ marginRight: 8, color: '#0d6efd' }} />
-              Iniciar Entrega
+              Iniciar Movimentação
             </h5>
             <small style={{ color: '#6b7280' }}>{pedidoNumero}{itemCodigo ? ` — ${itemCodigo}` : ''}</small>
           </div>
@@ -75,8 +75,8 @@ export default function IniciarEntregaModal({ pedidoNumero, itemCodigo, onClose,
                   color: tipoEntrega === 'externa' ? '#fff' : '#374151',
                   transition: 'all .15s',
                 }}>
-                Externa
-                <div style={{ fontSize: 10, fontWeight: 400, opacity: .8, marginTop: 2 }}>Vai para o cliente</div>
+                Entrega
+                <div style={{ fontSize: 10, fontWeight: 400, opacity: .8, marginTop: 2 }}>É para o cliente</div>
               </button>
               <button
                 type="button"
@@ -89,8 +89,8 @@ export default function IniciarEntregaModal({ pedidoNumero, itemCodigo, onClose,
                   color: tipoEntrega === 'interna' ? '#fff' : '#374151',
                   transition: 'all .15s',
                 }}>
-                Interna
-                <div style={{ fontSize: 10, fontWeight: 400, opacity: .8, marginTop: 2 }}>Vai para outro serviço</div>
+                Coleta
+                <div style={{ fontSize: 10, fontWeight: 400, opacity: .8, marginTop: 2 }}>Beneficiadores ou Caldeiraria</div>
               </button>
             </div>
           </div>
@@ -208,7 +208,7 @@ export default function IniciarEntregaModal({ pedidoNumero, itemCodigo, onClose,
             <button className="btn" style={{ flex: 2, background: '#0d6efd', color: '#fff', border: 'none' }} onClick={confirmar} disabled={loading}>
               {loading
                 ? <><i className="bi bi-hourglass-split" /> Iniciando...</>
-                : <><i className="bi bi-truck" /> Iniciar Entrega</>}
+                : <><i className="bi bi-truck" /> Iniciar Movimentação</>}
             </button>
           </div>
         </div>

@@ -78,7 +78,8 @@ export async function GET(req: Request) {
     sql`
       SELECT pedido_id,
              SUM(quantidade * COALESCE(valor_unitario, 0))::text AS valor_calculado,
-             json_agg(json_build_object('id', id, 'status', status)) AS itens
+             json_agg(json_build_object('id', id, 'status', status)) AS itens,
+             bool_or('caldeiraria' = ANY(roteiro_proprio)) AS tem_item_caldeiraria
       FROM producao_itempedido
       WHERE pedido_id = ANY(${ids}) AND inativo = false
       GROUP BY pedido_id
@@ -115,7 +116,12 @@ export async function GET(req: Request) {
     const im = itemMap.get(r.id as number);
     const pm = parcialMap.get(r.id as number);
     return formatPedido(
-      { ...r, valor_calculado: im?.valor_calculado ?? '0', setores_parciais: pm?.setores_parciais ?? [] },
+      {
+        ...r,
+        valor_calculado: im?.valor_calculado ?? '0',
+        setores_parciais: pm?.setores_parciais ?? [],
+        tem_item_caldeiraria: im?.tem_item_caldeiraria ?? false,
+      },
       im?.itens ?? [],
     );
   });

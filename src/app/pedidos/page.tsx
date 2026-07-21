@@ -368,10 +368,21 @@ function PedidosPageInner() {
                     {fmtData(p.criado_em)}
                   </td>
                   <td style={{ padding: '8px 12px' }}>
-                    <button onClick={() => abrirRastreio(p.id, p.numero_pedido_venda)}
-                      style={{ background: 'none', border: 'none', color: '#1a3a5c', fontWeight: 700, cursor: 'pointer', padding: 0, textDecoration: 'underline', fontSize: 'inherit' }}>
-                      {p.numero_pedido_venda}
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <button onClick={() => abrirRastreio(p.id, p.numero_pedido_venda)}
+                        style={{ background: 'none', border: 'none', color: '#1a3a5c', fontWeight: 700, cursor: 'pointer', padding: 0, textDecoration: 'underline', fontSize: 'inherit' }}>
+                        {p.numero_pedido_venda}
+                      </button>
+                      <span
+                        title={p.envolve_caldeiraria ? 'Este pedido tem material passando pela Caldeiraria' : 'Pedido do processo normal de Flanges'}
+                        style={{
+                          fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, whiteSpace: 'nowrap',
+                          background: p.envolve_caldeiraria ? '#ffedd5' : '#e0e7ff',
+                          color: p.envolve_caldeiraria ? '#9a3412' : '#3730a3',
+                        }}>
+                        {p.envolve_caldeiraria ? '🔥 Caldeiraria' : '⚙️ Flange'}
+                      </span>
+                    </div>
                   </td>
                   <td style={{ padding: '8px 12px', color: '#666' }}>{p.numero_op}</td>
                   <td style={{ padding: '8px 12px', color: '#444' }}>{p.cliente}</td>

@@ -28,8 +28,14 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
 
   const verFinanceiro = user.is_staff && user.perfil !== 'lider';
 
+  // Logística manda peças pra Caldeiraria (solda) e elas somem da fila dela
+  // enquanto estão lá — mas a Logística não pode perder o rastro: busca também
+  // (somente leitura) o que está parado na Caldeiraria, pra mostrar numa seção
+  // separada sem misturar com as ações normais da própria fila.
+  const buscarEmCaldeiraria = setor === 'logistica';
+
   // Rodar as queries em paralelo
-  const [itens, lotes_chegando, lotes_trabalho, parciais, outras_parciais, resumo] = await Promise.all([
+  const [itens, lotes_chegando, lotes_trabalho, parciais, outras_parciais, resumo, itensCaldeiraria, parciaisCaldeiraria] = await Promise.all([
     // Itens cujo setor_atual é este setor (visão tradicional).
     // Exclui itens que tenham parciais ativas em outro setor — esses já se moveram
     // (divergência/devolver) mas o setor_atual do item ficou desatualizado.
@@ -154,6 +160,46 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
                p.numero_pedido_venda, p.cliente
       ORDER BY p.numero_pedido_venda, i.codigo
     `.catch(() => [] as Record<string, unknown>[]),
+
+    // Itens atualmente na Caldeiraria (rastreio somente-leitura pra Logística)
+    !buscarEmCaldeiraria ? Promise.resolve([] as Record<string, unknown>[]) : sql`
+      SELECT i.*, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
+             p.prazo_entrega::text AS pedido_prazo, p.prioridade AS pedido_prioridade, p.roteiro_base,
+             p.numero_op,
+             (p.desenho_url IS NOT NULL OR COALESCE(array_length(p.desenhos,1),0) > 0) AS tem_desenho, p.desenho_url AS desenho_url,
+             (p.pedido_venda_url IS NOT NULL) AS tem_pedido_venda,
+             (p.ordem_producao_url IS NOT NULL) AS tem_ordem_producao
+      FROM producao_itempedido i JOIN producao_pedido p ON p.id = i.pedido_id
+      WHERE i.setor_atual = 'caldeiraria' AND i.status != 'entregue' AND i.inativo = false
+        AND NOT EXISTS (
+          SELECT 1 FROM producao_itemparcial pa
+          WHERE pa.item_pedido_id = i.id
+            AND pa.setor_atual != 'caldeiraria'
+            AND pa.status NOT IN ('cancelada', 'concluida')
+        )
+      ORDER BY p.numero_pedido_venda, i.codigo
+    `.catch(() => [] as Record<string, unknown>[]),
+
+    // Parciais atualmente na Caldeiraria (rastreio somente-leitura pra Logística)
+    !buscarEmCaldeiraria ? Promise.resolve([] as Record<string, unknown>[]) : sql`
+      SELECT
+        pa.id, pa.quantidade::text AS quantidade, pa.status, pa.observacao,
+        pa.parcial_origem_id, pa.criado_em, pa.atualizado_em,
+        pa.retrabalho, pa.motivo_retrabalho, pa.devolvido_de,
+        i.id AS item_pedido_id, i.codigo AS item_codigo, i.unidade, i.descricao AS item_descricao,
+        i.quantidade::text AS quantidade_total_item, i.roteiro_proprio,
+        p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade, p.roteiro_base, p.prazo_entrega::text AS pedido_prazo,
+        (p.pedido_venda_url IS NOT NULL) AS tem_pedido_venda,
+        (p.ordem_producao_url IS NOT NULL) AS tem_ordem_producao
+      FROM producao_itemparcial pa
+      JOIN producao_itempedido i ON i.id = pa.item_pedido_id
+      JOIN producao_pedido p ON p.id = pa.pedido_id
+      WHERE pa.setor_atual = 'caldeiraria'
+        AND pa.status IN ('em_aberto', 'recebido', 'em_andamento', 'finalizado_setor', 'pausado')
+        AND i.status != 'entregue'
+        AND i.inativo = false
+      ORDER BY p.numero_pedido_venda, i.codigo, pa.criado_em
+    `.catch(() => [] as Record<string, unknown>[]),
   ]);
 
   // Observações por item — histórico acumulado (tabela pode não existir ainda)
@@ -213,11 +259,11 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     });
   }
 
-  const fmtParcial = (p: Record<string, unknown>) => {
+  const fmtParcial = (p: Record<string, unknown>, setorEfetivo: string = setor) => {
     const roteiro: string[] = (p.roteiro_proprio as string[] | null)?.length
       ? (p.roteiro_proprio as string[])
       : ((p.roteiro_base as string[]) || []);
-    const idx = roteiro.indexOf(setor);
+    const idx = roteiro.indexOf(setorEfetivo);
     const proximo_setor = (idx !== -1 && idx < roteiro.length - 1) ? roteiro[idx + 1] : null;
     return {
       id: p.id,
@@ -226,8 +272,8 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       parcial_origem_id: p.parcial_origem_id ?? null,
       quantidade: p.quantidade,
       unidade: p.unidade,
-      setor_atual: setor,
-      setor_atual_nome: nomeSector(setor),
+      setor_atual: setorEfetivo,
+      setor_atual_nome: nomeSector(setorEfetivo),
       status: p.status,
       observacao: p.observacao ?? null,
       item_codigo: p.item_codigo,
@@ -284,8 +330,16 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     lotes_chegando: lotes_chegando.map(fmtLote),
     lotes_trabalho: lotes_trabalho.map(fmtLote),
     // Nova visão por parciais
-    parciais: (parciais as Record<string, unknown>[]).map(fmtParcial),
+    parciais: (parciais as Record<string, unknown>[]).map(p => fmtParcial(p)),
     resumo_por_item: (resumo as Record<string, unknown>[]).map(fmtResumo),
+    // Rastreio somente-leitura do que está na Caldeiraria (só quando setor=logistica)
+    em_caldeiraria: buscarEmCaldeiraria ? {
+      itens: (itensCaldeiraria as Record<string, unknown>[]).map(i => {
+        const fmt = formatItem(i);
+        return verFinanceiro ? fmt : { ...fmt, valor_unitario: null };
+      }),
+      parciais: (parciaisCaldeiraria as Record<string, unknown>[]).map(p => fmtParcial(p, 'caldeiraria')),
+    } : undefined,
   });
   } catch (e) {
     console.error('[setor]', e);

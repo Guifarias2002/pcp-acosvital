@@ -206,6 +206,7 @@ export interface Pedido {
   setor_atual: string;
   nome_setor_atual: string;
   roteiro_base: string[];
+  envolve_caldeiraria?: boolean;
   observacoes: string;
   atrasado: boolean;
   dias_prazo: number;
@@ -253,6 +254,9 @@ export interface SetorPainelData {
   itens: ItemPedido[];
   parciais: ItemParcial[];
   resumo_por_item: ResumoItemParcial[];
+  // Rastreio somente-leitura do que está na Caldeiraria — só vem preenchido
+  // quando setor === 'logistica' (ver GET /api/setor/[setor]).
+  em_caldeiraria?: { itens: ItemPedido[]; parciais: ItemParcial[] };
 }
 
 // ── Parcial (fragmento de quantidade circulando pelo processo) ─────────────

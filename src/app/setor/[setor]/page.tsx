@@ -30,7 +30,7 @@ function Cronometro({ desde }: { desde: string }) {
     </span>
   );
 }
-import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, setPesosPallets, inativarItem } from '@/lib/api';
+import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, setPesosPallets, inativarItem, editarPedido } from '@/lib/api';
 import { isAdministrador, podeEditar, getToken } from '@/lib/auth';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
@@ -45,6 +45,16 @@ import IniciarEntregaModal from '@/components/IniciarEntregaModal';
 import DivergenciaResolucaoModal from '@/components/DivergenciaResolucaoModal';
 import AdicionarItemPedidoModal from '@/components/AdicionarItemPedidoModal';
 import RastreioModal from '@/components/RastreioModal';
+
+// Opções de "enviar para o setor" — a Caldeiraria é um setor de serviço
+// (solda) que sempre retorna pra Logística, nunca segue direto pra outro
+// setor de produção; os demais setores continuam podendo escolher qualquer
+// destino, como sempre.
+function destinosEnvio(setorAtual: string): [string, string][] {
+  if (setorAtual === 'caldeiraria')
+    return SETOR_CHOICES.filter(([cod]) => cod === 'logistica');
+  return SETOR_CHOICES.filter(([cod]) => cod !== setorAtual);
+}
 
 function useToast() {
   const [toast, setToast] = useState<{ msg: string; tipo: 'erro' | 'ok' } | null>(null);
@@ -318,7 +328,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
               <span style={{ fontSize: 12, color: '#666', whiteSpace: 'nowrap' }}>Enviar para:</span>
               <select value={setorDestinoEnvio || item.proximo_setor || ''} onChange={e => setSetorDestinoEnvio(e.target.value)}
                 style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
-                {SETOR_CHOICES.filter(([cod]) => cod !== item.setor_atual).map(([cod, nome]) => (
+                {destinosEnvio(item.setor_atual).map(([cod, nome]) => (
                   <option key={cod} value={cod}>
                     {nome}{cod === item.proximo_setor ? ' (próximo no roteiro)' : ''}
                   </option>
@@ -693,6 +703,19 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
     finally { setLoading(false); }
   }
 
+  // Exclusão definitiva — só na Caldeiraria. Reaproveita a mesma remoção de
+  // item já usada (e testada) na tela de editar pedido: o backend só deixa
+  // excluir se o item ainda não entrou em produção nem foi entregue.
+  async function excluirItem() {
+    if (loading) return;
+    setLoading(true);
+    try {
+      await editarPedido(parcial.pedido_id, { itens: [{ id: parcial.item_pedido_id, _remover: true }] });
+      onRefresh();
+    } catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
+    finally { setLoading(false); }
+  }
+
   async function enviarObservacao() {
     if (!novaObsTexto.trim()) return;
     setEnviandoObs(true);
@@ -942,7 +965,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
         {/* ── Iniciar ─────────────────────────────────────────────────────── */}
         {isLogistica && isAberto && (
           <button onClick={() => setShowIniciarEntrega(true)} disabled={loading} style={btnStyle('#0d6efd')}>
-            <i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar entrega
+            <i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar movimentação
           </button>
         )}
         {showIniciarEntrega && (
@@ -1153,6 +1176,23 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <i className="bi bi-eye-slash" style={{ marginRight: 5 }} />Inativar
           </button>
         )}
+
+        {/* Excluir — só admin, só na Caldeiraria. Ação definitiva, sem "desfazer". */}
+        {isAdministrador() && parcial.setor_atual === 'caldeiraria' && (
+          <button
+            onClick={() => setConfirm({
+              titulo: 'Excluir item',
+              mensagem: `Excluir definitivamente o item ${parcial.item_codigo || ''} deste pedido? Só funciona se ele ainda não entrou em produção nem foi entregue. Essa ação não pode ser desfeita.`,
+              acao: excluirItem,
+              perigo: true,
+            })}
+            disabled={loading}
+            title="Excluir item (definitivo)"
+            style={btnStyle('#dc2626', true)}
+          >
+            <i className="bi bi-trash3" style={{ marginRight: 5 }} />Excluir
+          </button>
+        )}
       </div>
       )}
 
@@ -1262,7 +1302,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <select value={setorDestino || parcial.proximo_setor || ''} onChange={e => setSetorDestino(e.target.value)}
               style={{ border: foraDoRoteiro ? '2px solid #f59e0b' : '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
               <option value="">Selecione o setor...</option>
-              {SETOR_CHOICES.filter(([cod]) => cod !== parcial.setor_atual).map(([cod, nome]) => (
+              {destinosEnvio(parcial.setor_atual).map(([cod, nome]) => (
                 <option key={cod} value={cod}>{nome}{cod === parcial.proximo_setor ? ' ✓' : ''}</option>
               ))}
             </select>
@@ -1336,7 +1376,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
               <select value={setorRetrabalho} onChange={e => setSetorRetrabalho(e.target.value)}
                 style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 12 }}>
                 <option value="">Selecione o setor...</option>
-                {SETOR_CHOICES.filter(([cod]) => cod !== parcial.setor_atual).map(([cod, nome]) => (
+                {destinosEnvio(parcial.setor_atual).map(([cod, nome]) => (
                   <option key={cod} value={cod}>{nome}</option>
                 ))}
               </select>
@@ -1364,7 +1404,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           <select value={setorDev} onChange={e => setSetorDev(e.target.value)}
             style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13, marginBottom: 8 }}>
             <option value="">Selecione o setor...</option>
-            {SETOR_CHOICES.filter(([cod]) => cod !== parcial.setor_atual).map(([cod, nome]) => (
+            {destinosEnvio(parcial.setor_atual).map(([cod, nome]) => (
               <option key={cod} value={cod}>{nome}</option>
             ))}
           </select>
@@ -1663,7 +1703,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {isLogistica && isAberto && (
           <button onClick={() => setShowIniciarEntregaGrupo(true)} disabled={loading} style={btnStyle('#0d6efd')}>
-            <i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar entrega
+            <i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar movimentação
           </button>
         )}
         {showIniciarEntregaGrupo && (
@@ -1710,7 +1750,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
                 <select value={setorDestino || p0.proximo_setor || ''} onChange={e => setSetorDestino(e.target.value)}
                   style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
                   {!p0.proximo_setor && !setorDestino && <option value="">Selecione o setor...</option>}
-                  {SETOR_CHOICES.filter(([cod]) => cod !== p0.setor_atual).map(([cod, nome]) => (
+                  {destinosEnvio(p0.setor_atual).map(([cod, nome]) => (
                     <option key={cod} value={cod}>{nome}{cod === p0.proximo_setor ? ' ✓' : ''}</option>
                   ))}
                 </select>
@@ -1905,7 +1945,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             <select value={setorDestino || p0.proximo_setor || ''} onChange={e => setSetorDestino(e.target.value)}
               style={{ border: foraDoRoteiroGrupo ? '2px solid #f59e0b' : '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
               <option value="">Selecione o setor...</option>
-              {SETOR_CHOICES.filter(([cod]) => cod !== p0.setor_atual).map(([cod, nome]) => (
+              {destinosEnvio(p0.setor_atual).map(([cod, nome]) => (
                 <option key={cod} value={cod}>{nome}{cod === p0.proximo_setor ? ' ✓' : ''}</option>
               ))}
             </select>
@@ -1936,7 +1976,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             <select value={setorDestino || p0.proximo_setor || ''} onChange={e => setSetorDestino(e.target.value)}
               style={{ border: foraDoRoteiroGrupo ? '2px solid #f59e0b' : '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
               <option value="">Selecione o setor...</option>
-              {SETOR_CHOICES.filter(([cod]) => cod !== p0.setor_atual).map(([cod, nome]) => (
+              {destinosEnvio(p0.setor_atual).map(([cod, nome]) => (
                 <option key={cod} value={cod}>{nome}{cod === p0.proximo_setor ? ' ✓' : ''}</option>
               ))}
             </select>
@@ -2020,7 +2060,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
               <select value={setorRetrabalhoGrupo === '__open__' ? '' : setorRetrabalhoGrupo} onChange={e => setSetorRetrabalhoGrupo(e.target.value)}
                 style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 12, marginBottom: 6 }}>
                 <option value="">Selecione o setor...</option>
-                {SETOR_CHOICES.filter(([cod]) => cod !== p0.setor_atual).map(([cod, nome]) => (
+                {destinosEnvio(p0.setor_atual).map(([cod, nome]) => (
                   <option key={cod} value={cod}>{nome}</option>
                 ))}
               </select>
@@ -2052,7 +2092,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
           <select value={setorDev} onChange={e => setSetorDev(e.target.value)}
             style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13, marginBottom: 8 }}>
             <option value="">Selecione o setor...</option>
-            {SETOR_CHOICES.filter(([cod]) => cod !== p0.setor_atual).map(([cod, nome]) => (
+            {destinosEnvio(p0.setor_atual).map(([cod, nome]) => (
               <option key={cod} value={cod}>{nome}</option>
             ))}
           </select>
@@ -2779,6 +2819,42 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
           })}
         </div>
       )}
+
+      {/* Rastreio somente-leitura do que está na Caldeiraria — a peça sai da
+          fila de ações da Logística, mas não pode sumir do radar dela. */}
+      {setor === 'logistica' && data?.em_caldeiraria && (() => {
+        const linhas = [
+          ...data.em_caldeiraria.itens.map(i => ({
+            key: `item-${i.id}`, pv: i.pedido_numero, cliente: i.pedido_cliente,
+            codigo: i.codigo, descricao: i.descricao, quantidade: i.quantidade_pendente || i.quantidade,
+            unidade: i.unidade, status: STATUS_LABELS[i.status] || i.status,
+          })),
+          ...data.em_caldeiraria.parciais.map(p => ({
+            key: `parcial-${p.id}`, pv: p.numero_pedido_venda, cliente: p.cliente,
+            codigo: p.item_codigo, descricao: p.item_descricao, quantidade: p.quantidade,
+            unidade: p.unidade, status: PARCIAL_STATUS_LABELS[p.status] || p.status,
+          })),
+        ];
+        if (linhas.length === 0) return null;
+        return (
+          <div style={{ background: '#fff7ed', border: '1.5px solid #fdba74', borderRadius: 10, padding: '12px 16px', marginBottom: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#9a3412', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 10 }}>
+              <i className="bi bi-hammer" style={{ marginRight: 6 }} />
+              Em Caldeiraria — Aguardando Retorno ({linhas.length})
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {linhas.map(l => (
+                <div key={l.key} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, fontSize: 12, color: '#7c2d12', background: '#fff', border: '1px solid #fed7aa', borderRadius: 6, padding: '6px 10px' }}>
+                  <span style={{ fontWeight: 700 }}>{l.pv}</span>
+                  <span style={{ color: '#9a3412' }}>{l.codigo}{l.descricao ? ` · ${l.descricao}` : ''}</span>
+                  <span style={{ marginLeft: 'auto', fontWeight: 600 }}>{fmtQtd(String(l.quantidade))} {l.unidade}</span>
+                  <span style={{ background: '#ffedd5', borderRadius: 4, padding: '1px 7px', fontSize: 11, fontWeight: 600 }}>{l.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {loading && <p style={{ color: '#999', textAlign: 'center', padding: 40 }}>Carregando...</p>}
 

@@ -223,6 +223,17 @@ export async function POST(
            NOW())
       `;
 
+      // Retorno da Caldeiraria: além do log de movimentação, entra uma observação
+      // visível no card do item — a Logística precisa notar que este material
+      // passou pela solda antes de decidir a entrega.
+      if (parcial.setor_atual === 'caldeiraria' && setor_destino === 'logistica') {
+        await tx`
+          INSERT INTO producao_item_observacao (item_id, pedido_id, setor, usuario_id, texto)
+          VALUES (${parcial.item_id}, ${parcial.pedido_id}, 'logistica', ${user.id},
+                  ${`🔨 Retornado da Caldeiraria (solda): ${qtdMover} ${parcial.unidade}`})
+        `;
+      }
+
       // Atualiza quantidade_pendente do item somente se ele ainda está no setor de origem
       // (assim não quebra o saldo do item quando parciais já foram divididas antes)
       if (parcial.item_setor_atual === parcial.setor_atual) {

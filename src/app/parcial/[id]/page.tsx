@@ -509,7 +509,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                 isLogistica ? (
                   <button onClick={() => executarAcao('iniciar')} disabled={!!atuando}
                     className="w-full bg-blue-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-blue-700 disabled:opacity-60">
-                    {atuando === 'iniciar' ? '⏳ Iniciando...' : '🚚 Iniciar entrega'}
+                    {atuando === 'iniciar' ? '⏳ Iniciando...' : '🚚 Iniciar movimentação'}
                   </button>
                 ) : (
                   <button onClick={() => setShowReceberModal(true)} disabled={!!atuando}
