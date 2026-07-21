@@ -4,6 +4,7 @@ import { autenticar, logAcesso } from '@/lib/middleware';
 import { formatPedido } from '@/lib/queries';
 import { SETOR_CHOICES } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
+import { vendedorRestrito } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,8 +24,8 @@ export async function GET(req: Request) {
   // nome do próprio usuário, ignorando qualquer coisa que venha na URL.
   // Match exato (case-insensitive), não parcial, pra não vazar pedidos de
   // vendedores com nome parecido (ex.: "Ana" não deve casar com "Ana Paula").
-  const vendedor   = user.perfil === 'vendedor' ? (user.nome || '__nunca__') : (searchParams.get('vendedor') || '');
-  const vendedorExato = user.perfil === 'vendedor';
+  const vendedor   = vendedorRestrito(user) ? (user.nome || '__nunca__') : (searchParams.get('vendedor') || '');
+  const vendedorExato = vendedorRestrito(user);
   const status     = searchParams.get('status') || '';
   const prioridade = searchParams.get('prioridade') || '';
   const setor      = searchParams.get('setor') || '';

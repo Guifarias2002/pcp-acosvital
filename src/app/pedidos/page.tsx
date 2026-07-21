@@ -6,7 +6,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { getPedidos } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 import { Pedido, STATUS_LABELS, getPedidoEtapa, ETAPA_LABELS, NOMES, SETOR_CHOICES } from '@/lib/types';
-import { getUser, podeEditar } from '@/lib/auth';
+import { getUser, podeEditar, vendedorRestrito } from '@/lib/auth';
 import Link from 'next/link';
 import RastreioModal from '@/components/RastreioModal';
 
@@ -65,7 +65,7 @@ function PedidosPageInner() {
   const editavel = podeEditar(_u);
   const isAdmin = _u?.is_staff && editavel;
   const isSuperAdmin = (_u?.perfil === 'administrador' || (_u?.is_staff && _u?.perfil !== 'pcp' && _u?.perfil !== 'lider')) && editavel;
-  const isVendedor = !_u?.is_staff && _u?.perfil === 'vendedor';
+  const isVendedor = vendedorRestrito(_u);
 
   const buscarRef = useRef<(p?: number) => void>(() => {});
 

@@ -16,6 +16,17 @@ export interface JWTPayload {
   // O bloqueio efetivo é feito no back (`autenticar` barra métodos de escrita);
   // no front serve só para esconder botões de ação.
   somente_leitura?: boolean;
+  // Vendedor com visão de TODOS os pedidos, não só os próprios (conta
+  // compartilhada de visualização). Ver `vendedorRestrito` abaixo.
+  ve_todos_pedidos?: boolean;
+}
+
+// Um vendedor "restrito" só pode ver/filtrar os próprios pedidos (por nome).
+// `ve_todos_pedidos` libera essa trava pra contas de visualização compartilhada
+// que usam perfil vendedor (não-staff, somente-leitura, presas à aba /pedidos)
+// mas precisam enxergar a lista completa, não só os pedidos com o próprio nome.
+export function vendedorRestrito(u: { perfil?: string; ve_todos_pedidos?: boolean } | null | undefined): boolean {
+  return !!u && u.perfil === 'vendedor' && u.ve_todos_pedidos !== true;
 }
 
 // Lista efetiva de setores que o usuário pode acessar. Usa `setores` (múltiplos)

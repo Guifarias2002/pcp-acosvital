@@ -3,6 +3,7 @@ import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
 import { getPedidoComItens } from '@/lib/queries';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
+import { vendedorRestrito } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 const PRIORIDADES_VALIDAS = ['baixa', 'normal', 'alta', 'urgente'];
@@ -26,7 +27,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   // Exceção: vendedor só pode ver os próprios pedidos. Sem essa checagem, ele
   // poderia abrir o pedido de outro vendedor só trocando o ID na URL, já que a
   // lista (GET /api/pedidos) filtra mas o detalhe por ID não filtrava nada.
-  if (user.perfil === 'vendedor') {
+  if (vendedorRestrito(user)) {
     const meuNome = (user.nome || '').trim().toLowerCase();
     const nomeVendedor = ((pedido as { vendedor?: string }).vendedor || '').trim().toLowerCase();
     if (!meuNome || nomeVendedor !== meuNome) {

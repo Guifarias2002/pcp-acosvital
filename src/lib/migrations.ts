@@ -108,4 +108,11 @@ export async function runMigrations() {
   // desenhos (TEXT[]). Como é a mesma linha da parcial que avança de setor,
   // as fotos "viajam" junto (igual pesos_pallets).
   await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS fotos TEXT[] NOT NULL DEFAULT '{}'`).catch(() => {});
+
+  // M13: vendedor com visão de TODOS os pedidos (não só os próprios). Usado
+  // para contas compartilhadas de visualização (ex.: login usado por várias
+  // pessoas só pra acompanhar "Todos os Pedidos", sem ser vendedor de verdade).
+  // Continua perfil 'vendedor' (não-staff, somente_leitura forçado, preso à
+  // aba /pedidos) — só remove o filtro "só vê os próprios".
+  await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS ve_todos_pedidos BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
 }

@@ -76,7 +76,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: 'Usuario e senha obrigatorios' }, { status: 400 });
 
     const [user] = await sql`
-      SELECT id, username, password, nome, is_staff, is_active, perfil, setor, setores, somente_leitura
+      SELECT id, username, password, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, ve_todos_pedidos
       FROM usuarios_usuario
       WHERE username = ${String(username).slice(0, 150)}
     `;
@@ -104,6 +104,7 @@ export async function POST(req: Request) {
       : (user.setor ? [user.setor] : []);
     const setorPrincipal = user.setor || setoresLista[0] || '';
     const somenteLeitura = user.somente_leitura === true;
+    const veTodosPedidos = user.ve_todos_pedidos === true;
     const token = await signToken({
       id: user.id,
       username: user.username,
@@ -113,6 +114,7 @@ export async function POST(req: Request) {
       setor: setorPrincipal,
       setores: setoresLista,
       somente_leitura: somenteLeitura,
+      ve_todos_pedidos: veTodosPedidos,
     });
 
     const isProd = process.env.NODE_ENV === 'production';
@@ -126,6 +128,7 @@ export async function POST(req: Request) {
       setor: setorPrincipal,
       setores: setoresLista,
       somente_leitura: somenteLeitura,
+      ve_todos_pedidos: veTodosPedidos,
     };
 
     // Retorna o token (para localStorage) e os dados do usuário (para exibição)

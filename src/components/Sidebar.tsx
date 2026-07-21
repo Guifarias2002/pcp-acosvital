@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { logout, getUser } from '@/lib/auth';
+import { logout, getUser, vendedorRestrito } from '@/lib/auth';
 import { SETOR_CHOICES, NOMES } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { JWTPayload } from '@/lib/auth';
@@ -95,7 +95,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
         <nav>
           <NavGroup label="Geral">
             {!isVendedor && <NavItem href="/" label="Dashboard" icon="bi-speedometer2" onNav={fechar} />}
-            <NavItem href="/pedidos" label={isVendedor ? 'Meus Pedidos' : 'Todos os Pedidos'} icon="bi-list-ul" onNav={fechar} />
+            <NavItem href="/pedidos" label={vendedorRestrito(user) ? 'Meus Pedidos' : 'Todos os Pedidos'} icon="bi-list-ul" onNav={fechar} />
             {isAdmin && (
               <>
                 <NavItem href="/kanban" label="Kanban" icon="bi-kanban" onNav={fechar} />
@@ -178,10 +178,9 @@ export function TopBar({ onHamburger, colapsada, onExpandir }: TopBarProps) {
 
   useEffect(() => { setUser(getUser()); }, []);
 
-  const isVendedor = !user?.is_staff && user?.perfil === 'vendedor';
   const titles: Record<string, string> = {
     '/': 'Dashboard',
-    '/pedidos': isVendedor ? 'Meus Pedidos' : 'Todos os Pedidos',
+    '/pedidos': vendedorRestrito(user) ? 'Meus Pedidos' : 'Todos os Pedidos',
     '/kanban': 'Kanban',
     '/por-lider': 'Painel por Líder',
     '/emitidos': 'Ordens de Produção Emitidas',
