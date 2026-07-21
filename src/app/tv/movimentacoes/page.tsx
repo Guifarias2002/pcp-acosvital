@@ -106,8 +106,9 @@ const DWELL_VIEW_MS = 25_000;
 type TVView = 'kanban' | 'painel' | 'vendas' | 'ranking' | 'flanges' | 'dia' | 'semana' | 'ritmo' | 'comparativo' | 'analise' | 'velocidade';
 const VIEW_ORDEM: TVView[] = ['kanban', 'painel', 'vendas', 'ranking', 'flanges', 'dia', 'semana', 'ritmo', 'comparativo', 'velocidade', 'analise'];
 const VIEW_DWELL: Record<TVView, number> = {
-  kanban: 25_000, painel: 25_000, comparativo: 25_000, analise: 45_000, velocidade: 45_000,
-  dia: 20_000, semana: 20_000, ritmo: 20_000, vendas: 20_000, ranking: 20_000, flanges: 20_000,
+  kanban: 300_000,
+  painel: 120_000, comparativo: 120_000, analise: 120_000, velocidade: 120_000,
+  dia: 120_000, semana: 120_000, ritmo: 120_000, vendas: 120_000, ranking: 120_000, flanges: 120_000,
 };
 
 // Painel de Produção — mesmas etapas/cores do card "Painel de Produção" do
