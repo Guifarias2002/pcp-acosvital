@@ -1698,6 +1698,25 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
         desenhoViaItem={(p0 as any).desenho_via_item}
       />
 
+      {/* Peso da embalagem por parcial — também no card unificado (grupo de
+          parciais com o mesmo status). Antes só aparecia na parcial isolada,
+          então itens com várias parciais na Embalagem não conseguiam lançar peso. */}
+      {p0.setor_atual === 'embalagem' && parciais.map(p => (
+        <div key={`peso-${p.id}`}>
+          {parciais.length > 1 && (
+            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, margin: '2px 0 4px' }}>
+              Parcial #{p.id} · {fmtQtd(p.quantidade)} {p.unidade}
+            </div>
+          )}
+          {podeEditar()
+            ? <PesosPalletsEditor parcialId={p.id as number} inicial={(p as any).pesos_pallets || []} />
+            : <PesosPalletsInfo pesos={(p as any).pesos_pallets || []} />}
+        </div>
+      ))}
+      {p0.setor_atual === 'logistica' && parciais.map(p => (
+        <PesosPalletsInfo key={`pesoinfo-${p.id}`} pesos={(p as any).pesos_pallets || []} />
+      ))}
+
       {/* Ações combinadas — escondidas para usuários somente leitura */}
       {podeEditar() && (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
