@@ -1487,6 +1487,18 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
     cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1,
   });
 
+  // Junta todas as parciais deste item (neste setor) numa só, na parcial p0.
+  async function consolidarGrupo() {
+    setLoading(true);
+    try {
+      await parcialAcao(p0.id, 'consolidar');
+      onRefresh();
+    } catch (e: unknown) {
+      const ax = e as { response?: { data?: { erro?: string } } };
+      mostrarErroGrupo(ax?.response?.data?.erro || String(e));
+    } finally { setLoading(false); }
+  }
+
   const badge = BADGE_PARCIAL[p0.status] || { bg: '#e2e3e5', color: '#333' };
   const isLogistica = p0.setor_atual === 'logistica';
   const isQualidadeGrupo = p0.setor_atual === 'qualidade';
@@ -1720,6 +1732,18 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
       {/* Ações combinadas — escondidas para usuários somente leitura */}
       {podeEditar() && (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {/* Consolidar: junta as várias parciais deste item (neste setor) numa só */}
+        {parciais.length > 1 && (
+          <button
+            onClick={() => !loading && setConfirm({
+              titulo: 'Consolidar parciais',
+              mensagem: `Juntar as ${parciais.length} parciais deste item (${fmtQtd(String(totalQtd))} ${p0.unidade}) em uma só? As outras somem e fica um único registro com o total.`,
+              acao: consolidarGrupo,
+            })}
+            disabled={loading} style={btnStyle('#7c3aed')} title="Juntar as parciais deste item em uma só">
+            <i className="bi bi-box-seam" style={{ marginRight: 5 }} />Consolidar em 1
+          </button>
+        )}
         {isLogistica && isAberto && (
           <button onClick={() => setShowIniciarEntregaGrupo(true)} disabled={loading} style={btnStyle('#0d6efd')}>
             <i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar movimentação

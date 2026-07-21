@@ -20,7 +20,7 @@ import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
-const ACOES_VALIDAS = ['mover', 'iniciar', 'finalizar', 'pausar', 'retomar', 'concluir', 'cancelar', 'apontar', 'devolver', 'receber', 'desfazer_recebimento'] as const;
+const ACOES_VALIDAS = ['mover', 'iniciar', 'finalizar', 'pausar', 'retomar', 'concluir', 'cancelar', 'apontar', 'devolver', 'receber', 'desfazer_recebimento', 'consolidar'] as const;
 type Acao = typeof ACOES_VALIDAS[number];
 
 export async function POST(
@@ -79,11 +79,11 @@ export async function POST(
     return NextResponse.json({ erro: `Parcial já está "${parcial.status}" e não pode ser alterada` }, { status: 400 });
 
   // Parciais pausadas só aceitam retomar, devolver, mover, concluir ou apontar
-  if (parcial.status === 'pausado' && !['retomar', 'devolver', 'mover', 'concluir', 'apontar'].includes(acao))
+  if (parcial.status === 'pausado' && !['retomar', 'devolver', 'mover', 'concluir', 'apontar', 'consolidar'].includes(acao))
     return NextResponse.json({ erro: 'Parcial está pausada. Use "retomar" para continuar.' }, { status: 400 });
 
   // Parciais em finalizado_setor só aceitam mover, retomar, concluir, cancelar, devolver, apontar
-  if (parcial.status === 'finalizado_setor' && !['mover', 'retomar', 'concluir', 'cancelar', 'devolver', 'apontar'].includes(acao))
+  if (parcial.status === 'finalizado_setor' && !['mover', 'retomar', 'concluir', 'cancelar', 'devolver', 'apontar', 'consolidar'].includes(acao))
     return NextResponse.json({ erro: 'Etapa finalizada. Use "mover" para enviar para o próximo setor ou "retomar" para voltar à produção.' }, { status: 400 });
 
   const obs = body.observacao || '';
@@ -279,6 +279,56 @@ export async function POST(
       ok: true,
       mensagem: `${qtdMover} ${parcial.unidade} movidos de ${nomeSector(parcial.setor_atual)} → ${nomeSector(setor_destino)}`,
     });
+
+  // ── consolidar ── junta as parciais ativas do MESMO item no MESMO setor numa só.
+  //    A soma das quantidades não muda (só some o registro extra), os pallets/pesos
+  //    são combinados e as demais parciais viram "cancelada" (somem das telas).
+  } else if (acao === 'consolidar') {
+    await sql.begin(async (tx) => {
+      await (tx as unknown as typeof sql)`SELECT pg_advisory_xact_lock(778899, ${parcial.item_id})`;
+      const irmas = await (tx as unknown as typeof sql)`
+        SELECT id, quantidade::float AS quantidade, pesos_pallets, nomes_pallets
+        FROM producao_itemparcial
+        WHERE item_pedido_id = ${parcial.item_id}
+          AND setor_atual = ${parcial.setor_atual}
+          AND status NOT IN ('cancelada', 'concluida')
+        ORDER BY id ASC
+        FOR UPDATE
+      `;
+      if (irmas.length < 2)
+        throw new Error('NADA_CONSOLIDAR: Não há outras parciais deste item neste setor para consolidar.');
+
+      const alvo = irmas.find((r: Record<string, unknown>) => Number(r.id) === parcialId) || irmas[0];
+      const outrasIds = irmas
+        .filter((r: Record<string, unknown>) => Number(r.id) !== Number(alvo.id))
+        .map((r: Record<string, unknown>) => Number(r.id));
+      const somaQtd = irmas.reduce((s: number, r: Record<string, unknown>) => s + Number(r.quantidade), 0);
+      const pesos = irmas.flatMap((r: Record<string, unknown>) => Array.isArray(r.pesos_pallets) ? (r.pesos_pallets as unknown[]).map(v => Number(v)) : []);
+      const nomes = irmas.flatMap((r: Record<string, unknown>) => Array.isArray(r.nomes_pallets) ? (r.nomes_pallets as unknown[]).map(v => String(v)) : []);
+
+      await tx`
+        UPDATE producao_itemparcial
+        SET quantidade = ${somaQtd}, pesos_pallets = ${pesos}, nomes_pallets = ${nomes}, atualizado_em = NOW()
+        WHERE id = ${Number(alvo.id)}
+      `;
+      await tx`
+        UPDATE producao_itemparcial
+        SET status = 'cancelada', atualizado_em = NOW()
+        WHERE id = ANY(${outrasIds})
+      `;
+      await tx`
+        INSERT INTO producao_movimentacaoitem
+          (item_id, pedido_id, usuario_id, setor_origem, setor_destino,
+           status_anterior, status_novo, observacao, criado_em)
+        VALUES
+          (${parcial.item_id}, ${parcial.pedido_id}, ${user.id},
+           ${parcial.setor_atual}, ${parcial.setor_atual},
+           ${parcial.item_status}, ${parcial.item_status},
+           ${`Consolidadas ${irmas.length} parciais em 1 (${somaQtd} ${parcial.unidade}) em ${nomeSector(parcial.setor_atual)}`},
+           NOW())
+      `;
+    });
+    return NextResponse.json({ ok: true, mensagem: 'Parciais consolidadas em uma só.' });
 
   // ── receber ── reconhece o recebimento SEM iniciar a produção (em_aberto → recebido) ─
   //    O cronometro so comeca quando o usuario clicar em "iniciar" separadamente.
