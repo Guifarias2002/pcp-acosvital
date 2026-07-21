@@ -106,26 +106,17 @@ export default function NovoPedidoPage() {
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(SS_KEY);
-      if (raw) {
-        const d = JSON.parse(raw);
-        if (d.pv !== undefined) setPv(d.pv);
-        if (d.op !== undefined) setOp(d.op);
-        if (d.cliente !== undefined) setCliente(d.cliente);
-        if (d.vendedor !== undefined) setVendedor(d.vendedor);
-        if (d.prazo !== undefined) setPrazo(d.prazo);
-        if (d.prioridade !== undefined) setPrioridade(d.prioridade);
-        if (d.obs !== undefined) setObs(d.obs);
-        if (d.roteiro?.length) setRoteiro(d.roteiro);
-        if (d.itens?.length) setItens(d.itens);
-        return;
-      }
-      // Sem rascunho salvo: se veio de um link com roteiro pré-definido
-      // (ex: botão "Novo Pedido" da tela da Caldeiraria), parte já com
-      // Emissão + o setor indicado, sem precisar clicar no roteiro manualmente.
-      const preset = new URLSearchParams(window.location.search).get('roteiro');
-      if (preset && SETOR_CHOICES.some(([cod]) => cod === preset)) {
-        setRoteiro(['emissao', preset]);
-      }
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d.pv !== undefined) setPv(d.pv);
+      if (d.op !== undefined) setOp(d.op);
+      if (d.cliente !== undefined) setCliente(d.cliente);
+      if (d.vendedor !== undefined) setVendedor(d.vendedor);
+      if (d.prazo !== undefined) setPrazo(d.prazo);
+      if (d.prioridade !== undefined) setPrioridade(d.prioridade);
+      if (d.obs !== undefined) setObs(d.obs);
+      if (d.roteiro?.length) setRoteiro(d.roteiro);
+      if (d.itens?.length) setItens(d.itens);
     } catch { /* ignore */ }
   }, []);
 
@@ -487,10 +478,14 @@ export default function NovoPedidoPage() {
                 Clique nos setores na ordem em que o pedido deve passar:
               </p>
               {(() => {
+                // Beneficiadores e Recebimento são setores compartilhados (atendem
+                // tanto Flanges quanto Caldeiraria) — não fazem parte do roteiro
+                // pré-planejado de uma OP de Flanges, por isso não aparecem aqui.
+                const setoresRoteiro = SETOR_CHOICES.filter(([cod]) => !['beneficiadores', 'recebimento'].includes(cod));
                 const selecionados = roteiro
-                  .filter(c => SETOR_CHOICES.some(([cod]) => cod === c))
-                  .map(c => SETOR_CHOICES.find(([cod]) => cod === c)!);
-                const naoSelecionados = SETOR_CHOICES.filter(([c]) => !roteiro.includes(c));
+                  .filter(c => setoresRoteiro.some(([cod]) => cod === c))
+                  .map(c => setoresRoteiro.find(([cod]) => cod === c)!);
+                const naoSelecionados = setoresRoteiro.filter(([c]) => !roteiro.includes(c));
                 const lista = [...selecionados, ...naoSelecionados];
                 return (
                   <div style={{ display:'flex', flexDirection:'column', gap:6, paddingLeft:14, maxHeight:'calc(100vh - 350px)', overflowY:'auto' }}>

@@ -24,6 +24,10 @@ const SETOR_ICONS: Record<string, string> = {
   logistica: 'bi-truck',
 };
 
+// Setores compartilhados entre Flanges e Caldeiraria — ficam fora do grupo
+// "Flanges" e ganham sua própria linha no menu (ver renderização abaixo).
+const SETORES_FORA_FLANGES = ['caldeiraria', 'beneficiadores', 'recebimento'];
+
 function NavItem({ href, label, icon, onNav }: { href: string; label: string; icon?: string; onNav?: () => void }) {
   const rawPath = usePathname();
   // usePathname() não decodifica segmentos com acentos (ex: "ma%C3%A7arico")
@@ -118,13 +122,13 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
 
           {isAdmin ? (
             <NavGroup label="🔩 Flanges" defaultOpen={true}>
-              {SETOR_CHOICES.filter(([cod]) => cod !== 'caldeiraria').map(([cod, nome]) => (
+              {SETOR_CHOICES.filter(([cod]) => !SETORES_FORA_FLANGES.includes(cod)).map(([cod, nome]) => (
                 <NavItem key={cod} href={`/setor/${cod}`} label={nome} icon={SETOR_ICONS[cod]} onNav={fechar} />
               ))}
             </NavGroup>
-          ) : meusSetores.filter(cod => cod !== 'caldeiraria').length > 0 ? (
+          ) : meusSetores.filter(cod => !SETORES_FORA_FLANGES.includes(cod)).length > 0 ? (
             <NavGroup label="🔩 Flanges">
-              {meusSetores.filter(cod => cod !== 'caldeiraria').map(cod => (
+              {meusSetores.filter(cod => !SETORES_FORA_FLANGES.includes(cod)).map(cod => (
                 <NavItem
                   key={cod}
                   href={`/setor/${cod}`}
@@ -140,6 +144,16 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
           {(isAdmin || meusSetores.includes('caldeiraria')) && (
             <NavGroup label="🏗 Caldeiraria" defaultOpen={true}>
               <NavItem href="/setor/caldeiraria" label="Recebimento" icon={SETOR_ICONS.caldeiraria} onNav={fechar} />
+            </NavGroup>
+          )}
+
+          {/* Beneficiadores e Recebimento — setores compartilhados, vão poder
+              atender tanto Flanges quanto Caldeiraria no futuro */}
+          {(isAdmin || meusSetores.includes('beneficiadores') || meusSetores.includes('recebimento')) && (
+            <NavGroup label="🔗 Compartilhados" defaultOpen={true}>
+              {(isAdmin ? ['beneficiadores', 'recebimento'] : meusSetores.filter(cod => ['beneficiadores', 'recebimento'].includes(cod))).map(cod => (
+                <NavItem key={cod} href={`/setor/${cod}`} label={NOMES[cod] || cod} icon={SETOR_ICONS[cod]} onNav={fechar} />
+              ))}
             </NavGroup>
           )}
 

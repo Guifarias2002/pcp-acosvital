@@ -2720,7 +2720,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                   </button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <Link href="/pedidos/novo?roteiro=caldeiraria"
+                  <Link href="/pedidos/novo-caldeiraria"
                     style={{ display: 'block', textAlign: 'left', padding: '12px 14px', borderRadius: 8, border: '1px solid #d1d5db', textDecoration: 'none', color: '#1a3a5c' }}>
                     <div style={{ fontWeight: 700, fontSize: 14 }}><i className="bi bi-file-earmark-plus" style={{ marginRight: 6 }} />Pedido novo (avulso)</div>
                     <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>Cadastra um pedido próprio, que começa direto na Caldeiraria.</div>
@@ -2782,7 +2782,13 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
 
       {loading && <p style={{ color: '#999', textAlign: 'center', padding: 40 }}>Carregando...</p>}
 
-      {data && (
+      {data && (() => {
+        // Pedidos que têm ao menos um item com parcial neste setor — usado pra
+        // unificar num único card os itens do mesmo pedido que não têm parcial
+        // (ex: um item avulso adicionado depois, tipo um Tubo da Caldeiraria),
+        // em vez de abrir um segundo card duplicado em "Itens no Setor".
+        const pedidoIdsComParciais = new Set((data.parciais || []).map(p => p.pedido_id));
+        return (
         <div className="setor-conteudo" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
 
@@ -3004,6 +3010,16 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                               </div>
                             );
                           })}
+                          {/* Itens do mesmo pedido que ainda não têm parcial neste setor
+                              (ex: item avulso adicionado depois) — unificados no mesmo card,
+                              em vez de abrir um segundo card em "Itens no Setor". */}
+                          {data.itens
+                            .filter(i => i.pedido_id === pedido_id && !(data.parciais || []).some(p => p.item_pedido_id === i.id))
+                            .map((item, idx) => (
+                              <div key={item.id} style={{ borderTop: (itemGrupos.length > 0 || idx > 0) ? '2px solid #e2e8f0' : 'none', padding: '12px 12px' }}>
+                                <ItemCard item={item} onRefresh={carregar} ocultarCabecalhoPedido />
+                              </div>
+                            ))}
                         </div>}
                       </div>
                     );
@@ -3013,10 +3029,12 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
             );
           })()}
 
-          {/* Itens no setor sem parciais — exibe apenas os que não têm rastreio por parcial aqui */}
+          {/* Itens no setor sem parciais — exibe apenas os que não têm rastreio por parcial aqui,
+              e cujo pedido tambem nao aparece no card de "Itens Parciais" acima (senao ja foi
+              mostrado junto, unificado com o resto do pedido). */}
           {(() => {
             const itemIdsComParciais = new Set((data.parciais || []).map(p => p.item_pedido_id));
-            const itensSemParciais = data.itens.filter(i => !itemIdsComParciais.has(i.id));
+            const itensSemParciais = data.itens.filter(i => !itemIdsComParciais.has(i.id) && !pedidoIdsComParciais.has(i.pedido_id));
 
             const itensFiltrados = setor === 'logistica' && filtroLog !== 'todos'
               ? itensSemParciais.filter(i => i.status === filtroLog)
@@ -3044,7 +3062,8 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
             );
           })()}
         </div>
-      )}
+        );
+      })()}
     </AuthGuard>
   );
 }
