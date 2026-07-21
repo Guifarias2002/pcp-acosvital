@@ -2515,8 +2515,7 @@ function EmbalagemResumoEditor({ pedidoId, inicial }: { pedidoId: number; inicia
   const [totalUn, setTotalUn] = useState(inicial?.total_unidades != null ? String(inicial.total_unidades) : '');
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
-  const preenchido = !!(inicial?.identificacao || inicial?.qtd_pallets || inicial?.peso_total || inicial?.total_unidades);
-  const [aberto, setAberto] = useState(preenchido);
+  const [aberto, setAberto] = useState(true);
 
   async function salvar() {
     setSalvando(true); setMsg(null);
@@ -3201,16 +3200,17 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             );
                           })()}
                         </div>
+                        {/* Resumo consolidado da Embalagem por pedido — opção adicional,
+                            SEMPRE logo abaixo do cabeçalho (independe de expandir o pedido).
+                            Não substitui o peso por parcial. */}
+                        {setor === 'embalagem' && podeEditar() && (
+                          <EmbalagemResumoEditor
+                            pedidoId={pedido_id}
+                            inicial={(parciais[0] as unknown as { embalagem_resumo?: ResumoEmb }).embalagem_resumo}
+                          />
+                        )}
                         {/* Produtos do pedido */}
                         {!pedidosColapsados.has(pedido_id) && <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          {/* Resumo consolidado da Embalagem por pedido — opção adicional,
-                              logo abaixo do cabeçalho. Não substitui o peso por parcial. */}
-                          {setor === 'embalagem' && podeEditar() && (
-                            <EmbalagemResumoEditor
-                              pedidoId={pedido_id}
-                              inicial={(parciais[0] as unknown as { embalagem_resumo?: ResumoEmb }).embalagem_resumo}
-                            />
-                          )}
                           {itemGrupos.map((grupo, itemIdx) => {
                             const p0 = grupo[0];
                             return (
