@@ -2667,6 +2667,14 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const carregar = useCallback(() => {
     getSetorPainel(setor).then(d => {
       setLoading(false);
+      // Regra de negócio: a partir da Caldeiraria (setor de serviço/solda) o
+      // destino é SEMPRE a Logística — nunca segue direto pra outro setor de
+      // produção. Normaliza o "próximo setor" para que o "Enviar ao próximo
+      // setor" (itens e parciais) sempre retorne à Logística.
+      if (setor === 'caldeiraria') {
+        (d.itens || []).forEach((i: ItemPedido) => { if (i.setor_atual === 'caldeiraria') i.proximo_setor = 'logistica'; });
+        (d.parciais || []).forEach((p: ItemParcial) => { if (p.setor_atual === 'caldeiraria') p.proximo_setor = 'logistica'; });
+      }
       const retrato = JSON.stringify(d);
       if (retrato === ultimoDadosRef.current) return; // nada mudou → não re-renderiza
       ultimoDadosRef.current = retrato;
@@ -2823,8 +2831,11 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
       {/* Rastreio somente-leitura do que está na Caldeiraria — a peça sai da
           fila de ações da Logística, mas não pode sumir do radar dela. */}
       {setor === 'logistica' && data?.em_caldeiraria && (() => {
+        // Um item que já tem parcial na caldeiraria não pode aparecer também na
+        // lista de "itens" — senão duplica. Mesmo filtro usado nas seções normais.
+        const idsComParcial = new Set(data.em_caldeiraria.parciais.map(p => p.item_pedido_id));
         const linhas = [
-          ...data.em_caldeiraria.itens.map(i => ({
+          ...data.em_caldeiraria.itens.filter(i => !idsComParcial.has(i.id)).map(i => ({
             key: `item-${i.id}`, pv: i.pedido_numero, cliente: i.pedido_cliente,
             codigo: i.codigo, descricao: i.descricao, quantidade: i.quantidade_pendente || i.quantidade,
             unidade: i.unidade, status: STATUS_LABELS[i.status] || i.status,
