@@ -43,6 +43,7 @@ import EntregarModal from '@/components/EntregarModal';
 import DespacharModal from '@/components/DespacharModal';
 import IniciarEntregaModal from '@/components/IniciarEntregaModal';
 import DivergenciaResolucaoModal from '@/components/DivergenciaResolucaoModal';
+import AdicionarItemPedidoModal from '@/components/AdicionarItemPedidoModal';
 import RastreioModal from '@/components/RastreioModal';
 
 function useToast() {
@@ -2611,6 +2612,8 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
   const [modalRastreio, setModalRastreio] = useState<{ pedidoId: number; numero: string } | null>(null);
   const [modalImprimir, setModalImprimir] = useState<{ pedidoId: number; numero: string; temDesenho: boolean; temPV: boolean; temOP: boolean } | null>(null);
+  const [showNovoChooser, setShowNovoChooser] = useState(false);
+  const [showAdicionarExistente, setShowAdicionarExistente] = useState(false);
   // Pedidos ja vistos nesta sessao da pagina - controla quais ja tiveram seu
   // estado de colapso inicializado, pra nao re-fechar um que o usuario abriu.
   const pedidosVistos = useRef<Set<number>>(new Set());
@@ -2700,6 +2703,44 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
               <i className="bi bi-circle-fill" style={{ fontSize: 7, color: '#16a34a', marginRight: 4, verticalAlign: 'middle' }}></i>
               Atualizado às {ultimaAtt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </span>
+          )}
+          {setor === 'caldeiraria' && isAdministrador() && (
+            <button onClick={() => setShowNovoChooser(true)}
+              style={{ background: '#0d6efd', border: '1px solid #0d6efd', borderRadius: 5, padding: '5px 14px', fontSize: 13, color: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+              <i className="bi bi-plus-lg" style={{ marginRight: 4 }}></i>Nova Ordem
+            </button>
+          )}
+          {showNovoChooser && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 420, padding: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <h5 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c' }}>Nova Ordem — Caldeiraria</h5>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setShowNovoChooser(false)}>
+                    <i className="bi bi-x-lg" />
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <Link href="/pedidos/novo?roteiro=caldeiraria"
+                    style={{ display: 'block', textAlign: 'left', padding: '12px 14px', borderRadius: 8, border: '1px solid #d1d5db', textDecoration: 'none', color: '#1a3a5c' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}><i className="bi bi-file-earmark-plus" style={{ marginRight: 6 }} />Pedido novo (avulso)</div>
+                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>Cadastra um pedido próprio, que começa direto na Caldeiraria.</div>
+                  </Link>
+                  <button onClick={() => { setShowNovoChooser(false); setShowAdicionarExistente(true); }}
+                    style={{ display: 'block', textAlign: 'left', padding: '12px 14px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', color: '#1a3a5c' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}><i className="bi bi-link-45deg" style={{ marginRight: 6 }} />Adicionar a um pedido existente</div>
+                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>Ex: um Tubo que acompanha um pedido de Flanges já cadastrado.</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {showAdicionarExistente && (
+            <AdicionarItemPedidoModal
+              titulo="Adicionar item — Caldeiraria"
+              roteiroProprio={['caldeiraria', 'logistica']}
+              onClose={() => setShowAdicionarExistente(false)}
+              onSucesso={() => { setShowAdicionarExistente(false); carregar(); }}
+            />
           )}
           <button onClick={carregar}
             style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 14px', fontSize: 13, color: '#0d6efd', cursor: 'pointer' }}>

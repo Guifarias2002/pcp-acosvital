@@ -106,17 +106,26 @@ export default function NovoPedidoPage() {
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(SS_KEY);
-      if (!raw) return;
-      const d = JSON.parse(raw);
-      if (d.pv !== undefined) setPv(d.pv);
-      if (d.op !== undefined) setOp(d.op);
-      if (d.cliente !== undefined) setCliente(d.cliente);
-      if (d.vendedor !== undefined) setVendedor(d.vendedor);
-      if (d.prazo !== undefined) setPrazo(d.prazo);
-      if (d.prioridade !== undefined) setPrioridade(d.prioridade);
-      if (d.obs !== undefined) setObs(d.obs);
-      if (d.roteiro?.length) setRoteiro(d.roteiro);
-      if (d.itens?.length) setItens(d.itens);
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (d.pv !== undefined) setPv(d.pv);
+        if (d.op !== undefined) setOp(d.op);
+        if (d.cliente !== undefined) setCliente(d.cliente);
+        if (d.vendedor !== undefined) setVendedor(d.vendedor);
+        if (d.prazo !== undefined) setPrazo(d.prazo);
+        if (d.prioridade !== undefined) setPrioridade(d.prioridade);
+        if (d.obs !== undefined) setObs(d.obs);
+        if (d.roteiro?.length) setRoteiro(d.roteiro);
+        if (d.itens?.length) setItens(d.itens);
+        return;
+      }
+      // Sem rascunho salvo: se veio de um link com roteiro pré-definido
+      // (ex: botão "Novo Pedido" da tela da Caldeiraria), parte já com
+      // Emissão + o setor indicado, sem precisar clicar no roteiro manualmente.
+      const preset = new URLSearchParams(window.location.search).get('roteiro');
+      if (preset && SETOR_CHOICES.some(([cod]) => cod === preset)) {
+        setRoteiro(['emissao', preset]);
+      }
     } catch { /* ignore */ }
   }, []);
 

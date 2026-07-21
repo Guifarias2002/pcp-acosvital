@@ -4,10 +4,12 @@ import { autenticar, logAcesso } from '@/lib/middleware';
 import { getPedidoComItens } from '@/lib/queries';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { vendedorRestrito } from '@/lib/auth';
+import { SETOR_CHOICES } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 const PRIORIDADES_VALIDAS = ['baixa', 'normal', 'alta', 'urgente'];
 const UNIDADES_VALIDAS = ['un', 'kg', 'm', 'pc', 'jg', 'cx', 'lt'];
+const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const user = await autenticar(req);
@@ -148,16 +150,27 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
             WHERE id = ${Number(item.id)} AND pedido_id = ${pedidoId}
           `;
         } else {
-          // Insere novo item
-          const [existente] = await tx`SELECT setor_atual FROM producao_pedido WHERE id = ${pedidoId}`;
-          const setorAtual = existente?.setor_atual || 'emissao';
+          // Insere novo item. Se vier com roteiro_proprio (ex: item avulso
+          // adicionado a um pedido de Flanges, tipo um Tubo pra Caldeiraria),
+          // usa o primeiro setor desse roteiro em vez do setor_atual do pedido
+          // — permite um item seguir um caminho independente do resto do pedido.
+          const rotProprio = Array.isArray(item.roteiro_proprio)
+            ? item.roteiro_proprio.filter((s: unknown) => typeof s === 'string' && SETORES_VALIDOS.includes(s))
+            : [];
+          let setorAtual: string;
+          if (rotProprio.length > 0) {
+            setorAtual = rotProprio[0];
+          } else {
+            const [existente] = await tx`SELECT setor_atual FROM producao_pedido WHERE id = ${pedidoId}`;
+            setorAtual = existente?.setor_atual || 'emissao';
+          }
           await tx`
             INSERT INTO producao_itempedido
               (pedido_id, codigo, descricao, quantidade, unidade, valor_unitario,
-               status, setor_atual, quantidade_pendente, quantidade_entregue, criado_em, atualizado_em)
+               roteiro_proprio, status, setor_atual, quantidade_pendente, quantidade_entregue, criado_em, atualizado_em)
             VALUES
               (${pedidoId}, ${cod}, ${desc}, ${qtd}, ${unid}, ${val},
-               'emitido', ${setorAtual}, ${qtd}, 0, NOW(), NOW())
+               ${rotProprio}, 'emitido', ${setorAtual}, ${qtd}, 0, NOW(), NOW())
           `;
         }
       }
