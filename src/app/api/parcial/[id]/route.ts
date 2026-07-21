@@ -70,6 +70,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     prazo_entrega: parcial.prazo_entrega ?? null,
     cliente: parcial.cliente,
     pesos_pallets: Array.isArray(parcial.pesos_pallets) ? (parcial.pesos_pallets as unknown[]).map(v => Number(v)) : [],
+    nomes_pallets: Array.isArray(parcial.nomes_pallets) ? (parcial.nomes_pallets as unknown[]).map(v => String(v)) : [],
     fotos: Array.isArray(parcial.fotos) ? (parcial.fotos as string[]) : [],
     criado_em: parcial.criado_em,
     atualizado_em: parcial.atualizado_em,
@@ -108,10 +109,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!Array.isArray(body.pesos_pallets))
     return NextResponse.json({ erro: 'pesos_pallets deve ser uma lista' }, { status: 400 });
 
-  // Aceita apenas números válidos e não-negativos (pesos em kg).
-  const pesos: number[] = (body.pesos_pallets as unknown[])
-    .map(v => Number(v))
-    .filter(n => Number.isFinite(n) && n >= 0);
+  // Pareia peso + nome por índice, mantém apenas pesos válidos (kg >= 0) e
+  // preserva o alinhamento nome↔peso. O nome/número do pallet é opcional.
+  const nomesRaw: unknown[] = Array.isArray(body.nomes_pallets) ? (body.nomes_pallets as unknown[]) : [];
+  const pares = (body.pesos_pallets as unknown[])
+    .map((v, i) => ({ peso: Number(v), nome: String(nomesRaw[i] ?? '').trim().slice(0, 60) }))
+    .filter(x => Number.isFinite(x.peso) && x.peso >= 0);
+  const pesos: number[] = pares.map(x => x.peso);
+  const nomes: string[] = pares.map(x => x.nome);
 
   const [parcial] = await sql`SELECT id, setor_atual FROM producao_itemparcial WHERE id = ${parcialId}`;
   if (!parcial) return NextResponse.json({ erro: 'Parcial não encontrada' }, { status: 404 });
@@ -120,7 +125,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!user.is_staff && !podeAcessarSetor(user, parcial.setor_atual))
     return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
 
-  await sql`UPDATE producao_itemparcial SET pesos_pallets = ${pesos}, atualizado_em = NOW() WHERE id = ${parcialId}`;
+  await sql`UPDATE producao_itemparcial SET pesos_pallets = ${pesos}, nomes_pallets = ${nomes}, atualizado_em = NOW() WHERE id = ${parcialId}`;
 
-  return NextResponse.json({ ok: true, pesos_pallets: pesos });
+  return NextResponse.json({ ok: true, pesos_pallets: pesos, nomes_pallets: nomes });
 }

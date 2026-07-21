@@ -95,6 +95,9 @@ export async function runMigrations() {
   // M10: peso da embalagem por parcial — lista de pesos (kg), um por pallet.
   // O setor de Embalagem registra 1+ pallets; o total é a soma. Vazio = não informado.
   await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS pesos_pallets NUMERIC(12,3)[] NOT NULL DEFAULT '{}'`).catch(() => {});
+  // M10b: nome/numero de identificacao de cada pallet (alinhado por indice com
+  // pesos_pallets). Vazio = pallet sem identificacao (mostra "Palet N" pelo indice).
+  await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS nomes_pallets TEXT[] NOT NULL DEFAULT '{}'`).catch(() => {});
 
   // M11: acesso somente-leitura por usuário. Quando true, o usuário vê tudo
   // normalmente (inclusive telas administrativas e valores) mas NÃO pode fazer

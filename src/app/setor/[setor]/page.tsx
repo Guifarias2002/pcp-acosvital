@@ -917,11 +917,11 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             Usuário somente-leitura vê o valor (Info) mesmo na Embalagem, sem editar. */}
         {parcial.setor_atual === 'embalagem' && (
           podeEditar()
-            ? <PesosPalletsEditor parcialId={parcial.id as number} inicial={(parcial as any).pesos_pallets || []} />
-            : <PesosPalletsInfo pesos={(parcial as any).pesos_pallets || []} />
+            ? <PesosPalletsEditor parcialId={parcial.id as number} inicial={(parcial as any).pesos_pallets || []} nomesIniciais={(parcial as any).nomes_pallets || []} />
+            : <PesosPalletsInfo pesos={(parcial as any).pesos_pallets || []} nomes={(parcial as any).nomes_pallets || []} />
         )}
         {parcial.setor_atual === 'logistica' && (
-          <PesosPalletsInfo pesos={(parcial as any).pesos_pallets || []} />
+          <PesosPalletsInfo pesos={(parcial as any).pesos_pallets || []} nomes={(parcial as any).nomes_pallets || []} />
         )}
 
         {/* Fotos da peça: adicionar na Embalagem; ver também na Logística */}
@@ -1709,12 +1709,12 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             </div>
           )}
           {podeEditar()
-            ? <PesosPalletsEditor parcialId={p.id as number} inicial={(p as any).pesos_pallets || []} />
-            : <PesosPalletsInfo pesos={(p as any).pesos_pallets || []} />}
+            ? <PesosPalletsEditor parcialId={p.id as number} inicial={(p as any).pesos_pallets || []} nomesIniciais={(p as any).nomes_pallets || []} />
+            : <PesosPalletsInfo pesos={(p as any).pesos_pallets || []} nomes={(p as any).nomes_pallets || []} />}
         </div>
       ))}
       {p0.setor_atual === 'logistica' && parciais.map(p => (
-        <PesosPalletsInfo key={`pesoinfo-${p.id}`} pesos={(p as any).pesos_pallets || []} />
+        <PesosPalletsInfo key={`pesoinfo-${p.id}`} pesos={(p as any).pesos_pallets || []} nomes={(p as any).nomes_pallets || []} />
       ))}
 
       {/* Ações combinadas — escondidas para usuários somente leitura */}
@@ -2390,18 +2390,26 @@ function fmtPeso(n: number) {
 
 // Editor de peso da embalagem por pallet (setor Embalagem). Sempre editável;
 // salva a lista de pesos (kg) via PATCH. O total é a soma dos pallets.
-function PesosPalletsEditor({ parcialId, inicial }: { parcialId: number; inicial: number[] }) {
-  const [pesos, setPesos] = useState<string[]>(() => (inicial.length ? inicial.map(n => String(n)) : ['']));
+function PesosPalletsEditor({ parcialId, inicial, nomesIniciais }: { parcialId: number; inicial: number[]; nomesIniciais?: string[] }) {
+  const [pallets, setPallets] = useState<{ peso: string; nome: string }[]>(() =>
+    inicial.length
+      ? inicial.map((n, i) => ({ peso: String(n), nome: (nomesIniciais && nomesIniciais[i]) || '' }))
+      : [{ peso: '', nome: '' }]
+  );
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
-  const total = pesos.reduce((s, p) => s + (parseFloat(p.replace(',', '.')) || 0), 0);
+  const total = pallets.reduce((s, p) => s + (parseFloat(p.peso.replace(',', '.')) || 0), 0);
+  const upd = (i: number, campo: 'peso' | 'nome', v: string) =>
+    setPallets(arr => arr.map((p, idx) => idx === i ? { ...p, [campo]: v } : p));
 
   async function salvar() {
     setSalvando(true); setMsg(null);
     try {
-      const nums = pesos.map(p => parseFloat(p.replace(',', '.'))).filter(n => Number.isFinite(n) && n >= 0);
-      await setPesosPallets(parcialId, nums);
+      const pares = pallets
+        .map(p => ({ peso: parseFloat(p.peso.replace(',', '.')), nome: p.nome.trim() }))
+        .filter(x => Number.isFinite(x.peso) && x.peso >= 0);
+      await setPesosPallets(parcialId, pares.map(x => x.peso), pares.map(x => x.nome));
       setMsg({ tipo: 'ok', texto: 'Peso salvo' });
       setTimeout(() => setMsg(null), 2500);
     } catch {
@@ -2414,17 +2422,23 @@ function PesosPalletsEditor({ parcialId, inicial }: { parcialId: number; inicial
       <div style={{ fontSize: 11, fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
         📦 Peso da embalagem (kg)
       </div>
-      {pesos.map((p, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <span style={{ fontSize: 12, color: '#475569', fontWeight: 600, minWidth: 58 }}>Palet {i + 1}</span>
+      {pallets.map((p, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: '#475569', fontWeight: 600, minWidth: 48 }}>Palet {i + 1}</span>
           <input
-            type="number" inputMode="decimal" min="0" step="0.001" value={p}
-            onChange={e => setPesos(arr => arr.map((v, idx) => idx === i ? e.target.value : v))}
+            type="text" value={p.nome}
+            onChange={e => upd(i, 'nome', e.target.value)}
+            placeholder="nome/nº (opcional)"
+            style={{ border: '1px solid #cbd5e1', borderRadius: 5, padding: '5px 8px', fontSize: 13, width: 140 }}
+          />
+          <input
+            type="number" inputMode="decimal" min="0" step="0.001" value={p.peso}
+            onChange={e => upd(i, 'peso', e.target.value)}
             placeholder="kg"
             style={{ border: '1px solid #cbd5e1', borderRadius: 5, padding: '5px 8px', fontSize: 13, width: 100 }}
           />
           <span style={{ fontSize: 12, color: '#64748b' }}>kg</span>
-          <button type="button" onClick={() => setPesos(arr => arr.length > 1 ? arr.filter((_, idx) => idx !== i) : [''])}
+          <button type="button" onClick={() => setPallets(arr => arr.length > 1 ? arr.filter((_, idx) => idx !== i) : [{ peso: '', nome: '' }])}
             title="Remover pallet"
             style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 14, marginLeft: 'auto' }}>
             <i className="bi bi-trash" />
@@ -2432,7 +2446,7 @@ function PesosPalletsEditor({ parcialId, inicial }: { parcialId: number; inicial
         </div>
       ))}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
-        <button type="button" onClick={() => setPesos(arr => [...arr, ''])}
+        <button type="button" onClick={() => setPallets(arr => [...arr, { peso: '', nome: '' }])}
           style={{ background: 'none', border: '1px dashed #7dd3fc', color: '#0369a1', borderRadius: 5, padding: '4px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
           <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />Adicionar pallet
         </button>
@@ -2448,7 +2462,7 @@ function PesosPalletsEditor({ parcialId, inicial }: { parcialId: number; inicial
 }
 
 // Exibição somente leitura do peso da embalagem (setor Logística).
-function PesosPalletsInfo({ pesos }: { pesos: number[] }) {
+function PesosPalletsInfo({ pesos, nomes }: { pesos: number[]; nomes?: string[] }) {
   if (!pesos || pesos.length === 0) return null;
   const total = pesos.reduce((s, p) => s + (Number(p) || 0), 0);
   return (
@@ -2459,7 +2473,7 @@ function PesosPalletsInfo({ pesos }: { pesos: number[] }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {pesos.map((p, i) => (
           <span key={i} style={{ fontSize: 11, background: '#eef2ff', color: '#3730a3', borderRadius: 4, padding: '2px 8px', fontWeight: 600 }}>
-            Palet {i + 1}: {fmtPeso(Number(p))} kg
+            {(nomes && nomes[i]) ? nomes[i] : `Palet ${i + 1}`}: {fmtPeso(Number(p))} kg
           </span>
         ))}
       </div>

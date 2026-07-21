@@ -86,9 +86,10 @@ export const getParcial = (id: number) =>
 export const parcialAcao = (id: number, acao: string, body?: Record<string, unknown>) =>
   api.post(`/api/parcial/${id}/acao/${acao}`, body || {}).then(r => r.data);
 
-// Salva o peso da embalagem (lista de pesos por pallet, em kg) de uma parcial.
-export const setPesosPallets = (id: number, pesos_pallets: number[]) =>
-  api.patch(`/api/parcial/${id}`, { pesos_pallets }).then(r => r.data);
+// Salva o peso da embalagem (lista de pesos por pallet, em kg) de uma parcial,
+// junto do nome/número de identificação de cada pallet (alinhado por índice).
+export const setPesosPallets = (id: number, pesos_pallets: number[], nomes_pallets: string[] = []) =>
+  api.patch(`/api/parcial/${id}`, { pesos_pallets, nomes_pallets }).then(r => r.data);
 
 // Mesma acao aplicada a varias parciais numa unica requisicao (evita 1 round-trip por item).
 // A rota aceita no maximo 50 ids por chamada - grupos maiores sao divididos em pedacos

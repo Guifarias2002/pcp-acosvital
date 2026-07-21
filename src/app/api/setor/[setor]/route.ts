@@ -99,6 +99,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         (p.pedido_venda_url IS NOT NULL) AS tem_pedido_venda,
         (p.ordem_producao_url IS NOT NULL) AS tem_ordem_producao,
         pa.pesos_pallets,
+        pa.nomes_pallets,
         pa.fotos
       FROM producao_itemparcial pa
       JOIN producao_itempedido i ON i.id = pa.item_pedido_id
@@ -286,6 +287,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       tem_pedido_venda: Boolean(p.tem_pedido_venda),
       tem_ordem_producao: Boolean(p.tem_ordem_producao),
       pesos_pallets: Array.isArray(p.pesos_pallets) ? (p.pesos_pallets as unknown[]).map(v => Number(v)) : [],
+      nomes_pallets: Array.isArray(p.nomes_pallets) ? (p.nomes_pallets as unknown[]).map(v => String(v)) : [],
       peso_total_embalagem: Array.isArray(p.pesos_pallets)
         ? (p.pesos_pallets as unknown[]).reduce((s: number, v) => s + Number(v), 0)
         : 0,
