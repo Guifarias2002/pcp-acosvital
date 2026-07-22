@@ -46,13 +46,16 @@ import DivergenciaResolucaoModal from '@/components/DivergenciaResolucaoModal';
 import AdicionarItemPedidoModal from '@/components/AdicionarItemPedidoModal';
 import RastreioModal from '@/components/RastreioModal';
 
-// Opções de "enviar para o setor" — a Caldeiraria é um setor de serviço
-// (solda) que sempre retorna pra Logística, nunca segue direto pra outro
-// setor de produção; os demais setores continuam podendo escolher qualquer
-// destino, como sempre.
+// Setores internos da Caldeiraria (Recebimento + etapas próprias) — entre eles
+// o envio manual pode ir pra qualquer um dos outros, mais Qualidade e Logística
+// (nunca pros setores do Flange, que não fazem sentido como destino daqui).
+const SETORES_CALDEIRARIA_INTERNOS = ['caldeiraria', 'calandra', 'chanfradeira', 'solda'];
+
 function destinosEnvio(setorAtual: string): [string, string][] {
-  if (setorAtual === 'caldeiraria')
-    return SETOR_CHOICES.filter(([cod]) => cod === 'logistica');
+  if (SETORES_CALDEIRARIA_INTERNOS.includes(setorAtual)) {
+    return SETOR_CHOICES.filter(([cod]) =>
+      cod !== setorAtual && (SETORES_CALDEIRARIA_INTERNOS.includes(cod) || cod === 'qualidade' || cod === 'logistica'));
+  }
   return SETOR_CHOICES.filter(([cod]) => cod !== setorAtual);
 }
 

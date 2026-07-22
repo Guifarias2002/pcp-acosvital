@@ -15,6 +15,10 @@ export const SETOR_CHOICES: [string, string][] = [
   ['caldeiraria', 'Caldeiraria'],
   ['embalagem', 'Embalagem'],
   ['quarentena', 'Quarentena'],
+  ['desenho', 'Desenho'],
+  ['calandra', 'Calandra'],
+  ['chanfradeira', 'Chanfradeira'],
+  ['solda', 'Solda'],
 ];
 
 export const NOMES: Record<string, string> = Object.fromEntries(SETOR_CHOICES);
@@ -27,6 +31,10 @@ export const NOMES: Record<string, string> = Object.fromEntries(SETOR_CHOICES);
 //    pré-planejado, igual já acontece na tela de Flange.
 //  • Caldeiraria hoje só tem 'caldeiraria'; conforme as etapas forem definidas,
 //    é só acrescentar os setores aqui (nada mais muda).
+// Setores exclusivos da Caldeiraria — não aparecem no roteiro nem no menu do
+// Flange, mesmo estando na lista geral SETOR_CHOICES.
+const SETORES_EXCLUSIVOS_CALDEIRARIA = ['desenho', 'calandra', 'chanfradeira', 'solda'];
+
 export const FABRICAS: { cod: string; nome: string; icon: string; setores: string[] }[] = [
   {
     cod: 'flange',
@@ -34,13 +42,17 @@ export const FABRICAS: { cod: string; nome: string; icon: string; setores: strin
     icon: 'bi-nut',
     setores: SETOR_CHOICES
       .map(([c]) => c)
-      .filter(c => !['emissao', 'caldeiraria', 'beneficiadores', 'recebimento'].includes(c)),
+      .filter(c => !['emissao', 'caldeiraria', 'beneficiadores', 'recebimento', ...SETORES_EXCLUSIVOS_CALDEIRARIA].includes(c)),
   },
   {
     cod: 'caldeiraria',
     nome: 'Caldeiraria',
     icon: 'bi-hammer',
-    setores: ['caldeiraria'],
+    // Ordem confirmada até agora (22/07, lista ainda em aberto): Desenho/Compras
+    // (intake, antes de tudo) → Caldeiraria/Recebimento → Calandra/Chanfradeira/
+    // Solda (ordem relativa entre elas ainda não definida) → Qualidade. Todas
+    // opcionais por item — PCP escolhe quais usar e em que ordem, como no Flange.
+    setores: ['desenho', 'compras', 'caldeiraria', 'calandra', 'chanfradeira', 'solda', 'qualidade'],
   },
 ];
 

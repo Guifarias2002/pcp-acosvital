@@ -23,11 +23,19 @@ const SETOR_ICONS: Record<string, string> = {
   embalagem: 'bi-box',
   quarentena: 'bi-shield-check',
   logistica: 'bi-truck',
+  desenho: 'bi-pencil-square',
+  calandra: 'bi-arrow-repeat',
+  chanfradeira: 'bi-triangle-half',
+  solda: 'bi-lightning-charge-fill',
 };
 
 // Setores compartilhados entre Flanges e Caldeiraria — ficam fora do grupo
 // "Flanges" e ganham sua própria linha no menu (ver renderização abaixo).
 const SETORES_FORA_FLANGES = ['caldeiraria', 'beneficiadores', 'recebimento'];
+
+// Setores exclusivos da Caldeiraria — nunca aparecem no grupo "Flanges",
+// mesmo quando entram na lista geral SETOR_CHOICES.
+const SETORES_CALDEIRARIA_EXTRA = ['desenho', 'calandra', 'chanfradeira', 'solda'];
 
 function NavItem({ href, label, icon, onNav }: { href: string; label: string; icon?: string; onNav?: () => void }) {
   const rawPath = usePathname();
@@ -123,13 +131,13 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
 
           {isAdmin ? (
             <NavGroup label="🔩 Flanges" defaultOpen={true}>
-              {SETOR_CHOICES.filter(([cod]) => !SETORES_FORA_FLANGES.includes(cod)).map(([cod, nome]) => (
+              {SETOR_CHOICES.filter(([cod]) => !SETORES_FORA_FLANGES.includes(cod) && !SETORES_CALDEIRARIA_EXTRA.includes(cod)).map(([cod, nome]) => (
                 <NavItem key={cod} href={`/setor/${cod}`} label={nome} icon={SETOR_ICONS[cod]} onNav={fechar} />
               ))}
             </NavGroup>
-          ) : meusSetores.filter(cod => !SETORES_FORA_FLANGES.includes(cod)).length > 0 ? (
+          ) : meusSetores.filter(cod => !SETORES_FORA_FLANGES.includes(cod) && !SETORES_CALDEIRARIA_EXTRA.includes(cod)).length > 0 ? (
             <NavGroup label="🔩 Flanges">
-              {meusSetores.filter(cod => !SETORES_FORA_FLANGES.includes(cod)).map(cod => (
+              {meusSetores.filter(cod => !SETORES_FORA_FLANGES.includes(cod) && !SETORES_CALDEIRARIA_EXTRA.includes(cod)).map(cod => (
                 <NavItem
                   key={cod}
                   href={`/setor/${cod}`}
@@ -142,9 +150,12 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
           ) : null}
 
           {/* Caldeiraria — linha própria, separada dos Flanges */}
-          {(isAdmin || meusSetores.includes('caldeiraria')) && (
+          {(isAdmin || meusSetores.includes('caldeiraria') || meusSetores.some(cod => SETORES_CALDEIRARIA_EXTRA.includes(cod))) && (
             <NavGroup label="🏗 Caldeiraria" defaultOpen={true}>
               <NavItem href="/setor/caldeiraria" label="Recebimento" icon={SETOR_ICONS.caldeiraria} onNav={fechar} />
+              {(isAdmin ? SETORES_CALDEIRARIA_EXTRA : SETORES_CALDEIRARIA_EXTRA.filter(cod => meusSetores.includes(cod))).map(cod => (
+                <NavItem key={cod} href={`/setor/${cod}`} label={NOMES[cod] || cod} icon={SETOR_ICONS[cod]} onNav={fechar} />
+              ))}
             </NavGroup>
           )}
 
