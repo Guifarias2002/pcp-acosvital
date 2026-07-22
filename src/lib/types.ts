@@ -54,9 +54,10 @@ export const FABRICAS: { cod: string; nome: string; icon: string; setores: strin
     // Lista fechada em 22/07 com o líder da Caldeiraria (kanban físico dele):
     // Desenho/Compras (intake) → Recebimento (setor "caldeiraria") →
     // Chanfradeira → Calandra → Montagem → Solda → Acabamento → Qualidade
-    // (Inspeção) → Liberado (espera antes do despacho) → Pintura. Todas
-    // opcionais por item — PCP escolhe quais usar e em que ordem, como no Flange.
-    setores: ['desenho', 'compras', 'caldeiraria', 'chanfradeira', 'calandra', 'montagem', 'solda', 'acabamento', 'qualidade', 'liberado', 'pintura'],
+    // (Inspeção) → Pintura → Liberado (pronto, espera antes do despacho).
+    // Todas opcionais por item — PCP escolhe quais usar e em que ordem, como
+    // no Flange.
+    setores: ['desenho', 'compras', 'caldeiraria', 'chanfradeira', 'calandra', 'montagem', 'solda', 'acabamento', 'qualidade', 'pintura', 'liberado'],
   },
 ];
 

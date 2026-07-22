@@ -38,7 +38,7 @@ const SETORES_FORA_FLANGES = ['caldeiraria', 'beneficiadores', 'recebimento'];
 
 // Setores exclusivos da Caldeiraria — nunca aparecem no grupo "Flanges",
 // mesmo quando entram na lista geral SETOR_CHOICES.
-const SETORES_CALDEIRARIA_EXTRA = ['desenho', 'chanfradeira', 'calandra', 'montagem', 'solda', 'liberado', 'pintura'];
+const SETORES_CALDEIRARIA_EXTRA = ['desenho', 'chanfradeira', 'calandra', 'montagem', 'solda', 'pintura', 'liberado'];
 
 function NavItem({ href, label, icon, onNav }: { href: string; label: string; icon?: string; onNav?: () => void }) {
   const rawPath = usePathname();
