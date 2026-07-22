@@ -135,7 +135,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           // concorrentes no mesmo item leiam a mesma quantidade_pendente "antiga" e
           // calculem deltas incompatíveis (lost update).
           const [atualQtd] = await tx`
-            SELECT quantidade, quantidade_pendente FROM producao_itempedido
+            SELECT quantidade, quantidade_pendente, status, quantidade_entregue, setor_atual
+            FROM producao_itempedido
             WHERE id = ${Number(item.id)} AND pedido_id = ${pedidoId}
             FOR UPDATE
           `;
@@ -143,17 +144,45 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           const pendenteAjustada = atualQtd
             ? Math.min(qtd, Math.max(0, Number(atualQtd.quantidade_pendente) + delta))
             : qtd;
-          await tx`
-            UPDATE producao_itempedido SET
-              codigo             = ${cod},
-              descricao          = ${desc},
-              quantidade         = ${qtd},
-              quantidade_pendente = ${pendenteAjustada},
-              unidade            = ${unid},
-              valor_unitario     = ${val},
-              atualizado_em      = NOW()
-            WHERE id = ${Number(item.id)} AND pedido_id = ${pedidoId}
-          `;
+
+          // Troca de fábrica/roteiro de um item já existente (ex: uma OP que
+          // era só Flanges ganha itens de Caldeiraria e o roteiro_proprio dos
+          // itens de Flanges precisa ser fixado). Só mexe nisso enquanto o item
+          // ainda não saiu de Emissão nem teve entrega — depois disso o
+          // roteiro_proprio fica travado para não desalinhar um item em
+          // movimentação do setor em que ele já está.
+          const podeMudarRoteiro = !!atualQtd && atualQtd.status === 'emitido'
+            && Number(atualQtd.quantidade_entregue) === 0 && atualQtd.setor_atual === 'emissao';
+          const rotProprio = Array.isArray(item.roteiro_proprio)
+            ? item.roteiro_proprio.filter((s: unknown) => typeof s === 'string' && SETORES_VALIDOS.includes(s))
+            : null;
+
+          if (podeMudarRoteiro && rotProprio !== null) {
+            await tx`
+              UPDATE producao_itempedido SET
+                codigo             = ${cod},
+                descricao          = ${desc},
+                quantidade         = ${qtd},
+                quantidade_pendente = ${pendenteAjustada},
+                unidade            = ${unid},
+                valor_unitario     = ${val},
+                roteiro_proprio    = ${rotProprio},
+                atualizado_em      = NOW()
+              WHERE id = ${Number(item.id)} AND pedido_id = ${pedidoId}
+            `;
+          } else {
+            await tx`
+              UPDATE producao_itempedido SET
+                codigo             = ${cod},
+                descricao          = ${desc},
+                quantidade         = ${qtd},
+                quantidade_pendente = ${pendenteAjustada},
+                unidade            = ${unid},
+                valor_unitario     = ${val},
+                atualizado_em      = NOW()
+              WHERE id = ${Number(item.id)} AND pedido_id = ${pedidoId}
+            `;
+          }
         } else {
           // Insere novo item. Se vier com roteiro_proprio (ex: item avulso
           // adicionado a um pedido de Flanges, tipo um Tubo pra Caldeiraria),

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedido, editarPedido, inativarItem } from '@/lib/api';
-import { SETOR_CHOICES } from '@/lib/types';
+import { SETOR_CHOICES, FABRICAS, NOMES } from '@/lib/types';
 import { getUser } from '@/lib/auth';
 
 interface ItemForm {
@@ -20,12 +20,38 @@ interface ItemForm {
   _remover?: boolean;
 }
 
+interface Grupo { roteiro: string[]; itens: ItemForm[]; }
+
 // Item já entrou em produção? (não está mais só "emitido" ou já teve entrega)
 function emProducao(it: ItemForm): boolean {
   return !!it.id && (it.status !== 'emitido' || Number(it.quantidade_entregue || 0) > 0);
 }
 
 const UNIDADES = ['un', 'kg', 'm', 'pc', 'jg', 'cx', 'lt'];
+
+function novoItem(): ItemForm {
+  return { codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', roteiro_proprio: [] };
+}
+
+// Descobre a qual fábrica um item pertence: usa o roteiro_proprio dele se
+// tiver (pedido misto), senão o roteiro_base do pedido (pedido de fábrica
+// única, igual sempre funcionou para os pedidos de Flanges já existentes).
+function fabricaDoItem(rotProprio: string[], roteiroBase: string[]): string {
+  const rot = rotProprio.length > 0 ? rotProprio : roteiroBase;
+  const match = FABRICAS.find(f => rot.some(s => f.setores.includes(s)));
+  return match?.cod ?? FABRICAS[0].cod;
+}
+
+function montarGrupos(itensCarregados: ItemForm[], roteiroBase: string[]): Record<string, Grupo> {
+  const grupos: Record<string, Grupo> = Object.fromEntries(FABRICAS.map(f => [f.cod, { roteiro: ['emissao'], itens: [] as ItemForm[] }]));
+  for (const it of itensCarregados) {
+    const fab = fabricaDoItem(it.roteiro_proprio, roteiroBase);
+    const rot = it.roteiro_proprio.length > 0 ? it.roteiro_proprio : roteiroBase;
+    grupos[fab].itens.push(it);
+    if (rot.length > 0) grupos[fab].roteiro = rot;
+  }
+  return grupos;
+}
 
 export default function EditarPedidoPage({ params }: { params: { id: string } }) {
   const { id } = params;
@@ -35,7 +61,9 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
 
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
+  const [salvandoFabrica, setSalvandoFabrica] = useState<string>('');
   const [erro, setErro] = useState('');
+  const [msgSalvo, setMsgSalvo] = useState('');
 
   const [pv, setPv] = useState('');
   const [op, setOp] = useState('');
@@ -44,15 +72,43 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
   const [prazo, setPrazo] = useState('');
   const [prioridade, setPrioridade] = useState('normal');
   const [obs, setObs] = useState('');
-  const [roteiro, setRoteiro] = useState<string[]>(['emissao']);
-  const [itens, setItens] = useState<ItemForm[]>([]);
+
+  // Fábrica em edição (troca o painel de Roteiro e a lista de Itens abaixo).
+  const [fabricaAtiva, setFabricaAtiva] = useState<string>(FABRICAS[0].cod);
+  const [grupos, setGrupos] = useState<Record<string, Grupo>>(
+    Object.fromEntries(FABRICAS.map(f => [f.cod, { roteiro: ['emissao'], itens: [] }]))
+  );
+
+  const grupoAtivo = grupos[fabricaAtiva] ?? { roteiro: ['emissao'], itens: [] };
+  const fabDef = FABRICAS.find(f => f.cod === fabricaAtiva) ?? FABRICAS[0];
+
+  function setGrupo(fabCod: string, patch: Partial<Grupo>) {
+    setGrupos(prev => ({ ...prev, [fabCod]: { ...prev[fabCod], ...patch } }));
+  }
 
   // Modal de inativação (item em movimentação) — chama o endpoint imediatamente,
-  // fora do batch de "Salvar Alterações". Motivo opcional.
-  const [inativarModal, setInativarModal] = useState<{ index: number; item: ItemForm } | null>(null);
+  // fora do batch de "Salvar". Motivo opcional.
+  const [inativarModal, setInativarModal] = useState<{ fabCod: string; index: number; item: ItemForm } | null>(null);
   const [motivoInativar, setMotivoInativar] = useState('');
   const [inativando, setInativando] = useState(false);
   const [erroInativar, setErroInativar] = useState('');
+
+  function aplicarPedido(pedido: Record<string, unknown>) {
+    const roteiroBase = (pedido.roteiro_base as string[]) || ['emissao'];
+    const itensCarregados: ItemForm[] = ((pedido.itens as Record<string, unknown>[]) || []).map((i) => ({
+      id: i.id as number,
+      codigo: String(i.codigo || ''),
+      descricao: String(i.descricao || ''),
+      quantidade: String(i.quantidade || '1'),
+      unidade: String(i.unidade || 'un'),
+      valor_unitario: i.valor_unitario ? String(i.valor_unitario) : '',
+      roteiro_proprio: (i.roteiro_proprio as string[]) || [],
+      status: i.status as string | undefined,
+      quantidade_entregue: Number(i.quantidade_entregue || 0),
+      inativo: Boolean(i.inativo),
+    }));
+    setGrupos(montarGrupos(itensCarregados, roteiroBase));
+  }
 
   useEffect(() => {
     getPedido(Number(id)).then((pedido) => {
@@ -63,60 +119,47 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
       setPrazo(pedido.prazo_entrega?.slice(0, 10) || '');
       setPrioridade(pedido.prioridade || 'normal');
       setObs(pedido.observacoes || '');
-      setRoteiro(pedido.roteiro_base || ['emissao']);
-      setItens((pedido.itens || []).map((i: Record<string, unknown>) => ({
-        id: i.id as number,
-        codigo: String(i.codigo || ''),
-        descricao: String(i.descricao || ''),
-        quantidade: String(i.quantidade || '1'),
-        unidade: String(i.unidade || 'un'),
-        valor_unitario: i.valor_unitario ? String(i.valor_unitario) : '',
-        roteiro_proprio: (i.roteiro_proprio as string[]) || [],
-        status: i.status as string | undefined,
-        quantidade_entregue: Number(i.quantidade_entregue || 0),
-        inativo: Boolean(i.inativo),
-      })));
+      aplicarPedido(pedido);
       setLoading(false);
     }).catch(() => {
       setErro('Erro ao carregar pedido.');
       setLoading(false);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   function toggleSetor(cod: string) {
     if (cod === 'emissao') return;
-    setRoteiro(prev => prev.includes(cod) ? prev.filter(s => s !== cod) : [...prev, cod]);
+    const rot = grupoAtivo.roteiro;
+    setGrupo(fabricaAtiva, { roteiro: rot.includes(cod) ? rot.filter(s => s !== cod) : [...rot, cod] });
   }
 
-  function addItem() {
-    setItens(prev => [...prev, { codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', roteiro_proprio: [] }]);
-  }
+  function addItem() { setGrupo(fabricaAtiva, { itens: [...grupoAtivo.itens, novoItem()] }); }
 
   function remItem(i: number) {
-    const it = itens[i];
+    const it = grupoAtivo.itens[i];
     // Item em movimentação: não pode ser removido, mas pode ser inativado.
     if (emProducao(it)) {
       setMotivoInativar('');
       setErroInativar('');
-      setInativarModal({ index: i, item: it });
+      setInativarModal({ fabCod: fabricaAtiva, index: i, item: it });
       return;
     }
     // Item ainda não produzido (ou novo, não salvo): marcação simples no batch.
-    setItens(prev => prev.map((item, idx) => idx === i ? { ...item, _remover: true } : item));
+    setGrupo(fabricaAtiva, { itens: grupoAtivo.itens.map((item, idx) => idx === i ? { ...item, _remover: true } : item) });
   }
 
   // Alterna inativo/ativo de um item (imediato, fora do batch). Ao inativar abre
   // o modal para o motivo opcional; ao ativar age direto.
-  async function toggleInativo(i: number, inativo: boolean) {
-    const it = itens[i];
+  async function toggleInativo(fabCod: string, i: number, inativo: boolean) {
+    const it = grupos[fabCod].itens[i];
     if (!it.id) return;
-    if (inativo && !inativarModal) { setMotivoInativar(''); setErroInativar(''); setInativarModal({ index: i, item: it }); return; }
+    if (inativo && !inativarModal) { setMotivoInativar(''); setErroInativar(''); setInativarModal({ fabCod, index: i, item: it }); return; }
     setInativando(true);
     setErroInativar('');
     try {
       await inativarItem(it.id, inativo, inativo ? motivoInativar.trim() || undefined : undefined);
-      const idx = i;
-      setItens(prev => prev.map((item, j) => j === idx ? { ...item, inativo } : item));
+      setGrupo(fabCod, { itens: grupos[fabCod].itens.map((item, j) => j === i ? { ...item, inativo } : item) });
       setInativarModal(null);
     } catch (e: unknown) {
       setErroInativar((e as { response?: { data?: { erro?: string } } }).response?.data?.erro || 'Erro ao atualizar item');
@@ -126,19 +169,77 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
   }
 
   function setItemField(i: number, field: keyof ItemForm, val: string) {
-    setItens(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: val } : it));
+    setGrupo(fabricaAtiva, { itens: grupoAtivo.itens.map((it, idx) => idx === i ? { ...it, [field]: val } : it) });
   }
 
   function bloquearEnter(e: React.KeyboardEvent<HTMLFormElement>) {
     const target = e.target as HTMLElement;
     if (e.key === 'Enter' && target.tagName !== 'TEXTAREA') {
       e.preventDefault();
-      setErro('Informações incompletas. Revise os campos e clique em "Salvar Alterações" para confirmar.');
+      setErro('Informações incompletas. Revise os campos e clique em "Enviar para Emissão" para confirmar.');
     }
   }
 
+  const itensValidos = (g: Grupo) => g.itens.filter(i => !i._remover && i.codigo.trim());
+
+  // Monta o payload de itens (todas as fábricas) + o roteiro_base do pedido,
+  // seguindo a mesma regra da Nova Ordem: fábrica única → roteiro_base é o
+  // roteiro dela e os itens não carregam roteiro_proprio; 2+ fábricas com item
+  // → cada item leva seu próprio roteiro_proprio e o roteiro_base fica só
+  // com 'emissao'.
+  function montarPayload() {
+    const comItens = FABRICAS.filter(f => itensValidos(grupos[f.cod]).length > 0);
+    const misto = comItens.length > 1;
+    const roteiro_base = misto ? ['emissao'] : (comItens[0] ? grupos[comItens[0].cod].roteiro : ['emissao']);
+    const itensPayload: Record<string, unknown>[] = [];
+    for (const f of FABRICAS) {
+      const g = grupos[f.cod];
+      for (const it of g.itens) {
+        if (it._remover) {
+          if (it.id) itensPayload.push({ id: it.id, _remover: true });
+          continue;
+        }
+        if (!it.codigo.trim()) continue;
+        itensPayload.push({
+          id: it.id,
+          codigo: it.codigo,
+          descricao: it.descricao,
+          quantidade: Number(it.quantidade),
+          unidade: it.unidade,
+          valor_unitario: it.valor_unitario ? Number(String(it.valor_unitario).replace(',', '.')) : null,
+          roteiro_proprio: misto ? g.roteiro : [],
+        });
+      }
+    }
+    return { itensPayload, roteiro_base, temItens: comItens.length > 0 };
+  }
+
+  // Botão "Salvar {Fábrica}": grava só os itens/roteiro (todas as fábricas,
+  // pela razão acima) — NÃO manda PV/Cliente/Prazo/Observações, então nada
+  // mais do pedido é tocado. Fica na tela.
+  async function salvarItens(fabCod: string) {
+    const { itensPayload, roteiro_base, temItens } = montarPayload();
+    if (!temItens) { setErro('Adicione ao menos um item (com código) em alguma fábrica.'); return; }
+    setErro('');
+    setMsgSalvo('');
+    setSalvandoFabrica(fabCod);
+    try {
+      const pedidoAtualizado = await editarPedido(Number(id), { roteiro_base, itens: itensPayload });
+      aplicarPedido(pedidoAtualizado);
+      setMsgSalvo(`Itens de ${FABRICAS.find(f => f.cod === fabCod)?.nome} salvos.`);
+    } catch (e: unknown) {
+      setErro((e as { response?: { data?: { erro?: string } } }).response?.data?.erro || 'Erro ao salvar itens');
+    } finally {
+      setSalvandoFabrica('');
+    }
+  }
+
+  // Botão "Enviar para Emissão": salva tudo (identificação + itens de todas as
+  // fábricas) e volta para a tela do pedido — o passo final.
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
+    const { itensPayload, roteiro_base, temItens } = montarPayload();
+    if (!temItens) { setErro('Adicione ao menos um item (com código) em alguma fábrica.'); return; }
     setErro('');
     setSalvando(true);
     try {
@@ -149,18 +250,9 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
         vendedor,
         prazo_entrega: prazo,
         prioridade,
-        roteiro_base: roteiro,
+        roteiro_base,
         observacoes: obs,
-        itens: itens.map(i => ({
-          id: i.id,
-          codigo: i.codigo,
-          descricao: i.descricao,
-          quantidade: Number(i.quantidade),
-          unidade: i.unidade,
-          valor_unitario: i.valor_unitario ? Number(String(i.valor_unitario).replace(',', '.')) : null,
-          roteiro_proprio: i.roteiro_proprio,
-          _remover: i._remover,
-        })),
+        itens: itensPayload,
       });
       router.push(`/pedidos/${id}`);
     } catch (e: unknown) {
@@ -179,7 +271,13 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
     </AuthGuard>
   );
 
-  const itensVisiveis = itens.filter(i => !i._remover);
+  const itensVisiveis = grupoAtivo.itens.filter(i => !i._remover);
+
+  // Lista de setores do roteiro da fábrica ativa: Emissão (fixo) + setores dela.
+  const setoresRoteiro: [string, string][] = [
+    ['emissao', NOMES['emissao'] || 'Emissao de Ordens'],
+    ...fabDef.setores.map(cod => SETOR_CHOICES.find(([c]) => c === cod)!).filter(Boolean) as [string, string][],
+  ];
 
   return (
     <AuthGuard adminOnly>
@@ -199,8 +297,8 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
             </a>
             <button type="submit" disabled={salvando}
               style={{ padding: '8px 24px', borderRadius: 8, background: '#1a3a5c', color: '#fff', fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer', opacity: salvando ? 0.6 : 1 }}>
-              <i className="bi bi-check-lg" style={{ marginRight: 6 }} />
-              {salvando ? 'Salvando...' : 'Salvar Alterações'}
+              <i className="bi bi-send-check" style={{ marginRight: 6 }} />
+              {salvando ? 'Enviando...' : 'Enviar para Emissão'}
             </button>
           </div>
         </div>
@@ -210,6 +308,38 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
             <i className="bi bi-exclamation-circle" style={{ marginRight: 6 }} />{erro}
           </div>
         )}
+        {msgSalvo && (
+          <div style={{ background: '#f0fdf4', border: '1px solid #86efac', color: '#166534', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16 }}>
+            <i className="bi bi-check-circle" style={{ marginRight: 6 }} />{msgSalvo}
+          </div>
+        )}
+
+        {/* Seletor de fábrica — troca o Roteiro e os Itens exibidos abaixo */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginRight: 4 }}>Fábrica:</span>
+          {FABRICAS.map(f => {
+            const ativo = f.cod === fabricaAtiva;
+            const qtd = itensValidos(grupos[f.cod]).length;
+            return (
+              <button key={f.cod} type="button" onClick={() => { setFabricaAtiva(f.cod); setMsgSalvo(''); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 10,
+                  border: `2px solid ${ativo ? '#1a3a5c' : '#e5e7eb'}`,
+                  background: ativo ? '#1a3a5c' : '#fff', color: ativo ? '#fff' : '#555',
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .15s',
+                }}>
+                <i className={`bi ${f.icon}`} />
+                {f.nome}
+                {qtd > 0 && (
+                  <span style={{
+                    background: ativo ? 'rgba(255,255,255,.25)' : '#eef2ff', color: ativo ? '#fff' : '#1a3a5c',
+                    borderRadius: 10, padding: '1px 8px', fontSize: 12, fontWeight: 800,
+                  }}>{qtd}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
         <div className="novo-pedido-grid">
           {/* COLUNA ESQUERDA */}
@@ -257,24 +387,31 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
               </div>
             </div>
 
-            {/* Itens */}
+            {/* Itens da fábrica ativa */}
             <div className="card" style={{ padding: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, borderBottom: '2px solid #1a3a5c', paddingBottom: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, borderBottom: '2px solid #1a3a5c', paddingBottom: 6, flexWrap: 'wrap', gap: 8 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#1a3a5c', textTransform: 'uppercase', letterSpacing: 1 }}>
-                  <i className="bi bi-list-ul" style={{ marginRight: 6 }} />Itens do Pedido
+                  <i className={`bi ${fabDef.icon}`} style={{ marginRight: 6 }} />Itens do Pedido — {fabDef.nome}
                 </span>
-                <button type="button" onClick={addItem}
-                  style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                  <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />Adicionar Item
-                </button>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" onClick={addItem}
+                    style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                    <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />Adicionar Item
+                  </button>
+                  <button type="button" onClick={() => salvarItens(fabricaAtiva)} disabled={salvandoFabrica === fabricaAtiva}
+                    style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: salvandoFabrica === fabricaAtiva ? 0.6 : 1 }}>
+                    <i className="bi bi-save" style={{ marginRight: 4 }} />
+                    {salvandoFabrica === fabricaAtiva ? 'Salvando...' : `Salvar ${fabDef.nome}`}
+                  </button>
+                </div>
               </div>
 
               {itensVisiveis.length === 0 && (
-                <p style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Nenhum item. Adicione pelo menos um.</p>
+                <p style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Nenhum item nesta fábrica ainda. Adicione pelo menos um.</p>
               )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {itens.map((item, i) => item._remover ? null : (
+                {grupoAtivo.itens.map((item, i) => item._remover ? null : (
                   <div key={i} style={{ border: '1px solid #e9ecef', borderRadius: 8, padding: 12, background: item.inativo ? '#f1f3f5' : item.id ? '#f8faff' : '#f0fff4', opacity: item.inativo ? 0.7 : 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                       <span style={{ fontSize: 11, fontWeight: 700, color: item.inativo ? '#868e96' : '#1a3a5c' }}>
@@ -293,7 +430,7 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
                         )}
                       </span>
                       {item.inativo ? (
-                        <button type="button" onClick={() => toggleInativo(i, false)} disabled={inativando}
+                        <button type="button" onClick={() => toggleInativo(fabricaAtiva, i, false)} disabled={inativando}
                           title="Reativar item (volta a aparecer para o operador)"
                           style={{ background: '#d1e7dd', color: '#0a5c36', border: 'none', borderRadius: 5, padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                           <i className="bi bi-arrow-counterclockwise" style={{ marginRight: 3 }} />Ativar
@@ -346,82 +483,82 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
             </div>
           </div>
 
-          {/* COLUNA DIREITA — Roteiro */}
+          {/* COLUNA DIREITA — Roteiro da fábrica ativa */}
           <div>
             <div className="card" style={{ padding: 20, position: 'sticky', top: 66 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#1a3a5c', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14, borderBottom: '2px solid #1a3a5c', paddingBottom: 6 }}>
-                <i className="bi bi-arrow-right-circle" style={{ marginRight: 6 }} />Roteiro de Produção *
+                <i className="bi bi-arrow-right-circle" style={{ marginRight: 6 }} />Roteiro — {fabDef.nome}
               </div>
               <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
-                Clique nos setores na ordem em que o pedido deve passar:
+                Clique nos setores na ordem em que os itens de {fabDef.nome} devem passar:
               </p>
-              {(() => {
-                // Beneficiadores e Recebimento são setores compartilhados (atendem
-                // tanto Flanges quanto Caldeiraria) — não fazem parte do roteiro
-                // pré-planejado de uma OP de Flanges, por isso não aparecem aqui.
-                const setoresRoteiro = SETOR_CHOICES.filter(([cod]) => !['beneficiadores', 'recebimento'].includes(cod));
-                const selecionados = roteiro
+              {fabDef.setores.length === 0 ? (
+                <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px' }}>
+                  Os setores desta fábrica ainda serão cadastrados.
+                </div>
+              ) : (() => {
+                const selecionados = grupoAtivo.roteiro
                   .filter(c => setoresRoteiro.some(([cod]) => cod === c))
                   .map(c => setoresRoteiro.find(([cod]) => cod === c)!);
-                const naoSelecionados = setoresRoteiro.filter(([c]) => !roteiro.includes(c));
+                const naoSelecionados = setoresRoteiro.filter(([c]) => !grupoAtivo.roteiro.includes(c));
                 const lista = [...selecionados, ...naoSelecionados];
                 return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 14, maxHeight: 'calc(100vh - 350px)', overflowY: 'auto' }}>
-                  {lista.map(([cod, nome]) => {
-                    const selecionado = roteiro.includes(cod);
-                    const fixo = cod === 'emissao';
-                    const pos = roteiro.indexOf(cod);
-                    return (
-                      <div key={cod} style={{ position: 'relative' }}>
-                        {selecionado && (
-                          <span style={{
-                            position: 'absolute', left: -14, top: '50%', transform: 'translateY(-50%)',
-                            width: 24, height: 24, borderRadius: '50%',
-                            background: fixo ? '#fff' : '#1a3a5c',
-                            color: fixo ? '#1a3a5c' : '#fff',
-                            border: '2px solid #1a3a5c',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 11, fontWeight: 800, zIndex: 1,
-                          }}>
-                            {pos + 1}
-                          </span>
-                        )}
-                        <button type="button" onClick={() => toggleSetor(cod)}
-                          disabled={fixo}
-                          style={{
-                            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                            padding: '9px 12px', borderRadius: 8, border: '1px solid',
-                            borderColor: selecionado ? '#1a3a5c' : '#e5e7eb',
-                            background: fixo ? '#1a3a5c' : selecionado ? '#eef2ff' : '#fff',
-                            color: fixo ? '#fff' : selecionado ? '#1a3a5c' : '#666',
-                            cursor: fixo ? 'default' : 'pointer',
-                            fontWeight: selecionado ? 700 : 400,
-                            fontSize: 13, textAlign: 'left', transition: 'all .15s',
-                          }}>
-                          {!selecionado && (
-                            <span style={{ width: 16, height: 16, borderRadius: '50%', border: '1px dashed #ccc', flexShrink: 0 }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 14, maxHeight: 'calc(100vh - 350px)', overflowY: 'auto' }}>
+                    {lista.map(([cod, nome]) => {
+                      const selecionado = grupoAtivo.roteiro.includes(cod);
+                      const fixo = cod === 'emissao';
+                      const pos = grupoAtivo.roteiro.indexOf(cod);
+                      return (
+                        <div key={cod} style={{ position: 'relative' }}>
+                          {selecionado && (
+                            <span style={{
+                              position: 'absolute', left: -14, top: '50%', transform: 'translateY(-50%)',
+                              width: 24, height: 24, borderRadius: '50%',
+                              background: fixo ? '#fff' : '#1a3a5c',
+                              color: fixo ? '#1a3a5c' : '#fff',
+                              border: '2px solid #1a3a5c',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 11, fontWeight: 800, zIndex: 1,
+                            }}>
+                              {pos + 1}
+                            </span>
                           )}
-                          <span style={{ flex: 1 }}>{nome}</span>
-                          {fixo && <i className="bi bi-lock-fill" style={{ fontSize: 11, opacity: .6 }} />}
-                          {selecionado && !fixo && <i className="bi bi-check2" style={{ color: '#1a3a5c', fontSize: 14 }} />}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
+                          <button type="button" onClick={() => toggleSetor(cod)}
+                            disabled={fixo}
+                            style={{
+                              width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                              padding: '9px 12px', borderRadius: 8, border: '1px solid',
+                              borderColor: selecionado ? '#1a3a5c' : '#e5e7eb',
+                              background: fixo ? '#1a3a5c' : selecionado ? '#eef2ff' : '#fff',
+                              color: fixo ? '#fff' : selecionado ? '#1a3a5c' : '#666',
+                              cursor: fixo ? 'default' : 'pointer',
+                              fontWeight: selecionado ? 700 : 400,
+                              fontSize: 13, textAlign: 'left', transition: 'all .15s',
+                            }}>
+                            {!selecionado && (
+                              <span style={{ width: 16, height: 16, borderRadius: '50%', border: '1px dashed #ccc', flexShrink: 0 }} />
+                            )}
+                            <span style={{ flex: 1 }}>{nome}</span>
+                            {fixo && <i className="bi bi-lock-fill" style={{ fontSize: 11, opacity: .6 }} />}
+                            {selecionado && !fixo && <i className="bi bi-check2" style={{ color: '#1a3a5c', fontSize: 14 }} />}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 );
               })()}
 
-              {roteiro.length > 1 && (
+              {grupoAtivo.roteiro.length > 1 && (
                 <div style={{ marginTop: 16, padding: '10px 12px', background: '#f0f4ff', borderRadius: 8, fontSize: 12, color: '#1a3a5c' }}>
                   <strong>Fluxo:</strong>
                   <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 0', marginTop: 6 }}>
-                    {roteiro.map((s, i) => {
-                      const nome = SETOR_CHOICES.find(([c]) => c === s)?.[1];
+                    {grupoAtivo.roteiro.map((s, i) => {
+                      const nome = NOMES[s] || s;
                       return (
                         <span key={s} style={{ display: 'flex', alignItems: 'center' }}>
                           <span style={{ background: '#1a3a5c', color: '#fff', borderRadius: 4, padding: '2px 7px', fontSize: 11, whiteSpace: 'nowrap' }}>{nome}</span>
-                          {i < roteiro.length - 1 && <span style={{ margin: '0 4px', color: '#aaa', flexShrink: 0 }}>→</span>}
+                          {i < grupoAtivo.roteiro.length - 1 && <span style={{ margin: '0 4px', color: '#aaa', flexShrink: 0 }}>→</span>}
                         </span>
                       );
                     })}
@@ -454,7 +591,7 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
                 style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 6, padding: '8px 18px', fontSize: 13, cursor: 'pointer', color: '#555', fontWeight: 600 }}>
                 Cancelar
               </button>
-              <button type="button" onClick={() => toggleInativo(inativarModal.index, true)} disabled={inativando}
+              <button type="button" onClick={() => toggleInativo(inativarModal.fabCod, inativarModal.index, true)} disabled={inativando}
                 style={{ background: '#b45309', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 22px', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: inativando ? 0.5 : 1 }}>
                 {inativando ? 'Inativando...' : 'Confirmar inativação'}
               </button>
