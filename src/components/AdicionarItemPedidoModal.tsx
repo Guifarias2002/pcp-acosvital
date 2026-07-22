@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { getPedidos, editarPedido } from '@/lib/api';
+import { FABRICAS } from '@/lib/types';
 
 interface PedidoResumo {
   id: number;
@@ -59,6 +60,7 @@ export default function AdicionarItemPedidoModal({ titulo, roteiroProprio, onClo
     setErro('');
     setLoading(true);
     try {
+      const fabrica = FABRICAS.find(f => roteiroProprio.some(s => f.setores.includes(s)))?.cod ?? FABRICAS[0].cod;
       await editarPedido(pedido.id, {
         itens: [{
           codigo: codigo.trim(),
@@ -67,6 +69,7 @@ export default function AdicionarItemPedidoModal({ titulo, roteiroProprio, onClo
           unidade,
           valor_unitario: valorUnitario ? Number(valorUnitario) : null,
           roteiro_proprio: roteiroProprio,
+          fabrica,
         }],
       });
       onSucesso();

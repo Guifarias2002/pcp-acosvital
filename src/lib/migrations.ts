@@ -126,4 +126,12 @@ export async function runMigrations() {
   // Continua perfil 'vendedor' (não-staff, somente_leitura forçado, preso à
   // aba /pedidos) — só remove o filtro "só vê os próprios".
   await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS ve_todos_pedidos BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
+
+  // M14: fábrica do item (Flanges/Caldeiraria), fixa e explícita por item —
+  // antes disso era só inferida pelo roteiro_proprio, o que quebrava quando o
+  // item ficava só com 'emissao' no roteiro (nenhum setor da fábrica ainda
+  // selecionado): 'emissao' não pertence a nenhuma fábrica, então a inferência
+  // caía sempre no fallback errado (Flanges). Backfill 'flange' pra todo item
+  // já existente, já que até aqui só a fábrica de Flanges existia.
+  await sql.unsafe(`ALTER TABLE producao_itempedido ADD COLUMN IF NOT EXISTS fabrica VARCHAR(20) NOT NULL DEFAULT 'flange'`).catch(() => {});
 }

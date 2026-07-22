@@ -221,6 +221,7 @@ export default function NovoPedidoPage() {
             quantidade: Number(it.quantidade), unidade: it.unidade,
             valor_unitario: it.valor_unitario ? parseVal(it.valor_unitario) : null,
             roteiro_proprio: rot,
+            fabrica: f.cod,
           });
         }
       }
@@ -232,6 +233,7 @@ export default function NovoPedidoPage() {
           codigo: it.codigo, descricao: it.descricao,
           quantidade: Number(it.quantidade), unidade: it.unidade,
           valor_unitario: it.valor_unitario ? parseVal(it.valor_unitario) : null,
+          fabrica: f.cod,
         });
       }
     }

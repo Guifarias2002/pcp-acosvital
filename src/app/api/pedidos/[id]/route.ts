@@ -4,12 +4,13 @@ import { autenticar, logAcesso } from '@/lib/middleware';
 import { getPedidoComItens } from '@/lib/queries';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { vendedorRestrito } from '@/lib/auth';
-import { SETOR_CHOICES } from '@/lib/types';
+import { SETOR_CHOICES, FABRICAS } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 const PRIORIDADES_VALIDAS = ['baixa', 'normal', 'alta', 'urgente'];
 const UNIDADES_VALIDAS = ['un', 'kg', 'm', 'pc', 'jg', 'cx', 'lt'];
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
+const FABRICAS_VALIDAS = FABRICAS.map(f => f.cod);
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const user = await autenticar(req);
@@ -149,13 +150,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           // era só Flanges ganha itens de Caldeiraria e o roteiro_proprio dos
           // itens de Flanges precisa ser fixado). Só mexe nisso enquanto o item
           // ainda não saiu de Emissão nem teve entrega — depois disso o
-          // roteiro_proprio fica travado para não desalinhar um item em
-          // movimentação do setor em que ele já está.
+          // roteiro_proprio/fabrica ficam travados para não desalinhar um item
+          // em movimentação do setor em que ele já está.
           const podeMudarRoteiro = !!atualQtd && atualQtd.status === 'emitido'
             && Number(atualQtd.quantidade_entregue) === 0 && atualQtd.setor_atual === 'emissao';
           const rotProprio = Array.isArray(item.roteiro_proprio)
             ? item.roteiro_proprio.filter((s: unknown) => typeof s === 'string' && SETORES_VALIDOS.includes(s))
             : null;
+          const fabrica = FABRICAS_VALIDAS.includes(item.fabrica) ? item.fabrica : null;
 
           if (podeMudarRoteiro && rotProprio !== null) {
             await tx`
@@ -167,6 +169,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
                 unidade            = ${unid},
                 valor_unitario     = ${val},
                 roteiro_proprio    = ${rotProprio},
+                fabrica            = COALESCE(${fabrica}, fabrica),
                 atualizado_em      = NOW()
               WHERE id = ${Number(item.id)} AND pedido_id = ${pedidoId}
             `;
@@ -191,6 +194,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           const rotProprio = Array.isArray(item.roteiro_proprio)
             ? item.roteiro_proprio.filter((s: unknown) => typeof s === 'string' && SETORES_VALIDOS.includes(s))
             : [];
+          const fabrica = FABRICAS_VALIDAS.includes(item.fabrica) ? item.fabrica : FABRICAS_VALIDAS[0];
           let setorAtual: string;
           if (rotProprio.length > 0) {
             setorAtual = rotProprio[0];
@@ -201,10 +205,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           await tx`
             INSERT INTO producao_itempedido
               (pedido_id, codigo, descricao, quantidade, unidade, valor_unitario,
-               roteiro_proprio, status, setor_atual, quantidade_pendente, quantidade_entregue, criado_em, atualizado_em)
+               roteiro_proprio, fabrica, status, setor_atual, quantidade_pendente, quantidade_entregue, criado_em, atualizado_em)
             VALUES
               (${pedidoId}, ${cod}, ${desc}, ${qtd}, ${unid}, ${val},
-               ${rotProprio}, 'emitido', ${setorAtual}, ${qtd}, 0, NOW(), NOW())
+               ${rotProprio}, ${fabrica}, 'emitido', ${setorAtual}, ${qtd}, 0, NOW(), NOW())
           `;
         }
       }

@@ -14,6 +14,7 @@ interface ItemForm {
   unidade: string;
   valor_unitario: string;
   roteiro_proprio: string[];
+  fabrica: string;
   status?: string;
   quantidade_entregue?: number;
   inativo?: boolean;
@@ -22,6 +23,10 @@ interface ItemForm {
 
 interface Grupo { roteiro: string[]; itens: ItemForm[]; }
 
+// Aba de revisão final — não é uma fábrica, só agrega os itens já salvos de
+// todas as fábricas e concentra o botão de envio.
+const TAB_TODOS = '__todos__';
+
 // Item já entrou em produção? (não está mais só "emitido" ou já teve entrega)
 function emProducao(it: ItemForm): boolean {
   return !!it.id && (it.status !== 'emitido' || Number(it.quantidade_entregue || 0) > 0);
@@ -29,23 +34,18 @@ function emProducao(it: ItemForm): boolean {
 
 const UNIDADES = ['un', 'kg', 'm', 'pc', 'jg', 'cx', 'lt'];
 
-function novoItem(): ItemForm {
-  return { codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', roteiro_proprio: [] };
+function novoItem(fabrica: string): ItemForm {
+  return { codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', roteiro_proprio: [], fabrica };
 }
 
-// Descobre a qual fábrica um item pertence: usa o roteiro_proprio dele se
-// tiver (pedido misto), senão o roteiro_base do pedido (pedido de fábrica
-// única, igual sempre funcionou para os pedidos de Flanges já existentes).
-function fabricaDoItem(rotProprio: string[], roteiroBase: string[]): string {
-  const rot = rotProprio.length > 0 ? rotProprio : roteiroBase;
-  const match = FABRICAS.find(f => rot.some(s => f.setores.includes(s)));
-  return match?.cod ?? FABRICAS[0].cod;
-}
-
+// Agrupa os itens pela fábrica gravada em cada um (coluna explícita `fabrica`
+// — não é mais inferida pelo roteiro, porque um item recém-criado pode ainda
+// não ter nenhum setor da fábrica selecionado no roteiro (só 'emissao'), e
+// 'emissao' não pertence a nenhuma fábrica especificamente.
 function montarGrupos(itensCarregados: ItemForm[], roteiroBase: string[]): Record<string, Grupo> {
   const grupos: Record<string, Grupo> = Object.fromEntries(FABRICAS.map(f => [f.cod, { roteiro: ['emissao'], itens: [] as ItemForm[] }]));
   for (const it of itensCarregados) {
-    const fab = fabricaDoItem(it.roteiro_proprio, roteiroBase);
+    const fab = FABRICAS.some(f => f.cod === it.fabrica) ? it.fabrica : FABRICAS[0].cod;
     const rot = it.roteiro_proprio.length > 0 ? it.roteiro_proprio : roteiroBase;
     grupos[fab].itens.push(it);
     if (rot.length > 0) grupos[fab].roteiro = rot;
@@ -73,12 +73,14 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
   const [prioridade, setPrioridade] = useState('normal');
   const [obs, setObs] = useState('');
 
-  // Fábrica em edição (troca o painel de Roteiro e a lista de Itens abaixo).
+  // Aba ativa: uma fábrica (troca o painel de Roteiro e a lista de Itens) ou
+  // a aba de revisão "Todos os Produtos".
   const [fabricaAtiva, setFabricaAtiva] = useState<string>(FABRICAS[0].cod);
   const [grupos, setGrupos] = useState<Record<string, Grupo>>(
     Object.fromEntries(FABRICAS.map(f => [f.cod, { roteiro: ['emissao'], itens: [] }]))
   );
 
+  const naAbaTodos = fabricaAtiva === TAB_TODOS;
   const grupoAtivo = grupos[fabricaAtiva] ?? { roteiro: ['emissao'], itens: [] };
   const fabDef = FABRICAS.find(f => f.cod === fabricaAtiva) ?? FABRICAS[0];
 
@@ -103,6 +105,7 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
       unidade: String(i.unidade || 'un'),
       valor_unitario: i.valor_unitario ? String(i.valor_unitario) : '',
       roteiro_proprio: (i.roteiro_proprio as string[]) || [],
+      fabrica: String(i.fabrica || FABRICAS[0].cod),
       status: i.status as string | undefined,
       quantidade_entregue: Number(i.quantidade_entregue || 0),
       inativo: Boolean(i.inativo),
@@ -134,7 +137,7 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
     setGrupo(fabricaAtiva, { roteiro: rot.includes(cod) ? rot.filter(s => s !== cod) : [...rot, cod] });
   }
 
-  function addItem() { setGrupo(fabricaAtiva, { itens: [...grupoAtivo.itens, novoItem()] }); }
+  function addItem() { setGrupo(fabricaAtiva, { itens: [...grupoAtivo.itens, novoItem(fabricaAtiva)] }); }
 
   function remItem(i: number) {
     const it = grupoAtivo.itens[i];
@@ -184,9 +187,9 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
 
   // Monta o payload de itens (todas as fábricas) + o roteiro_base do pedido,
   // seguindo a mesma regra da Nova Ordem: fábrica única → roteiro_base é o
-  // roteiro dela e os itens não carregam roteiro_proprio; 2+ fábricas com item
-  // → cada item leva seu próprio roteiro_proprio e o roteiro_base fica só
-  // com 'emissao'.
+  // roteiro dela; 2+ fábricas com item → o roteiro_base fica só com 'emissao'
+  // e cada item carrega seu próprio roteiro_proprio. `fabrica` vai sempre
+  // explícita, em todo item, fábrica única ou mista.
   function montarPayload() {
     const comItens = FABRICAS.filter(f => itensValidos(grupos[f.cod]).length > 0);
     const misto = comItens.length > 1;
@@ -208,6 +211,7 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
           unidade: it.unidade,
           valor_unitario: it.valor_unitario ? Number(String(it.valor_unitario).replace(',', '.')) : null,
           roteiro_proprio: misto ? g.roteiro : [],
+          fabrica: f.cod,
         });
       }
     }
@@ -234,8 +238,9 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
     }
   }
 
-  // Botão "Enviar para Emissão": salva tudo (identificação + itens de todas as
-  // fábricas) e volta para a tela do pedido — o passo final.
+  // Botão "Enviar para Emissão" (na aba Todos os Produtos): salva tudo
+  // (identificação + itens de todas as fábricas) e volta para a tela do
+  // pedido — o passo final.
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
     const { itensPayload, roteiro_base, temItens } = montarPayload();
@@ -272,12 +277,13 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
   );
 
   const itensVisiveis = grupoAtivo.itens.filter(i => !i._remover);
+  const totalItensPedido = FABRICAS.reduce((acc, f) => acc + itensValidos(grupos[f.cod]).length, 0);
 
   // Lista de setores do roteiro da fábrica ativa: Emissão (fixo) + setores dela.
-  const setoresRoteiro: [string, string][] = [
+  const setoresRoteiro: [string, string][] = !naAbaTodos ? [
     ['emissao', NOMES['emissao'] || 'Emissao de Ordens'],
     ...fabDef.setores.map(cod => SETOR_CHOICES.find(([c]) => c === cod)!).filter(Boolean) as [string, string][],
-  ];
+  ] : [];
 
   return (
     <AuthGuard adminOnly>
@@ -291,16 +297,9 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
               Editar Pedido
             </h1>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <a href={`/pedidos/${id}`} style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 13, color: '#555', textDecoration: 'none', fontWeight: 600 }}>
-              Cancelar
-            </a>
-            <button type="submit" disabled={salvando}
-              style={{ padding: '8px 24px', borderRadius: 8, background: '#1a3a5c', color: '#fff', fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer', opacity: salvando ? 0.6 : 1 }}>
-              <i className="bi bi-send-check" style={{ marginRight: 6 }} />
-              {salvando ? 'Enviando...' : 'Enviar para Emissão'}
-            </button>
-          </div>
+          <a href={`/pedidos/${id}`} style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 13, color: '#555', textDecoration: 'none', fontWeight: 600 }}>
+            Cancelar
+          </a>
         </div>
 
         {erro && (
@@ -314,7 +313,8 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
           </div>
         )}
 
-        {/* Seletor de fábrica — troca o Roteiro e os Itens exibidos abaixo */}
+        {/* Seletor de fábrica — troca o Roteiro e os Itens exibidos abaixo. A
+            aba "Todos os Produtos" agrega tudo e concentra o envio final. */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginRight: 4 }}>Fábrica:</span>
           {FABRICAS.map(f => {
@@ -339,13 +339,30 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
               </button>
             );
           })}
+          <span style={{ width: 1, height: 22, background: '#e5e7eb', margin: '0 4px' }} />
+          <button type="button" onClick={() => { setFabricaAtiva(TAB_TODOS); setMsgSalvo(''); }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 10,
+              border: `2px solid ${naAbaTodos ? '#166534' : '#e5e7eb'}`,
+              background: naAbaTodos ? '#166534' : '#fff', color: naAbaTodos ? '#fff' : '#555',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .15s',
+            }}>
+            <i className="bi bi-list-check" />
+            Todos os Produtos
+            {totalItensPedido > 0 && (
+              <span style={{
+                background: naAbaTodos ? 'rgba(255,255,255,.25)' : '#eef2ff', color: naAbaTodos ? '#fff' : '#1a3a5c',
+                borderRadius: 10, padding: '1px 8px', fontSize: 12, fontWeight: 800,
+              }}>{totalItensPedido}</span>
+            )}
+          </button>
         </div>
 
         <div className="novo-pedido-grid">
           {/* COLUNA ESQUERDA */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* Identificação */}
+            {/* Identificação — comum a todas as abas */}
             <div className="card" style={{ padding: 20 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#1a3a5c', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14, borderBottom: '2px solid #1a3a5c', paddingBottom: 6 }}>
                 <i className="bi bi-card-heading" style={{ marginRight: 6 }} />Identificação
@@ -387,186 +404,231 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
               </div>
             </div>
 
-            {/* Itens da fábrica ativa */}
-            <div className="card" style={{ padding: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, borderBottom: '2px solid #1a3a5c', paddingBottom: 6, flexWrap: 'wrap', gap: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#1a3a5c', textTransform: 'uppercase', letterSpacing: 1 }}>
-                  <i className={`bi ${fabDef.icon}`} style={{ marginRight: 6 }} />Itens do Pedido — {fabDef.nome}
-                </span>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button type="button" onClick={addItem}
-                    style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                    <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />Adicionar Item
-                  </button>
-                  <button type="button" onClick={() => salvarItens(fabricaAtiva)} disabled={salvandoFabrica === fabricaAtiva}
-                    style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: salvandoFabrica === fabricaAtiva ? 0.6 : 1 }}>
-                    <i className="bi bi-save" style={{ marginRight: 4 }} />
-                    {salvandoFabrica === fabricaAtiva ? 'Salvando...' : `Salvar ${fabDef.nome}`}
-                  </button>
+            {naAbaTodos ? (
+              /* Aba "Todos os Produtos" — revisão agregada + envio final */
+              <div className="card" style={{ padding: 20 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#1a3a5c', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14, borderBottom: '2px solid #1a3a5c', paddingBottom: 6 }}>
+                  <i className="bi bi-list-check" style={{ marginRight: 6 }} />Todos os Produtos do Pedido
                 </div>
-              </div>
 
-              {itensVisiveis.length === 0 && (
-                <p style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Nenhum item nesta fábrica ainda. Adicione pelo menos um.</p>
-              )}
+                {totalItensPedido === 0 && (
+                  <p style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>
+                    Nenhum item ainda. Volte para uma aba de fábrica e adicione/salve os itens primeiro.
+                  </p>
+                )}
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {grupoAtivo.itens.map((item, i) => item._remover ? null : (
-                  <div key={i} style={{ border: '1px solid #e9ecef', borderRadius: 8, padding: 12, background: item.inativo ? '#f1f3f5' : item.id ? '#f8faff' : '#f0fff4', opacity: item.inativo ? 0.7 : 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: item.inativo ? '#868e96' : '#1a3a5c' }}>
-                        <i className="bi bi-box" style={{ marginRight: 5 }} />
-                        {item.id ? `Item existente` : 'Novo item'}
-                        {item.id && <span style={{ color: '#888', fontWeight: 400, marginLeft: 6 }}>ID #{item.id}</span>}
-                        {item.inativo && (
-                          <span style={{ marginLeft: 8, background: '#dee2e6', color: '#495057', borderRadius: 4, padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>
-                            <i className="bi bi-eye-slash" style={{ marginRight: 3 }} />Inativado
-                          </span>
-                        )}
-                        {!item.inativo && emProducao(item) && (
-                          <span style={{ marginLeft: 8, background: '#fff3cd', color: '#7a5a00', borderRadius: 4, padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>
-                            <i className="bi bi-arrow-repeat" style={{ marginRight: 3 }} />Em movimentação
-                          </span>
-                        )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {FABRICAS.map(f => itensValidos(grupos[f.cod]).map((item) => (
+                    <div key={`${f.cod}-${item.id ?? item.codigo}`} style={{ border: '1px solid #e9ecef', borderRadius: 8, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: item.inativo ? '#f1f3f5' : '#f8faff', opacity: item.inativo ? 0.7 : 1 }}>
+                      <span style={{ background: '#eef2ff', color: '#1a3a5c', borderRadius: 6, padding: '3px 9px', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <i className={`bi ${f.icon}`} />{f.nome}
                       </span>
+                      <strong style={{ fontSize: 13, color: '#1a3a5c' }}>{item.codigo}</strong>
+                      <span style={{ fontSize: 13, color: '#555', flex: 1, minWidth: 120 }}>{item.descricao}</span>
+                      <span style={{ fontSize: 12, color: '#888' }}>{item.quantidade} {item.unidade}</span>
                       {item.inativo ? (
-                        <button type="button" onClick={() => toggleInativo(fabricaAtiva, i, false)} disabled={inativando}
-                          title="Reativar item (volta a aparecer para o operador)"
-                          style={{ background: '#d1e7dd', color: '#0a5c36', border: 'none', borderRadius: 5, padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-                          <i className="bi bi-arrow-counterclockwise" style={{ marginRight: 3 }} />Ativar
-                        </button>
-                      ) : emProducao(item) ? (
-                        <button type="button" onClick={() => remItem(i)}
-                          title="Inativar item em movimentação (some para o operador)"
-                          style={{ background: '#fff3cd', color: '#7a5a00', border: 'none', borderRadius: 5, padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-                          <i className="bi bi-eye-slash" style={{ marginRight: 3 }} />Inativar
-                        </button>
+                        <span style={{ background: '#dee2e6', color: '#495057', borderRadius: 4, padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>Inativado</span>
+                      ) : item.id ? (
+                        <span style={{ background: '#d1e7dd', color: '#0a5c36', borderRadius: 4, padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>Salvo</span>
                       ) : (
-                        <button type="button" onClick={() => remItem(i)}
-                          title="Remover item"
-                          style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 5, padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-                          <i className="bi bi-trash" style={{ marginRight: 3 }} />Remover
-                        </button>
+                        <span style={{ background: '#fff3cd', color: '#7a5a00', borderRadius: 4, padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>Não salvo ainda</span>
                       )}
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1fr 1fr', gap: 8 }}>
-                      <div>
-                        <label className={labelCls}>Código *</label>
-                        <input value={item.codigo} onChange={e => setItemField(i, 'codigo', e.target.value)}
-                          placeholder="COD-001" className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Descrição</label>
-                        <input value={item.descricao} onChange={e => setItemField(i, 'descricao', e.target.value)}
-                          placeholder="Descrição do item" className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Quantidade</label>
-                        <input type="number" min="1" value={item.quantidade} onChange={e => setItemField(i, 'quantidade', e.target.value)}
-                          className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Unidade</label>
-                        <select value={item.unidade} onChange={e => setItemField(i, 'unidade', e.target.value)} className={inputCls}>
-                          {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className={labelCls}>Valor Unit. (R$)</label>
-                        <input value={item.valor_unitario} onChange={e => setItemField(i, 'valor_unitario', e.target.value)}
-                          placeholder="0,00" className={inputCls} />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* COLUNA DIREITA — Roteiro da fábrica ativa */}
-          <div>
-            <div className="card" style={{ padding: 20, position: 'sticky', top: 66 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#1a3a5c', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14, borderBottom: '2px solid #1a3a5c', paddingBottom: 6 }}>
-                <i className="bi bi-arrow-right-circle" style={{ marginRight: 6 }} />Roteiro — {fabDef.nome}
-              </div>
-              <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
-                Clique nos setores na ordem em que os itens de {fabDef.nome} devem passar:
-              </p>
-              {fabDef.setores.length === 0 ? (
-                <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px' }}>
-                  Os setores desta fábrica ainda serão cadastrados.
+                  )))}
                 </div>
-              ) : (() => {
-                const selecionados = grupoAtivo.roteiro
-                  .filter(c => setoresRoteiro.some(([cod]) => cod === c))
-                  .map(c => setoresRoteiro.find(([cod]) => cod === c)!);
-                const naoSelecionados = setoresRoteiro.filter(([c]) => !grupoAtivo.roteiro.includes(c));
-                const lista = [...selecionados, ...naoSelecionados];
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 14, maxHeight: 'calc(100vh - 350px)', overflowY: 'auto' }}>
-                    {lista.map(([cod, nome]) => {
-                      const selecionado = grupoAtivo.roteiro.includes(cod);
-                      const fixo = cod === 'emissao';
-                      const pos = grupoAtivo.roteiro.indexOf(cod);
-                      return (
-                        <div key={cod} style={{ position: 'relative' }}>
-                          {selecionado && (
-                            <span style={{
-                              position: 'absolute', left: -14, top: '50%', transform: 'translateY(-50%)',
-                              width: 24, height: 24, borderRadius: '50%',
-                              background: fixo ? '#fff' : '#1a3a5c',
-                              color: fixo ? '#1a3a5c' : '#fff',
-                              border: '2px solid #1a3a5c',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: 11, fontWeight: 800, zIndex: 1,
-                            }}>
-                              {pos + 1}
+
+                <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #e9ecef', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button type="submit" disabled={salvando}
+                    style={{ padding: '10px 26px', borderRadius: 8, background: '#166534', color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', opacity: salvando ? 0.6 : 1 }}>
+                    <i className="bi bi-send-check" style={{ marginRight: 6 }} />
+                    {salvando ? 'Enviando...' : 'Enviar para Emissão'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Itens da fábrica ativa */
+              <div className="card" style={{ padding: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, borderBottom: '2px solid #1a3a5c', paddingBottom: 6, flexWrap: 'wrap', gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#1a3a5c', textTransform: 'uppercase', letterSpacing: 1 }}>
+                    <i className={`bi ${fabDef.icon}`} style={{ marginRight: 6 }} />Itens do Pedido — {fabDef.nome}
+                  </span>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button type="button" onClick={addItem}
+                      style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                      <i className="bi bi-plus-lg" style={{ marginRight: 4 }} />Adicionar Item
+                    </button>
+                    <button type="button" onClick={() => salvarItens(fabricaAtiva)} disabled={salvandoFabrica === fabricaAtiva}
+                      style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: salvandoFabrica === fabricaAtiva ? 0.6 : 1 }}>
+                      <i className="bi bi-save" style={{ marginRight: 4 }} />
+                      {salvandoFabrica === fabricaAtiva ? 'Salvando...' : `Salvar ${fabDef.nome}`}
+                    </button>
+                  </div>
+                </div>
+
+                {itensVisiveis.length === 0 && (
+                  <p style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Nenhum item nesta fábrica ainda. Adicione pelo menos um.</p>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {grupoAtivo.itens.map((item, i) => item._remover ? null : (
+                    <div key={i} style={{ border: '1px solid #e9ecef', borderRadius: 8, padding: 12, background: item.inativo ? '#f1f3f5' : item.id ? '#f8faff' : '#f0fff4', opacity: item.inativo ? 0.7 : 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: item.inativo ? '#868e96' : '#1a3a5c' }}>
+                          <i className="bi bi-box" style={{ marginRight: 5 }} />
+                          {item.id ? `Item existente` : 'Novo item'}
+                          {item.id && <span style={{ color: '#888', fontWeight: 400, marginLeft: 6 }}>ID #{item.id}</span>}
+                          {item.inativo && (
+                            <span style={{ marginLeft: 8, background: '#dee2e6', color: '#495057', borderRadius: 4, padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>
+                              <i className="bi bi-eye-slash" style={{ marginRight: 3 }} />Inativado
                             </span>
                           )}
-                          <button type="button" onClick={() => toggleSetor(cod)}
-                            disabled={fixo}
-                            style={{
-                              width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                              padding: '9px 12px', borderRadius: 8, border: '1px solid',
-                              borderColor: selecionado ? '#1a3a5c' : '#e5e7eb',
-                              background: fixo ? '#1a3a5c' : selecionado ? '#eef2ff' : '#fff',
-                              color: fixo ? '#fff' : selecionado ? '#1a3a5c' : '#666',
-                              cursor: fixo ? 'default' : 'pointer',
-                              fontWeight: selecionado ? 700 : 400,
-                              fontSize: 13, textAlign: 'left', transition: 'all .15s',
-                            }}>
-                            {!selecionado && (
-                              <span style={{ width: 16, height: 16, borderRadius: '50%', border: '1px dashed #ccc', flexShrink: 0 }} />
-                            )}
-                            <span style={{ flex: 1 }}>{nome}</span>
-                            {fixo && <i className="bi bi-lock-fill" style={{ fontSize: 11, opacity: .6 }} />}
-                            {selecionado && !fixo && <i className="bi bi-check2" style={{ color: '#1a3a5c', fontSize: 14 }} />}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-
-              {grupoAtivo.roteiro.length > 1 && (
-                <div style={{ marginTop: 16, padding: '10px 12px', background: '#f0f4ff', borderRadius: 8, fontSize: 12, color: '#1a3a5c' }}>
-                  <strong>Fluxo:</strong>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 0', marginTop: 6 }}>
-                    {grupoAtivo.roteiro.map((s, i) => {
-                      const nome = NOMES[s] || s;
-                      return (
-                        <span key={s} style={{ display: 'flex', alignItems: 'center' }}>
-                          <span style={{ background: '#1a3a5c', color: '#fff', borderRadius: 4, padding: '2px 7px', fontSize: 11, whiteSpace: 'nowrap' }}>{nome}</span>
-                          {i < grupoAtivo.roteiro.length - 1 && <span style={{ margin: '0 4px', color: '#aaa', flexShrink: 0 }}>→</span>}
+                          {!item.inativo && emProducao(item) && (
+                            <span style={{ marginLeft: 8, background: '#fff3cd', color: '#7a5a00', borderRadius: 4, padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>
+                              <i className="bi bi-arrow-repeat" style={{ marginRight: 3 }} />Em movimentação
+                            </span>
+                          )}
                         </span>
-                      );
-                    })}
-                  </div>
+                        {item.inativo ? (
+                          <button type="button" onClick={() => toggleInativo(fabricaAtiva, i, false)} disabled={inativando}
+                            title="Reativar item (volta a aparecer para o operador)"
+                            style={{ background: '#d1e7dd', color: '#0a5c36', border: 'none', borderRadius: 5, padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                            <i className="bi bi-arrow-counterclockwise" style={{ marginRight: 3 }} />Ativar
+                          </button>
+                        ) : emProducao(item) ? (
+                          <button type="button" onClick={() => remItem(i)}
+                            title="Inativar item em movimentação (some para o operador)"
+                            style={{ background: '#fff3cd', color: '#7a5a00', border: 'none', borderRadius: 5, padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                            <i className="bi bi-eye-slash" style={{ marginRight: 3 }} />Inativar
+                          </button>
+                        ) : (
+                          <button type="button" onClick={() => remItem(i)}
+                            title="Remover item"
+                            style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 5, padding: '3px 8px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                            <i className="bi bi-trash" style={{ marginRight: 3 }} />Remover
+                          </button>
+                        )}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1fr 1fr', gap: 8 }}>
+                        <div>
+                          <label className={labelCls}>Código *</label>
+                          <input value={item.codigo} onChange={e => setItemField(i, 'codigo', e.target.value)}
+                            placeholder="COD-001" className={inputCls} />
+                        </div>
+                        <div>
+                          <label className={labelCls}>Descrição</label>
+                          <input value={item.descricao} onChange={e => setItemField(i, 'descricao', e.target.value)}
+                            placeholder="Descrição do item" className={inputCls} />
+                        </div>
+                        <div>
+                          <label className={labelCls}>Quantidade</label>
+                          <input type="number" min="1" value={item.quantidade} onChange={e => setItemField(i, 'quantidade', e.target.value)}
+                            className={inputCls} />
+                        </div>
+                        <div>
+                          <label className={labelCls}>Unidade</label>
+                          <select value={item.unidade} onChange={e => setItemField(i, 'unidade', e.target.value)} className={inputCls}>
+                            {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={labelCls}>Valor Unit. (R$)</label>
+                          <input value={item.valor_unitario} onChange={e => setItemField(i, 'valor_unitario', e.target.value)}
+                            placeholder="0,00" className={inputCls} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
+
+          {/* COLUNA DIREITA — Roteiro da fábrica ativa (some na aba Todos os Produtos) */}
+          {!naAbaTodos && (
+            <div>
+              <div className="card" style={{ padding: 20, position: 'sticky', top: 66 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#1a3a5c', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14, borderBottom: '2px solid #1a3a5c', paddingBottom: 6 }}>
+                  <i className="bi bi-arrow-right-circle" style={{ marginRight: 6 }} />Roteiro — {fabDef.nome}
+                </div>
+                <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px' }}>
+                  Clique nos setores na ordem em que os itens de {fabDef.nome} devem passar:
+                </p>
+                {fabDef.setores.length === 0 ? (
+                  <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px' }}>
+                    Os setores desta fábrica ainda serão cadastrados.
+                  </div>
+                ) : (() => {
+                  const selecionados = grupoAtivo.roteiro
+                    .filter(c => setoresRoteiro.some(([cod]) => cod === c))
+                    .map(c => setoresRoteiro.find(([cod]) => cod === c)!);
+                  const naoSelecionados = setoresRoteiro.filter(([c]) => !grupoAtivo.roteiro.includes(c));
+                  const lista = [...selecionados, ...naoSelecionados];
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 14, maxHeight: 'calc(100vh - 350px)', overflowY: 'auto' }}>
+                      {lista.map(([cod, nome]) => {
+                        const selecionado = grupoAtivo.roteiro.includes(cod);
+                        const fixo = cod === 'emissao';
+                        const pos = grupoAtivo.roteiro.indexOf(cod);
+                        return (
+                          <div key={cod} style={{ position: 'relative' }}>
+                            {selecionado && (
+                              <span style={{
+                                position: 'absolute', left: -14, top: '50%', transform: 'translateY(-50%)',
+                                width: 24, height: 24, borderRadius: '50%',
+                                background: fixo ? '#fff' : '#1a3a5c',
+                                color: fixo ? '#1a3a5c' : '#fff',
+                                border: '2px solid #1a3a5c',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: 11, fontWeight: 800, zIndex: 1,
+                              }}>
+                                {pos + 1}
+                              </span>
+                            )}
+                            <button type="button" onClick={() => toggleSetor(cod)}
+                              disabled={fixo}
+                              style={{
+                                width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                                padding: '9px 12px', borderRadius: 8, border: '1px solid',
+                                borderColor: selecionado ? '#1a3a5c' : '#e5e7eb',
+                                background: fixo ? '#1a3a5c' : selecionado ? '#eef2ff' : '#fff',
+                                color: fixo ? '#fff' : selecionado ? '#1a3a5c' : '#666',
+                                cursor: fixo ? 'default' : 'pointer',
+                                fontWeight: selecionado ? 700 : 400,
+                                fontSize: 13, textAlign: 'left', transition: 'all .15s',
+                              }}>
+                              {!selecionado && (
+                                <span style={{ width: 16, height: 16, borderRadius: '50%', border: '1px dashed #ccc', flexShrink: 0 }} />
+                              )}
+                              <span style={{ flex: 1 }}>{nome}</span>
+                              {fixo && <i className="bi bi-lock-fill" style={{ fontSize: 11, opacity: .6 }} />}
+                              {selecionado && !fixo && <i className="bi bi-check2" style={{ color: '#1a3a5c', fontSize: 14 }} />}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+
+                {grupoAtivo.roteiro.length > 1 && (
+                  <div style={{ marginTop: 16, padding: '10px 12px', background: '#f0f4ff', borderRadius: 8, fontSize: 12, color: '#1a3a5c' }}>
+                    <strong>Fluxo:</strong>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 0', marginTop: 6 }}>
+                      {grupoAtivo.roteiro.map((s, i) => {
+                        const nome = NOMES[s] || s;
+                        return (
+                          <span key={s} style={{ display: 'flex', alignItems: 'center' }}>
+                            <span style={{ background: '#1a3a5c', color: '#fff', borderRadius: 4, padding: '2px 7px', fontSize: 11, whiteSpace: 'nowrap' }}>{nome}</span>
+                            {i < grupoAtivo.roteiro.length - 1 && <span style={{ margin: '0 4px', color: '#aaa', flexShrink: 0 }}>→</span>}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </form>
 

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
 import { formatPedido } from '@/lib/queries';
-import { SETOR_CHOICES } from '@/lib/types';
+import { SETOR_CHOICES, FABRICAS } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { vendedorRestrito } from '@/lib/auth';
 
@@ -135,6 +135,7 @@ export async function GET(req: Request) {
 }
 
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
+const FABRICAS_VALIDAS = FABRICAS.map(f => f.cod);
 const PRIORIDADES_VALIDAS = ['baixa','normal','alta','urgente'];
 
 export async function POST(req: Request) {
@@ -194,15 +195,16 @@ export async function POST(req: Request) {
       for (const item of itens) {
         const rotProprio = item.roteiro_proprio?.length > 0 ? item.roteiro_proprio : [];
         const primeiroSetor = rotProprio.length > 0 ? rotProprio[0] : roteiro_base[0];
+        const fabrica = FABRICAS_VALIDAS.includes(item.fabrica) ? item.fabrica : FABRICAS_VALIDAS[0];
         const [itemInserido] = await tx`
           INSERT INTO producao_itempedido
             (pedido_id, codigo, descricao, quantidade, unidade, valor_unitario,
-             roteiro_proprio, setor_atual, status, quantidade_pendente, criado_em)
+             roteiro_proprio, fabrica, setor_atual, status, quantidade_pendente, criado_em)
           VALUES (
             ${pedido.id}, ${item.codigo}, ${item.descricao || ''},
             ${item.quantidade}, ${item.unidade || 'un'},
             ${item.valor_unitario || null},
-            ${rotProprio as string[]},
+            ${rotProprio as string[]}, ${fabrica},
             ${primeiroSetor}, 'emitido',
             ${item.quantidade}, NOW()
           )

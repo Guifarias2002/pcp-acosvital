@@ -54,7 +54,7 @@ export async function queryItens(pedidoId: number, incluirInativos = false) {
     SELECT
       i.id, i.pedido_id, i.codigo, i.descricao,
       i.quantidade::text, i.unidade,
-      i.roteiro_proprio, i.setor_atual, i.status,
+      i.roteiro_proprio, i.fabrica, i.setor_atual, i.status,
       i.quantidade_pendente::text,
       i.quantidade_entregue::text,
       i.valor_unitario::text,
@@ -109,6 +109,7 @@ export function formatItem(row: any) {
     quantidade: row.quantidade,
     unidade: row.unidade,
     roteiro_proprio: row.roteiro_proprio || [],
+    fabrica: row.fabrica || 'flange',
     roteiro_efetivo: roteiro,
     setor_atual: row.setor_atual,
     nome_setor_atual: nomeSector(row.setor_atual),
