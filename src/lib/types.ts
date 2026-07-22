@@ -14,6 +14,7 @@ export const SETOR_CHOICES: [string, string][] = [
   ['beneficiadores', 'Beneficiadores'],
   ['caldeiraria', 'Caldeiraria'],
   ['embalagem', 'Embalagem'],
+  ['quarentena', 'Quarentena'],
 ];
 
 export const NOMES: Record<string, string> = Object.fromEntries(SETOR_CHOICES);
@@ -22,7 +23,20 @@ export const NOMES: Record<string, string> = Object.fromEntries(SETOR_CHOICES);
 // (sistema e TV), em vez da ordem do SETOR_CHOICES. Setor fora desta lista
 // (ex: emissão, recebimento, compras) vai pro fim, sem sumir. Fonte única:
 // mudou o roteiro, muda aqui e reflete nos dois lugares.
-export const ORDEM_SETORES = ['estoque', 'maçarico', 'plasma', 'laser', 'usinagem', 'furacao', 'qualidade', 'acabamento', 'embalagem', 'logistica'];
+export const ORDEM_SETORES = ['estoque', 'maçarico', 'plasma', 'laser', 'usinagem', 'furacao', 'qualidade', 'acabamento', 'embalagem', 'quarentena', 'logistica'];
+
+// Regra de negócio: TODA peça passa pela Quarentena (análise/verificação) antes
+// de ir à Logística (despacho). Injeta 'quarentena' imediatamente antes de
+// 'logistica' no roteiro efetivo, se ainda não estiver — vale para pedidos
+// antigos e novos, sem precisar migrar os roteiros salvos.
+export function injetarQuarentena(roteiro: string[]): string[] {
+  if (!Array.isArray(roteiro)) return roteiro;
+  const idxLog = roteiro.indexOf('logistica');
+  if (idxLog === -1 || roteiro.includes('quarentena')) return roteiro;
+  const novo = [...roteiro];
+  novo.splice(idxLog, 0, 'quarentena');
+  return novo;
+}
 export const posSetorRoteiro = (cod: string) => {
   const i = ORDEM_SETORES.indexOf(cod);
   return i === -1 ? ORDEM_SETORES.length : i;

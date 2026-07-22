@@ -1,5 +1,5 @@
 import sql from './db';
-import { NOMES } from './types';
+import { NOMES, injetarQuarentena } from './types';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -77,8 +77,9 @@ export async function queryItens(pedidoId: number, incluirInativos = false) {
 
 function rotEfetivo(row: Record<string, unknown>): string[] {
   const prop = row.roteiro_proprio as string[] | null;
-  if (prop && prop.length > 0) return prop;
-  return (row.roteiro_base as string[]) || [];
+  const base = (prop && prop.length > 0) ? prop : ((row.roteiro_base as string[]) || []);
+  // Toda peça passa pela Quarentena antes da Logística (verificação de despacho).
+  return injetarQuarentena(base);
 }
 
 function proximoSetor(roteiro: string[], setor_atual: string): string | null {

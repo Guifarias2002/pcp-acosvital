@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { formatItem, nomeSector } from '@/lib/queries';
-import { SETOR_CHOICES } from '@/lib/types';
+import { SETOR_CHOICES, injetarQuarentena } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -263,9 +263,11 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
   }
 
   const fmtParcial = (p: Record<string, unknown>, setorEfetivo: string = setor) => {
-    const roteiro: string[] = (p.roteiro_proprio as string[] | null)?.length
+    const roteiroBase: string[] = (p.roteiro_proprio as string[] | null)?.length
       ? (p.roteiro_proprio as string[])
       : ((p.roteiro_base as string[]) || []);
+    // Toda peça passa pela Quarentena antes da Logística.
+    const roteiro = injetarQuarentena(roteiroBase);
     const idx = roteiro.indexOf(setorEfetivo);
     const proximo_setor = (idx !== -1 && idx < roteiro.length - 1) ? roteiro[idx + 1] : null;
     return {

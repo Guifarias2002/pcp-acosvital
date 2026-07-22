@@ -21,6 +21,7 @@ const SETOR_ICONS: Record<string, string> = {
   furacao: 'bi-circle',
   acabamento: 'bi-brush',
   embalagem: 'bi-box',
+  quarentena: 'bi-shield-check',
   logistica: 'bi-truck',
 };
 

@@ -3,7 +3,7 @@ import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
 import { podeAcessarSetor } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
-import { SETOR_CHOICES } from '@/lib/types';
+import { SETOR_CHOICES, injetarQuarentena } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
@@ -202,9 +202,11 @@ export async function POST(
   if (!statusesPermitidos.includes(item.status))
     return NextResponse.json({ erro: `Acao "${acao}" nao permitida no status "${item.status}"` }, { status: 400 });
 
-  const roteiro = (item.roteiro_proprio && item.roteiro_proprio.length > 0)
+  const roteiroBase = (item.roteiro_proprio && item.roteiro_proprio.length > 0)
     ? item.roteiro_proprio as string[]
     : item.roteiro_base as string[];
+  // Toda peça passa pela Quarentena antes da Logística.
+  const roteiro = injetarQuarentena(roteiroBase);
   const idx = roteiro.indexOf(item.setor_atual);
   const proximoSetorRoteiro = (idx >= 0 && idx < roteiro.length - 1) ? roteiro[idx + 1] : null;
   // O operador pode escolher manualmente qualquer setor de destino válido,
