@@ -28,26 +28,54 @@ const PERFIL_BADGE: Record<string, { bg: string; cor: string }> = {
 
 const PERFIS = ['administrador', 'pcp', 'lider', 'operador', 'vendedor'];
 
-// Seletor de múltiplos setores (checkboxes). Usado no criar e no editar.
+// Separação por fábrica: os setores são agrupados no seletor para deixar claro
+// o que é Flanges x Caldeiraria (e os compartilhados). A Caldeiraria hoje tem só
+// o "Recebimento"; conforme novos setores forem criados lá, é só acrescentar aqui.
+const SETORES_COMPARTILHADOS = ['beneficiadores', 'recebimento'];
+const SETORES_CALDEIRARIA = ['caldeiraria']; // exibido como "Recebimento" na fábrica Caldeiraria
+const GRUPOS_FABRICA: { titulo: string; setores: [string, string][] }[] = [
+  {
+    titulo: '🔩 Flanges',
+    setores: SETOR_CHOICES.filter(([c]) => !SETORES_COMPARTILHADOS.includes(c) && !SETORES_CALDEIRARIA.includes(c)),
+  },
+  {
+    titulo: '🏗 Caldeiraria',
+    setores: [['caldeiraria', 'Recebimento']],
+  },
+  {
+    titulo: '🔗 Compartilhados',
+    setores: SETOR_CHOICES.filter(([c]) => SETORES_COMPARTILHADOS.includes(c)),
+  },
+];
+
+// Seletor de múltiplos setores (checkboxes), separado por fábrica. Usado no criar e no editar.
 function SetoresSelector({ valor, onChange }: { valor: string[]; onChange: (s: string[]) => void }) {
   function toggle(cod: string) {
     onChange(valor.includes(cod) ? valor.filter(s => s !== cod) : [...valor, cod]);
   }
+  const checkbox = ([cod, nome]: [string, string]) => {
+    const marcado = valor.includes(cod);
+    return (
+      <label key={cod} style={{
+        display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer',
+        padding: '5px 8px', borderRadius: 5, background: marcado ? '#eff6ff' : 'transparent',
+        border: `1px solid ${marcado ? '#bfdbfe' : 'transparent'}`,
+      }}>
+        <input type="checkbox" checked={marcado} onChange={() => toggle(cod)} style={{ cursor: 'pointer' }} />
+        <span style={{ color: marcado ? '#1d4ed8' : '#444', fontWeight: marcado ? 600 : 400 }}>{nome}</span>
+      </label>
+    );
+  };
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, maxHeight: 200, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 6, padding: 10 }}>
-      {SETOR_CHOICES.map(([cod, nome]) => {
-        const marcado = valor.includes(cod);
-        return (
-          <label key={cod} style={{
-            display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer',
-            padding: '5px 8px', borderRadius: 5, background: marcado ? '#eff6ff' : 'transparent',
-            border: `1px solid ${marcado ? '#bfdbfe' : 'transparent'}`,
-          }}>
-            <input type="checkbox" checked={marcado} onChange={() => toggle(cod)} style={{ cursor: 'pointer' }} />
-            <span style={{ color: marcado ? '#1d4ed8' : '#444', fontWeight: marcado ? 600 : 400 }}>{nome}</span>
-          </label>
-        );
-      })}
+    <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 6, padding: 10 }}>
+      {GRUPOS_FABRICA.map(g => g.setores.length === 0 ? null : (
+        <div key={g.titulo} style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>{g.titulo}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            {g.setores.map(checkbox)}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
