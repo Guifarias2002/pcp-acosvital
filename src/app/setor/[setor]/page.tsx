@@ -2549,6 +2549,13 @@ function EmbalagemResumoEditor({ pedidoId, inicial }: { pedidoId: number; inicia
         📦 Embalagem consolidada do pedido (opcional)
       </button>
       {aberto && (
+        <>
+        <div style={{ fontSize: 11, color: '#78350f', marginTop: 6, lineHeight: 1.4 }}>
+          <i className="bi bi-info-circle" style={{ marginRight: 5 }} />
+          O operador pode lançar o peso <strong>por item</strong> (em cada produto abaixo)
+          <strong> ou</strong> preencher só este <strong>resumo geral</strong> do pedido —
+          as duas formas funcionam.
+        </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginTop: 10 }}>
           {campo('Pallet (identificação)', ident, setIdent, 'text', 150, 'ex.: P-01')}
           {campo('Qtd. de pallets', qtdPallets, setQtdPallets, 'number')}
@@ -2560,6 +2567,7 @@ function EmbalagemResumoEditor({ pedidoId, inicial }: { pedidoId: number; inicia
           </button>
           {msg && <span style={{ fontSize: 12, fontWeight: 600, color: msg.tipo === 'ok' ? '#16a34a' : '#dc2626' }}>{msg.texto}</span>}
         </div>
+        </>
       )}
     </div>
   );
@@ -3215,24 +3223,6 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             );
                           })()}
                         </div>
-                        {/* Totais AUTOMÁTICOS do pedido — soma do que foi lançado por item:
-                            nº de pallets, peso total (kg) e total de unidades (peças). */}
-                        {['embalagem', 'logistica'].includes(setor) && (() => {
-                          let totPeso = 0, totPallets = 0, totUn = 0;
-                          parciais.forEach(p => {
-                            const pp = (p as unknown as { pesos_pallets?: number[] }).pesos_pallets;
-                            if (Array.isArray(pp)) { totPallets += pp.length; totPeso += pp.reduce((a, v) => a + Number(v), 0); }
-                            totUn += Number(p.quantidade) || 0;
-                          });
-                          return (
-                            <div style={{ background: '#eef2ff', borderBottom: '1px solid #c7d2fe', padding: '8px 16px', fontSize: 12, color: '#3730a3', display: 'flex', gap: 18, flexWrap: 'wrap', fontWeight: 700, alignItems: 'center' }}>
-                              <span>📊 Totais do pedido:</span>
-                              <span>{totPallets} pallet{totPallets !== 1 ? 's' : ''}</span>
-                              <span>{fmtPeso(totPeso)} kg</span>
-                              <span>{fmtQtd(String(totUn))} un</span>
-                            </div>
-                          );
-                        })()}
                         {/* Resumo consolidado da Embalagem por pedido — opção adicional,
                             SEMPRE logo abaixo do cabeçalho (independe de expandir o pedido).
                             Não substitui o peso por parcial. */}
