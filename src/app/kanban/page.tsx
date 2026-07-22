@@ -99,17 +99,23 @@ export default function KanbanPage() {
   // Kanban da fábrica ativa — Flanges e Caldeiraria não aparecem mais juntos
   // numa linha só (ficou ilegível depois que a Caldeiraria ganhou várias
   // etapas novas). Escolhe a fábrica em cima, igual a Nova Ordem já faz.
+  // 'emissao' entra à parte pelas duas (1º passo de qualquer OP, não faz
+  // parte de FABRICAS.setores porque não é um passo togglable de roteiro).
   const fabDef = FABRICAS.find(f => f.cod === fabricaAtiva) ?? FABRICAS[0];
-  const setoresDaFabrica = setoresFiltrados.filter(s => fabDef.setores.includes(s.cod));
+  const codsFabrica = ['emissao', ...fabDef.setores];
+  const setoresDaFabrica = setoresFiltrados.filter(s => codsFabrica.includes(s.cod));
 
   const todasParciais = setoresDaFabrica.flatMap(x => x.itens);
   const totalParciais = todasParciais.length;
   const totalPedidos = new Set(todasParciais.map(i => i.pedido_id)).size;
   const totalItens = new Set(todasParciais.map(i => i.item_pedido_id)).size;
   const totalChegando = setoresDaFabrica.reduce((s, x) => s + x.chegando.length, 0);
+  // 'emissao' não está em ORDEM_SETORES (não é um passo de roteiro togglable),
+  // então posSetorRoteiro sozinho não garante ele primeiro — força aqui.
+  const posComEmissao = (cod: string) => cod === 'emissao' ? -1 : posSetorRoteiro(cod);
   const setoresAtivos = setoresDaFabrica
     .filter(s => s.itens.length > 0 || s.chegando.length > 0)
-    .sort((a, b) => posSetorRoteiro(a.cod) - posSetorRoteiro(b.cod));
+    .sort((a, b) => posComEmissao(a.cod) - posComEmissao(b.cod));
 
   return (
     <AuthGuard>

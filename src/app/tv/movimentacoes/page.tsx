@@ -388,10 +388,16 @@ export default function TVMovimentacoesPage() {
   const setoresPorCodigo = new Map(setoresKanban.map(s => [s.cod, s]));
   function colunasFabrica(fabCod: string): SetorKanban[] {
     const fab = FABRICAS.find(f => f.cod === fabCod);
-    const cods = fab ? fab.setores : [];
-    return cods
+    // 'emissao' é o 1º passo de qualquer OP (não entra em FABRICAS.setores
+    // porque não é um passo togglable de roteiro), mas o kanban precisa
+    // mostrar essa coluna também — é onde item novo/recém-emitido fica
+    // esperando antes de entrar na fábrica.
+    const cods = ['emissao', ...(fab ? fab.setores : [])];
+    const semEmissao = cods.slice(1)
       .map(cod => setoresPorCodigo.get(cod) ?? { cod, nome: NOMES[cod] || cod, itens: [] })
       .sort((a, b) => posSetorRoteiro(a.cod) - posSetorRoteiro(b.cod));
+    const emissao = setoresPorCodigo.get('emissao') ?? { cod: 'emissao', nome: NOMES['emissao'] || 'Emissao de Ordens', itens: [] };
+    return [emissao, ...semEmissao];
   }
   const setoresFlange = colunasFabrica('flange');
   const setoresCaldeiraria = colunasFabrica('caldeiraria');
