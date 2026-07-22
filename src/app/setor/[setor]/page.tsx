@@ -3215,6 +3215,24 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             );
                           })()}
                         </div>
+                        {/* Totais AUTOMÁTICOS do pedido — soma do que foi lançado por item:
+                            nº de pallets, peso total (kg) e total de unidades (peças). */}
+                        {['embalagem', 'logistica'].includes(setor) && (() => {
+                          let totPeso = 0, totPallets = 0, totUn = 0;
+                          parciais.forEach(p => {
+                            const pp = (p as unknown as { pesos_pallets?: number[] }).pesos_pallets;
+                            if (Array.isArray(pp)) { totPallets += pp.length; totPeso += pp.reduce((a, v) => a + Number(v), 0); }
+                            totUn += Number(p.quantidade) || 0;
+                          });
+                          return (
+                            <div style={{ background: '#eef2ff', borderBottom: '1px solid #c7d2fe', padding: '8px 16px', fontSize: 12, color: '#3730a3', display: 'flex', gap: 18, flexWrap: 'wrap', fontWeight: 700, alignItems: 'center' }}>
+                              <span>📊 Totais do pedido:</span>
+                              <span>{totPallets} pallet{totPallets !== 1 ? 's' : ''}</span>
+                              <span>{fmtPeso(totPeso)} kg</span>
+                              <span>{fmtQtd(String(totUn))} un</span>
+                            </div>
+                          );
+                        })()}
                         {/* Resumo consolidado da Embalagem por pedido — opção adicional,
                             SEMPRE logo abaixo do cabeçalho (independe de expandir o pedido).
                             Não substitui o peso por parcial. */}
