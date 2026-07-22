@@ -403,7 +403,12 @@ export default function TVMovimentacoesPage() {
   // Flange (compartilhados), e 'emissao' também não entra aqui (não existe
   // como etapa própria da Caldeiraria no menu).
   function colunasCaldeiraria(): SetorKanban[] {
-    return SETORES_CALDEIRARIA_KANBAN.map(stub);
+    // "caldeiraria" é a entrada da fábrica (equivalente ao Recebimento do
+    // Flange) — no menu já aparece como "Recebimento", o kanban segue igual.
+    return SETORES_CALDEIRARIA_KANBAN.map(cod => {
+      const s = stub(cod);
+      return cod === 'caldeiraria' ? { ...s, nome: 'Recebimento' } : s;
+    });
   }
   const setoresFlange = colunasFlange();
   const setoresCaldeiraria = colunasCaldeiraria();

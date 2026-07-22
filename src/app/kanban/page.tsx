@@ -106,7 +106,11 @@ export default function KanbanPage() {
   // togglable de roteiro, mas precisa aparecer como coluna).
   const fabDef = FABRICAS.find(f => f.cod === fabricaAtiva) ?? FABRICAS[0];
   const codsFabrica = fabricaAtiva === 'caldeiraria' ? SETORES_CALDEIRARIA_KANBAN : ['emissao', ...fabDef.setores];
-  const setoresDaFabrica = setoresFiltrados.filter(s => codsFabrica.includes(s.cod));
+  // O setor "caldeiraria" é a entrada da fábrica (equivalente ao Recebimento
+  // do Flange) — no menu já aparece como "Recebimento", o kanban segue igual.
+  const setoresDaFabrica = setoresFiltrados
+    .filter(s => codsFabrica.includes(s.cod))
+    .map(s => s.cod === 'caldeiraria' ? { ...s, nome: 'Recebimento' } : s);
 
   const todasParciais = setoresDaFabrica.flatMap(x => x.itens);
   const totalParciais = todasParciais.length;
