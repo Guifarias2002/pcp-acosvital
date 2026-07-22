@@ -3061,6 +3061,21 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             {parciais.length} {parciais.length > 1 ? 'parciais' : 'parcial'}
                             {itemGrupos.length > 1 ? ` · ${itemGrupos.length} produtos` : ''}
                           </span>
+                          {/* Resumo da embalagem consolidada na propria barra azul */}
+                          {(() => {
+                            const r = (parciais[0] as unknown as { embalagem_resumo?: ResumoEmb }).embalagem_resumo;
+                            if (!r) return null;
+                            const partes: string[] = [];
+                            if (r.qtd_pallets) partes.push(`${r.qtd_pallets} pallet${Number(r.qtd_pallets) > 1 ? 's' : ''}`);
+                            if (r.peso_total) partes.push(`${fmtPeso(Number(r.peso_total))} kg`);
+                            if (r.total_unidades) partes.push(`${r.total_unidades} un`);
+                            if (partes.length === 0) return null;
+                            return (
+                              <span style={{ fontSize: 11, fontWeight: 700, background: 'rgba(255,255,255,.18)', borderRadius: 5, padding: '2px 8px', marginLeft: 6, whiteSpace: 'nowrap' }}>
+                                📦 {partes.join(' · ')}
+                              </span>
+                            );
+                          })()}
                           <button
                             title="Ver todos os itens deste pedido"
                             onClick={(e) => { e.stopPropagation(); setModalRastreio({ pedidoId: pedido_id, numero: numero_pedido_venda }); }}
