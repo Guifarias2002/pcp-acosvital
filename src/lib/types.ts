@@ -53,11 +53,11 @@ export const FABRICAS: { cod: string; nome: string; icon: string; setores: strin
     icon: 'bi-hammer',
     // Lista fechada em 22/07 com o líder da Caldeiraria (kanban físico dele):
     // Desenho/Compras (intake) → Recebimento (setor "caldeiraria") →
-    // Chanfradeira → Calandra → Montagem → Solda → Acabamento → Qualidade
-    // (Inspeção) → Pintura → Liberado (pronto, espera antes do despacho).
-    // Todas opcionais por item — PCP escolhe quais usar e em que ordem, como
-    // no Flange.
-    setores: ['desenho', 'compras', 'caldeiraria', 'chanfradeira', 'calandra', 'montagem', 'solda', 'acabamento', 'qualidade', 'pintura', 'liberado'],
+    // Chanfradeira → Calandra → Montagem → Solda → Acabamento → Pintura →
+    // Liberado (pronto, espera antes do despacho) → Qualidade (Inspeção,
+    // no final de tudo). Todas opcionais por item — PCP escolhe quais usar e
+    // em que ordem, como no Flange.
+    setores: ['desenho', 'compras', 'caldeiraria', 'chanfradeira', 'calandra', 'montagem', 'solda', 'acabamento', 'pintura', 'liberado', 'qualidade'],
   },
 ];
 
