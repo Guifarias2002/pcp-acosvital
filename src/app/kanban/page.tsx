@@ -145,9 +145,6 @@ export default function KanbanPage() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
         {FABRICAS.map(f => {
           const ativo = f.cod === fabricaAtiva;
-          const qtd = setoresFiltrados
-            .filter(s => f.setores.includes(s.cod))
-            .reduce((acc, s) => acc + s.itens.length, 0);
           return (
             <button key={f.cod} type="button" onClick={() => setFabricaAtiva(f.cod)}
               style={{
@@ -158,12 +155,6 @@ export default function KanbanPage() {
               }}>
               <i className={`bi ${f.icon}`} />
               {f.nome}
-              {qtd > 0 && (
-                <span style={{
-                  background: ativo ? 'rgba(255,255,255,.25)' : '#eef2ff', color: ativo ? '#fff' : '#1a3a5c',
-                  borderRadius: 10, padding: '1px 8px', fontSize: 12, fontWeight: 800,
-                }}>{qtd}</span>
-              )}
             </button>
           );
         })}
