@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
-import { PRIORIDADE_COR, COR_STATUS, STATUS_LABELS, posSetorRoteiro } from '@/lib/types';
+import { PRIORIDADE_COR, COR_STATUS, STATUS_LABELS, posSetorRoteiro, FABRICAS } from '@/lib/types';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 
@@ -50,6 +50,7 @@ export default function KanbanPage() {
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
   const [fPrazoDe, setFPrazoDe] = useState('');
   const [fPrazoAte, setFPrazoAte] = useState('');
+  const [fabricaAtiva, setFabricaAtiva] = useState<string>(FABRICAS[0].cod);
 
   function toggleGrupo(key: string) {
     setExpandidos(prev => {
@@ -95,12 +96,18 @@ export default function KanbanPage() {
       }))
     : setores;
 
-  const todasParciais = setoresFiltrados.flatMap(x => x.itens);
+  // Kanban da fábrica ativa — Flanges e Caldeiraria não aparecem mais juntos
+  // numa linha só (ficou ilegível depois que a Caldeiraria ganhou várias
+  // etapas novas). Escolhe a fábrica em cima, igual a Nova Ordem já faz.
+  const fabDef = FABRICAS.find(f => f.cod === fabricaAtiva) ?? FABRICAS[0];
+  const setoresDaFabrica = setoresFiltrados.filter(s => fabDef.setores.includes(s.cod));
+
+  const todasParciais = setoresDaFabrica.flatMap(x => x.itens);
   const totalParciais = todasParciais.length;
   const totalPedidos = new Set(todasParciais.map(i => i.pedido_id)).size;
   const totalItens = new Set(todasParciais.map(i => i.item_pedido_id)).size;
-  const totalChegando = setoresFiltrados.reduce((s, x) => s + x.chegando.length, 0);
-  const setoresAtivos = setoresFiltrados
+  const totalChegando = setoresDaFabrica.reduce((s, x) => s + x.chegando.length, 0);
+  const setoresAtivos = setoresDaFabrica
     .filter(s => s.itens.length > 0 || s.chegando.length > 0)
     .sort((a, b) => posSetorRoteiro(a.cod) - posSetorRoteiro(b.cod));
 
@@ -119,6 +126,34 @@ export default function KanbanPage() {
         <Link href="/pedidos/novo" className="btn btn-primary btn-sm">
           <i className="bi bi-plus-lg" /> Nova Ordem
         </Link>
+      </div>
+
+      {/* Seletor de fábrica — troca quais setores aparecem no kanban abaixo */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+        {FABRICAS.map(f => {
+          const ativo = f.cod === fabricaAtiva;
+          const qtd = setoresFiltrados
+            .filter(s => f.setores.includes(s.cod))
+            .reduce((acc, s) => acc + s.itens.length, 0);
+          return (
+            <button key={f.cod} type="button" onClick={() => setFabricaAtiva(f.cod)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 10,
+                border: `2px solid ${ativo ? '#1a3a5c' : '#e5e7eb'}`,
+                background: ativo ? '#1a3a5c' : '#fff', color: ativo ? '#fff' : '#555',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .15s',
+              }}>
+              <i className={`bi ${f.icon}`} />
+              {f.nome}
+              {qtd > 0 && (
+                <span style={{
+                  background: ativo ? 'rgba(255,255,255,.25)' : '#eef2ff', color: ativo ? '#fff' : '#1a3a5c',
+                  borderRadius: 10, padding: '1px 8px', fontSize: 12, fontWeight: 800,
+                }}>{qtd}</span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Filtro de prazo */}

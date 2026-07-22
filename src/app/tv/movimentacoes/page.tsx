@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import { getToken } from '@/lib/auth';
-import { posSetorRoteiro, getPedidoEtapa, Etapa, NOMES } from '@/lib/types';
+import { posSetorRoteiro, getPedidoEtapa, Etapa, NOMES, FABRICAS } from '@/lib/types';
 import NotificacoesLive from '@/components/NotificacoesLive';
 
 interface LinhaStat {
@@ -193,6 +193,57 @@ function BarraH({ label, valorLabel, subLabel, pct, cor }: { label: string; valo
   );
 }
 
+// Um dos 2 quadros de kanban da TV (Flanges / Caldeiraria) — cabeçalho com
+// título e todas as colunas (setores) daquela fábrica, vazias ou não.
+function QuadroFabricaKanban({ titulo, icone, setores }: { titulo: string; icone: string; setores: SetorKanban[] }) {
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        <i className={`bi ${icone}`} style={{ color: '#0d6efd' }} /> Acompanhamento {titulo}
+      </div>
+      <div style={{
+        flex: 1, minHeight: 0, display: 'grid',
+        gridTemplateColumns: `repeat(${Math.max(setores.length, 1)}, 1fr)`,
+        gap: 8, overflow: 'hidden',
+      }}>
+        {setores.length === 0 ? (
+          <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: 30, gridColumn: '1 / -1' }}>Nenhum setor cadastrado</div>
+        ) : (
+          setores.map(s => {
+            const pedidos = agruparPorPedido(s.itens);
+            return (
+              <div key={s.cod} style={{ display: 'flex', flexDirection: 'column', minWidth: 0, height: '100%' }}>
+                <div style={{
+                  background: '#1a3a5c', color: '#fff', borderRadius: '8px 8px 0 0',
+                  padding: '5px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: 4,
+                }}>
+                  <span style={{ fontWeight: 700, fontSize: 10.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.nome}</span>
+                  <span style={{ background: '#0d6efd', color: '#fff', fontSize: 9.5, fontWeight: 700, minWidth: 15, height: 15, borderRadius: 8, padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {pedidos.length}
+                  </span>
+                </div>
+                <div style={{ flex: 1, background: '#fff', border: '1px solid #e5e7eb', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 4, overflowY: 'auto', minHeight: 0 }}>
+                  {pedidos.length === 0 && <div style={{ color: '#ccc', fontSize: 10, textAlign: 'center', padding: '10px 0' }}>vazio</div>}
+                  {pedidos.map(p => (
+                    <div key={p.numero} style={{
+                      display: 'flex', alignItems: 'center', gap: 5, padding: '3px 5px', marginBottom: 2,
+                      borderLeft: `3px solid ${PRIO_COR[p.prioridade] || '#94a3b8'}`, background: '#f8fafc', borderRadius: 4,
+                    }}>
+                      <span style={{ fontWeight: 700, fontSize: 10.5, color: '#1a3a5c', flexShrink: 0 }}>{p.numero}</span>
+                      <span style={{ fontSize: 9.5, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{p.cliente}</span>
+                      <span style={{ fontSize: 9.5, color: '#555', flexShrink: 0, whiteSpace: 'nowrap' }}>{p.qtdTotal}{p.unidade}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Agrupa as parciais de um setor por pedido, pra mostrar 1 card por pedido (nao por parcial).
 function agruparPorPedido(itens: ItemKanban[]) {
   const mapa = new Map<string, { numero: string; cliente: string; prioridade: string; itens: number; qtdTotal: number; unidade: string }>();
@@ -328,6 +379,22 @@ export default function TVMovimentacoesPage() {
     .sort((a, b) => posSetorRoteiro(a.cod) - posSetorRoteiro(b.cod));
   // Barras de % movimentacao tambem na ordem do roteiro, igual ao Kanban.
   const setoresStatOrdenados = [...setoresStat].sort((a, b) => posSetorRoteiro(a.setor) - posSetorRoteiro(b.setor));
+
+  // Kanban da TV dividido em 2 quadros por fábrica — mostra TODOS os
+  // sub-setores dela (mesmo vazios), não só os que têm item agora, pra sempre
+  // dar pra ver o pipeline inteiro. Antes era um único kanban com todos os
+  // setores (Flange + Caldeiraria) juntos numa linha só — ficou impossível de
+  // ler depois que a Caldeiraria ganhou várias etapas novas.
+  const setoresPorCodigo = new Map(setoresKanban.map(s => [s.cod, s]));
+  function colunasFabrica(fabCod: string): SetorKanban[] {
+    const fab = FABRICAS.find(f => f.cod === fabCod);
+    const cods = fab ? fab.setores : [];
+    return cods
+      .map(cod => setoresPorCodigo.get(cod) ?? { cod, nome: NOMES[cod] || cod, itens: [] })
+      .sort((a, b) => posSetorRoteiro(a.cod) - posSetorRoteiro(b.cod));
+  }
+  const setoresFlange = colunasFabrica('flange');
+  const setoresCaldeiraria = colunasFabrica('caldeiraria');
   // Colunas em 2 blocos quando tem muito setor, pra caber tudo sem rolar.
   const meioSetores = Math.ceil(setoresStatOrdenados.length / 2);
   // Corta os meses anteriores ao primeiro que teve pedido - sem meses vazios
@@ -409,9 +476,9 @@ export default function TVMovimentacoesPage() {
           opacity: view === 'kanban' ? 1 : 0, transition: 'opacity 1s ease',
           pointerEvents: view === 'kanban' ? 'auto' : 'none',
         }}>
-          <div style={{ flex: '0 0 27%', minHeight: 0 }}>
-            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 16px', boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', height: '100%' }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <div style={{ flex: '0 0 14%', minHeight: 0 }}>
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '8px 16px', boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', height: '100%' }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 <i className="bi bi-diagram-3-fill" style={{ color: '#0d6efd' }} /> % Movimentação por Setor
               </div>
               {setoresStat.length === 0 ? (
@@ -429,49 +496,12 @@ export default function TVMovimentacoesPage() {
             </div>
           </div>
 
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-              <i className="bi bi-kanban-fill" style={{ color: '#0d6efd' }} /> Kanban de Produção — setores e pedidos
-            </div>
-            <div style={{
-              flex: 1, minHeight: 0, display: 'grid',
-              gridTemplateColumns: `repeat(${Math.max(setoresAtivos.length, 1)}, 1fr)`,
-              gap: 10, overflow: 'hidden',
-            }}>
-              {setoresAtivos.length === 0 ? (
-                <div style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: 30, gridColumn: '1 / -1' }}>Nenhum pedido em produção agora</div>
-              ) : (
-                setoresAtivos.map(s => {
-                  const pedidos = agruparPorPedido(s.itens);
-                  return (
-                    <div key={s.cod} style={{ display: 'flex', flexDirection: 'column', minWidth: 0, height: '100%' }}>
-                      <div style={{
-                        background: '#1a3a5c', color: '#fff', borderRadius: '8px 8px 0 0',
-                        padding: '5px 9px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: 4,
-                      }}>
-                        <span style={{ fontWeight: 700, fontSize: 11.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.nome}</span>
-                        <span style={{ background: '#0d6efd', color: '#fff', fontSize: 10, fontWeight: 700, minWidth: 16, height: 16, borderRadius: 8, padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          {pedidos.length}
-                        </span>
-                      </div>
-                      <div style={{ flex: 1, background: '#fff', border: '1px solid #e5e7eb', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 4, overflowY: 'auto', minHeight: 0 }}>
-                        {pedidos.map(p => (
-                          <div key={p.numero} style={{
-                            display: 'flex', alignItems: 'center', gap: 5, padding: '3px 5px', marginBottom: 2,
-                            borderLeft: `3px solid ${PRIO_COR[p.prioridade] || '#94a3b8'}`, background: '#f8fafc', borderRadius: 4,
-                          }}>
-                            <span style={{ fontWeight: 700, fontSize: 11, color: '#1a3a5c', flexShrink: 0 }}>{p.numero}</span>
-                            <span style={{ fontSize: 10, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{p.cliente}</span>
-                            <span style={{ fontSize: 10, color: '#555', flexShrink: 0, whiteSpace: 'nowrap' }}>{p.qtdTotal}{p.unidade}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
+          {/* 2 quadros de kanban — Flanges e Caldeiraria, cada um com todos os
+              seus sub-setores (mesmo vazios). Antes era um único kanban com
+              tudo junto numa linha só; ficou ilegível depois que a
+              Caldeiraria ganhou várias etapas novas. */}
+          <QuadroFabricaKanban titulo="Flanges" icone="bi-nut" setores={setoresFlange} />
+          <QuadroFabricaKanban titulo="Caldeiraria" icone="bi-hammer" setores={setoresCaldeiraria} />
         </div>
 
         {/* ── VIEW: Comparativo mensal de pedidos criados (barras horizontais) ── */}
