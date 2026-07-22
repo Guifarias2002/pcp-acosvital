@@ -27,6 +27,9 @@ const SETOR_ICONS: Record<string, string> = {
   calandra: 'bi-arrow-repeat',
   chanfradeira: 'bi-triangle-half',
   solda: 'bi-lightning-charge-fill',
+  montagem: 'bi-nut-fill',
+  liberado: 'bi-hourglass-split',
+  pintura: 'bi-paint-bucket',
 };
 
 // Setores compartilhados entre Flanges e Caldeiraria — ficam fora do grupo
@@ -35,7 +38,7 @@ const SETORES_FORA_FLANGES = ['caldeiraria', 'beneficiadores', 'recebimento'];
 
 // Setores exclusivos da Caldeiraria — nunca aparecem no grupo "Flanges",
 // mesmo quando entram na lista geral SETOR_CHOICES.
-const SETORES_CALDEIRARIA_EXTRA = ['desenho', 'calandra', 'chanfradeira', 'solda'];
+const SETORES_CALDEIRARIA_EXTRA = ['desenho', 'chanfradeira', 'calandra', 'montagem', 'solda', 'liberado', 'pintura'];
 
 function NavItem({ href, label, icon, onNav }: { href: string; label: string; icon?: string; onNav?: () => void }) {
   const rawPath = usePathname();

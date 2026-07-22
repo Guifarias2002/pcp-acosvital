@@ -19,6 +19,9 @@ export const SETOR_CHOICES: [string, string][] = [
   ['calandra', 'Calandra'],
   ['chanfradeira', 'Chanfradeira'],
   ['solda', 'Solda'],
+  ['montagem', 'Montagem'],
+  ['liberado', 'Liberado'],
+  ['pintura', 'Pintura'],
 ];
 
 export const NOMES: Record<string, string> = Object.fromEntries(SETOR_CHOICES);
@@ -33,7 +36,7 @@ export const NOMES: Record<string, string> = Object.fromEntries(SETOR_CHOICES);
 //    é só acrescentar os setores aqui (nada mais muda).
 // Setores exclusivos da Caldeiraria — não aparecem no roteiro nem no menu do
 // Flange, mesmo estando na lista geral SETOR_CHOICES.
-const SETORES_EXCLUSIVOS_CALDEIRARIA = ['desenho', 'calandra', 'chanfradeira', 'solda'];
+const SETORES_EXCLUSIVOS_CALDEIRARIA = ['desenho', 'calandra', 'chanfradeira', 'solda', 'montagem', 'liberado', 'pintura'];
 
 export const FABRICAS: { cod: string; nome: string; icon: string; setores: string[] }[] = [
   {
@@ -48,11 +51,12 @@ export const FABRICAS: { cod: string; nome: string; icon: string; setores: strin
     cod: 'caldeiraria',
     nome: 'Caldeiraria',
     icon: 'bi-hammer',
-    // Ordem confirmada até agora (22/07, lista ainda em aberto): Desenho/Compras
-    // (intake, antes de tudo) → Caldeiraria/Recebimento → Calandra/Chanfradeira/
-    // Solda (ordem relativa entre elas ainda não definida) → Qualidade. Todas
+    // Lista fechada em 22/07 com o líder da Caldeiraria (kanban físico dele):
+    // Desenho/Compras (intake) → Recebimento (setor "caldeiraria") →
+    // Chanfradeira → Calandra → Montagem → Solda → Acabamento → Qualidade
+    // (Inspeção) → Liberado (espera antes do despacho) → Pintura. Todas
     // opcionais por item — PCP escolhe quais usar e em que ordem, como no Flange.
-    setores: ['desenho', 'compras', 'caldeiraria', 'calandra', 'chanfradeira', 'solda', 'qualidade'],
+    setores: ['desenho', 'compras', 'caldeiraria', 'chanfradeira', 'calandra', 'montagem', 'solda', 'acabamento', 'qualidade', 'liberado', 'pintura'],
   },
 ];
 

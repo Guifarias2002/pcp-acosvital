@@ -47,14 +47,15 @@ import AdicionarItemPedidoModal from '@/components/AdicionarItemPedidoModal';
 import RastreioModal from '@/components/RastreioModal';
 
 // Setores internos da Caldeiraria (Recebimento + etapas próprias) — entre eles
-// o envio manual pode ir pra qualquer um dos outros, mais Qualidade e Logística
-// (nunca pros setores do Flange, que não fazem sentido como destino daqui).
-const SETORES_CALDEIRARIA_INTERNOS = ['caldeiraria', 'calandra', 'chanfradeira', 'solda'];
+// o envio manual pode ir pra qualquer um dos outros, mais Qualidade, Acabamento
+// e Logística (nunca pros setores do Flange, que não fazem sentido como
+// destino daqui).
+const SETORES_CALDEIRARIA_INTERNOS = ['caldeiraria', 'chanfradeira', 'calandra', 'montagem', 'solda', 'liberado', 'pintura'];
 
 function destinosEnvio(setorAtual: string): [string, string][] {
   if (SETORES_CALDEIRARIA_INTERNOS.includes(setorAtual)) {
     return SETOR_CHOICES.filter(([cod]) =>
-      cod !== setorAtual && (SETORES_CALDEIRARIA_INTERNOS.includes(cod) || cod === 'qualidade' || cod === 'logistica'));
+      cod !== setorAtual && (SETORES_CALDEIRARIA_INTERNOS.includes(cod) || cod === 'qualidade' || cod === 'acabamento' || cod === 'logistica'));
   }
   return SETOR_CHOICES.filter(([cod]) => cod !== setorAtual);
 }
