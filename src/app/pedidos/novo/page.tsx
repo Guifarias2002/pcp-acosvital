@@ -4,11 +4,14 @@ import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 
 import { criarPedido, getUltimoRoteiro } from '@/lib/api';
-import { SETOR_CHOICES } from '@/lib/types';
+import { SETOR_CHOICES, FABRICAS, NOMES } from '@/lib/types';
 
-const SS_KEY = 'nova_ordem_rascunho';
+// v2: o rascunho agora guarda os grupos por fábrica (antes era um roteiro único).
+// Bumpar a chave descarta rascunhos no formato antigo sem quebrar a restauração.
+const SS_KEY = 'nova_ordem_rascunho_v2';
 
-interface ItemForm { codigo: string; descricao: string; quantidade: string; unidade: string; valor_unitario: string; roteiro_proprio: string[]; }
+interface ItemForm { codigo: string; descricao: string; quantidade: string; unidade: string; valor_unitario: string; }
+interface Grupo { roteiro: string[]; itens: ItemForm[]; }
 
 const UNIDADES = ['un', 'kg', 'm', 'pc', 'jg', 'cx', 'lt'];
 
@@ -16,6 +19,8 @@ const UNIDADES = ['un', 'kg', 'm', 'pc', 'jg', 'cx', 'lt'];
 // produção real não tem centenas de itens) — provavelmente área usada
 // inflada do Excel ou arquivo errado. Ver importarExcel().
 const MAX_ITENS_IMPORTACAO = 500;
+
+function novoItem(): ItemForm { return { codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '' }; }
 
 function fmtBRL(n: number) {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -41,12 +46,37 @@ function parseVal(s: string): number {
   return isNaN(n) ? 0 : n;
 }
 
+function gruposIniciais(): Record<string, Grupo> {
+  // Cada fábrica começa com o roteiro só em 'emissao' (passo fixo) e um item vazio.
+  return Object.fromEntries(FABRICAS.map(f => [f.cod, { roteiro: ['emissao'], itens: [novoItem()] }]));
+}
+
 export default function NovoPedidoPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
   const [importando, setImportando] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [pv, setPv] = useState<string>('');
+  const [op, setOp] = useState<string>('');
+  const [cliente, setCliente] = useState<string>('');
+  const [vendedor, setVendedor] = useState<string>('');
+  const [prazo, setPrazo] = useState<string>('');
+  const [prioridade, setPrioridade] = useState<string>('normal');
+  const [obs, setObs] = useState<string>('');
+
+  // Fábrica atualmente em edição (troca o painel de Roteiro e a lista de Itens).
+  const [fabricaAtiva, setFabricaAtiva] = useState<string>(FABRICAS[0].cod);
+  // Grupos por fábrica: cada um com seu roteiro e seus itens.
+  const [grupos, setGrupos] = useState<Record<string, Grupo>>(gruposIniciais);
+
+  const grupoAtivo = grupos[fabricaAtiva] ?? { roteiro: ['emissao'], itens: [novoItem()] };
+  const fabDef = FABRICAS.find(f => f.cod === fabricaAtiva) ?? FABRICAS[0];
+
+  function setGrupo(fabCod: string, patch: Partial<Grupo>) {
+    setGrupos(prev => ({ ...prev, [fabCod]: { ...prev[fabCod], ...patch } }));
+  }
 
   async function importarExcel(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -82,25 +112,15 @@ export default function NovoPedidoPage() {
         quantidade:    String(Number(r[2]) || 1),
         unidade:       'pc',
         valor_unitario: r[5] != null && r[5] !== '' ? String(r[5]) : '',
-        roteiro_proprio: [],
       }));
-      setItens(novosItens);
+      // Importa para a fábrica atualmente selecionada.
+      setGrupo(fabricaAtiva, { itens: novosItens });
     } catch {
       setErro('Erro ao ler o arquivo. Certifique-se de que é um .xlsx válido.');
     } finally {
       setImportando(false);
     }
   }
-
-  const [pv, setPv] = useState<string>('');
-  const [op, setOp] = useState<string>('');
-  const [cliente, setCliente] = useState<string>('');
-  const [vendedor, setVendedor] = useState<string>('');
-  const [prazo, setPrazo] = useState<string>('');
-  const [prioridade, setPrioridade] = useState<string>('normal');
-  const [obs, setObs] = useState<string>('');
-  const [roteiro, setRoteiro] = useState<string[]>(['emissao']);
-  const [itens, setItens] = useState<ItemForm[]>([{ codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', roteiro_proprio: [] }]);
 
   // Restaura rascunho após montar no cliente (evita problema SSR do Next.js)
   useEffect(() => {
@@ -115,17 +135,25 @@ export default function NovoPedidoPage() {
       if (d.prazo !== undefined) setPrazo(d.prazo);
       if (d.prioridade !== undefined) setPrioridade(d.prioridade);
       if (d.obs !== undefined) setObs(d.obs);
-      if (d.roteiro?.length) setRoteiro(d.roteiro);
-      if (d.itens?.length) setItens(d.itens);
+      if (d.fabricaAtiva && FABRICAS.some(f => f.cod === d.fabricaAtiva)) setFabricaAtiva(d.fabricaAtiva);
+      // Só restaura os grupos se vierem no formato esperado (uma entrada por fábrica).
+      if (d.grupos && typeof d.grupos === 'object') {
+        const merged = gruposIniciais();
+        for (const f of FABRICAS) {
+          const g = d.grupos[f.cod];
+          if (g && Array.isArray(g.roteiro) && Array.isArray(g.itens)) merged[f.cod] = g;
+        }
+        setGrupos(merged);
+      }
     } catch { /* ignore */ }
   }, []);
 
   // Salva rascunho no sessionStorage sempre que o formulário mudar
   useEffect(() => {
     try {
-      sessionStorage.setItem(SS_KEY, JSON.stringify({ pv, op, cliente, vendedor, prazo, prioridade, obs, roteiro, itens }));
+      sessionStorage.setItem(SS_KEY, JSON.stringify({ pv, op, cliente, vendedor, prazo, prioridade, obs, fabricaAtiva, grupos }));
     } catch { /* quota exceeded */ }
-  }, [pv, op, cliente, vendedor, prazo, prioridade, obs, roteiro, itens]);
+  }, [pv, op, cliente, vendedor, prazo, prioridade, obs, fabricaAtiva, grupos]);
 
   const [copiandoRoteiro, setCopiandoRoteiro] = useState(false);
   const [msgRoteiro, setMsgRoteiro] = useState('');
@@ -136,7 +164,9 @@ export default function NovoPedidoPage() {
     try {
       const data = await getUltimoRoteiro();
       if (data.roteiro_base?.length > 0) {
-        setRoteiro(data.roteiro_base);
+        // Copia só o que faz sentido para a fábrica ativa (emissão + setores dela).
+        const rot = (data.roteiro_base as string[]).filter(s => s === 'emissao' || fabDef.setores.includes(s));
+        setGrupo(fabricaAtiva, { roteiro: rot.length ? rot : ['emissao'] });
         setMsgRoteiro(`Roteiro copiado do pedido ${data.numero_pedido_venda}.`);
       } else {
         setMsgRoteiro('O último pedido não tem roteiro definido.');
@@ -150,30 +180,62 @@ export default function NovoPedidoPage() {
 
   function toggleSetor(cod: string) {
     if (cod === 'emissao') return;
-    setRoteiro(prev => prev.includes(cod) ? prev.filter(s => s !== cod) : [...prev, cod]);
+    const rot = grupoAtivo.roteiro;
+    setGrupo(fabricaAtiva, { roteiro: rot.includes(cod) ? rot.filter(s => s !== cod) : [...rot, cod] });
   }
 
-  function addItem() {
-    setItens(prev => [...prev, { codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', roteiro_proprio: [] }]);
-  }
-
-  function remItem(i: number) {
-    setItens(prev => prev.filter((_, idx) => idx !== i));
-  }
-
+  function addItem() { setGrupo(fabricaAtiva, { itens: [...grupoAtivo.itens, novoItem()] }); }
+  function remItem(i: number) { setGrupo(fabricaAtiva, { itens: grupoAtivo.itens.filter((_, idx) => idx !== i) }); }
   function setItemField(i: number, field: keyof ItemForm, val: string) {
-    setItens(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: val } : it));
+    setGrupo(fabricaAtiva, { itens: grupoAtivo.itens.map((it, idx) => idx === i ? { ...it, [field]: val } : it) });
   }
 
-  const totalGeral = itens.reduce((acc, it) => {
-    const qty = parseFloat(it.quantidade) || 0;
-    const val = parseVal(it.valor_unitario);
-    return acc + qty * val;
-  }, 0);
+  const itensValidos = (g: Grupo) => g.itens.filter(i => i.codigo.trim());
+
+  const totalGeral = FABRICAS.reduce((acc, f) => acc + itensValidos(grupos[f.cod]).reduce((s, it) =>
+    s + (parseFloat(it.quantidade) || 0) * parseVal(it.valor_unitario), 0), 0);
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
     if (!op.trim()) { setErro('O Número da Ordem de Produção (OP) é obrigatório.'); return; }
+
+    const comItens = FABRICAS.filter(f => itensValidos(grupos[f.cod]).length > 0);
+    if (comItens.length === 0) { setErro('Adicione ao menos um item (com código) em alguma fábrica.'); return; }
+
+    // Regra que protege o fluxo atual do Flange:
+    //  • OP de UMA fábrica só  → salva exatamente como sempre: roteiro_base = o
+    //    roteiro daquela fábrica, itens sem roteiro próprio (herdam o do pedido).
+    //  • OP MISTA (2+ fábricas) → cada item carrega seu roteiro_proprio e o
+    //    roteiro_base do pedido fica só com 'emissao' (não há um roteiro único).
+    const misto = comItens.length > 1;
+    const itensPayload: Record<string, unknown>[] = [];
+    let roteiro_base: string[];
+
+    if (misto) {
+      roteiro_base = ['emissao'];
+      for (const f of comItens) {
+        const rot = grupos[f.cod].roteiro;
+        for (const it of itensValidos(grupos[f.cod])) {
+          itensPayload.push({
+            codigo: it.codigo, descricao: it.descricao,
+            quantidade: Number(it.quantidade), unidade: it.unidade,
+            valor_unitario: it.valor_unitario ? parseVal(it.valor_unitario) : null,
+            roteiro_proprio: rot,
+          });
+        }
+      }
+    } else {
+      const f = comItens[0];
+      roteiro_base = grupos[f.cod].roteiro;
+      for (const it of itensValidos(grupos[f.cod])) {
+        itensPayload.push({
+          codigo: it.codigo, descricao: it.descricao,
+          quantidade: Number(it.quantidade), unidade: it.unidade,
+          valor_unitario: it.valor_unitario ? parseVal(it.valor_unitario) : null,
+        });
+      }
+    }
+
     setErro('');
     setLoading(true);
     try {
@@ -190,13 +252,8 @@ export default function NovoPedidoPage() {
       try {
         const res = await criarPedido({
           numero_pedido_venda: pv, numero_op: op, cliente, vendedor,
-          prazo_entrega: prazo, prioridade, roteiro_base: roteiro,
-          observacoes: obs,
-          itens: itens.filter(i => i.codigo).map(i => ({
-            ...i,
-            quantidade: Number(i.quantidade),
-            valor_unitario: i.valor_unitario ? parseVal(i.valor_unitario) : null,
-          })),
+          prazo_entrega: prazo, prioridade, roteiro_base,
+          observacoes: obs, itens: itensPayload,
         });
         id = res.id;
       } finally {
@@ -219,6 +276,12 @@ export default function NovoPedidoPage() {
 
   const inputCls = 'mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 bg-white';
   const labelCls = 'text-xs font-semibold text-gray-500 uppercase tracking-wide';
+
+  // Lista de setores do roteiro da fábrica ativa: Emissão (fixo) + setores dela.
+  const setoresRoteiro: [string, string][] = [
+    ['emissao', NOMES['emissao'] || 'Emissao de Ordens'],
+    ...fabDef.setores.map(cod => SETOR_CHOICES.find(([c]) => c === cod)!).filter(Boolean) as [string, string][],
+  ];
 
   return (
     <AuthGuard adminOnly>
@@ -303,6 +366,33 @@ export default function NovoPedidoPage() {
           </div>
         )}
 
+        {/* Seletor de fábrica — troca o Roteiro e os Itens exibidos abaixo */}
+        <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap', alignItems:'center' }}>
+          <span style={{ fontSize:11, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:1, marginRight:4 }}>Fábrica:</span>
+          {FABRICAS.map(f => {
+            const ativo = f.cod === fabricaAtiva;
+            const qtd = itensValidos(grupos[f.cod]).length;
+            return (
+              <button key={f.cod} type="button" onClick={() => setFabricaAtiva(f.cod)}
+                style={{
+                  display:'flex', alignItems:'center', gap:8, padding:'8px 16px', borderRadius:10,
+                  border:`2px solid ${ativo ? '#1a3a5c' : '#e5e7eb'}`,
+                  background: ativo ? '#1a3a5c' : '#fff', color: ativo ? '#fff' : '#555',
+                  fontSize:13, fontWeight:700, cursor:'pointer', transition:'all .15s',
+                }}>
+                <i className={`bi ${f.icon}`} />
+                {f.nome}
+                {qtd > 0 && (
+                  <span style={{
+                    background: ativo ? 'rgba(255,255,255,.25)' : '#eef2ff', color: ativo ? '#fff' : '#1a3a5c',
+                    borderRadius:10, padding:'1px 8px', fontSize:12, fontWeight:800,
+                  }}>{qtd}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Layout: 2 colunas no desktop, 1 no mobile */}
         <div className="novo-pedido-grid">
 
@@ -360,11 +450,11 @@ export default function NovoPedidoPage() {
               </div>
             </div>
 
-            {/* Itens */}
+            {/* Itens da fábrica ativa */}
             <div className="card" style={{ padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6, flexWrap:'wrap', gap:8 }}>
                 <span style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1 }}>
-                  <i className="bi bi-list-ul" style={{ marginRight:6 }} />Itens do Pedido
+                  <i className={`bi ${fabDef.icon}`} style={{ marginRight:6 }} />Itens do Pedido — {fabDef.nome}
                 </span>
                 <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                   <input
@@ -386,7 +476,7 @@ export default function NovoPedidoPage() {
                 </div>
               </div>
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {itens.map((item, i) => {
+                {grupoAtivo.itens.map((item, i) => {
                   const subTotal = (parseFloat(item.quantidade) || 0) * parseVal(item.valor_unitario);
                   return (
                     <div key={i} style={{ border:'1px solid #e9ecef', borderRadius:8, padding:12, background:'#f8faff' }}>
@@ -400,7 +490,7 @@ export default function NovoPedidoPage() {
                               R$ {fmtBRL(subTotal)}
                             </span>
                           )}
-                          {itens.length > 1 && (
+                          {grupoAtivo.itens.length > 1 && (
                             <button type="button" onClick={() => remItem(i)}
                               style={{ background:'#fee2e2', color:'#dc2626', border:'none', borderRadius:5, padding:'3px 8px', fontSize:11, fontWeight:600, cursor:'pointer' }}>
                               <i className="bi bi-trash" style={{ marginRight:3 }} />Remover
@@ -441,7 +531,7 @@ export default function NovoPedidoPage() {
                 })}
               </div>
 
-              {/* Total geral */}
+              {/* Total geral (todas as fábricas) */}
               {totalGeral > 0 && (
                 <div style={{ marginTop:14, display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e9ecef', paddingTop:12 }}>
                   <div style={{ background:'#f0f4ff', borderRadius:8, padding:'10px 18px', textAlign:'right' }}>
@@ -455,12 +545,12 @@ export default function NovoPedidoPage() {
             </div>
           </div>
 
-          {/* COLUNA DIREITA — Roteiro */}
+          {/* COLUNA DIREITA — Roteiro da fábrica ativa */}
           <div>
             <div className="card" style={{ padding:20, position:'sticky', top:66 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6, flexWrap:'wrap', gap:8 }}>
                 <span style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1 }}>
-                  <i className="bi bi-arrow-right-circle" style={{ marginRight:6 }} />Roteiro de Produção
+                  <i className="bi bi-arrow-right-circle" style={{ marginRight:6 }} />Roteiro — {fabDef.nome}
                 </span>
                 <button type="button" onClick={copiarRoteiroUltimoPedido} disabled={copiandoRoteiro}
                   title="Copia a sequência de setores do último pedido cadastrado"
@@ -475,24 +565,24 @@ export default function NovoPedidoPage() {
                 </p>
               )}
               <p style={{ fontSize:12, color:'#888', margin:'0 0 12px' }}>
-                Clique nos setores na ordem em que o pedido deve passar:
+                Clique nos setores na ordem em que os itens de {fabDef.nome} devem passar:
               </p>
-              {(() => {
-                // Beneficiadores e Recebimento são setores compartilhados (atendem
-                // tanto Flanges quanto Caldeiraria) — não fazem parte do roteiro
-                // pré-planejado de uma OP de Flanges, por isso não aparecem aqui.
-                const setoresRoteiro = SETOR_CHOICES.filter(([cod]) => !['beneficiadores', 'recebimento'].includes(cod));
-                const selecionados = roteiro
+              {fabDef.setores.length === 0 ? (
+                <div style={{ fontSize:12, color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'8px 12px' }}>
+                  Os setores desta fábrica ainda serão cadastrados.
+                </div>
+              ) : (() => {
+                const selecionados = grupoAtivo.roteiro
                   .filter(c => setoresRoteiro.some(([cod]) => cod === c))
                   .map(c => setoresRoteiro.find(([cod]) => cod === c)!);
-                const naoSelecionados = setoresRoteiro.filter(([c]) => !roteiro.includes(c));
+                const naoSelecionados = setoresRoteiro.filter(([c]) => !grupoAtivo.roteiro.includes(c));
                 const lista = [...selecionados, ...naoSelecionados];
                 return (
                   <div style={{ display:'flex', flexDirection:'column', gap:6, paddingLeft:14, maxHeight:'calc(100vh - 350px)', overflowY:'auto' }}>
                     {lista.map(([cod, nome]) => {
-                      const selecionado = roteiro.includes(cod);
+                      const selecionado = grupoAtivo.roteiro.includes(cod);
                       const fixo = cod === 'emissao';
-                      const pos = roteiro.indexOf(cod);
+                      const pos = grupoAtivo.roteiro.indexOf(cod);
                       return (
                         <div key={cod} style={{ position:'relative' }}>
                           {selecionado && (
@@ -533,16 +623,16 @@ export default function NovoPedidoPage() {
                   </div>
                 );
               })()}
-              {roteiro.length > 1 && (
+              {grupoAtivo.roteiro.length > 1 && (
                 <div style={{ marginTop:16, padding:'10px 12px', background:'#f0f4ff', borderRadius:8, fontSize:12, color:'#1a3a5c' }}>
                   <strong>Fluxo:</strong>
                   <div style={{ display:'flex', flexWrap:'wrap', alignItems:'center', gap:'4px 0', marginTop:6 }}>
-                    {roteiro.map((s, i) => {
-                      const nome = SETOR_CHOICES.find(([c]) => c === s)?.[1];
+                    {grupoAtivo.roteiro.map((s, i) => {
+                      const nome = NOMES[s] || s;
                       return (
                         <span key={s} style={{ display:'flex', alignItems:'center' }}>
                           <span style={{ background:'#1a3a5c', color:'#fff', borderRadius:4, padding:'2px 7px', fontSize:11, whiteSpace:'nowrap' }}>{nome}</span>
-                          {i < roteiro.length - 1 && <span style={{ margin:'0 4px', color:'#aaa', flexShrink:0 }}>→</span>}
+                          {i < grupoAtivo.roteiro.length - 1 && <span style={{ margin:'0 4px', color:'#aaa', flexShrink:0 }}>→</span>}
                         </span>
                       );
                     })}
