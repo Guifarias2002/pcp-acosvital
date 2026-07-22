@@ -19,11 +19,15 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     return NextResponse.json({ erro: 'Setor invalido' }, { status: 400 });
 
   // Operador só acessa setores da sua lista (múltiplos setores). Fallback pro
-  // setor único quando o token não traz a lista (tokens legado).
+  // setor único quando o token não traz a lista (tokens legado). Vale também
+  // para staff/pcp com `setores` preenchido (ex.: PCP que só pode movimentar
+  // num setor específico, mas mantém a visão ampla do resto do sistema) — hoje
+  // nenhuma conta staff tem `setores` preenchido, então isso não muda nada pra
+  // quem já tinha acesso irrestrito.
   const meusSetores = (Array.isArray(user.setores) && user.setores.length > 0)
     ? user.setores
     : (user.setor ? [user.setor] : []);
-  if (!user.is_staff && meusSetores.length > 0 && !meusSetores.includes(setor))
+  if (meusSetores.length > 0 && !meusSetores.includes(setor))
     return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
 
   const verFinanceiro = user.is_staff && user.perfil !== 'lider';
