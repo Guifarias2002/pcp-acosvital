@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
-import { PRIORIDADE_COR, COR_STATUS, STATUS_LABELS, posSetorRoteiro, FABRICAS } from '@/lib/types';
+import { PRIORIDADE_COR, COR_STATUS, STATUS_LABELS, posSetorRoteiro, FABRICAS, SETORES_CALDEIRARIA_KANBAN } from '@/lib/types';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 
@@ -99,10 +99,13 @@ export default function KanbanPage() {
   // Kanban da fábrica ativa — Flanges e Caldeiraria não aparecem mais juntos
   // numa linha só (ficou ilegível depois que a Caldeiraria ganhou várias
   // etapas novas). Escolhe a fábrica em cima, igual a Nova Ordem já faz.
-  // 'emissao' entra à parte pelas duas (1º passo de qualquer OP, não faz
-  // parte de FABRICAS.setores porque não é um passo togglable de roteiro).
+  // Caldeiraria usa SETORES_CALDEIRARIA_KANBAN (só as etapas dela mesma —
+  // Compras/Acabamento/Qualidade continuam do lado do Flange, compartilhados).
+  // Flange usa 'emissao' + FABRICAS.setores ('emissao' é o 1º passo de
+  // qualquer OP, não entra em FABRICAS.setores por não ser um passo
+  // togglable de roteiro, mas precisa aparecer como coluna).
   const fabDef = FABRICAS.find(f => f.cod === fabricaAtiva) ?? FABRICAS[0];
-  const codsFabrica = ['emissao', ...fabDef.setores];
+  const codsFabrica = fabricaAtiva === 'caldeiraria' ? SETORES_CALDEIRARIA_KANBAN : ['emissao', ...fabDef.setores];
   const setoresDaFabrica = setoresFiltrados.filter(s => codsFabrica.includes(s.cod));
 
   const todasParciais = setoresDaFabrica.flatMap(x => x.itens);
@@ -110,12 +113,16 @@ export default function KanbanPage() {
   const totalPedidos = new Set(todasParciais.map(i => i.pedido_id)).size;
   const totalItens = new Set(todasParciais.map(i => i.item_pedido_id)).size;
   const totalChegando = setoresDaFabrica.reduce((s, x) => s + x.chegando.length, 0);
-  // 'emissao' não está em ORDEM_SETORES (não é um passo de roteiro togglable),
-  // então posSetorRoteiro sozinho não garante ele primeiro — força aqui.
-  const posComEmissao = (cod: string) => cod === 'emissao' ? -1 : posSetorRoteiro(cod);
+  // Caldeiraria ordena pela sequência confirmada em SETORES_CALDEIRARIA_KANBAN
+  // (nenhuma delas está em ORDEM_SETORES). Flange usa posSetorRoteiro, com
+  // 'emissao' forçado primeiro (não está em ORDEM_SETORES por não ser um
+  // passo togglable de roteiro, mas precisa vir antes de tudo).
+  const posNaFabrica = (cod: string) => fabricaAtiva === 'caldeiraria'
+    ? SETORES_CALDEIRARIA_KANBAN.indexOf(cod)
+    : (cod === 'emissao' ? -1 : posSetorRoteiro(cod));
   const setoresAtivos = setoresDaFabrica
     .filter(s => s.itens.length > 0 || s.chegando.length > 0)
-    .sort((a, b) => posComEmissao(a.cod) - posComEmissao(b.cod));
+    .sort((a, b) => posNaFabrica(a.cod) - posNaFabrica(b.cod));
 
   return (
     <AuthGuard>

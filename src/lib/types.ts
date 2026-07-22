@@ -61,6 +61,13 @@ export const FABRICAS: { cod: string; nome: string; icon: string; setores: strin
   },
 ];
 
+// Colunas do kanban/menu da Caldeiraria — distinto de
+// FABRICAS.caldeiraria.setores acima (que inclui Compras/Acabamento/
+// Qualidade como OPÇÃO DE ROTEIRO). No kanban e no menu, esses 3 continuam
+// aparecendo do lado do Flange (são compartilhados); a Caldeiraria mostra só
+// as etapas que são dela mesma. Mesma lista usada no Sidebar.
+export const SETORES_CALDEIRARIA_KANBAN = ['caldeiraria', 'desenho', 'chanfradeira', 'calandra', 'montagem', 'solda', 'pintura', 'liberado'];
+
 // Ordem real do roteiro de produção — usada pra ordenar as colunas dos Kanbans
 // (sistema e TV), em vez da ordem do SETOR_CHOICES. Setor fora desta lista
 // (ex: emissão, recebimento, compras) vai pro fim, sem sumir. Fonte única:

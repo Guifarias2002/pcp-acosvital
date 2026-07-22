@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import { getToken } from '@/lib/auth';
-import { posSetorRoteiro, getPedidoEtapa, Etapa, NOMES, FABRICAS } from '@/lib/types';
+import { posSetorRoteiro, getPedidoEtapa, Etapa, NOMES, FABRICAS, SETORES_CALDEIRARIA_KANBAN } from '@/lib/types';
 import NotificacoesLive from '@/components/NotificacoesLive';
 
 interface LinhaStat {
@@ -386,21 +386,27 @@ export default function TVMovimentacoesPage() {
   // setores (Flange + Caldeiraria) juntos numa linha só — ficou impossível de
   // ler depois que a Caldeiraria ganhou várias etapas novas.
   const setoresPorCodigo = new Map(setoresKanban.map(s => [s.cod, s]));
-  function colunasFabrica(fabCod: string): SetorKanban[] {
-    const fab = FABRICAS.find(f => f.cod === fabCod);
-    // 'emissao' é o 1º passo de qualquer OP (não entra em FABRICAS.setores
-    // porque não é um passo togglable de roteiro), mas o kanban precisa
-    // mostrar essa coluna também — é onde item novo/recém-emitido fica
-    // esperando antes de entrar na fábrica.
-    const cods = ['emissao', ...(fab ? fab.setores : [])];
-    const semEmissao = cods.slice(1)
-      .map(cod => setoresPorCodigo.get(cod) ?? { cod, nome: NOMES[cod] || cod, itens: [] })
+  const stub = (cod: string): SetorKanban => setoresPorCodigo.get(cod) ?? { cod, nome: NOMES[cod] || cod, itens: [] };
+  // Flange: 'emissao' + FABRICAS.flange.setores ('emissao' é o 1º passo de
+  // qualquer OP, não entra em FABRICAS.setores por não ser um passo togglable
+  // de roteiro, mas precisa aparecer como coluna — é onde item recém-emitido
+  // fica esperando antes de entrar na fábrica).
+  function colunasFlange(): SetorKanban[] {
+    const fab = FABRICAS.find(f => f.cod === 'flange');
+    const semEmissao = (fab ? fab.setores : [])
+      .map(stub)
       .sort((a, b) => posSetorRoteiro(a.cod) - posSetorRoteiro(b.cod));
-    const emissao = setoresPorCodigo.get('emissao') ?? { cod: 'emissao', nome: NOMES['emissao'] || 'Emissao de Ordens', itens: [] };
-    return [emissao, ...semEmissao];
+    return [stub('emissao'), ...semEmissao];
   }
-  const setoresFlange = colunasFabrica('flange');
-  const setoresCaldeiraria = colunasFabrica('caldeiraria');
+  // Caldeiraria: só as etapas dela mesma (SETORES_CALDEIRARIA_KANBAN, mesma
+  // lista do menu) — Compras/Acabamento/Qualidade continuam só no quadro do
+  // Flange (compartilhados), e 'emissao' também não entra aqui (não existe
+  // como etapa própria da Caldeiraria no menu).
+  function colunasCaldeiraria(): SetorKanban[] {
+    return SETORES_CALDEIRARIA_KANBAN.map(stub);
+  }
+  const setoresFlange = colunasFlange();
+  const setoresCaldeiraria = colunasCaldeiraria();
   // Colunas em 2 blocos quando tem muito setor, pra caber tudo sem rolar.
   const meioSetores = Math.ceil(setoresStatOrdenados.length / 2);
   // Corta os meses anteriores ao primeiro que teve pedido - sem meses vazios

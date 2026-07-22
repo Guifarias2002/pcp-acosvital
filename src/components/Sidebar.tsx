@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { logout, getUser, vendedorRestrito } from '@/lib/auth';
-import { SETOR_CHOICES, NOMES } from '@/lib/types';
+import { SETOR_CHOICES, NOMES, SETORES_CALDEIRARIA_KANBAN } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { JWTPayload } from '@/lib/auth';
 
@@ -37,8 +37,9 @@ const SETOR_ICONS: Record<string, string> = {
 const SETORES_FORA_FLANGES = ['caldeiraria', 'beneficiadores', 'recebimento'];
 
 // Setores exclusivos da Caldeiraria — nunca aparecem no grupo "Flanges",
-// mesmo quando entram na lista geral SETOR_CHOICES.
-const SETORES_CALDEIRARIA_EXTRA = ['desenho', 'chanfradeira', 'calandra', 'montagem', 'solda', 'pintura', 'liberado'];
+// mesmo quando entram na lista geral SETOR_CHOICES. Mesma lista usada no
+// kanban ('caldeiraria' sai fora porque já vira o item "Recebimento" à parte).
+const SETORES_CALDEIRARIA_EXTRA = SETORES_CALDEIRARIA_KANBAN.filter(c => c !== 'caldeiraria');
 
 function NavItem({ href, label, icon, onNav }: { href: string; label: string; icon?: string; onNav?: () => void }) {
   const rawPath = usePathname();
