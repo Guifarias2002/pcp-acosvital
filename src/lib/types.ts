@@ -19,6 +19,31 @@ export const SETOR_CHOICES: [string, string][] = [
 
 export const NOMES: Record<string, string> = Object.fromEntries(SETOR_CHOICES);
 
+// ── Fábricas (linhas de produção) ───────────────────────────────────────────
+// Fonte única de "quais setores pertencem a cada fábrica", usada na tela de
+// Abrir OP pra filtrar o roteiro conforme a fábrica escolhida.
+//  • 'emissao' é sempre o 1º passo (fixo) — não entra na lista selecionável.
+//  • Compartilhados (beneficiadores/recebimento) não fazem parte do roteiro
+//    pré-planejado, igual já acontece na tela de Flange.
+//  • Caldeiraria hoje só tem 'caldeiraria'; conforme as etapas forem definidas,
+//    é só acrescentar os setores aqui (nada mais muda).
+export const FABRICAS: { cod: string; nome: string; icon: string; setores: string[] }[] = [
+  {
+    cod: 'flange',
+    nome: 'Flanges',
+    icon: 'bi-nut',
+    setores: SETOR_CHOICES
+      .map(([c]) => c)
+      .filter(c => !['emissao', 'caldeiraria', 'beneficiadores', 'recebimento'].includes(c)),
+  },
+  {
+    cod: 'caldeiraria',
+    nome: 'Caldeiraria',
+    icon: 'bi-hammer',
+    setores: ['caldeiraria'],
+  },
+];
+
 // Ordem real do roteiro de produção — usada pra ordenar as colunas dos Kanbans
 // (sistema e TV), em vez da ordem do SETOR_CHOICES. Setor fora desta lista
 // (ex: emissão, recebimento, compras) vai pro fim, sem sumir. Fonte única:
