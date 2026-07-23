@@ -303,9 +303,17 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const total = pedido.itens.length;
   const pct = total > 0 ? Math.round((concluidos / total) * 100) : 0;
 
-  // Roteiro com checkmarks
+  // Roteiro com checkmarks — pedido.setor_atual só reflete o ÚLTIMO item que
+  // se moveu (é sobrescrito a cada movimentação de QUALQUER item do pedido),
+  // então num pedido com vários itens avançando em ritmos diferentes ele fica
+  // errado/oscilando. Usa a posição real de cada item ativo: "atual" é todo
+  // setor onde algum item está agora; "concluído" é só o trecho antes do
+  // item mais atrasado (ninguém mais está ali, já passou pra todos).
   const roteiroIdx = pedido.roteiro_base.length > 0 ? pedido.roteiro_base : SETOR_CHOICES.map(([c]) => c);
-  const setorAtualIdx = roteiroIdx.indexOf(pedido.setor_atual);
+  const itensAtivosRoteiro = pedido.itens.filter(i => i.status !== 'entregue' && !i.inativo);
+  const setoresAtuais = new Set(itensAtivosRoteiro.map(i => i.setor_atual));
+  const posicoesAtuais = Array.from(setoresAtuais).map(s => roteiroIdx.indexOf(s)).filter(idx => idx >= 0);
+  const setorAtualIdx = itensAtivosRoteiro.length === 0 ? roteiroIdx.length : (posicoesAtuais.length > 0 ? Math.min(...posicoesAtuais) : roteiroIdx.indexOf(pedido.setor_atual));
 
   return (
     <AuthGuard>
@@ -409,7 +417,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
           <div className="flex items-center gap-1 flex-wrap">
             {roteiroIdx.map((setor, i) => {
               const done = i < setorAtualIdx;
-              const current = setor === pedido.setor_atual;
+              const current = setoresAtuais.has(setor);
               return (
                 <span key={setor}
                   className={`text-xs px-2 py-1 rounded flex items-center gap-1 font-medium border ${current ? 'bg-orange-500 text-white border-orange-500' : done ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-400 border-gray-200'}`}>
