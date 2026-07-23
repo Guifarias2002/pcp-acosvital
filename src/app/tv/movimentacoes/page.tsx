@@ -367,17 +367,12 @@ export default function TVMovimentacoesPage() {
       .sort((a, b) => posSetorRoteiro(a.cod) - posSetorRoteiro(b.cod));
     return [stub('emissao'), ...semEmissao];
   }
-  // Caldeiraria: só as etapas dela mesma (SETORES_CALDEIRARIA_KANBAN, mesma
-  // lista do menu) — Compras/Acabamento/Qualidade continuam só no quadro do
-  // Flange (compartilhados), e 'emissao' também não entra aqui (não existe
-  // como etapa própria da Caldeiraria no menu).
+  // Caldeiraria: SETORES_CALDEIRARIA_KANBAN — Compras/Acabamento/Qualidade
+  // continuam só no quadro do Flange (compartilhados); Recebimento e Desenho
+  // ficam de fora (23/07: são só espera/administrativo, não etapa de
+  // produção que valha acompanhar aqui); 'emissao' também não entra.
   function colunasCaldeiraria(): SetorKanban[] {
-    // "caldeiraria" é a entrada da fábrica (equivalente ao Recebimento do
-    // Flange) — no menu já aparece como "Recebimento", o kanban segue igual.
-    return SETORES_CALDEIRARIA_KANBAN.map(cod => {
-      const s = stub(cod);
-      return cod === 'caldeiraria' ? { ...s, nome: 'Recebimento' } : s;
-    });
+    return SETORES_CALDEIRARIA_KANBAN.map(stub);
   }
   const setoresFlange = colunasFlange();
   const setoresCaldeiraria = colunasCaldeiraria();
