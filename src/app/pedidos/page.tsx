@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedidos } from '@/lib/api';
 import { getToken } from '@/lib/auth';
-import { Pedido, STATUS_LABELS, getPedidoEtapa, ETAPA_LABELS, NOMES, SETOR_CHOICES } from '@/lib/types';
+import { Pedido, STATUS_LABELS, getPedidoEtapa, ETAPA_LABELS, NOMES, SETOR_CHOICES, FABRICAS } from '@/lib/types';
 import { getUser, podeEditar, vendedorRestrito } from '@/lib/auth';
 import Link from 'next/link';
 import RastreioModal from '@/components/RastreioModal';
@@ -48,6 +48,7 @@ function PedidosPageInner() {
   const [fStatus, setFStatus] = useState('');
   const [fPrioridade, setFPrioridade] = useState('');
   const [fSetor, setFSetor] = useState('');
+  const [fFabrica, setFFabrica] = useState('');
   const [fPrazoDe, setFPrazoDe] = useState('');
   const [fPrazoAte, setFPrazoAte] = useState('');
   const [fEtapa, setFEtapa] = useState(etapaParam || '');
@@ -72,7 +73,7 @@ function PedidosPageInner() {
   function buscar(p = page) {
     setLoading(true);
     setSelectedIds(new Set());
-    const params: Record<string, string> = { cliente: fBusca, vendedor: fVendedor, status: fStatus, prioridade: fPrioridade, setor: fSetor, prazo_de: fPrazoDe, prazo_ate: fPrazoAte, ordenar: fOrdenar, entregue: '1', page: String(p) };
+    const params: Record<string, string> = { cliente: fBusca, vendedor: fVendedor, status: fStatus, prioridade: fPrioridade, setor: fSetor, fabrica: fFabrica, prazo_de: fPrazoDe, prazo_ate: fPrazoAte, ordenar: fOrdenar, entregue: '1', page: String(p) };
     if (fEtapa === 'entregue') params.entregue = '1';
     getPedidos(params).then(r => { setPedidos(r.pedidos); setPaginacao({ page: r.page, pages: r.pages, total: r.total }); }).catch(() => {}).finally(() => setLoading(false));
   }
@@ -88,7 +89,7 @@ function PedidosPageInner() {
     if (primeiraRef.current) { primeiraRef.current = false; return; }
     const t = setTimeout(() => { setPage(1); buscarRef.current(1); }, 400);
     return () => clearTimeout(t);
-  }, [fBusca, fVendedor, fStatus, fPrioridade, fSetor, fPrazoDe, fPrazoAte, fOrdenar]);
+  }, [fBusca, fVendedor, fStatus, fPrioridade, fSetor, fFabrica, fPrazoDe, fPrazoAte, fOrdenar]);
 
   // Polling 10s — mantém lista sempre atualizada
   useEffect(() => {
@@ -223,6 +224,36 @@ function PedidosPageInner() {
             </Link>
           )}
         </div>
+      </div>
+
+      {/* Seletor de fábrica — filtra pedidos com item de Flanges e/ou Caldeiraria
+          (OP mista aparece nos dois) */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button type="button" onClick={() => setFFabrica('')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 10,
+            border: `2px solid ${fFabrica === '' ? '#1a3a5c' : '#e5e7eb'}`,
+            background: fFabrica === '' ? '#1a3a5c' : '#fff', color: fFabrica === '' ? '#fff' : '#555',
+            fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .15s',
+          }}>
+          <i className="bi bi-grid" />
+          Todas
+        </button>
+        {FABRICAS.map(f => {
+          const ativo = f.cod === fFabrica;
+          return (
+            <button key={f.cod} type="button" onClick={() => setFFabrica(f.cod)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 10,
+                border: `2px solid ${ativo ? '#1a3a5c' : '#e5e7eb'}`,
+                background: ativo ? '#1a3a5c' : '#fff', color: ativo ? '#fff' : '#555',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .15s',
+              }}>
+              <i className={`bi ${f.icon}`} />
+              {f.nome}
+            </button>
+          );
+        })}
       </div>
 
       {/* Filtros */}

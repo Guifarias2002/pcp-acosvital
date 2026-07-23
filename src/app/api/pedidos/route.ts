@@ -29,6 +29,10 @@ export async function GET(req: Request) {
   const status     = searchParams.get('status') || '';
   const prioridade = searchParams.get('prioridade') || '';
   const setor      = searchParams.get('setor') || '';
+  // Fábrica: filtra pedidos que têm pelo menos 1 item ativo daquela fábrica —
+  // uma OP mista aparece nos dois filtros, igual já acontece no Kanban.
+  const fabricaParam = searchParams.get('fabrica') || '';
+  const fabrica = FABRICAS.some(f => f.cod === fabricaParam) ? fabricaParam : '';
   const entregue   = searchParams.get('entregue') === '1';
   const prazoDe    = searchParams.get('prazo_de') || null;
   const prazoAte   = searchParams.get('prazo_ate') || null;
@@ -60,6 +64,10 @@ export async function GET(req: Request) {
       AND (${status}  = '' OR p.status = ${status})
       AND (${prioridade} = '' OR p.prioridade = ${prioridade})
       AND (${setor} = '' OR p.setor_atual = ${setor})
+      AND (${fabrica} = '' OR EXISTS (
+        SELECT 1 FROM producao_itempedido pi
+        WHERE pi.pedido_id = p.id AND pi.inativo = false AND COALESCE(pi.fabrica, 'flange') = ${fabrica}
+      ))
       AND (${entregue} = TRUE OR p.status != 'entregue')
       AND (${prazoDe}::date IS NULL OR p.prazo_entrega >= ${prazoDe}::date)
       AND (${prazoAte}::date IS NULL OR p.prazo_entrega <= ${prazoAte}::date)
@@ -102,6 +110,10 @@ export async function GET(req: Request) {
         AND (${status}  = '' OR p.status = ${status})
         AND (${prioridade} = '' OR p.prioridade = ${prioridade})
         AND (${setor} = '' OR p.setor_atual = ${setor})
+        AND (${fabrica} = '' OR EXISTS (
+          SELECT 1 FROM producao_itempedido pi
+          WHERE pi.pedido_id = p.id AND pi.inativo = false AND COALESCE(pi.fabrica, 'flange') = ${fabrica}
+        ))
         AND (${entregue} = TRUE OR p.status != 'entregue')
         AND (${prazoDe}::date IS NULL OR p.prazo_entrega >= ${prazoDe}::date)
         AND (${prazoAte}::date IS NULL OR p.prazo_entrega <= ${prazoAte}::date)
