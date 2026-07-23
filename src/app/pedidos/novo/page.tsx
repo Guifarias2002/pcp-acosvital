@@ -60,6 +60,7 @@ export default function NovoPedidoPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
+  const [msgSalvo, setMsgSalvo] = useState('');
   const [importando, setImportando] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -154,12 +155,36 @@ export default function NovoPedidoPage() {
     } catch { /* ignore */ }
   }, []);
 
-  // Salva rascunho no sessionStorage sempre que o formulário mudar
+  // Salva rascunho no sessionStorage sempre que o formulário mudar (automático,
+  // a cada campo editado — o botão "Salvar Progresso" só confirma isso pro usuário).
   useEffect(() => {
     try {
       sessionStorage.setItem(SS_KEY, JSON.stringify({ pv, op, cliente, vendedor, prazo, prioridade, obs, fabricaAtiva, grupos }));
     } catch { /* quota exceeded */ }
   }, [pv, op, cliente, vendedor, prazo, prioridade, obs, fabricaAtiva, grupos]);
+
+  // Botão "Salvar Progresso": não cria o pedido nem manda pra Emissão — só
+  // confirma que o que foi cadastrado está salvo no rascunho local (sessionStorage).
+  // Quem cria o pedido de verdade é "Enviar para Emissão", na aba Todos os Produtos.
+  function salvarProgresso() {
+    try {
+      sessionStorage.setItem(SS_KEY, JSON.stringify({ pv, op, cliente, vendedor, prazo, prioridade, obs, fabricaAtiva, grupos }));
+      setErro('');
+      setMsgSalvo('Progresso salvo neste navegador. Vá para "Todos os Produtos" quando quiser enviar para a Emissão.');
+    } catch {
+      setMsgSalvo('');
+      setErro('Não foi possível salvar o progresso (armazenamento do navegador indisponível).');
+    }
+  }
+
+  // Trava o Enter dentro de campos de texto: nesta tela o envio de verdade só
+  // acontece pelo botão "Enviar para Emissão" da aba Todos os Produtos.
+  function bloquearEnter(e: React.KeyboardEvent<HTMLFormElement>) {
+    const target = e.target as HTMLElement;
+    if (e.key === 'Enter' && target.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+    }
+  }
 
   const [copiandoRoteiro, setCopiandoRoteiro] = useState(false);
   const [msgRoteiro, setMsgRoteiro] = useState('');
@@ -347,7 +372,7 @@ export default function NovoPedidoPage() {
         }
       `}</style>
 
-      <form onSubmit={salvar}>
+      <form onSubmit={salvar} onKeyDown={bloquearEnter}>
         {/* Barra de topo */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, flexWrap:'wrap', gap:10 }}>
           <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
@@ -361,17 +386,30 @@ export default function NovoPedidoPage() {
             <a href="/pedidos" style={{ padding:'9px 18px', borderRadius:8, border:'1px solid #dee2e6', fontSize:13, color:'#555', textDecoration:'none', fontWeight:600, display:'inline-flex', alignItems:'center' }}>
               Cancelar
             </a>
-            <button type="submit" disabled={loading}
-              style={{ padding:'9px 24px', borderRadius:8, background:'#1a3a5c', color:'#fff', fontSize:13, fontWeight:700, border:'none', cursor:'pointer', opacity:loading?0.6:1 }}>
-              <i className={`bi ${naAbaTodos ? 'bi-send-check' : 'bi-check-lg'}`} style={{ marginRight:6 }} />
-              {loading ? 'Salvando...' : naAbaTodos ? 'Enviar para Emissão' : 'Salvar Pedido'}
-            </button>
+            {naAbaTodos ? (
+              <button type="submit" disabled={loading}
+                style={{ padding:'9px 24px', borderRadius:8, background:'#166534', color:'#fff', fontSize:13, fontWeight:700, border:'none', cursor:'pointer', opacity:loading?0.6:1 }}>
+                <i className="bi bi-send-check" style={{ marginRight:6 }} />
+                {loading ? 'Enviando...' : 'Enviar para Emissão'}
+              </button>
+            ) : (
+              <button type="button" onClick={salvarProgresso}
+                style={{ padding:'9px 24px', borderRadius:8, background:'#1a3a5c', color:'#fff', fontSize:13, fontWeight:700, border:'none', cursor:'pointer' }}>
+                <i className="bi bi-save" style={{ marginRight:6 }} />
+                Salvar Progresso
+              </button>
+            )}
           </div>
         </div>
 
         {erro && (
           <div style={{ background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626', borderRadius:8, padding:'10px 14px', fontSize:13, marginBottom:16 }}>
             <i className="bi bi-exclamation-circle" style={{ marginRight:6 }} />{erro}
+          </div>
+        )}
+        {msgSalvo && (
+          <div style={{ background:'#f0fdf4', border:'1px solid #86efac', color:'#166534', borderRadius:8, padding:'10px 14px', fontSize:13, marginBottom:16 }}>
+            <i className="bi bi-check-circle" style={{ marginRight:6 }} />{msgSalvo}
           </div>
         )}
 
@@ -382,7 +420,7 @@ export default function NovoPedidoPage() {
             const ativo = f.cod === fabricaAtiva;
             const qtd = itensValidos(grupos[f.cod]).length;
             return (
-              <button key={f.cod} type="button" onClick={() => setFabricaAtiva(f.cod)}
+              <button key={f.cod} type="button" onClick={() => { setFabricaAtiva(f.cod); setMsgSalvo(''); }}
                 style={{
                   display:'flex', alignItems:'center', gap:8, padding:'8px 16px', borderRadius:10,
                   border:`2px solid ${ativo ? '#1a3a5c' : '#e5e7eb'}`,
@@ -401,7 +439,7 @@ export default function NovoPedidoPage() {
             );
           })}
           <span style={{ width:1, height:22, background:'#e5e7eb', margin:'0 4px' }} />
-          <button type="button" onClick={() => setFabricaAtiva(TAB_TODOS)}
+          <button type="button" onClick={() => { setFabricaAtiva(TAB_TODOS); setMsgSalvo(''); }}
             style={{
               display:'flex', alignItems:'center', gap:8, padding:'8px 16px', borderRadius:10,
               border:`2px solid ${naAbaTodos ? '#166534' : '#e5e7eb'}`,
@@ -478,9 +516,9 @@ export default function NovoPedidoPage() {
 
             {naAbaTodos ? (
             /* Aba "Todos os Produtos" — revisão agregada antes do envio final.
-               Não salva nada à parte: é só uma conferência client-side; o
-               "Enviar para Emissão" cria o pedido inteiro de uma vez, igual
-               ao "Salvar Pedido" das abas de fábrica. */
+               É a ÚNICA aba com o botão que de fato cria o pedido no banco
+               ("Enviar para Emissão"). Nas abas de fábrica, "Salvar Progresso"
+               só guarda o rascunho neste navegador (sessionStorage). */
             <div className="card" style={{ padding:20 }}>
               <div style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
                 <i className="bi bi-list-check" style={{ marginRight:6 }} />Todos os Produtos do Pedido
