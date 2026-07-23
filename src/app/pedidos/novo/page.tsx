@@ -471,7 +471,7 @@ export default function NovoPedidoPage() {
               <div className="np-ident-grid">
                 <div>
                   <label className={labelCls}>Nº PV *</label>
-                  <input value={pv} onChange={e => setPv(e.target.value)} required placeholder="PV-001" className={inputCls} />
+                  <input value={pv} onChange={e => setPv(e.target.value)} required maxLength={50} placeholder="PV-001" className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls} style={{ display:'flex', alignItems:'center', gap:4 }}>
@@ -479,7 +479,7 @@ export default function NovoPedidoPage() {
                     <span title="Número da Ordem de Produção — identifica e agrupa todas as peças deste pedido ao longo de todos os setores."
                       style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:14, height:14, borderRadius:'50%', background:'#e0e7ff', color:'#3730a3', fontSize:9, fontWeight:800, cursor:'help', marginLeft:2 }}>?</span>
                   </label>
-                  <input value={op} onChange={e => setOp(e.target.value)} placeholder="OP-001" required
+                  <input value={op} onChange={e => setOp(e.target.value)} placeholder="OP-001" required maxLength={50}
                     style={{ borderColor: op.trim() ? undefined : '#fca5a5' }}
                     className={inputCls} />
                   {!op.trim() && (

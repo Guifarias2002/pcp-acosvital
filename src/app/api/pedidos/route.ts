@@ -250,6 +250,9 @@ export async function POST(req: Request) {
     const pgErr = e as { code?: string; constraint_name?: string };
     if (pgErr?.code === '23505' && pgErr?.constraint_name === 'uq_pedido_numero_venda')
       return NextResponse.json({ erro: 'Já existe um pedido com esse número de pedido de venda.' }, { status: 409 });
+    // 22001 = string_data_right_truncation — algum campo passou do limite de caracteres da coluna
+    if (pgErr?.code === '22001')
+      return NextResponse.json({ erro: 'Um dos campos passou do limite de caracteres (Nº PV e Nº OP: até 50 caracteres).' }, { status: 400 });
     console.error('[POST /api/pedidos]', e);
     return NextResponse.json({ erro: 'Erro ao criar pedido' }, { status: 500 });
   }

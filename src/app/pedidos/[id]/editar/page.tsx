@@ -370,11 +370,11 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label className={labelCls}>Nº PV *</label>
-                  <input value={pv} onChange={e => setPv(e.target.value)} required placeholder="PV-001" className={inputCls} />
+                  <input value={pv} onChange={e => setPv(e.target.value)} required maxLength={50} placeholder="PV-001" className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Nº OP</label>
-                  <input value={op} onChange={e => setOp(e.target.value)} placeholder="OP-001" className={inputCls} />
+                  <input value={op} onChange={e => setOp(e.target.value)} placeholder="OP-001" maxLength={50} className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Cliente *</label>

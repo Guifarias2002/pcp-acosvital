@@ -214,7 +214,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       }
     }
   }); } catch (e: unknown) {
-    const err = e as { status?: number; message?: string };
+    const err = e as { status?: number; message?: string; code?: string };
+    // 22001 = string_data_right_truncation — algum campo passou do limite de caracteres da coluna
+    if (err?.code === '22001')
+      return NextResponse.json({ erro: 'Um dos campos passou do limite de caracteres (Nº PV e Nº OP: até 50 caracteres).' }, { status: 400 });
     const status = err?.status === 409 ? 409 : 500;
     return NextResponse.json({ erro: err?.message || 'Erro ao atualizar pedido' }, { status });
   }
