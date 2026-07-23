@@ -5,15 +5,6 @@ import { getToken } from '@/lib/auth';
 import { posSetorRoteiro, getPedidoEtapa, Etapa, NOMES, FABRICAS, SETORES_CALDEIRARIA_KANBAN } from '@/lib/types';
 import NotificacoesLive from '@/components/NotificacoesLive';
 
-interface LinhaStat {
-  qtd: number;
-  pct: number;
-}
-interface SetorStat extends LinhaStat {
-  setor: string;
-  setor_nome: string;
-}
-
 interface ItemKanban {
   id: number;
   pedido_id: number;
@@ -97,7 +88,6 @@ interface PedidoPainel {
   itens?: { status: string }[];
 }
 
-const CORES = ['#0d6efd', '#198754', '#fd7e14', '#6f42c1', '#dc3545', '#20c997', '#b45309', '#0dcaf0'];
 const PRIO_COR: Record<string, string> = { baixa: '#94a3b8', normal: '#0d6efd', alta: '#d97706', urgente: '#dc3545' };
 const DWELL_VIEW_MS = 25_000;
 
@@ -135,22 +125,6 @@ function formatarReal(v: number) {
   if (!v) return 'R$ 0';
   if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1).replace('.', ',')} mi`;
   return `R$ ${Math.round(v).toLocaleString('pt-BR')}`;
-}
-
-function Barra({ label, qtd, pct, cor }: { label: string; qtd: number; pct: number; cor: string }) {
-  return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 }}>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1a3a5c', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-        <span style={{ fontSize: 11, color: '#64748b', whiteSpace: 'nowrap', marginLeft: 6 }}>
-          <strong style={{ fontSize: 12.5, color: '#1a3a5c' }}>{pct}%</strong> · {qtd}
-        </span>
-      </div>
-      <div style={{ background: '#eef2f7', borderRadius: 5, height: 7, overflow: 'hidden' }}>
-        <div style={{ width: `${Math.max(pct, 2)}%`, height: '100%', background: cor, borderRadius: 5, transition: 'width .6s ease' }} />
-      </div>
-    </div>
-  );
 }
 
 // Tempo em minutos -> texto curto pra TV: "45min", "3h 20min", "1,5 dias".
@@ -258,7 +232,6 @@ function agruparPorPedido(itens: ItemKanban[]) {
 }
 
 export default function TVMovimentacoesPage() {
-  const [setoresStat, setSetoresStat] = useState<SetorStat[]>([]);
   const [totalMov, setTotalMov] = useState(0);
   const [agora, setAgora] = useState('');
   const [setoresKanban, setSetoresKanban] = useState<SetorKanban[]>([]);
@@ -292,7 +265,6 @@ export default function TVMovimentacoesPage() {
       .then(data => {
         if (!data) return;
         setSemSessao(false);
-        setSetoresStat(data.setores || []);
         setTotalMov(data.total_movimentacoes || 0);
       })
       .catch(() => {});
@@ -377,9 +349,6 @@ export default function TVMovimentacoesPage() {
   const setoresAtivos = setoresKanban
     .filter(s => s.itens.length > 0)
     .sort((a, b) => posSetorRoteiro(a.cod) - posSetorRoteiro(b.cod));
-  // Barras de % movimentacao tambem na ordem do roteiro, igual ao Kanban.
-  const setoresStatOrdenados = [...setoresStat].sort((a, b) => posSetorRoteiro(a.setor) - posSetorRoteiro(b.setor));
-
   // Kanban da TV dividido em 2 quadros por fábrica — mostra TODOS os
   // sub-setores dela (mesmo vazios), não só os que têm item agora, pra sempre
   // dar pra ver o pipeline inteiro. Antes era um único kanban com todos os
@@ -412,8 +381,6 @@ export default function TVMovimentacoesPage() {
   }
   const setoresFlange = colunasFlange();
   const setoresCaldeiraria = colunasCaldeiraria();
-  // Colunas em 2 blocos quando tem muito setor, pra caber tudo sem rolar.
-  const meioSetores = Math.ceil(setoresStatOrdenados.length / 2);
   // Corta os meses anteriores ao primeiro que teve pedido - sem meses vazios
   // no comeco do grafico so porque o sistema comecou a ser usado depois.
   const primeiroComDado = meses.findIndex(m => m.qtd > 0);
@@ -493,26 +460,6 @@ export default function TVMovimentacoesPage() {
           opacity: view === 'kanban' ? 1 : 0, transition: 'opacity 1s ease',
           pointerEvents: view === 'kanban' ? 'auto' : 'none',
         }}>
-          <div style={{ flex: '0 0 14%', minHeight: 0 }}>
-            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '8px 16px', boxShadow: '0 1px 3px rgba(0,0,0,.04)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', height: '100%' }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                <i className="bi bi-diagram-3-fill" style={{ color: '#0d6efd' }} /> % Movimentação por Setor
-              </div>
-              {setoresStat.length === 0 ? (
-                <div style={{ color: '#aaa', fontSize: 12, textAlign: 'center', margin: 'auto' }}>Sem movimentações registradas</div>
-              ) : (
-                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'grid', gridTemplateColumns: setoresStatOrdenados.length > 5 ? '1fr 1fr 1fr' : '1fr 1fr', gap: '0 20px', alignContent: 'center' }}>
-                  <div>{setoresStatOrdenados.slice(0, meioSetores).map((s, i) => (
-                    <Barra key={s.setor} label={s.setor_nome} qtd={s.qtd} pct={s.pct} cor={CORES[i % CORES.length]} />
-                  ))}</div>
-                  <div>{setoresStatOrdenados.slice(meioSetores).map((s, i) => (
-                    <Barra key={s.setor} label={s.setor_nome} qtd={s.qtd} pct={s.pct} cor={CORES[(i + meioSetores) % CORES.length]} />
-                  ))}</div>
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* 2 quadros de kanban — Flanges e Caldeiraria, cada um com todos os
               seus sub-setores (mesmo vazios). Antes era um único kanban com
               tudo junto numa linha só; ficou ilegível depois que a
