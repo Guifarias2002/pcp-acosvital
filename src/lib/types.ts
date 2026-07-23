@@ -67,11 +67,12 @@ export const FABRICAS: { cod: string; nome: string; icon: string; setores: strin
 // do Flange no menu/kanban, por serem compartilhados).
 export const SETORES_CALDEIRARIA_MENU = ['caldeiraria', 'desenho', 'chanfradeira', 'calandra', 'montagem', 'solda', 'pintura', 'liberado'];
 
-// Colunas do KANBAN da Caldeiraria — Recebimento ("caldeiraria") e Desenho
-// ficam de fora (23/07: são só espera/administrativo — Recebimento é so pra
-// decidir pra onde vai, Desenho é feito na abertura da OP, antes de a peça
-// entrar na produção — não etapas que valha acompanhar no quadro visual).
-export const SETORES_CALDEIRARIA_KANBAN = ['chanfradeira', 'calandra', 'montagem', 'solda', 'pintura', 'liberado'];
+// Colunas do KANBAN da Caldeiraria — Desenho fica de fora (23/07: é feito na
+// abertura da OP, antes de a peça entrar em produção, não etapa que valha
+// acompanhar aqui). Recebimento ("caldeiraria") volta a aparecer (23/07,
+// tarde: senão o pedido recém-criado da Caldeiraria não aparece em lugar
+// nenhum do quadro até alguém avançar manualmente).
+export const SETORES_CALDEIRARIA_KANBAN = ['caldeiraria', 'chanfradeira', 'calandra', 'montagem', 'solda', 'pintura', 'liberado'];
 
 // Ordem real do roteiro de produção — usada pra ordenar as colunas dos Kanbans
 // (sistema e TV), em vez da ordem do SETOR_CHOICES. Setor fora desta lista

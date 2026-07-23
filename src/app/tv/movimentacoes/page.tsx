@@ -368,11 +368,15 @@ export default function TVMovimentacoesPage() {
     return [stub('emissao'), ...semEmissao];
   }
   // Caldeiraria: SETORES_CALDEIRARIA_KANBAN — Compras/Acabamento/Qualidade
-  // continuam só no quadro do Flange (compartilhados); Recebimento e Desenho
-  // ficam de fora (23/07: são só espera/administrativo, não etapa de
-  // produção que valha acompanhar aqui); 'emissao' também não entra.
+  // continuam só no quadro do Flange (compartilhados); Desenho fica de fora
+  // (23/07: é feito na abertura da OP, antes de a peça entrar em produção);
+  // 'emissao' também não entra. "caldeiraria" (Recebimento) fica dentro —
+  // senão o pedido recém-criado da Caldeiraria não aparece em coluna nenhuma.
   function colunasCaldeiraria(): SetorKanban[] {
-    return SETORES_CALDEIRARIA_KANBAN.map(stub);
+    return SETORES_CALDEIRARIA_KANBAN.map(cod => {
+      const s = stub(cod);
+      return cod === 'caldeiraria' ? { ...s, nome: 'Recebimento' } : s;
+    });
   }
   const setoresFlange = colunasFlange();
   const setoresCaldeiraria = colunasCaldeiraria();
