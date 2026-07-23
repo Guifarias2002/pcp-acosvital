@@ -13,6 +13,11 @@ const SS_KEY = 'nova_ordem_rascunho_v2';
 interface ItemForm { codigo: string; descricao: string; quantidade: string; unidade: string; valor_unitario: string; }
 interface Grupo { roteiro: string[]; itens: ItemForm[]; }
 
+// Aba de revisão final — não é uma fábrica, só agrega os itens de todas as
+// fábricas pra conferência antes de enviar (sem salvar nada no banco antes:
+// a criação continua sendo tudo de uma vez só, como já era).
+const TAB_TODOS = '__todos__';
+
 const UNIDADES = ['un', 'kg', 'm', 'pc', 'jg', 'cx', 'lt'];
 
 // Acima disso a planilha claramente não segue o modelo esperado (ordem de
@@ -71,6 +76,7 @@ export default function NovoPedidoPage() {
   // Grupos por fábrica: cada um com seu roteiro e seus itens.
   const [grupos, setGrupos] = useState<Record<string, Grupo>>(gruposIniciais);
 
+  const naAbaTodos = fabricaAtiva === TAB_TODOS;
   const grupoAtivo = grupos[fabricaAtiva] ?? { roteiro: ['emissao'], itens: [novoItem()] };
   const fabDef = FABRICAS.find(f => f.cod === fabricaAtiva) ?? FABRICAS[0];
 
@@ -194,6 +200,7 @@ export default function NovoPedidoPage() {
 
   const totalGeral = FABRICAS.reduce((acc, f) => acc + itensValidos(grupos[f.cod]).reduce((s, it) =>
     s + (parseFloat(it.quantidade) || 0) * parseVal(it.valor_unitario), 0), 0);
+  const totalItensPedido = FABRICAS.reduce((acc, f) => acc + itensValidos(grupos[f.cod]).length, 0);
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
@@ -356,8 +363,8 @@ export default function NovoPedidoPage() {
             </a>
             <button type="submit" disabled={loading}
               style={{ padding:'9px 24px', borderRadius:8, background:'#1a3a5c', color:'#fff', fontSize:13, fontWeight:700, border:'none', cursor:'pointer', opacity:loading?0.6:1 }}>
-              <i className="bi bi-check-lg" style={{ marginRight:6 }} />
-              {loading ? 'Salvando...' : 'Salvar Pedido'}
+              <i className={`bi ${naAbaTodos ? 'bi-send-check' : 'bi-check-lg'}`} style={{ marginRight:6 }} />
+              {loading ? 'Salvando...' : naAbaTodos ? 'Enviar para Emissão' : 'Salvar Pedido'}
             </button>
           </div>
         </div>
@@ -393,6 +400,23 @@ export default function NovoPedidoPage() {
               </button>
             );
           })}
+          <span style={{ width:1, height:22, background:'#e5e7eb', margin:'0 4px' }} />
+          <button type="button" onClick={() => setFabricaAtiva(TAB_TODOS)}
+            style={{
+              display:'flex', alignItems:'center', gap:8, padding:'8px 16px', borderRadius:10,
+              border:`2px solid ${naAbaTodos ? '#166534' : '#e5e7eb'}`,
+              background: naAbaTodos ? '#166534' : '#fff', color: naAbaTodos ? '#fff' : '#555',
+              fontSize:13, fontWeight:700, cursor:'pointer', transition:'all .15s',
+            }}>
+            <i className="bi bi-list-check" />
+            Todos os Produtos
+            {totalItensPedido > 0 && (
+              <span style={{
+                background: naAbaTodos ? 'rgba(255,255,255,.25)' : '#eef2ff', color: naAbaTodos ? '#fff' : '#1a3a5c',
+                borderRadius:10, padding:'1px 8px', fontSize:12, fontWeight:800,
+              }}>{totalItensPedido}</span>
+            )}
+          </button>
         </div>
 
         {/* Layout: 2 colunas no desktop, 1 no mobile */}
@@ -452,7 +476,56 @@ export default function NovoPedidoPage() {
               </div>
             </div>
 
-            {/* Itens da fábrica ativa */}
+            {naAbaTodos ? (
+            /* Aba "Todos os Produtos" — revisão agregada antes do envio final.
+               Não salva nada à parte: é só uma conferência client-side; o
+               "Enviar para Emissão" cria o pedido inteiro de uma vez, igual
+               ao "Salvar Pedido" das abas de fábrica. */
+            <div className="card" style={{ padding:20 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
+                <i className="bi bi-list-check" style={{ marginRight:6 }} />Todos os Produtos do Pedido
+              </div>
+
+              {totalItensPedido === 0 && (
+                <p style={{ color:'#aaa', fontSize:13, textAlign:'center', padding:'20px 0' }}>
+                  Nenhum item ainda. Volte para uma aba de fábrica e adicione os itens primeiro.
+                </p>
+              )}
+
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {FABRICAS.map(f => itensValidos(grupos[f.cod]).map((item, idx) => (
+                  <div key={`${f.cod}-${idx}-${item.codigo}`} style={{ border:'1px solid #e9ecef', borderRadius:8, padding:'10px 12px', display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', background:'#f8faff' }}>
+                    <span style={{ background:'#eef2ff', color:'#1a3a5c', borderRadius:6, padding:'3px 9px', fontSize:11, fontWeight:800, display:'flex', alignItems:'center', gap:5 }}>
+                      <i className={`bi ${f.icon}`} />{f.nome}
+                    </span>
+                    <strong style={{ fontSize:13, color:'#1a3a5c' }}>{item.codigo}</strong>
+                    <span style={{ fontSize:13, color:'#555', flex:1, minWidth:120 }}>{item.descricao}</span>
+                    <span style={{ fontSize:12, color:'#888' }}>{item.quantidade} {item.unidade}</span>
+                  </div>
+                )))}
+              </div>
+
+              {totalGeral > 0 && (
+                <div style={{ marginTop:14, display:'flex', justifyContent:'flex-end', borderTop:'1px solid #e9ecef', paddingTop:12 }}>
+                  <div style={{ background:'#f0f4ff', borderRadius:8, padding:'10px 18px', textAlign:'right' }}>
+                    <div style={{ fontSize:11, color:'#888', fontWeight:600, textTransform:'uppercase', letterSpacing:.5 }}>Valor Total do Pedido</div>
+                    <div style={{ fontSize:22, fontWeight:800, color:'#1a3a5c', marginTop:2 }}>
+                      R$ {fmtBRL(totalGeral)}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ marginTop:20, paddingTop:16, borderTop:'1px solid #e9ecef', display:'flex', justifyContent:'flex-end' }}>
+                <button type="submit" disabled={loading}
+                  style={{ padding:'10px 26px', borderRadius:8, background:'#166534', color:'#fff', fontSize:14, fontWeight:700, border:'none', cursor:'pointer', opacity:loading?0.6:1 }}>
+                  <i className="bi bi-send-check" style={{ marginRight:6 }} />
+                  {loading ? 'Enviando...' : 'Enviar para Emissão'}
+                </button>
+              </div>
+            </div>
+            ) : (
+            /* Itens da fábrica ativa */
             <div className="card" style={{ padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6, flexWrap:'wrap', gap:8 }}>
                 <span style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1 }}>
@@ -545,9 +618,11 @@ export default function NovoPedidoPage() {
                 </div>
               )}
             </div>
+            )}
           </div>
 
-          {/* COLUNA DIREITA — Roteiro da fábrica ativa */}
+          {/* COLUNA DIREITA — Roteiro da fábrica ativa (some na aba Todos os Produtos) */}
+          {!naAbaTodos && (
           <div>
             <div className="card" style={{ padding:20, position:'sticky', top:66 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6, flexWrap:'wrap', gap:8 }}>
@@ -643,6 +718,7 @@ export default function NovoPedidoPage() {
               )}
             </div>
           </div>
+          )}
         </div>
       </form>
     </AuthGuard>
