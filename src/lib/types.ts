@@ -4,6 +4,7 @@ export const SETOR_CHOICES: [string, string][] = [
   ['maçarico', 'Corte Macarico'],
   ['plasma', 'Corte Plasma'],
   ['laser', 'Corte Laser'],
+  ['serra', 'Corte Serra'],
   ['estoque', 'Estoque'],
   ['furacao', 'Furação'],
   ['qualidade', 'Inspecao de Qualidade'],
@@ -74,11 +75,17 @@ export const SETORES_CALDEIRARIA_MENU = ['caldeiraria', 'desenho', 'chanfradeira
 // nenhum do quadro até alguém avançar manualmente).
 export const SETORES_CALDEIRARIA_KANBAN = ['caldeiraria', 'chanfradeira', 'calandra', 'montagem', 'solda', 'pintura', 'liberado'];
 
+// Setores de CORTE — depois de cortada, a peça é direcionada pela mão do
+// operador do corte pra linha do Flange (segue o próximo do roteiro) ou pra
+// Caldeiraria (entra no Recebimento). São compartilhados: um corte pode
+// alimentar qualquer uma das duas fábricas. Ver os botões na tela de setor.
+export const SETORES_CORTE = ['maçarico', 'plasma', 'laser', 'serra'];
+
 // Ordem real do roteiro de produção — usada pra ordenar as colunas dos Kanbans
 // (sistema e TV), em vez da ordem do SETOR_CHOICES. Setor fora desta lista
 // (ex: emissão, recebimento, compras) vai pro fim, sem sumir. Fonte única:
 // mudou o roteiro, muda aqui e reflete nos dois lugares.
-export const ORDEM_SETORES = ['estoque', 'maçarico', 'plasma', 'laser', 'usinagem', 'furacao', 'qualidade', 'acabamento', 'embalagem', 'quarentena', 'logistica'];
+export const ORDEM_SETORES = ['estoque', 'maçarico', 'plasma', 'laser', 'serra', 'usinagem', 'furacao', 'qualidade', 'acabamento', 'embalagem', 'quarentena', 'logistica'];
 
 // Regra de negócio: TODA peça passa pela Quarentena (análise/verificação) antes
 // de ir à Logística (despacho). Injeta 'quarentena' imediatamente antes de

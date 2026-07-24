@@ -32,7 +32,7 @@ function Cronometro({ desde }: { desde: string }) {
 }
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, setPesosPallets, setEmbalagemResumo, inativarItem, editarPedido } from '@/lib/api';
 import { isAdministrador, podeEditar, getToken } from '@/lib/auth';
-import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS } from '@/lib/types';
+import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
@@ -1299,6 +1299,30 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
       {/* Painel enviar para setor */}
       {showEnviar && (
         <div style={{ marginTop: 10, background: foraDoRoteiro ? '#fffbeb' : '#f8f9fa', border: foraDoRoteiro ? '1.5px solid #f59e0b' : 'none', borderRadius: 6, padding: '10px 12px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
+          {/* Corte: operador escolhe pra qual fábrica a peça segue */}
+          {SETORES_CORTE.includes(parcial.setor_atual) && (
+            <div style={{ width: '100%', marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 11, color: '#374151', fontWeight: 700 }}>Depois de cortar, encaminhar para:</span>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onClick={() => {
+                  if (!parcial.proximo_setor) { mostrarErroParcial('Este item não tem próximo setor no roteiro do Flange. Use "outro setor" abaixo.'); return; }
+                  acao('mover', { setor_destino: parcial.proximo_setor, quantidade: Number(qtdEnvio) || Number(parcial.quantidade) });
+                  setShowEnviar(false);
+                }} disabled={loading || !parcial.proximo_setor}
+                  style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: (loading || !parcial.proximo_setor) ? 'not-allowed' : 'pointer', opacity: !parcial.proximo_setor ? 0.5 : 1 }}>
+                  <i className="bi bi-nut" style={{ marginRight: 5 }} />Flanges{parcial.proximo_setor ? ` → ${NOMES[parcial.proximo_setor] || parcial.proximo_setor}` : ''}
+                </button>
+                <button onClick={() => {
+                  acao('mover', { setor_destino: 'caldeiraria', quantidade: Number(qtdEnvio) || Number(parcial.quantidade) });
+                  setShowEnviar(false);
+                }} disabled={loading}
+                  style={{ background: '#b45309', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
+                  <i className="bi bi-hammer" style={{ marginRight: 5 }} />Caldeiraria → Recebimento
+                </button>
+              </div>
+              <span style={{ fontSize: 10, color: '#9ca3af' }}>ou escolha outro setor manualmente abaixo:</span>
+            </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 140 }}>
             <label style={{ fontSize: 11, color: foraDoRoteiro ? '#92400e' : '#555', fontWeight: foraDoRoteiro ? 700 : 400 }}>
               {foraDoRoteiro ? '⚠ Selecione o setor destino:' : 'Setor destino:'}
@@ -1985,6 +2009,30 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
       {/* Painel enviar */}
       {showEnviar && (
         <div style={{ marginTop: 10, background: foraDoRoteiroGrupo ? '#fffbeb' : '#f8f9fa', border: foraDoRoteiroGrupo ? '1.5px solid #f59e0b' : 'none', borderRadius: 6, padding: '10px 12px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
+          {/* Corte: operador escolhe pra qual fábrica a peça segue */}
+          {SETORES_CORTE.includes(p0.setor_atual) && (
+            <div style={{ width: '100%', marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 11, color: '#374151', fontWeight: 700 }}>Depois de cortar, encaminhar para:</span>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onClick={() => {
+                  if (!p0.proximo_setor) { mostrarErroGrupo('Este item não tem próximo setor no roteiro do Flange. Use "outro setor" abaixo.'); return; }
+                  acaoTodos('mover', { setor_destino: p0.proximo_setor });
+                  setShowEnviar(false);
+                }} disabled={loading || !p0.proximo_setor}
+                  style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: (loading || !p0.proximo_setor) ? 'not-allowed' : 'pointer', opacity: !p0.proximo_setor ? 0.5 : 1 }}>
+                  <i className="bi bi-nut" style={{ marginRight: 5 }} />Flanges{p0.proximo_setor ? ` → ${NOMES[p0.proximo_setor] || p0.proximo_setor}` : ''}
+                </button>
+                <button onClick={() => {
+                  acaoTodos('mover', { setor_destino: 'caldeiraria' });
+                  setShowEnviar(false);
+                }} disabled={loading}
+                  style={{ background: '#b45309', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
+                  <i className="bi bi-hammer" style={{ marginRight: 5 }} />Caldeiraria → Recebimento
+                </button>
+              </div>
+              <span style={{ fontSize: 10, color: '#9ca3af' }}>ou escolha outro setor manualmente abaixo:</span>
+            </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 140 }}>
             <label style={{ fontSize: 11, color: foraDoRoteiroGrupo ? '#92400e' : '#555', fontWeight: foraDoRoteiroGrupo ? 700 : 400 }}>
               {foraDoRoteiroGrupo ? '⚠ Selecione o setor destino:' : 'Setor destino:'}
