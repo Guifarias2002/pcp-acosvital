@@ -14,6 +14,7 @@ const SETOR_ICONS: Record<string, string> = {
   plasma: 'bi-lightning-charge',
   'maçarico': 'bi-fire',
   laser: 'bi-scissors',
+  serra: 'bi-activity',
   usinagem: 'bi-tools',
   beneficiadores: 'bi-gear-wide',
   caldeiraria: 'bi-hammer',
