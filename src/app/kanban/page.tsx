@@ -116,7 +116,6 @@ export default function KanbanPage() {
   const totalParciais = todasParciais.length;
   const totalPedidos = new Set(todasParciais.map(i => i.pedido_id)).size;
   const totalItens = new Set(todasParciais.map(i => i.item_pedido_id)).size;
-  const totalChegando = setoresDaFabrica.reduce((s, x) => s + x.chegando.length, 0);
   // Caldeiraria ordena pela sequência confirmada em SETORES_CALDEIRARIA_KANBAN
   // (nenhuma delas está em ORDEM_SETORES). Flange usa posSetorRoteiro, com
   // 'emissao' forçado primeiro (não está em ORDEM_SETORES por não ser um
@@ -125,7 +124,7 @@ export default function KanbanPage() {
     ? SETORES_CALDEIRARIA_KANBAN.indexOf(cod)
     : (cod === 'emissao' ? -1 : posSetorRoteiro(cod));
   const setoresAtivos = setoresDaFabrica
-    .filter(s => s.itens.length > 0 || s.chegando.length > 0)
+    .filter(s => s.itens.length > 0)
     .sort((a, b) => posNaFabrica(a.cod) - posNaFabrica(b.cod));
 
   return (
@@ -136,7 +135,6 @@ export default function KanbanPage() {
           <h1 className="text-xl font-bold text-gray-800">Kanban de Produção</h1>
           <p className="text-xs text-gray-400 mt-0.5">
             {totalPedidos} pedido{totalPedidos !== 1 ? 's' : ''} · {totalItens} ite{totalItens !== 1 ? 'ns' : 'm'} · {totalParciais} parcial{totalParciais !== 1 ? 'is' : ''} em produção
-            {totalChegando > 0 && <span className="ml-2 text-blue-500">· {totalChegando} lote{totalChegando !== 1 ? 's' : ''} a caminho</span>}
             {ultimaAtt && <span className="ml-3 text-green-600">· ✓ atualizado às {ultimaAtt}</span>}
           </p>
         </div>
@@ -200,13 +198,6 @@ export default function KanbanPage() {
               <div className="rounded-t-lg px-3 py-2.5 flex items-center justify-between" style={{ background: '#162032' }}>
                 <span className="text-white font-semibold text-xs truncate">{s.nome}</span>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  {s.chegando.length > 0 && (
-                    <span title={`${s.chegando.length} lote(s) a caminho`}
-                      className="text-xs font-bold px-1.5 py-0.5 rounded-full"
-                      style={{ background: '#1d4ed8', color: '#bfdbfe', fontSize: 10 }}>
-                      ↓{s.chegando.length}
-                    </span>
-                  )}
                   <span className="bg-blue-600 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
                     {s.itens.length}
                   </span>
@@ -216,37 +207,8 @@ export default function KanbanPage() {
               {/* Corpo */}
               <div className="flex-1 rounded-b-lg border border-t-0 p-2 space-y-2" style={{ background: '#f8f9fa' }}>
 
-                {/* Lotes a caminho */}
-                {s.chegando.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-blue-500 mb-1.5 flex items-center gap-1">
-                      <i className="bi bi-arrow-down-circle" /> A caminho ({s.chegando.length})
-                    </p>
-                    {s.chegando.map(l => (
-                      <Link key={l.id} href={`/pedidos/${l.item_pedido_id}`}
-                        className="block rounded-lg p-2.5 mb-1.5 border border-blue-200 hover:border-blue-400 transition-all"
-                        style={{ background: '#eff6ff' }}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-bold text-xs text-blue-800">{l.numero_pedido_venda}</span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${PRIORIDADE_COR[l.prioridade]}`}>
-                            {l.prioridade?.charAt(0).toUpperCase() + l.prioridade?.slice(1)}
-                          </span>
-                        </div>
-                        <p className="text-xs text-blue-600 truncate">{l.cliente}</p>
-                        <div className="flex items-center justify-between mt-1.5 text-xs text-blue-500">
-                          <span>{l.quantidade} {l.unidade} · {l.item_codigo}</span>
-                        </div>
-                        <p className="text-xs text-blue-400 mt-0.5">
-                          <i className="bi bi-arrow-right" /> {l.setor_origem_nome}
-                        </p>
-                      </Link>
-                    ))}
-                    {s.itens.length > 0 && <hr className="border-blue-100 my-2" />}
-                  </div>
-                )}
-
                 {/* Itens no setor — agrupados por pedido */}
-                {s.itens.length === 0 && s.chegando.length === 0 && (
+                {s.itens.length === 0 && (
                   <p className="text-gray-300 text-xs text-center py-4">Vazio</p>
                 )}
                 {(() => {
