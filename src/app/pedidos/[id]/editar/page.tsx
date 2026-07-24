@@ -267,6 +267,37 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
     }
   }
 
+  // Botão "Salvar" (topo): grava TUDO (identificação + itens de todas as
+  // fábricas) e FICA na tela com um aviso — pra dar pra salvar alterações do
+  // cabeçalho (PV/Cliente/Prazo/Obs) sem precisar ir na aba "Todos os Produtos"
+  // e sem ser expulso pra tela do pedido. É o "Enviar para Emissão" sem o push.
+  async function salvarTudo() {
+    const { itensPayload, roteiro_base, temItens } = montarPayload();
+    if (!temItens) { setErro('Adicione ao menos um item (com código) em alguma fábrica.'); return; }
+    setErro('');
+    setMsgSalvo('');
+    setSalvando(true);
+    try {
+      const pedidoAtualizado = await editarPedido(Number(id), {
+        numero_pedido_venda: pv,
+        numero_op: op,
+        cliente,
+        vendedor,
+        prazo_entrega: prazo,
+        prioridade,
+        roteiro_base,
+        observacoes: obs,
+        itens: itensPayload,
+      });
+      aplicarPedido(pedidoAtualizado);
+      setMsgSalvo('Alterações salvas.');
+    } catch (e: unknown) {
+      setErro((e as { response?: { data?: { erro?: string } } }).response?.data?.erro || 'Erro ao salvar');
+    } finally {
+      setSalvando(false);
+    }
+  }
+
   const inputCls = 'mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 bg-white';
   const labelCls = 'text-xs font-semibold text-gray-500 uppercase tracking-wide';
 
@@ -297,9 +328,16 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
               Editar Pedido
             </h1>
           </div>
-          <a href={`/pedidos/${id}`} style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 13, color: '#555', textDecoration: 'none', fontWeight: 600 }}>
-            Cancelar
-          </a>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <a href={`/pedidos/${id}`} style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 13, color: '#555', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center' }}>
+              Cancelar
+            </a>
+            <button type="button" onClick={salvarTudo} disabled={salvando}
+              style={{ padding: '8px 20px', borderRadius: 8, background: '#166534', color: '#fff', fontSize: 13, fontWeight: 700, border: 'none', cursor: salvando ? 'not-allowed' : 'pointer', opacity: salvando ? 0.6 : 1 }}>
+              <i className="bi bi-save" style={{ marginRight: 6 }} />
+              {salvando ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
         </div>
 
         {erro && (

@@ -79,7 +79,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       const op = typeof body.numero_op === 'string' ? body.numero_op.trim().slice(0, 100) : null;
       const cli = typeof body.cliente === 'string' ? body.cliente.trim().slice(0, 200) : null;
       const vend = typeof body.vendedor === 'string' ? body.vendedor.trim().slice(0, 150) : null;
-      const prazo = typeof body.prazo_entrega === 'string' ? body.prazo_entrega : null;
+      // Prazo vazio vira NULL — nunca mandar '' pro cast ::date (o Postgres
+      // quebra com "invalid input syntax for type date"). Com null, o COALESCE
+      // abaixo simplesmente mantém o prazo que já estava salvo.
+      const prazo = typeof body.prazo_entrega === 'string' && body.prazo_entrega.trim() !== '' ? body.prazo_entrega : null;
       const prio = PRIORIDADES_VALIDAS.includes(body.prioridade) ? body.prioridade : null;
       const rot = Array.isArray(body.roteiro_base) ? body.roteiro_base : null;
       const obs = typeof body.observacoes === 'string' ? body.observacoes.trim() : null;
