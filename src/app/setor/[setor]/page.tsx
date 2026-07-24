@@ -2886,9 +2886,14 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
     [`setor-${setor}`],
   );
 
-  // Polling a cada 10 s — garante atualização mesmo sem WebSocket
+  // Polling de segurança a cada 60 s — garante que a tela reflita mudanças
+  // (inativar item, cancelar parcial, item avançando de setor) em até ~1 min
+  // mesmo quando o tempo real (WebSocket) não dispara. Antes estava em 20 min
+  // (herança da época de saturação do banco), o que fazia item inativado
+  // continuar visível pro operador por muito tempo. A comparação de "retrato"
+  // em carregar() evita re-render quando nada mudou, então o custo é só a query.
   useEffect(() => {
-    const id = setInterval(() => carregarRef.current(), 20 * 60 * 1000);
+    const id = setInterval(() => carregarRef.current(), 60 * 1000);
     return () => clearInterval(id);
   }, []); // [] = inicia uma vez, usa sempre a ref mais recente
 
