@@ -7,6 +7,9 @@ import { vendedorRestrito } from '@/lib/auth';
 import { SETOR_CHOICES, FABRICAS } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
+// Timeout estendido. Migrado do vercel.json (glob "functions" quebrava o build)
+// para a config nativa de rota do Next.
+export const maxDuration = 30;
 const PRIORIDADES_VALIDAS = ['baixa', 'normal', 'alta', 'urgente'];
 const UNIDADES_VALIDAS = ['un', 'kg', 'm', 'pc', 'jg', 'cx', 'lt'];
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);

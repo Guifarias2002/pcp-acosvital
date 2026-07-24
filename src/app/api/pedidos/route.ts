@@ -7,6 +7,9 @@ import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { vendedorRestrito } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
+// Timeout estendido (lista paginada + agregações). Migrado do vercel.json
+// (glob "functions" quebrava o build) para a config nativa de rota do Next.
+export const maxDuration = 30;
 
 const PER_PAGE = 50;
 

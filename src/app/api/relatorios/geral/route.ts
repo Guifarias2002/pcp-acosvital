@@ -4,6 +4,9 @@ import { autenticar } from '@/lib/middleware';
 import { withTimeout } from '@/lib/queryTimeout';
 
 export const dynamic = 'force-dynamic';
+// Timeout estendido (agregações pesadas do relatório). Migrado do vercel.json
+// (glob "functions" quebrava o build) para a config nativa de rota do Next.
+export const maxDuration = 30;
 export async function GET(req: Request) {
   try {
   const user = await autenticar(req);

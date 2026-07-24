@@ -5,6 +5,9 @@ import { formatItem, nomeSector } from '@/lib/queries';
 import { SETOR_CHOICES, injetarQuarentena } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
+// Timeout estendido (várias consultas em paralelo). Migrado do vercel.json
+// (glob "functions" quebrava o build) para a config nativa de rota do Next.
+export const maxDuration = 30;
 
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
 

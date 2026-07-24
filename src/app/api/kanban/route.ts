@@ -11,6 +11,9 @@ import { withTimeout } from '@/lib/queryTimeout';
 const STATUS_PARCIAL_ATIVA = ['em_aberto', 'recebido', 'em_andamento', 'finalizado_setor', 'pausado', 'concluida'];
 
 export const dynamic = 'force-dynamic';
+// Timeout estendido (consultas pesadas do quadro). Antes vinha do vercel.json,
+// mas o glob "functions" quebrou o build; agora é nativo do Next (route config).
+export const maxDuration = 30;
 
 // Cache em memoria por instancia serverless (temporario, enquanto o banco atual
 // esta sob incidente de capacidade). Chaveado por setor+permissao financeira,

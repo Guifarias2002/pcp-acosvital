@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
+// Backup pode demorar (dump do banco). Migrado do vercel.json (glob "functions"
+// quebrava o build) para a config nativa de rota do Next.
+export const maxDuration = 30;
 
 export async function GET(req: Request) {
   try {

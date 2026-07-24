@@ -5,6 +5,10 @@ import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 import * as path from 'path';
 
+// Backup pode demorar (exporta o banco). Timeout nativo do Next (antes vinha do
+// vercel.json, cujo glob "functions" passou a quebrar o build).
+export const maxDuration = 30;
+
 const PASTA_BACKUP = 'Z:\\Ordens de Serviço - IAPP\\NOSSO SISTEMA';
 
 export async function POST(req: Request) {

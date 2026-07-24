@@ -4,6 +4,10 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
+// Backup do sistema pode demorar (dump). Timeout nativo do Next (antes vinha do
+// vercel.json, cujo glob "functions" passou a quebrar o build).
+export const maxDuration = 30;
+
 const PASTA_BACKUP = 'Z:\\Ordens de Serviço - IAPP\\NOSSO SISTEMA';
 const PASTA_SRC = 'C:\\pcp_next';
 

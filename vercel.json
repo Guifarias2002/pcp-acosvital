@@ -13,10 +13,5 @@
       "path": "/api/cron/keepalive",
       "schedule": "0 7 * * *"
     }
-  ],
-  "functions": {
-    "src/app/api/**/*.ts": {
-      "maxDuration": 30
-    }
-  }
+  ]
 }
