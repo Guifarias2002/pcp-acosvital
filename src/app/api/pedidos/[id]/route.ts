@@ -12,6 +12,20 @@ const UNIDADES_VALIDAS = ['un', 'kg', 'm', 'pc', 'jg', 'cx', 'lt'];
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
 const FABRICAS_VALIDAS = FABRICAS.map(f => f.cod);
 
+// Normaliza o prazo para ISO (aaaa-mm-dd) antes do cast ::date. Aceita ISO ou
+// pt-BR (dd/mm/aaaa); vazio/formato inválido → null (nunca manda '' nem data
+// inválida pro Postgres, que quebrava o save com erro de data).
+function normalizarDataISO(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  if (!s) return null;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  return null;
+}
+
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
@@ -79,10 +93,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       const op = typeof body.numero_op === 'string' ? body.numero_op.trim().slice(0, 100) : null;
       const cli = typeof body.cliente === 'string' ? body.cliente.trim().slice(0, 200) : null;
       const vend = typeof body.vendedor === 'string' ? body.vendedor.trim().slice(0, 150) : null;
-      // Prazo vazio vira NULL — nunca mandar '' pro cast ::date (o Postgres
-      // quebra com "invalid input syntax for type date"). Com null, o COALESCE
-      // abaixo simplesmente mantém o prazo que já estava salvo.
-      const prazo = typeof body.prazo_entrega === 'string' && body.prazo_entrega.trim() !== '' ? body.prazo_entrega : null;
+      // Prazo normalizado pra ISO (ou null). Com null, o COALESCE abaixo mantém
+      // o prazo que já estava salvo — nunca converte '' nem dd/mm/aaaa pra ::date.
+      const prazo = normalizarDataISO(body.prazo_entrega);
       const prio = PRIORIDADES_VALIDAS.includes(body.prioridade) ? body.prioridade : null;
       const rot = Array.isArray(body.roteiro_base) ? body.roteiro_base : null;
       const obs = typeof body.observacoes === 'string' ? body.observacoes.trim() : null;

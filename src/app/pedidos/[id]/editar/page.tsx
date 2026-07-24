@@ -27,6 +27,20 @@ interface Grupo { roteiro: string[]; itens: ItemForm[]; }
 // todas as fábricas e concentra o botão de envio.
 const TAB_TODOS = '__todos__';
 
+// O pedido volta com o prazo formatado em pt-BR (dd/mm/aaaa) — bom pra exibir,
+// mas o <input type="date"> só entende ISO (aaaa-mm-dd). Sem converter, o campo
+// carrega vazio e, ao salvar, mandava dd/mm/aaaa de volta e quebrava o gravar.
+// Aceita os dois formatos (e ISO já pronto); qualquer outra coisa vira ''.
+function paraISODate(v?: string | null): string {
+  if (!v) return '';
+  const s = String(v).trim();
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  const iso = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (iso) return iso[1];
+  return '';
+}
+
 // Item já entrou em produção? (não está mais só "emitido" ou já teve entrega)
 function emProducao(it: ItemForm): boolean {
   return !!it.id && (it.status !== 'emitido' || Number(it.quantidade_entregue || 0) > 0);
@@ -119,7 +133,7 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
       setOp(pedido.numero_op || '');
       setCliente(pedido.cliente || '');
       setVendedor(pedido.vendedor || '');
-      setPrazo(pedido.prazo_entrega?.slice(0, 10) || '');
+      setPrazo(paraISODate(pedido.prazo_entrega));
       setPrioridade(pedido.prioridade || 'normal');
       setObs(pedido.observacoes || '');
       aplicarPedido(pedido);
