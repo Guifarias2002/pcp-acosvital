@@ -2,6 +2,15 @@
 import { useState } from 'react';
 
 type Decisao = 'iniciar' | 'preparar' | 'divergente';
+type EstadoChecklist = 'confere' | 'nao_confere' | 'na';
+
+export const CHECKLIST_RECEBIMENTO_CALDEIRARIA: { id: string; label: string }[] = [
+  { id: 'op', label: 'Ordem de Produção' },
+  { id: 'desenho', label: 'Desenho técnico' },
+  { id: 'pv', label: 'Pedido de Venda' },
+  { id: 'avaria', label: 'Material sem avaria visível' },
+  { id: 'quantidade', label: 'Quantidade confere' },
+];
 
 interface Props {
   itemId?: number;
@@ -15,16 +24,21 @@ interface Props {
   /** Esconde a opção "receber parcial" — use quando quem chama não sabe dividir
    * a quantidade recebida (ex: parcial individual, que já é uma fração de um item). */
   ocultarParcial?: boolean;
+  /** Exibe o checklist de conferência do Recebimento da Caldeiraria antes da decisão. */
+  mostrarChecklist?: boolean;
   onConfirm: (decisao: Decisao, qtdParcial?: number, obs?: string) => void;
   onCancel: () => void;
   loading?: boolean;
 }
 
-export default function ReceberModal({ quantidade, unidade, setor = 'Setor', itemCodigo, itemDescricao, setorOrigem, ocultarIniciar, ocultarParcial, onConfirm, onCancel, loading }: Props) {
-  const [step, setStep] = useState<'quantidade' | 'decisao' | 'divergente'>(ocultarParcial ? 'decisao' : 'quantidade');
+export default function ReceberModal({ quantidade, unidade, setor = 'Setor', itemCodigo, itemDescricao, setorOrigem, ocultarIniciar, ocultarParcial, mostrarChecklist, onConfirm, onCancel, loading }: Props) {
+  const [step, setStep] = useState<'quantidade' | 'checklist' | 'decisao' | 'divergente'>(
+    ocultarParcial ? (mostrarChecklist ? 'checklist' : 'decisao') : 'quantidade'
+  );
   const [modo, setModo] = useState<'tudo' | 'parcial'>('tudo');
   const [qtdParcial, setQtdParcial] = useState('');
   const [obsDiv, setObsDiv] = useState('');
+  const [checklist, setChecklist] = useState<Record<string, EstadoChecklist>>({});
   const total = Number(quantidade);
 
   const qtdEscolhida = modo === 'tudo' ? total : Number(qtdParcial);
@@ -34,7 +48,17 @@ export default function ReceberModal({ quantidade, unidade, setor = 'Setor', ite
       const q = Number(qtdParcial);
       if (!q || q <= 0 || q >= total) return;
     }
-    setStep('decisao');
+    setStep(mostrarChecklist ? 'checklist' : 'decisao');
+  }
+
+  function confirmarChecklist() {
+    const falhas = CHECKLIST_RECEBIMENTO_CALDEIRARIA.filter(c => checklist[c.id] === 'nao_confere');
+    if (falhas.length > 0) {
+      setObsDiv(`Não conferiu no recebimento: ${falhas.map(f => f.label).join(', ')}.`);
+      setStep('divergente');
+    } else {
+      setStep('decisao');
+    }
   }
 
   const btnBase: React.CSSProperties = {
@@ -150,6 +174,56 @@ export default function ReceberModal({ quantidade, unidade, setor = 'Setor', ite
           </>
         )}
 
+        {/* STEP 1.5 — Checklist de conferência (Recebimento da Caldeiraria) */}
+        {step === 'checklist' && (
+          <>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 10 }}>
+              Confira o que chegou junto com o material:
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+              {CHECKLIST_RECEBIMENTO_CALDEIRARIA.map(c => {
+                const estado = checklist[c.id];
+                const opcoes: { valor: EstadoChecklist; label: string; cor: string }[] = [
+                  { valor: 'confere', label: 'Confere', cor: '#16a34a' },
+                  { valor: 'nao_confere', label: 'Não confere', cor: '#dc2626' },
+                  { valor: 'na', label: 'Não se aplica', cor: '#6b7280' },
+                ];
+                return (
+                  <div key={c.id} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1a3a5c', marginBottom: 8 }}>{c.label}</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {opcoes.map(op => (
+                        <button key={op.valor}
+                          onClick={() => setChecklist(prev => ({ ...prev, [c.id]: op.valor }))}
+                          style={{
+                            flex: 1, fontSize: 11, fontWeight: 700, padding: '6px 4px', borderRadius: 6, cursor: 'pointer',
+                            border: `1.5px solid ${estado === op.valor ? op.cor : '#e5e7eb'}`,
+                            background: estado === op.valor ? op.cor : '#fff',
+                            color: estado === op.valor ? '#fff' : '#555',
+                          }}>
+                          {op.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={onCancel} disabled={loading}
+                style={{ flex: 1, background: '#f3f4f6', color: '#555', border: 'none', borderRadius: 8, padding: '11px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarChecklist}
+                disabled={loading || CHECKLIST_RECEBIMENTO_CALDEIRARIA.some(c => !checklist[c.id])}
+                style={{ flex: 2, background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 8, padding: '11px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: loading ? .6 : 1 }}>
+                Continuar →
+              </button>
+            </div>
+          </>
+        )}
+
         {/* STEP 2 — Decisão */}
         {step === 'decisao' && (
           <>
@@ -193,8 +267,8 @@ export default function ReceberModal({ quantidade, unidade, setor = 'Setor', ite
               </button>
             </div>
 
-            {!ocultarParcial && (
-              <button onClick={() => setStep('quantidade')}
+            {(!ocultarParcial || mostrarChecklist) && (
+              <button onClick={() => setStep(mostrarChecklist ? 'checklist' : 'quantidade')}
                 style={{ width: '100%', background: 'none', border: '1px solid #dee2e6', borderRadius: 8, padding: '8px 0', fontSize: 12, color: '#888', cursor: 'pointer' }}>
                 ← Voltar
               </button>
@@ -221,7 +295,7 @@ export default function ReceberModal({ quantidade, unidade, setor = 'Setor', ite
             />
 
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setStep('decisao')}
+              <button onClick={() => setStep(mostrarChecklist ? 'checklist' : 'decisao')}
                 style={{ flex: 1, background: '#f3f4f6', color: '#555', border: 'none', borderRadius: 8, padding: '11px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 ← Voltar
               </button>

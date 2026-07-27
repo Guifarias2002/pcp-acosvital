@@ -423,6 +423,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
             return ant ? (NOMES[ant] || ant) : undefined;
           })()}
           ocultarIniciar={item.setor_atual === 'logistica'}
+          mostrarChecklist={item.setor_atual === 'caldeiraria'}
           loading={loading}
           onCancel={() => setShowReceber(false)}
           onConfirm={(decisao, qtd, obs) => {
@@ -615,6 +616,7 @@ function LoteCard({ lote, tipo, onRefresh }: { lote: LoteItem & Record<string, u
           unidade={(lote.unidade as string) || 'un'}
           loading={loading}
           ocultarParcial
+          mostrarChecklist={lote.setor_destino === 'caldeiraria'}
           onCancel={() => setShowReceber(false)}
           onConfirm={async (decisao, _qtd, obs) => {
             setShowReceber(false);
@@ -1248,6 +1250,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           itemDescricao={parcial.item_descricao}
           loading={loading}
           ocultarParcial
+          mostrarChecklist={parcial.setor_atual === 'caldeiraria'}
           onCancel={() => setShowReceberModal(false)}
           onConfirm={async (decisao, _qtd, obs) => {
             setShowReceberModal(false);
@@ -1959,6 +1962,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
           itemDescricao={p0.item_descricao}
           loading={loading}
           ocultarParcial
+          mostrarChecklist={p0.setor_atual === 'caldeiraria'}
           onCancel={() => setShowReceberModal(false)}
           onConfirm={async (decisao, _qtd, obs) => {
             setShowReceberModal(false);
