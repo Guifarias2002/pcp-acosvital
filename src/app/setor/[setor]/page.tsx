@@ -665,6 +665,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [novaObsTexto, setNovaObsTexto] = useState('');
   const [enviandoObs, setEnviandoObs] = useState(false);
   const [erroObs, setErroObs] = useState<string | null>(null);
+  const [showDivModal, setShowDivModal] = useState<'retrabalho' | 'resolver' | 'cancelar_item' | null>(null);
   const isLogistica = parcial.setor_atual === 'logistica';
   const isQualidade = parcial.setor_atual === 'qualidade';
   const isRecebido = parcial.status === 'recebido';
@@ -694,6 +695,19 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
     try {
       await parcialAcao(parcial.id, a, body);
       if (msgSucesso) mostrarErroParcial(msgSucesso, 'ok');
+      onRefresh();
+    }
+    catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
+    finally { setLoading(false); }
+  }
+
+  // Ações de divergência (retrabalho/resolver/cancelar_item) são no nível do
+  // ITEM, não da parcial — mesma acao usada pelo ItemCard.
+  async function acaoItem(a: string, body?: Record<string, unknown>) {
+    if (loading) return;
+    setLoading(true);
+    try {
+      await itemAcao(parcial.item_pedido_id, a, body);
       onRefresh();
     }
     catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
@@ -991,10 +1005,42 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             }}
           />
         )}
-        {!isLogistica && isAberto && (
+        {!isLogistica && isAberto && parcial.item_status !== 'reprovado' && (
           <button onClick={() => setShowReceberModal(true)} disabled={loading} style={btnStyle('#d97706')}>
             <i className="bi bi-box-arrow-in-down" style={{ marginRight: 5 }} />Receber
           </button>
+        )}
+
+        {/* Item REPROVADO (ex.: checklist do Recebimento da Caldeiraria marcou
+            "não confere") — mesma ação/modal do ItemCard, reaproveitados aqui. */}
+        {parcial.item_status === 'reprovado' && (
+          <>
+            <button onClick={() => !loading && setShowDivModal('retrabalho')} disabled={loading}
+              style={{ background: '#fff3cd', border: '1px solid #ffc107', color: '#856404', borderRadius: 5, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              <i className="bi bi-tools" style={{ marginRight: 5 }}></i>Encaminhar retrabalho
+            </button>
+            <button onClick={() => !loading && setShowDivModal('resolver')} disabled={loading}
+              style={{ background: '#dcfce7', border: '1px solid #16a34a', color: '#166534', borderRadius: 5, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              <i className="bi bi-check-circle" style={{ marginRight: 5 }}></i>Resolver internamente
+            </button>
+            <button onClick={() => !loading && setShowDivModal('cancelar_item')} disabled={loading}
+              style={{ background: '#fee2e2', border: '1px solid #dc2626', color: '#991b1b', borderRadius: 5, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              <i className="bi bi-x-circle" style={{ marginRight: 5 }}></i>Cancelar item
+            </button>
+          </>
+        )}
+        {showDivModal && (
+          <DivergenciaResolucaoModal
+            itemCodigo={parcial.item_codigo ?? ''}
+            itemDescricao={parcial.item_descricao ?? ''}
+            acao={showDivModal}
+            loading={loading}
+            onCancel={() => setShowDivModal(null)}
+            onConfirm={(obs, setorDestino) => {
+              setShowDivModal(null);
+              acaoItem(showDivModal, { observacao: obs, setor_destino: setorDestino });
+            }}
+          />
         )}
         {!isLogistica && isRecebido && (
           <>
@@ -1263,7 +1309,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
                 onRefresh();
               } catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
               finally { setLoading(false); }
-            } else { acao('pausar', { observacao: obs || 'Divergência no recebimento' }); }
+            } else { acaoItem('reprovar', { observacao: obs || 'Divergência no recebimento' }); }
           }}
         />
       )}
@@ -1488,6 +1534,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   const [showEntregarGrupo, setShowEntregarGrupo] = useState(false);
   const [showDespacharGrupo, setShowDespacharGrupo] = useState(false);
   const [showIniciarEntregaGrupo, setShowIniciarEntregaGrupo] = useState(false);
+  const [showDivModal, setShowDivModal] = useState<'retrabalho' | 'resolver' | 'cancelar_item' | null>(null);
 
   if (parciais.length === 1) return <ParcialCard parcial={parciais[0]} onRefresh={onRefresh} setor={setor} />;
 
@@ -1505,6 +1552,19 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
       } else if (msgSucesso) {
         mostrarErroGrupo(msgSucesso, 'ok');
       }
+      onRefresh();
+    } catch (e: unknown) {
+      const ax = e as { response?: { data?: { erro?: string } } };
+      mostrarErroGrupo(ax?.response?.data?.erro || String(e));
+    } finally { setLoading(false); }
+  }
+
+  // Ações de divergência (retrabalho/resolver/cancelar_item) são no nível do
+  // ITEM, não das parciais — mesma ação usada pelo ItemCard/ParcialCard.
+  async function acaoItemGrupo(a: string, body?: Record<string, unknown>) {
+    setLoading(true);
+    try {
+      await itemAcao(p0.item_pedido_id, a, body);
       onRefresh();
     } catch (e: unknown) {
       const ax = e as { response?: { data?: { erro?: string } } };
@@ -1773,10 +1833,42 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             }}
           />
         )}
-        {!isLogistica && isAberto && (
+        {!isLogistica && isAberto && p0.item_status !== 'reprovado' && (
           <button onClick={() => setShowReceberModal(true)} disabled={loading} style={btnStyle('#d97706')}>
             <i className="bi bi-box-arrow-in-down" style={{ marginRight: 5 }} />Receber
           </button>
+        )}
+
+        {/* Item REPROVADO (ex.: checklist do Recebimento da Caldeiraria marcou
+            "não confere") — mesma ação/modal do ItemCard/ParcialCard. */}
+        {p0.item_status === 'reprovado' && (
+          <>
+            <button onClick={() => !loading && setShowDivModal('retrabalho')} disabled={loading}
+              style={{ background: '#fff3cd', border: '1px solid #ffc107', color: '#856404', borderRadius: 5, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              <i className="bi bi-tools" style={{ marginRight: 5 }}></i>Encaminhar retrabalho
+            </button>
+            <button onClick={() => !loading && setShowDivModal('resolver')} disabled={loading}
+              style={{ background: '#dcfce7', border: '1px solid #16a34a', color: '#166534', borderRadius: 5, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              <i className="bi bi-check-circle" style={{ marginRight: 5 }}></i>Resolver internamente
+            </button>
+            <button onClick={() => !loading && setShowDivModal('cancelar_item')} disabled={loading}
+              style={{ background: '#fee2e2', border: '1px solid #dc2626', color: '#991b1b', borderRadius: 5, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              <i className="bi bi-x-circle" style={{ marginRight: 5 }}></i>Cancelar item
+            </button>
+          </>
+        )}
+        {showDivModal && (
+          <DivergenciaResolucaoModal
+            itemCodigo={p0.item_codigo ?? ''}
+            itemDescricao={p0.item_descricao ?? ''}
+            acao={showDivModal}
+            loading={loading}
+            onCancel={() => setShowDivModal(null)}
+            onConfirm={(obs, setorDestino) => {
+              setShowDivModal(null);
+              acaoItemGrupo(showDivModal, { observacao: obs, setor_destino: setorDestino });
+            }}
+          />
         )}
         {!isLogistica && isRecebido && (
           <>
@@ -1982,7 +2074,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
                 const ax = e as { response?: { data?: { erro?: string } } };
                 mostrarErroGrupo(ax?.response?.data?.erro || String(e));
               } finally { setLoading(false); }
-            } else { acaoTodos('pausar', { observacao: obs || 'Divergência no recebimento' }); }
+            } else { acaoItemGrupo('reprovar', { observacao: obs || 'Divergência no recebimento' }); }
           }}
         />
       )}
