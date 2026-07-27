@@ -39,6 +39,7 @@ export default function ReceberModal({ quantidade, unidade, setor = 'Setor', ite
   const [qtdParcial, setQtdParcial] = useState('');
   const [obsDiv, setObsDiv] = useState('');
   const [checklist, setChecklist] = useState<Record<string, EstadoChecklist>>({});
+  const [obsChecklist, setObsChecklist] = useState<Record<string, string>>({});
   const total = Number(quantidade);
 
   const qtdEscolhida = modo === 'tudo' ? total : Number(qtdParcial);
@@ -52,11 +53,19 @@ export default function ReceberModal({ quantidade, unidade, setor = 'Setor', ite
   }
 
   function confirmarChecklist() {
+    const comObs = (c: { id: string; label: string }) => {
+      const obs = obsChecklist[c.id]?.trim();
+      return obs ? `${c.label} (${obs})` : c.label;
+    };
     const falhas = CHECKLIST_RECEBIMENTO_CALDEIRARIA.filter(c => checklist[c.id] === 'nao_confere');
     if (falhas.length > 0) {
-      setObsDiv(`Não conferiu no recebimento: ${falhas.map(f => f.label).join(', ')}.`);
+      setObsDiv(`Não conferiu no recebimento: ${falhas.map(comObs).join(', ')}.`);
       setStep('divergente');
     } else {
+      const notas = CHECKLIST_RECEBIMENTO_CALDEIRARIA.filter(c => obsChecklist[c.id]?.trim());
+      if (notas.length > 0) {
+        setObsDiv(`Checklist do recebimento: ${notas.map(comObs).join(', ')}.`);
+      }
       setStep('decisao');
     }
   }
@@ -238,7 +247,7 @@ export default function ReceberModal({ quantidade, unidade, setor = 'Setor', ite
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
               {!ocultarIniciar && (
-                <button onClick={() => onConfirm('iniciar', modo === 'parcial' ? Number(qtdParcial) : undefined)} disabled={loading}
+                <button onClick={() => onConfirm('iniciar', modo === 'parcial' ? Number(qtdParcial) : undefined, obsDiv || undefined)} disabled={loading}
                   style={{ ...btnBase, background: '#dcfce7', border: '2px solid #16a34a', color: '#166534' }}>
                   <i className="bi bi-play-circle-fill" style={{ fontSize: 22, marginTop: 1 }} />
                   <div>
@@ -248,7 +257,7 @@ export default function ReceberModal({ quantidade, unidade, setor = 'Setor', ite
                 </button>
               )}
 
-              <button onClick={() => onConfirm('preparar', modo === 'parcial' ? Number(qtdParcial) : undefined)} disabled={loading}
+              <button onClick={() => onConfirm('preparar', modo === 'parcial' ? Number(qtdParcial) : undefined, obsDiv || undefined)} disabled={loading}
                 style={{ ...btnBase, background: ocultarIniciar ? '#dcfce7' : '#fef9c3', border: ocultarIniciar ? '2px solid #16a34a' : '2px solid #ca8a04', color: ocultarIniciar ? '#166534' : '#92400e' }}>
                 <i className={`bi ${ocultarIniciar ? 'bi-box-seam-fill' : 'bi-hourglass-split'}`} style={{ fontSize: 22, marginTop: 1 }} />
                 <div>

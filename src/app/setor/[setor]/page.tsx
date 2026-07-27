@@ -147,7 +147,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
       if (decisao === 'divergente') {
         await itemAcao(item.id, 'reprovar', { observacao: obs || 'Divergência reportada' });
       } else {
-        await itemAcao(item.id, 'receber', qtd ? { quantidade: qtd } : {});
+        await itemAcao(item.id, 'receber', { ...(qtd ? { quantidade: qtd } : {}), ...(obs ? { observacao: obs } : {}) });
         if (decisao === 'iniciar') {
           await itemAcao(item.id, 'iniciar', {});
         }
@@ -1254,11 +1254,11 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           onCancel={() => setShowReceberModal(false)}
           onConfirm={async (decisao, _qtd, obs) => {
             setShowReceberModal(false);
-            if (decisao === 'iniciar') { acao('iniciar'); }
+            if (decisao === 'iniciar') { acao('iniciar', obs ? { observacao: obs } : {}); }
             else if (decisao === 'preparar') {
               setLoading(true);
               try {
-                await parcialAcao(parcial.id, 'receber');
+                await parcialAcao(parcial.id, 'receber', obs ? { observacao: obs } : {});
                 mostrarErroParcial('Recebimento confirmado — clique em Iniciar quando estiver pronto', 'ok');
                 onRefresh();
               } catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
@@ -1966,11 +1966,11 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
           onCancel={() => setShowReceberModal(false)}
           onConfirm={async (decisao, _qtd, obs) => {
             setShowReceberModal(false);
-            if (decisao === 'iniciar') { acaoTodos('iniciar'); }
+            if (decisao === 'iniciar') { acaoTodos('iniciar', obs ? { observacao: obs } : {}); }
             else if (decisao === 'preparar') {
               setLoading(true);
               try {
-                const r = await parcialAcaoLote(parciais.map(p => p.id), 'receber');
+                const r = await parcialAcaoLote(parciais.map(p => p.id), 'receber', obs ? { observacao: obs } : {});
                 if (r.falhas > 0) {
                   const primeiraFalha = r.resultados.find(x => !x.ok);
                   mostrarErroGrupo(`${r.falhas} de ${r.total} falharam: ${primeiraFalha?.erro || 'erro desconhecido'}`);

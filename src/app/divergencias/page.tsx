@@ -12,6 +12,7 @@ interface Divergencia {
   tipo: string;
   descricao: string;
   setor_responsavel: string | null;
+  fabrica: 'flange' | 'caldeiraria';
   status: string;
   prioridade: string;
   observacao_resolucao: string | null;
@@ -61,6 +62,7 @@ export default function DivergenciasPage() {
   const [loading, setLoading] = useState(true);
   const [fStatus, setFStatus] = useState('');
   const [fTipo, setFTipo] = useState('');
+  const [fFabrica, setFFabrica] = useState<'' | 'flange' | 'caldeiraria'>('');
   const [expandido, setExpandido] = useState<number | null>(null);
   const [resolvendo, setResolvendo] = useState<number | null>(null);
   const [obsResolucao, setObsResolucao] = useState('');
@@ -72,6 +74,7 @@ export default function DivergenciasPage() {
     const p = new URLSearchParams();
     if (fStatus) p.set('status', fStatus);
     if (fTipo) p.set('tipo', fTipo);
+    if (fFabrica) p.set('fabrica', fFabrica);
     fetch(`/api/divergencias?${p}`, { headers: { Authorization: `Bearer ${getToken() || ''}` } })
       .then(r => r.json())
       .then(d => { setDivs(d.divergencias || []); setTotais(d.totais || null); })
@@ -137,6 +140,26 @@ export default function DivergenciasPage() {
         </div>
       </div>
 
+      {/* Abas de fábrica */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        {[
+          { valor: '' as const, label: 'Todas' },
+          { valor: 'flange' as const, label: 'Flanges' },
+          { valor: 'caldeiraria' as const, label: 'Caldeiraria' },
+        ].map(f => (
+          <button key={f.valor}
+            onClick={() => { setFFabrica(f.valor); setTimeout(buscar, 0); }}
+            style={{
+              border: `1.5px solid ${fFabrica === f.valor ? '#1a3a5c' : '#dee2e6'}`,
+              background: fFabrica === f.valor ? '#1a3a5c' : '#fff',
+              color: fFabrica === f.valor ? '#fff' : '#555',
+              borderRadius: 20, padding: '6px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       {/* Cards de totais */}
       {totais && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 18 }}>
@@ -183,6 +206,7 @@ export default function DivergenciasPage() {
         </button>
         {(fStatus || fTipo) && (
           <button onClick={() => { setFStatus(''); setFTipo(''); setTimeout(buscar, 100); }}
+            title="Limpa status e tipo (não mexe na aba de fábrica)"
             style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 6, padding: '6px 12px', fontSize: 13, cursor: 'pointer', color: '#888' }}>
             × Limpar
           </button>
@@ -222,6 +246,11 @@ export default function DivergenciasPage() {
                     <span style={{ fontSize: 11, background: PRIO_COLOR[d.prioridade] + '15', color: PRIO_COLOR[d.prioridade], padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>
                       {d.prioridade.charAt(0).toUpperCase() + d.prioridade.slice(1)}
                     </span>
+                    {!fFabrica && (
+                      <span style={{ fontSize: 11, background: d.fabrica === 'caldeiraria' ? '#ede9fe' : '#e0f2fe', color: d.fabrica === 'caldeiraria' ? '#5b21b6' : '#0369a1', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>
+                        {d.fabrica === 'caldeiraria' ? 'Caldeiraria' : 'Flanges'}
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: 13, color: '#555', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {d.descricao}

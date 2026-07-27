@@ -12,6 +12,8 @@ export async function GET(req: Request) {
   const status = searchParams.get('status') || '';
   const tipo = searchParams.get('tipo') || '';
   const pedidoId = searchParams.get('pedido_id') || '';
+  const fabricaParam = searchParams.get('fabrica') || '';
+  const fabrica = ['flange', 'caldeiraria'].includes(fabricaParam) ? fabricaParam : '';
 
   try {
     const rows = await sql`
@@ -21,6 +23,7 @@ export async function GET(req: Request) {
         d.observacao_resolucao, d.criado_em, d.resolvido_em, d.atualizado_em,
         p.numero_pedido_venda, p.cliente,
         i.codigo AS item_codigo, i.descricao AS item_descricao,
+        COALESCE(i.fabrica, 'flange') AS fabrica,
         u.nome AS usuario_nome,
         r.nome AS resolvido_por_nome
       FROM producao_divergencia d
@@ -33,6 +36,7 @@ export async function GET(req: Request) {
         ${status ? sql`AND d.status = ${status}` : sql``}
         ${tipo ? sql`AND d.tipo = ${tipo}` : sql``}
         ${pedidoId ? sql`AND d.pedido_id = ${Number(pedidoId)}` : sql``}
+        ${fabrica ? sql`AND COALESCE(i.fabrica, 'flange') = ${fabrica}` : sql``}
       ORDER BY
         CASE d.prioridade WHEN 'urgente' THEN 1 WHEN 'alta' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
         d.criado_em DESC
@@ -41,12 +45,15 @@ export async function GET(req: Request) {
 
     const [totais] = await sql`
       SELECT
-        COUNT(*) FILTER (WHERE status = 'aberta')     AS abertas,
-        COUNT(*) FILTER (WHERE status = 'em_analise') AS em_analise,
-        COUNT(*) FILTER (WHERE status = 'resolvida')  AS resolvidas,
-        COUNT(*) FILTER (WHERE status = 'cancelada')  AS canceladas,
-        COUNT(*)                                       AS total
-      FROM producao_divergencia
+        COUNT(*) FILTER (WHERE d.status = 'aberta')     AS abertas,
+        COUNT(*) FILTER (WHERE d.status = 'em_analise') AS em_analise,
+        COUNT(*) FILTER (WHERE d.status = 'resolvida')  AS resolvidas,
+        COUNT(*) FILTER (WHERE d.status = 'cancelada')  AS canceladas,
+        COUNT(*)                                         AS total
+      FROM producao_divergencia d
+      LEFT JOIN producao_itempedido i ON i.id = d.item_id
+      WHERE (i.id IS NULL OR i.inativo = false)
+        ${fabrica ? sql`AND COALESCE(i.fabrica, 'flange') = ${fabrica}` : sql``}
     `;
 
     return NextResponse.json({ divergencias: rows, totais });
