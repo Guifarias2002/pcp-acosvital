@@ -3109,15 +3109,12 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                       itemMap.get(p.item_pedido_id)!.push(p);
                     }
                     const grupos = Array.from(itemMap.values());
-
-                    // Agrupar por item_codigo para evitar repetição do nome do produto
-                    const itemCodigoMap = new Map<string, ItemParcial[]>();
-                    for (const p of parciais) {
-                      const key = p.item_codigo || String(p.item_pedido_id);
-                      if (!itemCodigoMap.has(key)) itemCodigoMap.set(key, []);
-                      itemCodigoMap.get(key)!.push(p);
-                    }
-                    const itemGrupos = Array.from(itemCodigoMap.values());
+                    // Renderizamos um card POR ITEM (item_pedido_id), NÃO por código:
+                    // dois itens distintos podem compartilhar o mesmo código (ex.: pedido
+                    // 25623, itens 168 e 169 = 015LR012) e representar peças com processos
+                    // diferentes (uma roscada/galvanizada, outra normal). Agrupar por código
+                    // fundia os dois num só card (somando quantidade e agindo em lote nos
+                    // dois juntos) — errado. Por item, cada linha fica separada.
 
                     return (
                       <div key={pedido_id} className="setor-pedido-grupo" style={{ border: '2px solid #dde3f0', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
@@ -3135,7 +3132,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                           <span style={{ fontWeight: 700, fontSize: 15 }}>Pedido de Venda {numero_pedido_venda}</span>
                           <span style={{ fontSize: 11, opacity: 0.65, marginLeft: 4 }}>
                             {parciais.length} {parciais.length > 1 ? 'parciais' : 'parcial'}
-                            {itemGrupos.length > 1 ? ` · ${itemGrupos.length} produtos` : ''}
+                            {grupos.length > 1 ? ` · ${grupos.length} itens` : ''}
                           </span>
                           {/* Resumo da embalagem consolidada na propria barra azul */}
                           {(() => {
@@ -3337,10 +3334,10 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                         )}
                         {/* Produtos do pedido */}
                         {!pedidosColapsados.has(pedido_id) && <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          {itemGrupos.map((grupo, itemIdx) => {
+                          {grupos.map((grupo, itemIdx) => {
                             const p0 = grupo[0];
                             return (
-                              <div key={(p0.item_codigo || '') + itemIdx} style={{ borderTop: itemIdx > 0 ? '2px solid #e2e8f0' : 'none' }}>
+                              <div key={p0.item_pedido_id} style={{ borderTop: itemIdx > 0 ? '2px solid #e2e8f0' : 'none' }}>
                                 {/* Todas as parciais do item agrupadas em um único card
                                     (o proprio card ja mostra descricao/codigo/OP/quantidade) */}
                                 <div className="setor-parcial-area" style={{ padding: '12px 12px' }}>
@@ -3355,7 +3352,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                           {data.itens
                             .filter(i => i.pedido_id === pedido_id && !(data.parciais || []).some(p => p.item_pedido_id === i.id))
                             .map((item, idx) => (
-                              <div key={item.id} style={{ borderTop: (itemGrupos.length > 0 || idx > 0) ? '2px solid #e2e8f0' : 'none', padding: '12px 12px' }}>
+                              <div key={item.id} style={{ borderTop: (grupos.length > 0 || idx > 0) ? '2px solid #e2e8f0' : 'none', padding: '12px 12px' }}>
                                 <ItemCard item={item} onRefresh={carregar} ocultarCabecalhoPedido />
                               </div>
                             ))}
