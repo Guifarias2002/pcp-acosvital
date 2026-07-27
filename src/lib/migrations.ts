@@ -134,4 +134,32 @@ export async function runMigrations() {
   // caía sempre no fallback errado (Flanges). Backfill 'flange' pra todo item
   // já existente, já que até aqui só a fábrica de Flanges existia.
   await sql.unsafe(`ALTER TABLE producao_itempedido ADD COLUMN IF NOT EXISTS fabrica VARCHAR(20) NOT NULL DEFAULT 'flange'`).catch(() => {});
+
+  // M15: idempotência de mutações. Protege contra DUPLICAÇÃO quando a internet
+  // cai: se o servidor processa mas a resposta se perde, o cliente reenvia a
+  // MESMA ação com a mesma `chave` (header Idempotency-Key). O servidor devolve
+  // o resultado guardado em vez de executar de novo. `resultado`/`status_http`
+  // ficam nulos enquanto a original está em andamento (reenvio recebe 409).
+  // Limpeza por TTL curto (a chave só precisa viver alguns segundos/minutos).
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS producao_idempotencia (
+      chave       TEXT PRIMARY KEY,
+      usuario_id  INTEGER,
+      metodo      TEXT,
+      caminho     TEXT,
+      status_http INTEGER,
+      resultado   JSONB,
+      criado_em   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `).catch(() => {});
+  await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_idempotencia_criado_em ON producao_idempotencia (criado_em)`).catch(() => {});
+  // Higiene: remove chaves com mais de 1h (bem acima do timeout do cliente).
+  await sql`DELETE FROM producao_idempotencia WHERE criado_em < NOW() - INTERVAL '1 hour'`.catch(() => {});
+
+  // M16: múltiplos canhotos por PEDIDO. Antes só havia canhoto_url (um único).
+  // A entrega do pedido completo (Logística) permite anexar 1+ canhotos de uma
+  // vez; guardamos a lista de URLs (Supabase Storage) aqui. canhoto_url continua
+  // preenchido com o primeiro, para não quebrar a métrica de "canhotos assinados"
+  // da tela de Entregues nem os relatórios que já leem canhoto_url.
+  await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS canhotos TEXT[] NOT NULL DEFAULT '{}'`).catch(() => {});
 }

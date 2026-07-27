@@ -3,10 +3,21 @@ import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { podeAcessarSetor } from '@/lib/auth';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
+import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
 
 const ACOES_VALIDAS = ['receber', 'finalizar'];
 
-export async function POST(req: Request, { params }: { params: { id: string; acao: string } }) {
+export async function POST(req: Request, ctx: { params: { id: string; acao: string } }) {
+  // Idempotência: reenvio do mesmo "receber/finalizar" (internet caiu) devolve
+  // o resultado anterior em vez de reexecutar. Ver src/lib/idempotencia.ts.
+  return comIdempotencia(
+    chaveIdempotencia(req),
+    { metodo: 'POST', caminho: `lote/${ctx.params.id}/${ctx.params.acao}` },
+    () => handlePOST(req, ctx),
+  );
+}
+
+async function handlePOST(req: Request, { params }: { params: { id: string; acao: string } }) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
 

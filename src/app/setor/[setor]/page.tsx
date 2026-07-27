@@ -40,6 +40,7 @@ import NotificacoesLive from '@/components/NotificacoesLive';
 import { useRealtime } from '@/hooks/useRealtime';
 import ConfirmModal from '@/components/ConfirmModal';
 import EntregarModal from '@/components/EntregarModal';
+import EntregarPedidoModal, { ItemEntrega } from '@/components/EntregarPedidoModal';
 import DespacharModal from '@/components/DespacharModal';
 import IniciarEntregaModal from '@/components/IniciarEntregaModal';
 import DivergenciaResolucaoModal from '@/components/DivergenciaResolucaoModal';
@@ -2828,6 +2829,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const podeDesfazer = isAdministrador();
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
   const [modalRastreio, setModalRastreio] = useState<{ pedidoId: number; numero: string } | null>(null);
+  const [entregarPedidoModal, setEntregarPedidoModal] = useState<{ pedidoId: number; numero: string; itens: ItemEntrega[] } | null>(null);
   const [modalImprimir, setModalImprimir] = useState<{ pedidoId: number; numero: string; temDesenho: boolean; temPV: boolean; temOP: boolean } | null>(null);
   const [showNovoChooser, setShowNovoChooser] = useState(false);
   const [showAdicionarExistente, setShowAdicionarExistente] = useState(false);
@@ -2905,6 +2907,15 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
       )}
       {modalRastreio && (
         <RastreioModal pedidoId={modalRastreio.pedidoId} numero={modalRastreio.numero} onClose={() => setModalRastreio(null)} />
+      )}
+      {entregarPedidoModal && (
+        <EntregarPedidoModal
+          pedidoId={entregarPedidoModal.pedidoId}
+          pedidoNumero={entregarPedidoModal.numero}
+          itens={entregarPedidoModal.itens}
+          onConfirm={() => { setEntregarPedidoModal(null); carregar(); }}
+          onCancel={() => setEntregarPedidoModal(null)}
+        />
       )}
       {modalImprimir && (
         <ImprimirDocsModal
@@ -3228,6 +3239,41 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                               </button>
                             );
                           })()}
+                          {/* Logística: entregar o PEDIDO COMPLETO (itens já na Logística),
+                              anexando canhoto(s), com confirmação. Sem NF (comprovado por canhoto). */}
+                          {setor === 'logistica' && podeEditar() && (() => {
+                            const itensEntrega: ItemEntrega[] = [
+                              ...grupos.map(g => ({
+                                item_pedido_id: g[0].item_pedido_id,
+                                item_codigo: g[0].item_codigo || '',
+                                item_descricao: g[0].item_descricao,
+                                quantidade: g.reduce((s, p) => s + (Number(p.quantidade) || 0), 0),
+                                unidade: g[0].unidade,
+                              })),
+                              ...data.itens
+                                .filter(i => i.pedido_id === pedido_id && !parciais.some(p => p.item_pedido_id === i.id))
+                                .map(i => ({
+                                  item_pedido_id: i.id,
+                                  item_codigo: i.codigo,
+                                  item_descricao: i.descricao,
+                                  quantidade: Number(i.quantidade_pendente ?? i.quantidade) || undefined,
+                                  unidade: i.unidade,
+                                })),
+                            ];
+                            if (itensEntrega.length === 0) return null;
+                            return (
+                              <button
+                                title="Entregar todos os itens deste pedido que estão na Logística"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEntregarPedidoModal({ pedidoId: pedido_id, numero: numero_pedido_venda, itens: itensEntrega });
+                                }}
+                                style={{ marginLeft: 'auto', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                              >
+                                <i className="bi bi-truck" /> Entregar pedido completo
+                              </button>
+                            );
+                          })()}
                           {(() => {
                             // Desfazer recebimento (só administrador): volta as parciais
                             // recebidas para "em aberto", fazendo o "Receber Tudo" reaparecer.
@@ -3275,7 +3321,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             return (
                               <i
                                 className={pedidosColapsados.has(pedido_id) ? 'bi bi-chevron-right' : 'bi bi-chevron-down'}
-                                style={{ marginLeft: (temRecebiveis || temEnviaveis) ? 0 : 'auto', fontSize: 13, opacity: 0.8 }}
+                                style={{ marginLeft: (temRecebiveis || temEnviaveis || setor === 'logistica') ? 0 : 'auto', fontSize: 13, opacity: 0.8 }}
                               />
                             );
                           })()}

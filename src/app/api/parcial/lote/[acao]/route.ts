@@ -16,6 +16,7 @@
 import { NextResponse } from 'next/server';
 import { POST as acaoParcialHandler } from '../../[id]/acao/[acao]/route';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
+import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +26,18 @@ const ACOES_LOTE_PERMITIDAS = ['iniciar', 'finalizar', 'pausar', 'retomar', 'rec
 // um lote maior que o teto seria truncado no meio mesmo sendo legítimo.
 const MAX_ITENS_LOTE = 50;
 
-export async function POST(req: Request, { params }: { params: { acao: string } }) {
+export async function POST(req: Request, ctx: { params: { acao: string } }) {
+  // Idempotência no nível do lote: um reenvio do MESMO lote (mesmos ids+ação)
+  // devolve o resultado anterior. As chamadas internas por item não recebem
+  // Idempotency-Key, então rodam normalmente. Ver src/lib/idempotencia.ts.
+  return comIdempotencia(
+    chaveIdempotencia(req),
+    { metodo: 'POST', caminho: `parcial/lote/${ctx.params.acao}` },
+    () => handlePOST(req, ctx),
+  );
+}
+
+async function handlePOST(req: Request, { params }: { params: { acao: string } }) {
   const acao = params.acao;
   if (!ACOES_LOTE_PERMITIDAS.includes(acao as typeof ACOES_LOTE_PERMITIDAS[number]))
     return NextResponse.json({ erro: `Acao nao suportada em lote: ${acao}` }, { status: 400 });

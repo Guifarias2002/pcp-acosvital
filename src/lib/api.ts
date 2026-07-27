@@ -25,6 +25,58 @@ api.interceptors.response.use(
 export { api };
 export default api;
 
+// ── Proteção contra duplicação por internet instável ────────────────────────
+// Duas camadas no cliente, complementadas pela idempotência do servidor
+// (src/lib/idempotencia.ts):
+//   1) Requisições idênticas CONCORRENTES (toque duplo no mobile antes do botão
+//      desabilitar) compartilham a MESMA promise → sai uma requisição só.
+//   2) Um reenvio manual da MESMA ação dentro de uma janela curta reusa a mesma
+//      Idempotency-Key → o servidor devolve o resultado anterior em vez de
+//      executar de novo (cobre "servidor processou, mas a resposta se perdeu").
+const JANELA_CHAVE_MS = 20_000;
+const emVoo = new Map<string, Promise<unknown>>();
+const chavePorAssinatura = new Map<string, { chave: string; ts: number }>();
+
+function stableStringify(v: unknown): string {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`;
+  const obj = v as Record<string, unknown>;
+  return `{${Object.keys(obj).sort().map(k => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(',')}}`;
+}
+
+function novaChave(): string {
+  const c = (globalThis as { crypto?: Crypto }).crypto;
+  if (c?.randomUUID) return c.randomUUID();
+  return `k-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function chaveParaAssinatura(sig: string): string {
+  const agora = Date.now();
+  const prev = chavePorAssinatura.get(sig);
+  if (prev && agora - prev.ts < JANELA_CHAVE_MS) { prev.ts = agora; return prev.chave; }
+  const chave = novaChave();
+  chavePorAssinatura.set(sig, { chave, ts: agora });
+  // Poda preguiçosa das assinaturas expiradas para o mapa não crescer sem fim.
+  if (chavePorAssinatura.size > 200) {
+    chavePorAssinatura.forEach((val, k) => { if (agora - val.ts >= JANELA_CHAVE_MS) chavePorAssinatura.delete(k); });
+  }
+  return chave;
+}
+
+// POST de mutação protegido. Use SEMPRE que a ação altera estado no servidor.
+export async function postIdempotente<T = unknown>(url: string, body?: Record<string, unknown>): Promise<T> {
+  const sig = `${url}|${stableStringify(body ?? {})}`;
+  const existente = emVoo.get(sig);
+  if (existente) return existente as Promise<T>;   // toque duplo → mesma promise
+
+  const chave = chaveParaAssinatura(sig);
+  const p = api.post(url, body || {}, { headers: { 'Idempotency-Key': chave } })
+    .then(r => r.data as T)
+    .finally(() => { emVoo.delete(sig); });
+  emVoo.set(sig, p);
+  return p;
+}
+
 // ── Pedidos ───────────────────────────────────────────────────────────────────
 export const getPedidos = (params?: Record<string, string>) =>
   api.get('/api/pedidos', { params }).then(r => {
@@ -50,7 +102,7 @@ export const getItem = (id: number) =>
   api.get(`/api/item/${id}`).then(r => r.data);
 
 export const itemAcao = (id: number, acao: string, body?: Record<string, unknown>) =>
-  api.post(`/api/item/${id}/acao/${acao}`, body || {}).then(r => r.data);
+  postIdempotente(`/api/item/${id}/acao/${acao}`, body || {});
 
 export const adicionarObservacaoItem = (id: number, texto: string) =>
   api.post(`/api/item/${id}/observacao`, { texto }).then(r => r.data);
@@ -59,6 +111,23 @@ export const adicionarObservacaoItem = (id: number, texto: string) =>
 // e aparece cinza para o admin. `motivo` é opcional.
 export const inativarItem = (id: number, inativo: boolean, motivo?: string) =>
   api.post(`/api/item/${id}/inativar`, { inativo, motivo }).then(r => r.data);
+
+// Entrega o PEDIDO COMPLETO a partir da Logística (sem NF; comprovada por
+// canhoto). `idempotencyKey` deve ser estável por tentativa do mesmo modal —
+// gere uma vez ao abrir e reuse no reenvio para o servidor deduplicar.
+export const entregarPedido = (
+  pedidoId: number,
+  canhotos: File[],
+  observacao: string,
+  idempotencyKey: string,
+) => {
+  const fd = new FormData();
+  for (const f of canhotos) fd.append('canhotos', f);
+  fd.append('observacao', observacao || '');
+  return api.post(`/api/pedidos/${pedidoId}/entregar`, fd, {
+    headers: { 'Idempotency-Key': idempotencyKey },
+  }).then(r => r.data);
+};
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export const getDashboard = () =>
@@ -77,14 +146,14 @@ export const getEntregues = (params?: Record<string, string>) =>
 
 // ── Lotes ─────────────────────────────────────────────────────────────────────
 export const loteAcao = (loteId: number, acao: 'receber' | 'finalizar') =>
-  api.post(`/api/lote/${loteId}/${acao}`).then(r => r.data);
+  postIdempotente(`/api/lote/${loteId}/${acao}`);
 
 // ── Parciais ──────────────────────────────────────────────────────────────────
 export const getParcial = (id: number) =>
   api.get(`/api/parcial/${id}`).then(r => r.data);
 
 export const parcialAcao = (id: number, acao: string, body?: Record<string, unknown>) =>
-  api.post(`/api/parcial/${id}/acao/${acao}`, body || {}).then(r => r.data);
+  postIdempotente(`/api/parcial/${id}/acao/${acao}`, body || {});
 
 // Salva o peso da embalagem (lista de pesos por pallet, em kg) de uma parcial,
 // junto do nome/número de identificação de cada pallet (alinhado por índice).
@@ -111,7 +180,7 @@ export const parcialAcaoLote = async (ids: number[], acao: string, body?: Record
 
   const combinado: ResultadoLote = { ok: true, total: 0, sucesso: 0, falhas: 0, resultados: [] };
   for (const pedaco of pedacos) {
-    const r = await api.post(`/api/parcial/lote/${acao}`, { ids: pedaco, ...(body || {}) }).then(res => res.data as ResultadoLote);
+    const r = await postIdempotente<ResultadoLote>(`/api/parcial/lote/${acao}`, { ids: pedaco, ...(body || {}) });
     combinado.total += r.total;
     combinado.sucesso += r.sucesso;
     combinado.falhas += r.falhas;

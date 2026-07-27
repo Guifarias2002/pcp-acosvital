@@ -17,6 +17,7 @@ import { isAdministrador, podeAcessarSetor } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
 import { SETOR_CHOICES } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
+import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
 
 export const dynamic = 'force-dynamic';
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
@@ -24,6 +25,19 @@ const ACOES_VALIDAS = ['mover', 'iniciar', 'finalizar', 'pausar', 'retomar', 'co
 type Acao = typeof ACOES_VALIDAS[number];
 
 export async function POST(
+  req: Request,
+  ctx: { params: { id: string; acao: string } }
+) {
+  // Idempotência: um reenvio da mesma ação (internet caiu no meio) devolve o
+  // resultado anterior em vez de executar de novo. Ver src/lib/idempotencia.ts.
+  return comIdempotencia(
+    chaveIdempotencia(req),
+    { metodo: 'POST', caminho: `parcial/${ctx.params.id}/acao/${ctx.params.acao}` },
+    () => handlePOST(req, ctx),
+  );
+}
+
+async function handlePOST(
   req: Request,
   { params }: { params: { id: string; acao: string } }
 ) {
@@ -499,17 +513,23 @@ export async function POST(
     if ((qtdAprovada + qtdReprovada) > qtdApontada + 0.001)
       return NextResponse.json({ erro: 'Quantidade aprovada + reprovada não pode exceder quantidade apontada' }, { status: 400 });
 
-    const [{ id: apontamentoId }] = await sql`
-      INSERT INTO producao_apontamento
-        (parcial_id, item_pedido_id, pedido_id, setor,
-         quantidade_apontada, quantidade_aprovada, quantidade_reprovada, quantidade_finalizada,
-         status, usuario_id, observacao, criado_em, atualizado_em)
-      VALUES
-        (${parcialId}, ${parcial.item_id}, ${parcial.pedido_id}, ${parcial.setor_atual},
-         ${qtdApontada}, ${qtdAprovada}, ${qtdReprovada}, ${qtdFinalizada},
-         ${statusAp}, ${user.id}, ${obs || null}, NOW(), NOW())
-      RETURNING id
-    `;
+    // Advisory lock por item (mesmo namespace de mover/enviar): serializa
+    // apontamentos concorrentes no mesmo item — defesa em profundidade contra
+    // duplo-clique/toque-duplo, complementando a idempotência de requisição.
+    const [{ id: apontamentoId }] = await sql.begin(async (tx) => {
+      await (tx as unknown as typeof sql)`SELECT pg_advisory_xact_lock(778899, ${parcial.item_id})`;
+      return tx`
+        INSERT INTO producao_apontamento
+          (parcial_id, item_pedido_id, pedido_id, setor,
+           quantidade_apontada, quantidade_aprovada, quantidade_reprovada, quantidade_finalizada,
+           status, usuario_id, observacao, criado_em, atualizado_em)
+        VALUES
+          (${parcialId}, ${parcial.item_id}, ${parcial.pedido_id}, ${parcial.setor_atual},
+           ${qtdApontada}, ${qtdAprovada}, ${qtdReprovada}, ${qtdFinalizada},
+           ${statusAp}, ${user.id}, ${obs || null}, NOW(), NOW())
+        RETURNING id
+      `;
+    });
 
     return NextResponse.json({
       ok: true,

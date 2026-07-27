@@ -5,6 +5,7 @@ import { podeAcessarSetor } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
 import { SETOR_CHOICES, injetarQuarentena } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
+import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
 
 export const dynamic = 'force-dynamic';
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
@@ -130,6 +131,19 @@ async function moverParcialInteira(
 // ── handler principal ─────────────────────────────────────────────────────────
 
 export async function POST(
+  req: Request,
+  ctx: { params: { id: string; acao: string } }
+) {
+  // Idempotência: reenvio da mesma ação (internet caiu no meio) devolve o
+  // resultado anterior em vez de executar de novo. Ver src/lib/idempotencia.ts.
+  return comIdempotencia(
+    chaveIdempotencia(req),
+    { metodo: 'POST', caminho: `item/${ctx.params.id}/acao/${ctx.params.acao}` },
+    () => handlePOST(req, ctx),
+  );
+}
+
+async function handlePOST(
   req: Request,
   { params }: { params: { id: string; acao: string } }
 ) {
@@ -358,12 +372,17 @@ export async function POST(
     // Calcula total disponível no setor somando TODAS as parciais ativas.
     // Cenário típico: item foi split e há múltiplas parciais no mesmo setor
     // (ex: 25 un de envio anterior + 75 un da remessa principal = 100 un disponíveis).
+    // Inclui 'pausado' e 'finalizado_setor' (mesmo critério de getParcialAtiva):
+    // se o operador finaliza/pausa a etapa e DEPOIS envia parcial, a parcial real
+    // continua sendo a que está fisicamente no setor. Sem esses status, o código
+    // não a encontrava, tratava o item como "sem parcial" e criava linhas novas do
+    // zero — duplicando a quantidade (bug real, ver pedido 25791).
     const parciaisNoSetor = await sql`
       SELECT id, quantidade::float AS quantidade, parcial_origem_id
       FROM producao_itemparcial
       WHERE item_pedido_id = ${item.id}
         AND setor_atual = ${item.setor_atual}
-        AND status IN ('em_aberto', 'recebido', 'em_andamento')
+        AND status IN ('em_aberto', 'recebido', 'em_andamento', 'pausado', 'finalizado_setor')
       ORDER BY
         CASE WHEN parcial_origem_id IS NULL THEN 0 ELSE 1 END ASC,
         quantidade DESC
@@ -414,7 +433,7 @@ export async function POST(
         FROM producao_itemparcial
         WHERE item_pedido_id = ${item.id}
           AND setor_atual = ${item.setor_atual}
-          AND status IN ('em_aberto', 'recebido', 'em_andamento')
+          AND status IN ('em_aberto', 'recebido', 'em_andamento', 'pausado', 'finalizado_setor')
         ORDER BY quantidade DESC
         FOR UPDATE
       `;
