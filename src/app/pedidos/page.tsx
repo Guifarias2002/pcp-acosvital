@@ -490,13 +490,13 @@ function PedidosPageInner() {
                   </td>
                   <td style={{ padding: '8px 12px' }}>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <Link href={`/pedidos/${p.id}`} title="Ver"
+                      <Link href={`/pedidos/${p.id}`} title="Ver" prefetch={false}
                         style={{ border: '1px solid #0d6efd', color: '#0d6efd', borderRadius: 4, padding: '2px 8px', textDecoration: 'none', fontSize: 13 }}>
                         <i className="bi bi-eye"></i>
                       </Link>
                       {isAdmin && (
                         <>
-                          <Link href={`/pedidos/${p.id}/editar`} title="Editar"
+                          <Link href={`/pedidos/${p.id}/editar`} title="Editar" prefetch={false}
                             style={{ border: '1px solid #6c757d', color: '#6c757d', borderRadius: 4, padding: '2px 8px', textDecoration: 'none', fontSize: 13 }}>
                             <i className="bi bi-pencil"></i>
                           </Link>
