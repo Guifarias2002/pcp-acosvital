@@ -9,7 +9,6 @@ import Link from 'next/link';
 import ConfirmModal from '@/components/ConfirmModal';
 import ReceberModal from '@/components/ReceberModal';
 import LiberarSetorModal from '@/components/LiberarSetorModal';
-import MontarReceitaModal from '@/components/MontarReceitaModal';
 
 const NOMES = Object.fromEntries(SETOR_CHOICES);
 
@@ -95,7 +94,6 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const [obsPedidoTexto, setObsPedidoTexto] = useState('');
   const [salvandoObsPedido, setSalvandoObsPedido] = useState(false);
   const [erroObsPedido, setErroObsPedido] = useState<string | null>(null);
-  const [modalReceita, setModalReceita] = useState<{ itemId: number; codigo: string } | null>(null);
   const user = getUser();
   // Usuário somente-leitura: vê tudo (inclusive financeiro), mas não pode agir.
   // isAdmin passa a exigir editavel, então todos os botões de ação que dependem
@@ -406,15 +404,6 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
             />
           );
         })()}
-        {modalReceita && (
-          <MontarReceitaModal
-            pedidoId={Number(id)}
-            itemPaiId={modalReceita.itemId}
-            itemPaiCodigo={modalReceita.codigo}
-            onClose={() => setModalReceita(null)}
-            onSucesso={() => { setModalReceita(null); carregar(); }}
-          />
-        )}
         {erroAcao && (
           <div className="mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-50 text-red-700 border border-red-200 flex items-center justify-between">
             <span>⚠ {erroAcao}</span>
@@ -695,17 +684,6 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                         <Link href={`/item/${item.id}`} className="btn btn-outline btn-sm">
                           <i className="bi bi-eye" /> Ver
                         </Link>
-
-                        {/* Montar receita (sub-itens/componentes) — admin, só em item raiz */}
-                        {isAdmin && !item.item_pai_id && (
-                          <button
-                            onClick={() => setModalReceita({ itemId: item.id, codigo: item.codigo })}
-                            title="Montar receita (sub-componentes deste item)"
-                            style={{ background: '#f8fafc', color: '#4338ca', border: '1px solid #e2e8f0', borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
-                          >
-                            <i className="bi bi-puzzle" /> Montar Receita
-                          </button>
-                        )}
 
                         {/* Botão de observações por item — visível a todos */}
                         {(() => {

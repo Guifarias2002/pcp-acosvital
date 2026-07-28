@@ -47,6 +47,7 @@ import DivergenciaResolucaoModal from '@/components/DivergenciaResolucaoModal';
 import AdicionarItemPedidoModal from '@/components/AdicionarItemPedidoModal';
 import RastreioModal from '@/components/RastreioModal';
 import ObservacaoPedidoModal from '@/components/ObservacaoPedidoModal';
+import MontarReceitaModal from '@/components/MontarReceitaModal';
 
 // Setores internos da Caldeiraria (Recebimento + etapas próprias) — entre eles
 // o envio manual pode ir pra qualquer um dos outros, mais Qualidade, Acabamento
@@ -667,6 +668,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [enviandoObs, setEnviandoObs] = useState(false);
   const [erroObs, setErroObs] = useState<string | null>(null);
   const [showDivModal, setShowDivModal] = useState<'retrabalho' | 'resolver' | 'cancelar_item' | null>(null);
+  const [showMontarReceita, setShowMontarReceita] = useState(false);
   const isLogistica = parcial.setor_atual === 'logistica';
   const isQualidade = parcial.setor_atual === 'qualidade';
   const isRecebido = parcial.status === 'recebido';
@@ -1247,7 +1249,30 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <i className="bi bi-trash3" style={{ marginRight: 5 }} />Excluir
           </button>
         )}
+
+        {/* Montar Receita — só admin, só na Caldeiraria (Recebimento). Desmembra
+            um item composto (ex: Tê de Redução) em sub-componentes rastreáveis
+            (ex: 3 flanges + 1 tubo), cada um seguindo o próprio roteiro. */}
+        {isAdministrador() && parcial.setor_atual === 'caldeiraria' && (
+          <button
+            onClick={() => setShowMontarReceita(true)}
+            disabled={loading}
+            title="Montar receita (sub-componentes deste item)"
+            style={btnStyle('#4338ca', true)}
+          >
+            <i className="bi bi-puzzle" style={{ marginRight: 5 }} />Montar Receita
+          </button>
+        )}
       </div>
+      )}
+      {showMontarReceita && (
+        <MontarReceitaModal
+          pedidoId={parcial.pedido_id}
+          itemPaiId={parcial.item_pedido_id}
+          itemPaiCodigo={parcial.item_codigo || ''}
+          onClose={() => setShowMontarReceita(false)}
+          onSucesso={() => { setShowMontarReceita(false); onRefresh(); }}
+        />
       )}
 
       {/* Painel de observações por item — visível a todos */}
