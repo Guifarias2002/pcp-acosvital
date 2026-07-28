@@ -2890,7 +2890,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   // decodeURIComponent é seguro mesmo se já vier decodificado.
   let setor = params.setor;
   try { setor = decodeURIComponent(setor); } catch { /* já decodificado */ }
-  const nomeSetor = NOMES[setor] || setor;
+  // 'caldeiraria' já aparece como "Recebimento" no menu lateral (é a etapa de
+  // entrada da fábrica) — o título da página segue o mesmo nome pra não destoar.
+  const nomeSetor = setor === 'caldeiraria' ? 'Recebimento' : (NOMES[setor] || setor);
   const [data, setData] = useState<SetorPainelData | null>(null);
   const [loading, setLoading] = useState(false);
   const [filtroLog, setFiltroLog] = useState<FiltroLogistica>('todos');
