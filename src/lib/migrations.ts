@@ -2,14 +2,38 @@
  * Migrations incrementais — roda automaticamente no startup do servidor.
  * Cada bloco é idempotente e falha silenciosamente para não derrubar o app.
  */
+import postgres from 'postgres';
 import sql from './db';
 
 let ran = false;
+
+// Lock id arbitrário (qualquer bigint serve, só precisa ser o mesmo em toda
+// instância). Evita que um deploy — que sobe várias instâncias ao mesmo tempo —
+// gere uma corrida de N execuções concorrentes das mesmas ALTER TABLE/CREATE
+// INDEX: cada uma exige lock exclusivo mesmo sendo IF NOT EXISTS, e a fila
+// resultante já travou o banco inteiro (via SELECTs presos em ClientRead que
+// ficaram atrás dela). Com o advisory lock, só a primeira instância a chegar
+// executa de fato; as demais tentam pegar o lock, falham na hora (tentativa
+// não-bloqueante) e saem sem disputar lock de tabela nenhum.
+const MIGRATION_LOCK_ID = 7274123;
 
 export async function runMigrations() {
   if (ran) return;
   ran = true;
 
+  try {
+    await sql.begin(async (sql) => {
+      const [{ locked }] = await sql`SELECT pg_try_advisory_xact_lock(${MIGRATION_LOCK_ID}) AS locked`;
+      if (!locked) return; // outra instância já está migrando (ou já migrou) — não competir por lock de tabela
+
+      await runMigrationSteps(sql);
+    });
+  } catch (e) {
+    console.error('[migrations] runMigrations falhou:', e);
+  }
+}
+
+async function runMigrationSteps(sql: postgres.TransactionSql) {
   // M01: colunas de timing em producao_itemparcial
   await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS iniciado_em  TIMESTAMPTZ`).catch(() => {});
   await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS concluido_em TIMESTAMPTZ`).catch(() => {});
