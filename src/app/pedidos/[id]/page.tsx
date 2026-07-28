@@ -65,6 +65,10 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const [novaObsTexto, setNovaObsTexto] = useState('');
   const [enviandoObs, setEnviandoObs] = useState<number | null>(null);
   const [erroObs, setErroObs] = useState<string | null>(null);
+  const [obsPedidoEditando, setObsPedidoEditando] = useState(false);
+  const [obsPedidoTexto, setObsPedidoTexto] = useState('');
+  const [salvandoObsPedido, setSalvandoObsPedido] = useState(false);
+  const [erroObsPedido, setErroObsPedido] = useState<string | null>(null);
   const user = getUser();
   // Usuário somente-leitura: vê tudo (inclusive financeiro), mas não pode agir.
   // isAdmin passa a exigir editavel, então todos os botões de ação que dependem
@@ -129,6 +133,23 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
       else setErroObs(data.erro || 'Erro ao adicionar observação');
     } catch { setErroObs('Erro ao adicionar observação'); }
     finally { setEnviandoObs(null); }
+  }
+
+  async function salvarObsPedido() {
+    setSalvandoObsPedido(true);
+    setErroObsPedido(null);
+    try {
+      const token = localStorage.getItem('token') || '';
+      const res = await fetch(`/api/pedidos/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ observacoes: obsPedidoTexto }),
+      });
+      const data = await res.json();
+      if (res.ok) { setObsPedidoEditando(false); carregar(); }
+      else setErroObsPedido(data.erro || 'Erro ao salvar observação');
+    } catch { setErroObsPedido('Erro ao salvar observação'); }
+    finally { setSalvandoObsPedido(false); }
   }
 
   async function removerAnexo(tipo: 'nota' | 'canhoto') {
@@ -1108,6 +1129,45 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Observação do pedido */}
+            <div style={{ background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 8, padding: '12px 14px' }}>
+              <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8', margin: 0 }}>
+                  <i className="bi bi-chat-left-text" style={{ marginRight: 5 }} />Observação do pedido
+                </p>
+                {editavel && !obsPedidoEditando && (
+                  <button
+                    onClick={() => { setObsPedidoTexto(pedido.observacoes || ''); setObsPedidoEditando(true); setErroObsPedido(null); }}
+                    style={{ background: 'none', border: 'none', color: '#1d4ed8', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    {pedido.observacoes ? 'Editar' : '+ Adicionar'}
+                  </button>
+                )}
+              </div>
+              {obsPedidoEditando ? (
+                <div>
+                  <textarea value={obsPedidoTexto} onChange={e => setObsPedidoTexto(e.target.value)}
+                    placeholder="Observação do pedido..." rows={3}
+                    style={{ width: '100%', border: '1px solid #93c5fd', borderRadius: 6, padding: '6px 10px', fontSize: 12, resize: 'none', boxSizing: 'border-box' }} />
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
+                    <button onClick={() => { setObsPedidoEditando(false); setErroObsPedido(null); }}
+                      style={{ background: '#fff', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      Cancelar
+                    </button>
+                    <button onClick={salvarObsPedido} disabled={salvandoObsPedido}
+                      style={{ background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: salvandoObsPedido ? 0.6 : 1 }}>
+                      {salvandoObsPedido ? '⏳' : 'Salvar'}
+                    </button>
+                  </div>
+                  {erroObsPedido && <p style={{ fontSize: 11, color: '#dc2626', marginTop: 6 }}>{erroObsPedido}</p>}
+                </div>
+              ) : (
+                <p style={{ fontSize: 12, color: pedido.observacoes ? '#374151' : '#64748b', margin: 0, fontStyle: pedido.observacoes ? 'normal' : 'italic', whiteSpace: 'pre-wrap' }}>
+                  {pedido.observacoes || 'Nenhuma observação registrada.'}
+                </p>
+              )}
             </div>
 
             {/* Histórico */}
