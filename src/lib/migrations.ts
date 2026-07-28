@@ -186,4 +186,13 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   // preenchido com o primeiro, para não quebrar a métrica de "canhotos assinados"
   // da tela de Entregues nem os relatórios que já leem canhoto_url.
   await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS canhotos TEXT[] NOT NULL DEFAULT '{}'`).catch(() => {});
+
+  // M17: sub-itens (receita) para produtos compostos da Caldeiraria — ex: um
+  // "Tê de Redução" é montado a partir de 3 flanges + 1 tubo, cada um fabricado
+  // e rastreado separadamente pelos próprios setores até voltar pra montagem
+  // final. item_pai_id aponta pro item "receita" que esse sub-item compõe;
+  // ON DELETE SET NULL porque itens quase nunca são apagados de verdade (viram
+  // inativo), mas se acontecer não deve arrastar os filhos junto.
+  await sql.unsafe(`ALTER TABLE producao_itempedido ADD COLUMN IF NOT EXISTS item_pai_id INTEGER REFERENCES producao_itempedido(id) ON DELETE SET NULL`).catch(() => {});
+  await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_itempedido_pai ON producao_itempedido (item_pai_id)`).catch(() => {});
 }

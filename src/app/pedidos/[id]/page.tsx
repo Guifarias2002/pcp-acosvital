@@ -9,8 +9,34 @@ import Link from 'next/link';
 import ConfirmModal from '@/components/ConfirmModal';
 import ReceberModal from '@/components/ReceberModal';
 import LiberarSetorModal from '@/components/LiberarSetorModal';
+import MontarReceitaModal from '@/components/MontarReceitaModal';
 
 const NOMES = Object.fromEntries(SETOR_CHOICES);
+
+// Reordena a lista pra cada sub-item (item_pai_id) aparecer logo depois do seu
+// item pai, mantendo a ordem original dos itens-raiz. Sub-item cujo pai não
+// está na lista (ex: pai inativo filtrado fora) aparece no final, sem sumir.
+function ordenarComFilhos(itens: ItemPedido[]): ItemPedido[] {
+  const porPai = new Map<number, ItemPedido[]>();
+  const raiz: ItemPedido[] = [];
+  for (const it of itens) {
+    if (it.item_pai_id) {
+      if (!porPai.has(it.item_pai_id)) porPai.set(it.item_pai_id, []);
+      porPai.get(it.item_pai_id)!.push(it);
+    } else {
+      raiz.push(it);
+    }
+  }
+  const resultado: ItemPedido[] = [];
+  for (const pai of raiz) {
+    resultado.push(pai);
+    resultado.push(...(porPai.get(pai.id) || []));
+  }
+  porPai.forEach((filhos, paiId) => {
+    if (!raiz.some(r => r.id === paiId)) resultado.push(...filhos);
+  });
+  return resultado;
+}
 
 // Cronômetro — mostra tempo decorrido desde uma data
 function Cronometro({ desde }: { desde: string }) {
@@ -69,6 +95,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const [obsPedidoTexto, setObsPedidoTexto] = useState('');
   const [salvandoObsPedido, setSalvandoObsPedido] = useState(false);
   const [erroObsPedido, setErroObsPedido] = useState<string | null>(null);
+  const [modalReceita, setModalReceita] = useState<{ itemId: number; codigo: string } | null>(null);
   const user = getUser();
   // Usuário somente-leitura: vê tudo (inclusive financeiro), mas não pode agir.
   // isAdmin passa a exigir editavel, então todos os botões de ação que dependem
@@ -379,6 +406,15 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
             />
           );
         })()}
+        {modalReceita && (
+          <MontarReceitaModal
+            pedidoId={Number(id)}
+            itemPaiId={modalReceita.itemId}
+            itemPaiCodigo={modalReceita.codigo}
+            onClose={() => setModalReceita(null)}
+            onSucesso={() => { setModalReceita(null); carregar(); }}
+          />
+        )}
         {erroAcao && (
           <div className="mb-4 px-4 py-3 rounded-lg text-sm font-medium bg-red-50 text-red-700 border border-red-200 flex items-center justify-between">
             <span>⚠ {erroAcao}</span>
@@ -527,15 +563,29 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                 })()}
               </div>
               <div className="divide-y">
-                {pedido.itens.map((item, idx) => (
-                  <div key={item.id} className={`p-4 ${item.inativo ? 'bg-gray-100 opacity-70' : ''}`}>
+                {ordenarComFilhos(pedido.itens).map((item, idx) => {
+                  const itemPai = item.item_pai_id ? pedido.itens.find(i => i.id === item.item_pai_id) : undefined;
+                  const filhos = pedido.itens.filter(i => i.item_pai_id === item.id);
+                  return (
+                  <div key={item.id} className={`p-4 ${item.inativo ? 'bg-gray-100 opacity-70' : ''}`}
+                    style={item.item_pai_id ? { marginLeft: 24, borderLeft: '2px solid #cbd5e1', background: '#fafbfc' } : undefined}>
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span className="text-sm text-gray-400 font-medium">{idx + 1}</span>
                           <span className={`text-xs px-2 py-0.5 rounded font-semibold ${item.cor_status === 'info' ? 'bg-blue-500 text-white' : item.cor_status === 'primary' ? 'bg-blue-600 text-white' : item.cor_status === 'success' ? 'bg-green-500 text-white' : 'bg-yellow-100 text-yellow-800'}`}>
                             {item.status_display}
                           </span>
+                          {itemPai && (
+                            <span className="text-xs px-2 py-0.5 rounded font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              🧩 sub-item de {itemPai.codigo}
+                            </span>
+                          )}
+                          {filhos.length > 0 && (
+                            <span className="text-xs px-2 py-0.5 rounded font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              🧩 {filhos.length} sub-iten{filhos.length > 1 ? 's' : ''} ({filhos.filter(f => f.status === 'entregue').length} concluído{filhos.filter(f => f.status === 'entregue').length !== 1 ? 's' : ''})
+                            </span>
+                          )}
                           {item.inativo && (
                             <span className="text-xs px-2 py-0.5 rounded font-semibold bg-gray-300 text-gray-700" title={item.motivo_inativacao || undefined}>
                               <i className="bi bi-eye-slash mr-1" />Inativado
@@ -645,6 +695,17 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                         <Link href={`/item/${item.id}`} className="btn btn-outline btn-sm">
                           <i className="bi bi-eye" /> Ver
                         </Link>
+
+                        {/* Montar receita (sub-itens/componentes) — admin, só em item raiz */}
+                        {isAdmin && !item.item_pai_id && (
+                          <button
+                            onClick={() => setModalReceita({ itemId: item.id, codigo: item.codigo })}
+                            title="Montar receita (sub-componentes deste item)"
+                            style={{ background: '#f8fafc', color: '#4338ca', border: '1px solid #e2e8f0', borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                          >
+                            <i className="bi bi-puzzle" /> Montar Receita
+                          </button>
+                        )}
 
                         {/* Botão de observações por item — visível a todos */}
                         {(() => {
@@ -908,7 +969,8 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                       );
                     })()}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

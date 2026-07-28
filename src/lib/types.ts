@@ -236,6 +236,8 @@ export interface ItemPedido {
   unidade: string;
   roteiro_proprio: string[];
   roteiro_efetivo: string[];
+  fabrica?: string;
+  item_pai_id?: number | null;
   setor_atual: string;
   nome_setor_atual: string;
   status: string;

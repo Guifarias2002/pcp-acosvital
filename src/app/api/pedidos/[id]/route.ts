@@ -221,13 +221,25 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
             const [existente] = await tx`SELECT setor_atual FROM producao_pedido WHERE id = ${pedidoId}`;
             setorAtual = existente?.setor_atual || 'emissao';
           }
+          // item_pai_id: liga um sub-item (ex: flange/tubo de uma "receita" de
+          // produto composto da Caldeiraria, tipo um Tê de Redução) ao item pai
+          // que ele compõe. Só aceita se apontar pra outro item do MESMO pedido
+          // — evita vincular a um item de pedido alheio por engano ou id inválido.
+          let itemPaiId: number | null = null;
+          if (item.item_pai_id != null) {
+            const paiIdNum = Number(item.item_pai_id);
+            if (Number.isInteger(paiIdNum) && paiIdNum > 0) {
+              const [paiExiste] = await tx`SELECT id FROM producao_itempedido WHERE id = ${paiIdNum} AND pedido_id = ${pedidoId}`;
+              if (paiExiste) itemPaiId = paiIdNum;
+            }
+          }
           await tx`
             INSERT INTO producao_itempedido
               (pedido_id, codigo, descricao, quantidade, unidade, valor_unitario,
-               roteiro_proprio, fabrica, status, setor_atual, quantidade_pendente, quantidade_entregue, criado_em, atualizado_em)
+               roteiro_proprio, fabrica, status, setor_atual, quantidade_pendente, quantidade_entregue, item_pai_id, criado_em, atualizado_em)
             VALUES
               (${pedidoId}, ${cod}, ${desc}, ${qtd}, ${unid}, ${val},
-               ${rotProprio}, ${fabrica}, 'emitido', ${setorAtual}, ${qtd}, 0, NOW(), NOW())
+               ${rotProprio}, ${fabrica}, 'emitido', ${setorAtual}, ${qtd}, 0, ${itemPaiId}, NOW(), NOW())
           `;
         }
       }
