@@ -701,10 +701,22 @@ body {
   .setor-pedido-grupo {
     border-radius: 10px !important;
   }
-  /* Header do pedido: fonte menor no celular */
+  /* Header do pedido: fonte menor no celular. Muitos botões (olho, observação,
+     imprimir, receber/enviar tudo, desfazer) numa linha só sem quebrar ficavam
+     espremidos/cortados no celular — flex-wrap deixa quebrar em mais linhas
+     em vez de espremer, com gap menor entre os itens. */
   .setor-pedido-header {
     font-size: 13px !important;
     padding: 10px 12px !important;
+    flex-wrap: wrap !important;
+    row-gap: 6px !important;
+    column-gap: 6px !important;
+  }
+  /* No PC alguns botões usam margin-left:auto pra ficar alinhados à direita
+     na mesma linha; com flex-wrap isso deixaria buracos vazios no meio da
+     linha quando quebra. No celular é melhor fluir da esquerda pra direita. */
+  .setor-pedido-header > * {
+    margin-left: 0 !important;
   }
   /* Área das parciais: padding menor */
   .setor-parcial-area {

@@ -46,6 +46,7 @@ import IniciarEntregaModal from '@/components/IniciarEntregaModal';
 import DivergenciaResolucaoModal from '@/components/DivergenciaResolucaoModal';
 import AdicionarItemPedidoModal from '@/components/AdicionarItemPedidoModal';
 import RastreioModal from '@/components/RastreioModal';
+import ObservacaoPedidoModal from '@/components/ObservacaoPedidoModal';
 
 // Setores internos da Caldeiraria (Recebimento + etapas próprias) — entre eles
 // o envio manual pode ir pra qualquer um dos outros, mais Qualidade, Acabamento
@@ -2901,6 +2902,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const podeDesfazer = isAdministrador();
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
   const [modalRastreio, setModalRastreio] = useState<{ pedidoId: number; numero: string } | null>(null);
+  const [modalObsPedido, setModalObsPedido] = useState<{ pedidoId: number; numero: string } | null>(null);
   const [entregarPedidoModal, setEntregarPedidoModal] = useState<{ pedidoId: number; numero: string; itens: ItemEntrega[] } | null>(null);
   const [modalImprimir, setModalImprimir] = useState<{ pedidoId: number; numero: string; temDesenho: boolean; temPV: boolean; temOP: boolean } | null>(null);
   const [showNovoChooser, setShowNovoChooser] = useState(false);
@@ -2979,6 +2981,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
       )}
       {modalRastreio && (
         <RastreioModal pedidoId={modalRastreio.pedidoId} numero={modalRastreio.numero} onClose={() => setModalRastreio(null)} />
+      )}
+      {modalObsPedido && (
+        <ObservacaoPedidoModal pedidoId={modalObsPedido.pedidoId} numero={modalObsPedido.numero} editavel={podeEditar()} onClose={() => setModalObsPedido(null)} />
       )}
       {entregarPedidoModal && (
         <EntregarPedidoModal
@@ -3226,6 +3231,12 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             onClick={(e) => { e.stopPropagation(); setModalRastreio({ pedidoId: pedido_id, numero: numero_pedido_venda }); }}
                             style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', borderRadius: 5, padding: '3px 8px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                             <i className="bi bi-eye-fill" />
+                          </button>
+                          <button
+                            title="Observação do pedido"
+                            onClick={(e) => { e.stopPropagation(); setModalObsPedido({ pedidoId: pedido_id, numero: numero_pedido_venda }); }}
+                            style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', borderRadius: 5, padding: '3px 8px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                            <i className="bi bi-chat-left-text" />
                           </button>
                           <button
                             title="Imprimir desenho, OP, PV ou relatório"
