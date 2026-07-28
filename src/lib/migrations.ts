@@ -195,4 +195,21 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   // inativo), mas se acontecer não deve arrastar os filhos junto.
   await sql.unsafe(`ALTER TABLE producao_itempedido ADD COLUMN IF NOT EXISTS item_pai_id INTEGER REFERENCES producao_itempedido(id) ON DELETE SET NULL`).catch(() => {});
   await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_itempedido_pai ON producao_itempedido (item_pai_id)`).catch(() => {});
+
+  // M18: anexos por item (desenho/OP/outro) — usado ao montar a receita de um
+  // item composto: cada componente (ex: flange, tubo) pode ter seu próprio
+  // desenho técnico, cópia da OP ou outro arquivo, diferente do array simples
+  // `desenhos` (só um tipo, sem metadado de quem/quando anexou).
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS producao_item_anexo (
+      id SERIAL PRIMARY KEY,
+      item_pedido_id INTEGER NOT NULL REFERENCES producao_itempedido(id) ON DELETE CASCADE,
+      tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('desenho','op','outro')),
+      nome_arquivo TEXT NOT NULL,
+      storage_path TEXT NOT NULL,
+      criado_por_id INTEGER REFERENCES usuarios_usuario(id) ON DELETE SET NULL,
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `).catch(() => {});
+  await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_item_anexo_item ON producao_item_anexo (item_pedido_id)`).catch(() => {});
 }

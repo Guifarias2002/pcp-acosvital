@@ -315,6 +315,22 @@ export async function getPedidoComItens(id: number, incluirInativos = false) {
     }
   }
 
+  // Anexos por item (desenho/OP/outro) — montados na receita de itens compostos.
+  const anexosPorItem: Record<number, { id: number; tipo: string; nome_arquivo: string; criado_em: string }[]> = {};
+  if (itemIds.length > 0) {
+    const anexoRows = await sql`
+      SELECT id, item_pedido_id, tipo, nome_arquivo, criado_em
+      FROM producao_item_anexo
+      WHERE item_pedido_id = ANY(${itemIds})
+      ORDER BY item_pedido_id, criado_em
+    `.catch(() => [] as Record<string, unknown>[]);
+    for (const a of anexoRows) {
+      const iid = Number(a.item_pedido_id);
+      if (!anexosPorItem[iid]) anexosPorItem[iid] = [];
+      anexosPorItem[iid].push({ id: a.id as number, tipo: a.tipo as string, nome_arquivo: a.nome_arquivo as string, criado_em: a.criado_em as string });
+    }
+  }
+
   const itensComDetalhe = itens.map(i => ({
     ...i,
     lotes: lotes[i.id] || [],
@@ -322,6 +338,7 @@ export async function getPedidoComItens(id: number, incluirInativos = false) {
     parciais_por_setor: parciaisPorSetor[i.id] || [],
     observacoes: observacoes[i.id] || [],
     fotos: fotosPorItem[i.id] || [],
+    anexos: anexosPorItem[i.id] || [],
   }));
 
   return formatPedido(pedRow, itensComDetalhe);

@@ -253,6 +253,7 @@ export interface ItemPedido {
   parciais?: ItemParcial[];
   rastreio?: RastreioItem;
   observacoes?: ItemObservacao[];
+  anexos?: { id: number; tipo: string; nome_arquivo: string; criado_em: string }[];
   tem_pedido_venda?: boolean;
   tem_ordem_producao?: boolean;
   atrasado?: boolean;
