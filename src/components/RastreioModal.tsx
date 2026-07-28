@@ -4,7 +4,7 @@ import { getToken } from '@/lib/auth';
 import { PARCIAL_STATUS_LABELS } from '@/lib/types';
 
 interface ParcelSetor { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean; motivo_retrabalho: string | null; }
-interface ItemRastreio { id: number; codigo: string; descricao: string; quantidade: string; unidade: string; status: string; parciais_por_setor: ParcelSetor[]; quantidade_entregue?: string; }
+interface ItemRastreio { id: number; codigo: string; descricao: string; quantidade: string; unidade: string; status: string; parciais_por_setor: ParcelSetor[]; quantidade_entregue?: string; item_pai_id?: number | null; }
 
 // Mostra onde estão as peças de um pedido (rastreabilidade por setor) — usado tanto
 // na lista de Pedidos quanto em qualquer tela de Setor, sempre buscando os dados
@@ -37,6 +37,7 @@ export default function RastreioModal({ pedidoId, numero, onClose, podeVerComple
           status: i.status,
           quantidade_entregue: i.quantidade_entregue,
           parciais_por_setor: (i as Record<string, unknown>).parciais_por_setor || [],
+          item_pai_id: (i as Record<string, unknown>).item_pai_id as number | null ?? null,
         }));
         setItens(its as ItemRastreio[]);
       })
@@ -80,70 +81,94 @@ export default function RastreioModal({ pedidoId, numero, onClose, podeVerComple
           {loading && (
             <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>Carregando...</div>
           )}
-          {!loading && itens.map(item => {
-            const entregues = Number(item.quantidade_entregue || 0);
-            const temParciais = item.parciais_por_setor && item.parciais_por_setor.length > 0;
-
-            return (
-              <div key={item.id} style={{ border: '1px solid #e2e8f0', borderRadius: 10 }}>
-                {/* Cabeçalho do item */}
-                <div style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', borderTopLeftRadius: 9, borderTopRightRadius: 9, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <span style={{ fontWeight: 700, fontSize: 14, color: '#1a3a5c' }}>{item.codigo}</span>
-                    <span style={{ fontSize: 12, color: '#64748b', marginLeft: 8 }}>{String(item.descricao)}</span>
+          {!loading && (() => {
+            const renderItemCard = (item: ItemRastreio, compacto = false) => {
+              const entregues = Number(item.quantidade_entregue || 0);
+              const temParciais = item.parciais_por_setor && item.parciais_por_setor.length > 0;
+              return (
+                <div key={item.id} style={{ border: '1px solid #e2e8f0', borderRadius: 10 }}>
+                  {/* Cabeçalho do item */}
+                  <div style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', borderTopLeftRadius: 9, borderTopRightRadius: 9, padding: compacto ? '8px 14px' : '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <span style={{ fontWeight: 700, fontSize: compacto ? 13 : 14, color: '#1a3a5c' }}>{item.codigo}</span>
+                      <span style={{ fontSize: 12, color: '#64748b', marginLeft: 8 }}>{String(item.descricao)}</span>
+                    </div>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>{Number(item.quantidade)} {String(item.unidade)} total</span>
                   </div>
-                  <span style={{ fontSize: 12, color: '#64748b' }}>{Number(item.quantidade)} {String(item.unidade)} total</span>
-                </div>
 
-                {/* Parciais por setor */}
-                <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {temParciais ? item.parciais_por_setor.map((p, i) => (
-                    <div key={i} style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      background: p.retrabalho ? '#fffbeb' : STATUS_BG[p.status] || '#f8fafc',
-                      border: `1px solid ${p.retrabalho ? '#fcd34d' : '#e2e8f0'}`,
-                      borderRadius: 8, padding: '12px 14px',
-                    }}>
-                      {/* Quantidade */}
-                      <div style={{ minWidth: 70 }}>
-                        <span style={{ fontSize: 18, fontWeight: 800, color: '#1d4ed8' }}>{Number(p.quantidade)}</span>
-                        <span style={{ fontSize: 12, color: '#64748b', marginLeft: 4 }}>{p.unidade}</span>
-                      </div>
-                      {/* Seta */}
-                      <span style={{ color: '#94a3b8', fontSize: 16 }}>→</span>
-                      {/* Setor + status */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', lineHeight: 1.4 }}>{p.setor_nome}</div>
-                        <div style={{ fontSize: 11, color: STATUS_TXT[p.status] || '#64748b', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 5 }}>
-                          <span style={{ background: STATUS_BG[p.status] || '#f1f5f9', border: `1px solid ${STATUS_TXT[p.status] || '#e2e8f0'}22`, borderRadius: 3, padding: '3px 7px', lineHeight: 1.4, fontWeight: 600, whiteSpace: 'nowrap' }}>
-                            {STATUS_LABEL[p.status] || p.status}
-                          </span>
-                          {p.retrabalho && <span style={{ color: '#b45309', fontWeight: 700, lineHeight: 1.4 }}>⚠ Retrabalho</span>}
-                          {p.retrabalho && p.motivo_retrabalho && <span style={{ color: '#78350f', fontStyle: 'italic', lineHeight: 1.4 }}>"{p.motivo_retrabalho}"</span>}
+                  {/* Parciais por setor */}
+                  <div style={{ padding: compacto ? '10px 14px' : '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {temParciais ? item.parciais_por_setor.map((p, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        background: p.retrabalho ? '#fffbeb' : STATUS_BG[p.status] || '#f8fafc',
+                        border: `1px solid ${p.retrabalho ? '#fcd34d' : '#e2e8f0'}`,
+                        borderRadius: 8, padding: '12px 14px',
+                      }}>
+                        {/* Quantidade */}
+                        <div style={{ minWidth: 70 }}>
+                          <span style={{ fontSize: 18, fontWeight: 800, color: '#1d4ed8' }}>{Number(p.quantidade)}</span>
+                          <span style={{ fontSize: 12, color: '#64748b', marginLeft: 4 }}>{p.unidade}</span>
+                        </div>
+                        {/* Seta */}
+                        <span style={{ color: '#94a3b8', fontSize: 16 }}>→</span>
+                        {/* Setor + status */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', lineHeight: 1.4 }}>{p.setor_nome}</div>
+                          <div style={{ fontSize: 11, color: STATUS_TXT[p.status] || '#64748b', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 5 }}>
+                            <span style={{ background: STATUS_BG[p.status] || '#f1f5f9', border: `1px solid ${STATUS_TXT[p.status] || '#e2e8f0'}22`, borderRadius: 3, padding: '3px 7px', lineHeight: 1.4, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                              {STATUS_LABEL[p.status] || p.status}
+                            </span>
+                            {p.retrabalho && <span style={{ color: '#b45309', fontWeight: 700, lineHeight: 1.4 }}>⚠ Retrabalho</span>}
+                            {p.retrabalho && p.motivo_retrabalho && <span style={{ color: '#78350f', fontStyle: 'italic', lineHeight: 1.4 }}>"{p.motivo_retrabalho}"</span>}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )) : (
-                    <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '8px 0' }}>
-                      Sem lotes ativos — item no fluxo principal
-                    </div>
-                  )}
-                  {entregues > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px' }}>
-                      <div style={{ minWidth: 70 }}>
-                        <span style={{ fontSize: 18, fontWeight: 800, color: '#15803d' }}>{entregues}</span>
-                        <span style={{ fontSize: 12, color: '#64748b', marginLeft: 4 }}>{String(item.unidade)}</span>
+                    )) : (
+                      <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '8px 0' }}>
+                        Sem lotes ativos — item no fluxo principal
                       </div>
-                      <span style={{ color: '#94a3b8', fontSize: 16 }}>→</span>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#15803d' }}>✓ Entregues ao cliente</div>
+                    )}
+                    {entregues > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px' }}>
+                        <div style={{ minWidth: 70 }}>
+                          <span style={{ fontSize: 18, fontWeight: 800, color: '#15803d' }}>{entregues}</span>
+                          <span style={{ fontSize: 12, color: '#64748b', marginLeft: 4 }}>{String(item.unidade)}</span>
+                        </div>
+                        <span style={{ color: '#94a3b8', fontSize: 16 }}>→</span>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#15803d' }}>✓ Entregues ao cliente</div>
+                        </div>
                       </div>
+                    )}
+                  </div>
+                </div>
+              );
+            };
+
+            // Projetos compostos (ex: Tê de Redução): agrupa cada item-raiz com
+            // seus sub-componentes (item_pai_id) logo abaixo, como um projeto só —
+            // em vez de uma lista solta onde as pecas do mesmo produto ficam
+            // misturadas com as de outros itens do pedido.
+            const raiz = itens.filter(i => !i.item_pai_id);
+            const orfaos = itens.filter(i => i.item_pai_id && !raiz.some(r => r.id === i.item_pai_id));
+            return [...raiz, ...orfaos].map(item => {
+              const filhos = itens.filter(i => i.item_pai_id === item.id);
+              return (
+                <div key={item.id}>
+                  {renderItemCard(item)}
+                  {filhos.length > 0 && (
+                    <div style={{ marginTop: 8, marginLeft: 20, paddingLeft: 12, borderLeft: '2px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: '#4338ca', margin: '4px 0 0', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        🧩 Componentes deste projeto
+                      </p>
+                      {filhos.map(f => renderItemCard(f, true))}
                     </div>
                   )}
                 </div>
-              </div>
-            );
-          })}
+              );
+            });
+          })()}
         </div>
       </div>
     </div>
