@@ -31,7 +31,7 @@ function Cronometro({ desde }: { desde: string }) {
   );
 }
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, setPesosPallets, setEmbalagemResumo, inativarItem, editarPedido } from '@/lib/api';
-import { isAdministrador, podeEditar, getToken } from '@/lib/auth';
+import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento } from '@/lib/auth';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
@@ -675,7 +675,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const isLogistica = parcial.setor_atual === 'logistica';
   const isQualidade = parcial.setor_atual === 'qualidade';
   const isRecebido = parcial.status === 'recebido';
-  const podeDesfazer = isAdministrador();
+  const podeDesfazer = podeDesfazerRecebimento();
   // Checklist de processo (Chanfradeira→Qualidade): só ativa se o item tiver
   // tipo de produto classificado — item sem tipo continua igual a hoje, sem
   // nenhum gate, zero regressão pra itens já em andamento ou de Flanges.
@@ -1707,7 +1707,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   const isLogistica = p0.setor_atual === 'logistica';
   const isQualidadeGrupo = p0.setor_atual === 'qualidade';
   const isRecebido = p0.status === 'recebido';
-  const podeDesfazer = isAdministrador();
+  const podeDesfazer = podeDesfazerRecebimento();
   const foraDoRoteiroGrupo = !p0.proximo_setor && !isLogistica;
 
   async function aprovarGrupoQualidade() {
@@ -3024,7 +3024,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const [recebendoTudo, setRecebendoTudo] = useState<Set<number>>(new Set());
   const [enviandoTudo, setEnviandoTudo] = useState<Set<number>>(new Set());
   const [desfazendoTudo, setDesfazendoTudo] = useState<Set<number>>(new Set());
-  const podeDesfazer = isAdministrador();
+  const podeDesfazer = podeDesfazerRecebimento();
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
   const [modalRastreio, setModalRastreio] = useState<{ pedidoId: number; numero: string } | null>(null);
   const [modalObsPedido, setModalObsPedido] = useState<{ pedidoId: number; numero: string } | null>(null);

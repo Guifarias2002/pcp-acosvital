@@ -239,4 +239,11 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
     )
   `).catch(() => {});
   await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_checklist_processo_item ON producao_checklist_processo (item_id)`).catch(() => {});
+
+  // M20: permissão individual pra desfazer recebimento — hoje só quem tem
+  // perfil "administrador" pode; alguns líderes (ex: Gilmar, usinagem)
+  // precisam disso também, sem virar administrador completo (que daria acesso
+  // a financeiro, gestão de usuários, etc). Default false: ninguém ganha a
+  // permissão de graça, precisa ser marcado explicitamente por um admin.
+  await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS pode_desfazer_recebimento BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
 }

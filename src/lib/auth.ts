@@ -19,6 +19,10 @@ export interface JWTPayload {
   // Vendedor com visão de TODOS os pedidos, não só os próprios (conta
   // compartilhada de visualização). Ver `vendedorRestrito` abaixo.
   ve_todos_pedidos?: boolean;
+  // Permissão pontual pra desfazer recebimento sem precisar ser administrador
+  // completo (que também libera financeiro, gestão de usuários, etc). Ver
+  // `podeDesfazerRecebimento` abaixo.
+  pode_desfazer_recebimento?: boolean;
 }
 
 // Um vendedor "restrito" só pode ver/filtrar os próprios pedidos (por nome).
@@ -87,6 +91,14 @@ export function clearToken() {
 export function isAdministrador(u?: JWTPayload | null): boolean {
   const user = u ?? getUser();
   return !!user && (user.perfil === 'administrador' || (user.is_staff && user.perfil !== 'pcp' && user.perfil !== 'lider'));
+}
+
+// Administrador sempre pode; além disso, líderes específicos podem ganhar só
+// essa permissão pontual (marcada no cadastro do usuário), sem precisar virar
+// administrador completo.
+export function podeDesfazerRecebimento(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return isAdministrador(user) || user?.pode_desfazer_recebimento === true;
 }
 
 // Pode editar/agir no sistema? Falso apenas para usuários somente-leitura.

@@ -13,7 +13,7 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
-import { isAdministrador, podeAcessarSetor } from '@/lib/auth';
+import { isAdministrador, podeAcessarSetor, podeDesfazerRecebimento } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
 import { SETOR_CHOICES } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
@@ -700,10 +700,11 @@ async function handlePOST(
 
   // ── desfazer_recebimento ────────────────────────────────────────────────────
   // Reverte uma parcial recebida de volta para "em_aberto" (o botão "Receber
-  // Tudo" volta a aparecer). Ação restrita a administradores.
+  // Tudo" volta a aparecer). Restrita a administradores ou líderes com a
+  // permissão pontual `pode_desfazer_recebimento` marcada no cadastro.
   } else if (acao === 'desfazer_recebimento') {
-    if (!isAdministrador(user))
-      return NextResponse.json({ erro: 'Apenas administradores podem desfazer o recebimento' }, { status: 403 });
+    if (!podeDesfazerRecebimento(user))
+      return NextResponse.json({ erro: 'Você não tem permissão para desfazer o recebimento' }, { status: 403 });
     if (parcial.status !== 'recebido')
       return NextResponse.json({ erro: 'Só é possível desfazer o recebimento de parciais no status "recebido"' }, { status: 400 });
 

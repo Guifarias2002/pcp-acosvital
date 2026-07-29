@@ -41,6 +41,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (typeof body.is_active === 'boolean') campos.is_active = body.is_active;
   if (typeof body.is_staff === 'boolean') campos.is_staff = body.is_staff;
   if (typeof body.somente_leitura === 'boolean') campos.somente_leitura = body.somente_leitura;
+  if (typeof body.pode_desfazer_recebimento === 'boolean') campos.pode_desfazer_recebimento = body.pode_desfazer_recebimento;
 
   // Perfil vendedor: sempre não-staff e sempre somente leitura, independente
   // do que vier no corpo (defesa em profundidade — o front já não manda esses
@@ -81,6 +82,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       }
       if (campos.somente_leitura !== undefined) {
         await tx`UPDATE usuarios_usuario SET somente_leitura = ${campos.somente_leitura as boolean} WHERE id = ${targetId}`;
+      }
+      if (campos.pode_desfazer_recebimento !== undefined) {
+        await tx`UPDATE usuarios_usuario SET pode_desfazer_recebimento = ${campos.pode_desfazer_recebimento as boolean} WHERE id = ${targetId}`;
       }
       if (campos.senha !== undefined) {
         const hashed = await hashPassword(campos.senha as string);

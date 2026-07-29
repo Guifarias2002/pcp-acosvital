@@ -16,6 +16,7 @@ interface Usuario {
   setores: string[];
   setores_nomes: string[];
   somente_leitura: boolean;
+  pode_desfazer_recebimento: boolean;
 }
 
 const PERFIL_BADGE: Record<string, { bg: string; cor: string }> = {
@@ -86,12 +87,12 @@ export default function UsuariosPage() {
   const [copiadoId, setCopiadoId] = useState<number | null>(null);
   const [copiadoLogin, setCopiadoLogin] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] as string[], somente_leitura: false });
+  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] as string[], somente_leitura: false, pode_desfazer_recebimento: false });
   const [salvando, setSalvando] = useState(false);
   const [formMsg, setFormMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   // Edição de usuário existente
   const [editUser, setEditUser] = useState<Usuario | null>(null);
-  const [editForm, setEditForm] = useState({ nome: '', perfil: 'operador', setores: [] as string[], is_active: true, senha: '', somente_leitura: false });
+  const [editForm, setEditForm] = useState({ nome: '', perfil: 'operador', setores: [] as string[], is_active: true, senha: '', somente_leitura: false, pode_desfazer_recebimento: false });
   const [editMsg, setEditMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [editSalvando, setEditSalvando] = useState(false);
   const isAdmin = getUser()?.is_staff;
@@ -140,7 +141,7 @@ export default function UsuariosPage() {
         setFormMsg({ tipo: 'erro', texto: data.erro || 'Erro ao criar usuário.' });
       } else {
         setFormMsg({ tipo: 'ok', texto: 'Usuário criado com sucesso!' });
-        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setores: [], somente_leitura: false });
+        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setores: [], somente_leitura: false, pode_desfazer_recebimento: false });
         setShowForm(false);
         carregarUsuarios();
       }
@@ -160,6 +161,7 @@ export default function UsuariosPage() {
       is_active: u.is_active,
       senha: '',
       somente_leitura: u.somente_leitura || false,
+      pode_desfazer_recebimento: u.pode_desfazer_recebimento || false,
     });
     setEditMsg(null);
   }
@@ -176,6 +178,7 @@ export default function UsuariosPage() {
         setores: editForm.setores,
         is_active: editForm.is_active,
         somente_leitura: editForm.somente_leitura,
+        pode_desfazer_recebimento: editForm.pode_desfazer_recebimento,
       };
       if (editForm.senha) body.senha = editForm.senha;
       const res = await fetch(`/api/usuarios/${editUser.id}`, {
@@ -319,6 +322,18 @@ export default function UsuariosPage() {
                 </div>
               )}
 
+              {form.perfil === 'lider' && (
+                <div style={{ marginBottom: 20, background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 6, padding: '10px 12px' }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={form.pode_desfazer_recebimento} onChange={e => setForm(f => ({ ...f, pode_desfazer_recebimento: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                    <span><i className="bi bi-arrow-counterclockwise" style={{ marginRight: 6 }}></i>Pode desfazer recebimento</span>
+                  </label>
+                  <div style={{ fontSize: 12, color: '#3b5bab', marginTop: 4, paddingLeft: 24 }}>
+                    Permissão pontual, sem virar administrador completo (não libera financeiro nem gestão de usuários).
+                  </div>
+                </div>
+              )}
+
               {formMsg && (
                 <div style={{
                   marginBottom: 14, padding: '8px 12px', borderRadius: 6, fontSize: 13,
@@ -436,6 +451,18 @@ export default function UsuariosPage() {
                   </label>
                   <div style={{ fontSize: 12, color: '#9a7b1a', marginTop: 4, paddingLeft: 24 }}>
                     Vê tudo normalmente, mas não pode fazer nenhuma alteração no sistema.
+                  </div>
+                </div>
+              )}
+
+              {editForm.perfil === 'lider' && (
+                <div style={{ marginBottom: 20, background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 6, padding: '10px 12px' }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={editForm.pode_desfazer_recebimento} onChange={e => setEditForm(f => ({ ...f, pode_desfazer_recebimento: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                    <span><i className="bi bi-arrow-counterclockwise" style={{ marginRight: 6 }}></i>Pode desfazer recebimento</span>
+                  </label>
+                  <div style={{ fontSize: 12, color: '#3b5bab', marginTop: 4, paddingLeft: 24 }}>
+                    Permissão pontual, sem virar administrador completo (não libera financeiro nem gestão de usuários).
                   </div>
                 </div>
               )}
