@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { fmtQtd } from '@/lib/format';
 
 type Decisao = 'iniciar' | 'preparar' | 'divergente';
 type EstadoChecklist = 'confere' | 'nao_confere' | 'na';
@@ -110,13 +111,13 @@ export default function ReceberModal({ quantidade, unidade, setor = 'Setor', ite
                 </div>
               )}
               <div style={{ fontSize: 12, color: '#555', marginTop: 6 }}>
-                <strong style={{ color: '#1a3a5c' }}>{quantidade} {unidade}</strong> disponíveis para recebimento
+                <strong style={{ color: '#1a3a5c' }}>{fmtQtd(quantidade)} {unidade}</strong> disponíveis para recebimento
               </div>
             </div>
           )}
           {!itemCodigo && (
             <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-              <strong style={{ color: '#1a3a5c' }}>{quantidade} {unidade}</strong> disponíveis para recebimento
+              <strong style={{ color: '#1a3a5c' }}>{fmtQtd(quantidade)} {unidade}</strong> disponíveis para recebimento
             </div>
           )}
         </div>
@@ -134,7 +135,7 @@ export default function ReceberModal({ quantidade, unidade, setor = 'Setor', ite
                 <i className="bi bi-check-circle-fill" style={{ fontSize: 18, marginTop: 1, color: modo === 'tudo' ? '#1a3a5c' : '#ccc' }} />
                 <div>
                   <div>Receber tudo</div>
-                  <div style={{ fontSize: 11, fontWeight: 400, opacity: .7 }}>{quantidade} {unidade} completos</div>
+                  <div style={{ fontSize: 11, fontWeight: 400, opacity: .7 }}>{fmtQtd(quantidade)} {unidade} completos</div>
                 </div>
               </button>
               <button
@@ -166,7 +167,7 @@ export default function ReceberModal({ quantidade, unidade, setor = 'Setor', ite
                 {qtdParcial && Number(qtdParcial) > 0 && Number(qtdParcial) < total && (
                   <div style={{ marginTop: 8, background: '#fff3cd', borderRadius: 6, padding: '6px 10px', fontSize: 12, color: '#856404' }}>
                     <i className="bi bi-info-circle" style={{ marginRight: 5 }} />
-                    {Number(total) - Number(qtdParcial)} {unidade} ainda vão chegar depois
+                    {fmtQtd(Number(total) - Number(qtdParcial))} {unidade} ainda vão chegar depois
                   </div>
                 )}
               </div>
@@ -266,7 +267,7 @@ export default function ReceberModal({ quantidade, unidade, setor = 'Setor', ite
           <>
             <div style={{ background: '#f0f4ff', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#1a3a5c', fontWeight: 600 }}>
               <i className="bi bi-check2-circle" style={{ marginRight: 6 }} />
-              Recebendo {modo === 'tudo' ? `${quantidade} ${unidade} (tudo)` : `${qtdParcial} ${unidade} (parcial)`}
+              Recebendo {modo === 'tudo' ? `${fmtQtd(quantidade)} ${unidade} (tudo)` : `${fmtQtd(qtdParcial)} ${unidade} (parcial)`}
             </div>
 
             <div style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 10 }}>

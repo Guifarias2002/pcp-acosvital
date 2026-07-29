@@ -982,6 +982,21 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
         </a>
       )}
 
+      {/* Relatório do checklist de recebimento — já era salvo em parcial.observacao
+          mas ficava invisível (só aparecia enterrado no Histórico do Pedido).
+          Mostra aqui, direto no card, pra quem tá vendo o item já ver o que foi
+          conferido sem precisar ir atrás. */}
+      {parcial.observacao && (
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 10px', marginBottom: 10 }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 4px' }}>
+            <i className="bi bi-clipboard-check" style={{ marginRight: 4 }} />Relatório de recebimento
+          </p>
+          <p style={{ fontSize: 12, color: '#374151', margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+            {parcial.observacao.split(' · ').join('\n')}
+          </p>
+        </div>
+      )}
+
       {/* Ações — escondidas para usuários somente leitura */}
       {podeEditar() && (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
