@@ -68,7 +68,20 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
-  if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+
+  const body = await req.json().catch(() => ({}));
+
+  // Observação do pedido é uma edição leve (só texto) que qualquer usuário com
+  // permissão de editar (não somente-leitura) pode fazer — diferente das
+  // edições estruturais do pedido (itens, dados fiscais, roteiro), que
+  // continuam exigindo is_staff. Sem essa exceção, líderes (is_staff=false)
+  // nunca conseguiam salvar a observação do pedido, mesmo podendo agir
+  // normalmente em tudo mais no setor deles.
+  const somenteObservacao = Object.keys(body).length > 0 && Object.keys(body).every(k => k === 'observacoes');
+  const podeEditarLeve = somenteObservacao && user.somente_leitura !== true;
+  if (!user.is_staff && !podeEditarLeve)
+    return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+
   if (!checkMutationRateLimit(getClientIp(req)))
     return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
   logAcesso(user, req, 'editar_pedido');
@@ -76,8 +89,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const pedidoId = Number(params.id);
   if (!Number.isInteger(pedidoId) || pedidoId <= 0)
     return NextResponse.json({ erro: 'ID invalido' }, { status: 400 });
-
-  const body = await req.json().catch(() => ({}));
 
   const [pedido] = await sql`SELECT id FROM producao_pedido WHERE id = ${pedidoId}`;
   if (!pedido) return NextResponse.json({ erro: 'Pedido nao encontrado' }, { status: 404 });
