@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { editarPedido } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 import { FABRICAS } from '@/lib/types';
@@ -35,6 +35,7 @@ export default function MontarReceitaModal({ pedidoId, itemPaiId, itemPaiCodigo,
   onSucesso: () => void;
 }) {
   const [componentes, setComponentes] = useState<Componente[]>([]);
+  const [carregando, setCarregando] = useState(true);
   const [codigo, setCodigo] = useState('');
   const [descricao, setDescricao] = useState('');
   const [quantidade, setQuantidade] = useState('1');
@@ -43,6 +44,31 @@ export default function MontarReceitaModal({ pedidoId, itemPaiId, itemPaiCodigo,
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
   const [tipoAnexo, setTipoAnexo] = useState<Record<number, string>>({});
+
+  // Busca componentes já montados antes (de uma sessão anterior de "Montar
+  // Receita" neste mesmo item pai) — sem isso, reabrir o modal perdia o que já
+  // tinha sido criado/anexado, obrigando a recomeçar do zero.
+  useEffect(() => {
+    let cancelado = false;
+    setCarregando(true);
+    const token = getToken();
+    fetch(`/api/pedidos/${pedidoId}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (cancelado) return;
+        const existentes: Componente[] = (data.itens || [])
+          .filter((i: { item_pai_id?: number | null }) => i.item_pai_id === itemPaiId)
+          .map((i: { id: number; codigo: string; descricao: string; quantidade: string; unidade: string; fabrica?: string; anexos?: Anexo[] }) => ({
+            id: i.id, codigo: i.codigo, descricao: i.descricao || '',
+            quantidade: i.quantidade, unidade: i.unidade, fabrica: i.fabrica || 'flange',
+            anexos: i.anexos || [],
+          }));
+        setComponentes(existentes);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelado) setCarregando(false); });
+    return () => { cancelado = true; };
+  }, [pedidoId, itemPaiId]);
   const [enviandoAnexo, setEnviandoAnexo] = useState<number | null>(null);
 
   function erroMsg(e: unknown) {
@@ -140,8 +166,11 @@ export default function MontarReceitaModal({ pedidoId, itemPaiId, itemPaiCodigo,
         </div>
 
         <div style={{ overflowY: 'auto', padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* Componentes já criados */}
-          {componentes.map(c => (
+          {carregando && (
+            <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8', fontSize: 13 }}>Carregando componentes já montados...</div>
+          )}
+          {/* Componentes já criados (desta sessão ou de uma anterior) */}
+          {!carregando && componentes.map(c => (
             <div key={c.id} style={{ border: '1px solid #c7d2fe', background: '#eef2ff', borderRadius: 8, padding: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <div>
