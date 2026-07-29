@@ -19,12 +19,13 @@ const SERVICOS = [
 ];
 
 export default function IniciarEntregaModal({ pedidoNumero, itemCodigo, onClose, onConfirm, loading }: Props) {
-  const [tipoEntrega, setTipoEntrega] = useState<'externa' | 'interna'>('externa');
+  const [tipoEntrega, setTipoEntrega] = useState<'externa' | 'interna' | 'retirada'>('externa');
   const [frete, setFrete] = useState<'CIF' | 'FOB' | ''>('');
   const [transportadora, setTransportadora] = useState('');
   const [motorista, setMotorista] = useState('');
   const [servico, setServico] = useState<'beneficiadores' | 'caldeiraria' | ''>('');
   const [obsInterna, setObsInterna] = useState('');
+  const [obsRetirada, setObsRetirada] = useState('');
   const [erro, setErro] = useState('');
 
   function confirmar() {
@@ -35,6 +36,12 @@ export default function IniciarEntregaModal({ pedidoNumero, itemCodigo, onClose,
         transportadora.trim() ? `Transportadora: ${transportadora.trim()}` : '',
         motorista.trim() ? `Motorista: ${motorista.trim()}` : '',
       ].filter(Boolean).join(' | ');
+      onConfirm({ tipo: 'externa', observacao: obs });
+    } else if (tipoEntrega === 'retirada') {
+      // Cliente vem buscar em mãos — sem frete/transportadora. Reaproveita o
+      // mesmo tipo 'externa' (mesmo fluxo: vai direto pra "em andamento" e
+      // depois "Confirmar entrega"/"Não entregue" genéricos, sem despacho/NF).
+      const obs = `Retirada pelo cliente${obsRetirada.trim() ? ` — ${obsRetirada.trim()}` : ''}`;
       onConfirm({ tipo: 'externa', observacao: obs });
     } else {
       if (!servico) { setErro('Selecione para qual serviço vai o material.'); return; }
@@ -80,6 +87,20 @@ export default function IniciarEntregaModal({ pedidoNumero, itemCodigo, onClose,
               </button>
               <button
                 type="button"
+                onClick={() => { setTipoEntrega('retirada'); setErro(''); }}
+                disabled={loading}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                  border: tipoEntrega === 'retirada' ? '2px solid #0d6efd' : '2px solid #d1d5db',
+                  background: tipoEntrega === 'retirada' ? '#0d6efd' : '#fff',
+                  color: tipoEntrega === 'retirada' ? '#fff' : '#374151',
+                  transition: 'all .15s',
+                }}>
+                Retirada pelo Cliente
+                <div style={{ fontSize: 10, fontWeight: 400, opacity: .8, marginTop: 2 }}>Cliente vem buscar</div>
+              </button>
+              <button
+                type="button"
                 onClick={() => { setTipoEntrega('interna'); setErro(''); }}
                 disabled={loading}
                 style={{
@@ -89,13 +110,27 @@ export default function IniciarEntregaModal({ pedidoNumero, itemCodigo, onClose,
                   color: tipoEntrega === 'interna' ? '#fff' : '#374151',
                   transition: 'all .15s',
                 }}>
-                Coleta
+                Serviço Externo
                 <div style={{ fontSize: 10, fontWeight: 400, opacity: .8, marginTop: 2 }}>Beneficiadores ou Caldeiraria</div>
               </button>
             </div>
           </div>
 
-          {tipoEntrega === 'externa' ? (
+          {tipoEntrega === 'retirada' ? (
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
+                Quem vai retirar <span style={{ color: '#9ca3af' }}>(opcional)</span>
+              </label>
+              <input
+                className="form-control"
+                style={{ fontSize: 14, padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 8 }}
+                placeholder="Ex: nome de quem vem buscar"
+                value={obsRetirada}
+                onChange={e => setObsRetirada(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+          ) : tipoEntrega === 'externa' ? (
             <>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
