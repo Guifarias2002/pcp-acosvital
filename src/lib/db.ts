@@ -29,11 +29,18 @@ const sql = global._sql ?? postgres({
     // e travando tudo que vem atrás (visto 2x em produção: fila de ALTER
     // TABLE/SELECT presa atrás de 1-2 conexões zumbis). statement_timeout mata
     // a query (mesmo already-executada, esperando envio) depois de 30s.
-    statement_timeout: 30000,
+    // 25s (não 30s): as rotas mais pesadas têm maxDuration=30 na Vercel — o
+    // Postgres precisa desistir ANTES da função ser cortada à força, senão os
+    // dois disparam quase juntos e a limpeza da conexão fica em corrida.
+    statement_timeout: 25000,
     // lock_timeout separado: se uma query não conseguir o lock que precisa em
     // 10s, falha rápido em vez de ficar na fila — evita o efeito cascata onde
     // dezenas de queries esperam atrás de uma só travada.
     lock_timeout: 10000,
+    // Protege contra transação aberta (BEGIN) que nunca comita nem dá rollback
+    // (ex: função morreu no meio de um sql.begin) — sem isso a transação fica
+    // "idle in transaction" segurando locks indefinidamente.
+    idle_in_transaction_session_timeout: 15000,
   },
 });
 
