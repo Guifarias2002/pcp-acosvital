@@ -32,7 +32,7 @@ function Cronometro({ desde }: { desde: string }) {
 }
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, setPesosPallets, setEmbalagemResumo, inativarItem, editarPedido } from '@/lib/api';
 import { isAdministrador, podeEditar, getToken } from '@/lib/auth';
-import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE } from '@/lib/types';
+import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
@@ -48,6 +48,7 @@ import AdicionarItemPedidoModal from '@/components/AdicionarItemPedidoModal';
 import RastreioModal from '@/components/RastreioModal';
 import ObservacaoPedidoModal from '@/components/ObservacaoPedidoModal';
 import MontarReceitaModal from '@/components/MontarReceitaModal';
+import ChecklistProcessoModal from '@/components/ChecklistProcessoModal';
 
 // Setores internos da Caldeiraria (Recebimento + etapas próprias) — entre eles
 // o envio manual pode ir pra qualquer um dos outros, mais Qualidade, Acabamento
@@ -669,10 +670,24 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [erroObs, setErroObs] = useState<string | null>(null);
   const [showDivModal, setShowDivModal] = useState<'retrabalho' | 'resolver' | 'cancelar_item' | null>(null);
   const [showMontarReceita, setShowMontarReceita] = useState(false);
+  const [showChecklistProcesso, setShowChecklistProcesso] = useState(false);
+  const [acaoPendente, setAcaoPendente] = useState<(() => void) | null>(null);
   const isLogistica = parcial.setor_atual === 'logistica';
   const isQualidade = parcial.setor_atual === 'qualidade';
   const isRecebido = parcial.status === 'recebido';
   const podeDesfazer = isAdministrador();
+  // Checklist de processo (Chanfradeira→Qualidade): só ativa se o item tiver
+  // tipo de produto classificado — item sem tipo continua igual a hoje, sem
+  // nenhum gate, zero regressão pra itens já em andamento ou de Flanges.
+  const precisaChecklistProcesso = !!parcial.item_tipo_produto && SETORES_CHECKLIST_PROCESSO.includes(parcial.setor_atual);
+  function comChecklistSeNecessario(executar: () => void) {
+    if (precisaChecklistProcesso) {
+      setAcaoPendente(() => executar);
+      setShowChecklistProcesso(true);
+    } else {
+      executar();
+    }
+  }
 
   async function aprovarQualidadeParcial() {
     if (loading) return;
@@ -714,6 +729,27 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
       onRefresh();
     }
     catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
+    finally { setLoading(false); }
+  }
+
+  // Classifica (ou reclassifica) o "tipo de produto" de um item já existente,
+  // sem precisar recriar nada — mesmo PATCH usado pra item_pai_id.
+  async function salvarTipoProduto(novoTipo: string) {
+    if (loading) return;
+    setLoading(true);
+    try {
+      await editarPedido(parcial.pedido_id, {
+        itens: [{
+          id: parcial.item_pedido_id,
+          codigo: parcial.item_codigo,
+          descricao: parcial.item_descricao,
+          quantidade: Number(parcial.quantidade_total_item) || Number(parcial.quantidade),
+          unidade: parcial.unidade,
+          tipo_produto: novoTipo,
+        }],
+      });
+      onRefresh();
+    } catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
     finally { setLoading(false); }
   }
 
@@ -1102,11 +1138,11 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
               </button>
             ) : (
               <>
-                <button onClick={() => setConfirm({
+                <button onClick={() => comChecklistSeNecessario(() => setConfirm({
                   titulo: 'Finalizar etapa',
                   mensagem: 'Deseja finalizar o processo neste setor? A parcial ficará disponível para envio ao próximo setor.',
                   acao: () => acao('finalizar'),
-                })} disabled={loading} style={btnStyle('#198754')}>
+                }))} disabled={loading} style={btnStyle('#198754')}>
                   ✓ Finalizar etapa
                 </button>
                 <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
@@ -1295,6 +1331,22 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <i className="bi bi-puzzle" style={{ marginRight: 5 }} />Montar Receita
           </button>
         )}
+
+        {/* Tipo de Produto — admin, em qualquer etapa da Caldeiraria. Classifica
+            (ou reclassifica) um item já existente sem precisar recriar nada;
+            ativa o checklist de processo nas próximas etapas dele. */}
+        {isAdministrador() && (parcial.setor_atual === 'caldeiraria' || SETORES_CHECKLIST_PROCESSO.includes(parcial.setor_atual)) && (
+          <select
+            value={parcial.item_tipo_produto || ''}
+            onChange={e => salvarTipoProduto(e.target.value)}
+            disabled={loading}
+            title="Tipo de produto (ativa o checklist de processo por etapa)"
+            style={{ fontSize: 11, padding: '5px 8px', border: '1px solid #e2e8f0', borderRadius: 6, background: parcial.item_tipo_produto ? '#eef2ff' : '#fff', color: parcial.item_tipo_produto ? '#4338ca' : '#64748b' }}
+          >
+            <option value="">Tipo de produto: não classificado</option>
+            {TIPOS_PRODUTO_CALDEIRARIA.map(t => <option key={t.cod} value={t.cod}>{t.label}</option>)}
+          </select>
+        )}
       </div>
       )}
       {showMontarReceita && (
@@ -1304,6 +1356,20 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           itemPaiCodigo={parcial.item_codigo || ''}
           onClose={() => setShowMontarReceita(false)}
           onSucesso={() => { setShowMontarReceita(false); onRefresh(); }}
+        />
+      )}
+      {showChecklistProcesso && (
+        <ChecklistProcessoModal
+          parcialId={parcial.id as number}
+          setor={parcial.setor_atual}
+          tipoProduto={parcial.item_tipo_produto || null}
+          itemCodigo={parcial.item_codigo || ''}
+          onCancel={() => { setShowChecklistProcesso(false); setAcaoPendente(null); }}
+          onConfirmado={() => {
+            setShowChecklistProcesso(false);
+            acaoPendente?.();
+            setAcaoPendente(null);
+          }}
         />
       )}
 
@@ -1456,13 +1522,13 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
               placeholder={`Máx: ${fmtQtd(parcial.quantidade)}`}
               style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 13, width: 90 }} />
           </div>
-          <button onClick={() => {
+          <button onClick={() => comChecklistSeNecessario(() => {
             const dest = setorDestino || parcial.proximo_setor || '';
             if (!dest) { mostrarErroParcial('Selecione o setor destino'); return; }
             const qtd = Number(qtdEnvio) || Number(parcial.quantidade);
             acao('mover', { setor_destino: dest, quantidade: qtd });
             setShowEnviar(false);
-          }} disabled={loading || (!setorDestino && !parcial.proximo_setor)}
+          })} disabled={loading || (!setorDestino && !parcial.proximo_setor)}
             style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: (loading || (!setorDestino && !parcial.proximo_setor)) ? 'not-allowed' : 'pointer', opacity: (!setorDestino && !parcial.proximo_setor) ? 0.4 : 1 }}>
             Confirmar envio
           </button>

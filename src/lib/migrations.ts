@@ -212,4 +212,31 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
     )
   `).catch(() => {});
   await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_item_anexo_item ON producao_item_anexo (item_pedido_id)`).catch(() => {});
+
+  // M19: checklist de processo por etapa da Caldeiraria, parametrizado por
+  // "tipo de produto" (Vaso de Pressão, Tanque, Skid, etc). tipo_produto fica
+  // NULL pra qualquer item que não seja dessa feature (Flanges, itens antigos)
+  // — o gate de checklist só ativa quando o campo está preenchido, então isso
+  // nunca afeta nada fora da Caldeiraria nem quebra item já em andamento.
+  await sql.unsafe(`ALTER TABLE producao_itempedido ADD COLUMN IF NOT EXISTS tipo_produto VARCHAR(30)`).catch(() => {});
+
+  // producao_checklist_processo: histórico INSERT-ONLY (nunca dá UPDATE) dos
+  // checklists de cada etapa — ao contrário de producao_itemparcial.observacao,
+  // que é sobrescrita a cada "receber" (bug encontrado nesta auditoria: um
+  // segundo checklist apagava o primeiro). Cada submissão vira uma linha nova,
+  // formando a "Ficha de Fabricação" completa do item, etapa por etapa.
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS producao_checklist_processo (
+      id SERIAL PRIMARY KEY,
+      item_id INTEGER NOT NULL REFERENCES producao_itempedido(id) ON DELETE CASCADE,
+      parcial_id INTEGER REFERENCES producao_itemparcial(id) ON DELETE SET NULL,
+      pedido_id INTEGER NOT NULL REFERENCES producao_pedido(id) ON DELETE CASCADE,
+      setor VARCHAR(50) NOT NULL,
+      tipo_produto VARCHAR(30),
+      respostas JSONB NOT NULL,
+      usuario_id INTEGER REFERENCES usuarios_usuario(id) ON DELETE SET NULL,
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `).catch(() => {});
+  await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_checklist_processo_item ON producao_checklist_processo (item_id)`).catch(() => {});
 }

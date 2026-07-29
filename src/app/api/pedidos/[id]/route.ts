@@ -4,7 +4,7 @@ import { autenticar, logAcesso } from '@/lib/middleware';
 import { getPedidoComItens } from '@/lib/queries';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { vendedorRestrito } from '@/lib/auth';
-import { SETOR_CHOICES, FABRICAS } from '@/lib/types';
+import { SETOR_CHOICES, FABRICAS, TIPOS_PRODUTO_CALDEIRARIA } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 // Timeout estendido. Migrado do vercel.json (glob "functions" quebrava o build)
@@ -14,6 +14,7 @@ const PRIORIDADES_VALIDAS = ['baixa', 'normal', 'alta', 'urgente'];
 const UNIDADES_VALIDAS = ['un', 'kg', 'm', 'pc', 'jg', 'cx', 'lt'];
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
 const FABRICAS_VALIDAS = FABRICAS.map(f => f.cod);
+const TIPOS_PRODUTO_VALIDOS = TIPOS_PRODUTO_CALDEIRARIA.map(t => t.cod);
 
 // Normaliza o prazo para ISO (aaaa-mm-dd) antes do cast ::date. Aceita ISO ou
 // pt-BR (dd/mm/aaaa); vazio/formato inválido → null (nunca manda '' nem data
@@ -147,6 +148,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         const unid = UNIDADES_VALIDAS.includes(item.unidade) ? item.unidade : 'un';
         const val = item.valor_unitario != null && item.valor_unitario !== '' ? Number(item.valor_unitario) : null;
         const desc = typeof item.descricao === 'string' ? item.descricao.trim().slice(0, 500) : '';
+        // Tipo de produto (só Caldeiraria) — item sem tipo definido (null) nunca
+        // ativa o gate de checklist de processo, então não sendo enviado não
+        // muda nada do comportamento atual pra itens de Flanges/já existentes.
+        const tipoProduto = TIPOS_PRODUTO_VALIDOS.includes(item.tipo_produto) ? item.tipo_produto : null;
 
         if (item.id) {
           // Atualiza item existente — ajusta quantidade_pendente pelo mesmo delta
@@ -189,6 +194,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
                 valor_unitario     = ${val},
                 roteiro_proprio    = ${rotProprio},
                 fabrica            = COALESCE(${fabrica}, fabrica),
+                tipo_produto       = COALESCE(${tipoProduto}, tipo_produto),
                 atualizado_em      = NOW()
               WHERE id = ${Number(item.id)} AND pedido_id = ${pedidoId}
             `;
@@ -201,6 +207,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
                 quantidade_pendente = ${pendenteAjustada},
                 unidade            = ${unid},
                 valor_unitario     = ${val},
+                tipo_produto       = COALESCE(${tipoProduto}, tipo_produto),
                 atualizado_em      = NOW()
               WHERE id = ${Number(item.id)} AND pedido_id = ${pedidoId}
             `;
@@ -236,10 +243,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           await tx`
             INSERT INTO producao_itempedido
               (pedido_id, codigo, descricao, quantidade, unidade, valor_unitario,
-               roteiro_proprio, fabrica, status, setor_atual, quantidade_pendente, quantidade_entregue, item_pai_id, criado_em, atualizado_em)
+               roteiro_proprio, fabrica, status, setor_atual, quantidade_pendente, quantidade_entregue, item_pai_id, tipo_produto, criado_em, atualizado_em)
             VALUES
               (${pedidoId}, ${cod}, ${desc}, ${qtd}, ${unid}, ${val},
-               ${rotProprio}, ${fabrica}, 'emitido', ${setorAtual}, ${qtd}, 0, ${itemPaiId}, NOW(), NOW())
+               ${rotProprio}, ${fabrica}, 'emitido', ${setorAtual}, ${qtd}, 0, ${itemPaiId}, ${tipoProduto}, NOW(), NOW())
           `;
         }
       }

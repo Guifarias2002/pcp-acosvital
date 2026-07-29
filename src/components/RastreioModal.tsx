@@ -4,7 +4,8 @@ import { getToken } from '@/lib/auth';
 import { PARCIAL_STATUS_LABELS } from '@/lib/types';
 
 interface ParcelSetor { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean; motivo_retrabalho: string | null; }
-interface ItemRastreio { id: number; codigo: string; descricao: string; quantidade: string; unidade: string; status: string; parciais_por_setor: ParcelSetor[]; quantidade_entregue?: string; item_pai_id?: number | null; }
+interface ChecklistProcesso { id: number; setor: string; setor_nome: string; tipo_produto: string | null; respostas: { id: string; label: string; resposta: string; observacao: string }[]; usuario_nome: string; criado_em: string; }
+interface ItemRastreio { id: number; codigo: string; descricao: string; quantidade: string; unidade: string; status: string; parciais_por_setor: ParcelSetor[]; quantidade_entregue?: string; item_pai_id?: number | null; checklists_processo?: ChecklistProcesso[]; }
 
 // Mostra onde estão as peças de um pedido (rastreabilidade por setor) — usado tanto
 // na lista de Pedidos quanto em qualquer tela de Setor, sempre buscando os dados
@@ -38,6 +39,7 @@ export default function RastreioModal({ pedidoId, numero, onClose, podeVerComple
           quantidade_entregue: i.quantidade_entregue,
           parciais_por_setor: (i as Record<string, unknown>).parciais_por_setor || [],
           item_pai_id: (i as Record<string, unknown>).item_pai_id as number | null ?? null,
+          checklists_processo: (i as Record<string, unknown>).checklists_processo as ChecklistProcesso[] || [],
         }));
         setItens(its as ItemRastreio[]);
       })
@@ -138,6 +140,38 @@ export default function RastreioModal({ pedidoId, numero, onClose, podeVerComple
                         <span style={{ color: '#94a3b8', fontSize: 16 }}>→</span>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 700, color: '#15803d' }}>✓ Entregues ao cliente</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Ficha de Fabricação — checklists de processo de cada
+                        etapa da Caldeiraria, em ordem cronológica. Tabela
+                        insert-only: nada aqui é sobrescrito, mesmo que a peça
+                        passe pela mesma etapa mais de uma vez (retrabalho). */}
+                    {item.checklists_processo && item.checklists_processo.length > 0 && (
+                      <div style={{ marginTop: 4 }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, margin: '4px 0 6px' }}>
+                          <i className="bi bi-clipboard-check" style={{ marginRight: 4 }} />Ficha de Fabricação
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {item.checklists_processo.map(c => (
+                            <div key={c.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '8px 10px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: '#1a3a5c' }}>{c.setor_nome}</span>
+                                <span style={{ fontSize: 10, color: '#94a3b8' }}>{c.usuario_nome} · {new Date(c.criado_em).toLocaleString('pt-BR')}</span>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                {c.respostas.map(r => (
+                                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                                    <span style={{ color: '#374151' }}>{r.label}</span>
+                                    <span style={{ fontWeight: 700, color: r.resposta === 'confere' ? '#16a34a' : r.resposta === 'nao_confere' ? '#dc2626' : '#6b7280' }}>
+                                      {r.resposta === 'confere' ? '✓ Confere' : r.resposta === 'nao_confere' ? '✕ Não confere' : '— N/A'}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}

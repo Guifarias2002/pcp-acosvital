@@ -54,7 +54,7 @@ export async function queryItens(pedidoId: number, incluirInativos = false) {
     SELECT
       i.id, i.pedido_id, i.codigo, i.descricao,
       i.quantidade::text, i.unidade,
-      i.roteiro_proprio, i.fabrica, i.setor_atual, i.status, i.item_pai_id,
+      i.roteiro_proprio, i.fabrica, i.setor_atual, i.status, i.item_pai_id, i.tipo_produto,
       i.quantidade_pendente::text,
       i.quantidade_entregue::text,
       i.valor_unitario::text,
@@ -111,6 +111,7 @@ export function formatItem(row: any) {
     roteiro_proprio: row.roteiro_proprio || [],
     fabrica: row.fabrica || 'flange',
     item_pai_id: row.item_pai_id || null,
+    tipo_produto: row.tipo_produto || null,
     roteiro_efetivo: roteiro,
     setor_atual: row.setor_atual,
     nome_setor_atual: nomeSector(row.setor_atual),
@@ -331,6 +332,32 @@ export async function getPedidoComItens(id: number, incluirInativos = false) {
     }
   }
 
+  // Ficha de Fabricação: checklists de processo por etapa da Caldeiraria,
+  // acumulados em ordem cronológica (tabela insert-only, nunca sobrescreve).
+  const checklistsPorItem: Record<number, { id: number; setor: string; setor_nome: string; tipo_produto: string | null; respostas: { id: string; label: string; resposta: string; observacao: string }[]; usuario_nome: string; criado_em: string }[]> = {};
+  if (itemIds.length > 0) {
+    const checklistRows = await sql`
+      SELECT c.*, u.nome AS usuario_nome
+      FROM producao_checklist_processo c
+      LEFT JOIN usuarios_usuario u ON u.id = c.usuario_id
+      WHERE c.item_id = ANY(${itemIds})
+      ORDER BY c.criado_em ASC
+    `.catch(() => [] as Record<string, unknown>[]);
+    for (const c of checklistRows) {
+      const iid = Number(c.item_id);
+      if (!checklistsPorItem[iid]) checklistsPorItem[iid] = [];
+      checklistsPorItem[iid].push({
+        id: c.id as number,
+        setor: c.setor as string,
+        setor_nome: nomeSector(c.setor as string),
+        tipo_produto: (c.tipo_produto as string) || null,
+        respostas: (c.respostas as { id: string; label: string; resposta: string; observacao: string }[]) || [],
+        usuario_nome: (c.usuario_nome as string) || 'Sistema',
+        criado_em: c.criado_em as string,
+      });
+    }
+  }
+
   const itensComDetalhe = itens.map(i => ({
     ...i,
     lotes: lotes[i.id] || [],
@@ -339,6 +366,7 @@ export async function getPedidoComItens(id: number, incluirInativos = false) {
     observacoes: observacoes[i.id] || [],
     fotos: fotosPorItem[i.id] || [],
     anexos: anexosPorItem[i.id] || [],
+    checklists_processo: checklistsPorItem[i.id] || [],
   }));
 
   return formatPedido(pedRow, itensComDetalhe);

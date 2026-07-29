@@ -4,8 +4,9 @@ import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 
 import { criarPedido } from '@/lib/api';
+import { TIPOS_PRODUTO_CALDEIRARIA } from '@/lib/types';
 
-interface ItemForm { codigo: string; descricao: string; quantidade: string; unidade: string; valor_unitario: string; }
+interface ItemForm { codigo: string; descricao: string; quantidade: string; unidade: string; valor_unitario: string; tipo_produto: string; }
 
 const UNIDADES = ['un', 'kg', 'm', 'pc', 'jg', 'cx', 'lt'];
 
@@ -48,10 +49,10 @@ export default function NovoPedidoCaldeirariaPage() {
   const [prazo, setPrazo] = useState('');
   const [prioridade, setPrioridade] = useState('normal');
   const [obs, setObs] = useState('');
-  const [itens, setItens] = useState<ItemForm[]>([{ codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '' }]);
+  const [itens, setItens] = useState<ItemForm[]>([{ codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', tipo_produto: '' }]);
 
   function addItem() {
-    setItens(prev => [...prev, { codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '' }]);
+    setItens(prev => [...prev, { codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', tipo_produto: '' }]);
   }
   function remItem(i: number) {
     setItens(prev => prev.filter((_, idx) => idx !== i));
@@ -267,6 +268,13 @@ export default function NovoPedidoCaldeirariaPage() {
                         <input value={item.valor_unitario} onChange={e => setItemField(i, 'valor_unitario', e.target.value)}
                           placeholder="0,00" className={inputCls} />
                       </div>
+                    </div>
+                    <div style={{ marginTop: 8 }}>
+                      <label className={labelCls}>Tipo de Produto <span style={{ fontWeight: 400, textTransform: 'none' }}>(opcional — ativa o checklist de processo por etapa)</span></label>
+                      <select value={item.tipo_produto} onChange={e => setItemField(i, 'tipo_produto', e.target.value)} className={inputCls}>
+                        <option value="">— Não classificado —</option>
+                        {TIPOS_PRODUTO_CALDEIRARIA.map(t => <option key={t.cod} value={t.cod}>{t.label}</option>)}
+                      </select>
                     </div>
                   </div>
                 );

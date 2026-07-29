@@ -81,6 +81,80 @@ export const SETORES_CALDEIRARIA_KANBAN = ['caldeiraria', 'chanfradeira', 'calan
 // alimentar qualquer uma das duas fábricas. Ver os botões na tela de setor.
 export const SETORES_CORTE = ['maçarico', 'plasma', 'laser', 'serra'];
 
+// ── Checklist de processo por etapa da Caldeiraria (29/07) ──────────────────
+// Baseado no processo real da Acosvital (site institucional: fornecedor
+// certificado ISO 9001 / CRC Petrobrás e YPFB — cliente óleo e gás exige
+// rastreabilidade forte). Cada item que entra na Caldeiraria pode receber um
+// "tipo de produto"; isso decide qual checklist aparece em cada etapa. Item
+// sem tipo definido (null) nunca ativa o gate — comportamento de hoje intacto.
+export const TIPOS_PRODUTO_CALDEIRARIA: { cod: string; label: string }[] = [
+  { cod: 'tubo_calandrado', label: 'Tubo/Conexão Calandrado' },
+  { cod: 'peca_personalizada', label: 'Peça Personalizada' },
+  { cod: 'skid', label: 'Skid' },
+  { cod: 'vaso_pressao', label: 'Vaso de Pressão' },
+  { cod: 'tanque_processo', label: 'Tanque de Processo' },
+];
+
+// Etapas da Caldeiraria que exigem checklist de processo. Separada de
+// SETORES_CALDEIRARIA_INTERNOS de propósito — aquela constante já é usada em
+// outros lugares (menu, kanban) e não deve ganhar efeito colateral novo.
+export const SETORES_CHECKLIST_PROCESSO = ['chanfradeira', 'calandra', 'montagem', 'solda', 'acabamento', 'pintura', 'liberado', 'qualidade'];
+
+export interface ChecklistItemDef { id: string; label: string; }
+
+// Pontos de controle base por etapa — mesmos pra qualquer tipo de produto.
+const CHECKLISTS_ETAPA_BASE: Record<string, ChecklistItemDef[]> = {
+  chanfradeira: [
+    { id: 'angulo_chanfro', label: 'Ângulo/abertura de raiz do bisel conforme espessura' },
+  ],
+  calandra: [
+    { id: 'raio_curvatura', label: 'Raio de curvatura dentro da tolerância (gabarito)' },
+  ],
+  montagem: [
+    { id: 'esquadro', label: 'Esquadro/alinhamento de eixo' },
+    { id: 'gap_pecas', label: 'Gap entre peças / ponteamento' },
+  ],
+  solda: [
+    { id: 'cordao', label: 'Cordão sem mordedura/trinca visível' },
+    { id: 'escoria', label: 'Escória removida' },
+    { id: 'consumivel', label: 'Consumível rastreável registrado' },
+  ],
+  acabamento: [
+    { id: 'esmerilhamento', label: 'Esmerilhamento / acerto dimensional final' },
+  ],
+  pintura: [
+    { id: 'preparacao_superficie', label: 'Preparação de superfície' },
+    { id: 'espessura_pelicula', label: 'Espessura de película conforme especificação' },
+  ],
+  liberado: [
+    { id: 'conferencia_final', label: 'Todos os itens anteriores conferidos' },
+  ],
+  qualidade: [
+    { id: 'dimensional', label: 'Inspeção dimensional/visual' },
+  ],
+};
+
+// Pontos extras só pra produtos críticos (Vaso de Pressão / Tanque de
+// Processo) — reflete o que a empresa já divulga como processo real: normas
+// AWS/ASME, Ensaios Não Destrutivos (Líquido Penetrante, Ultrassom, Radiografia).
+const CHECKLISTS_CRITICOS_EXTRA: Record<string, ChecklistItemDef[]> = {
+  solda: [
+    { id: 'soldador_qualificado', label: 'Soldador qualificado (AWS/ASME)' },
+    { id: 'end_previsto', label: 'Ensaio Não Destrutivo previsto pro projeto' },
+  ],
+  qualidade: [
+    { id: 'end_executado', label: 'Ensaio Não Destrutivo executado (LP/UT/RX)' },
+  ],
+};
+
+const TIPOS_CRITICOS = ['vaso_pressao', 'tanque_processo'];
+
+export function getChecklistEtapa(setor: string, tipoProduto: string | null | undefined): ChecklistItemDef[] {
+  const base = CHECKLISTS_ETAPA_BASE[setor] || [];
+  const extra = (tipoProduto && TIPOS_CRITICOS.includes(tipoProduto)) ? (CHECKLISTS_CRITICOS_EXTRA[setor] || []) : [];
+  return [...base, ...extra];
+}
+
 // Ordem real do roteiro de produção — usada pra ordenar as colunas dos Kanbans
 // (sistema e TV), em vez da ordem do SETOR_CHOICES. Setor fora desta lista
 // (ex: emissão, recebimento, compras) vai pro fim, sem sumir. Fonte única:
@@ -238,6 +312,8 @@ export interface ItemPedido {
   roteiro_efetivo: string[];
   fabrica?: string;
   item_pai_id?: number | null;
+  tipo_produto?: string | null;
+  checklists_processo?: { id: number; setor: string; setor_nome: string; tipo_produto: string | null; respostas: { id: string; label: string; resposta: string; observacao: string }[]; usuario_nome: string; criado_em: string }[];
   setor_atual: string;
   nome_setor_atual: string;
   status: string;
@@ -377,6 +453,7 @@ export interface ItemParcial {
   item_pai_id?: number | null;
   item_pai_codigo?: string | null;
   componentes?: { id: number; codigo: string; setor_atual: string; setor_nome: string; status: string }[];
+  item_tipo_produto?: string | null;
 }
 
 export interface ResumoItemParcial {
