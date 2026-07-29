@@ -21,6 +21,20 @@ const sql = global._sql ?? postgres({
   connect_timeout: 5,       // 5s — falha rápido para o Vercel poder retornar erro antes de timeout
   max_lifetime: 60 * 10,    // recicla conexões a cada 10 min — evita conexões mortas
   prepare: false,           // obrigatório no transaction mode pooler
+  connection: {
+    // Sem isso, uma função serverless que morre/timeout no meio de uma query
+    // (comum na Vercel) deixa a conexão presa esperando o cliente ler o
+    // resultado (estado ClientRead) — o Postgres nunca soube que ninguém mais
+    // vai ler, e sem timeout de sessão fica assim por minutos, segurando lock
+    // e travando tudo que vem atrás (visto 2x em produção: fila de ALTER
+    // TABLE/SELECT presa atrás de 1-2 conexões zumbis). statement_timeout mata
+    // a query (mesmo already-executada, esperando envio) depois de 30s.
+    statement_timeout: 30000,
+    // lock_timeout separado: se uma query não conseguir o lock que precisa em
+    // 10s, falha rápido em vez de ficar na fila — evita o efeito cascata onde
+    // dezenas de queries esperam atrás de uma só travada.
+    lock_timeout: 10000,
+  },
 });
 
 global._sql = sql;
