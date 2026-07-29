@@ -52,20 +52,24 @@ export default function ReceberModal({ quantidade, unidade, setor = 'Setor', ite
     setStep(mostrarChecklist ? 'checklist' : 'decisao');
   }
 
+  const LABEL_CHECKLIST: Record<EstadoChecklist, string> = { confere: 'Confere', nao_confere: 'Não confere', na: 'Não se aplica' };
+
   function confirmarChecklist() {
     const comObs = (c: { id: string; label: string }) => {
       const obs = obsChecklist[c.id]?.trim();
-      return obs ? `${c.label} (${obs})` : c.label;
+      const resposta = `${c.label}: ${LABEL_CHECKLIST[checklist[c.id]]}`;
+      return obs ? `${resposta} (${obs})` : resposta;
     };
+    // Registra o relatório completo do checklist sempre — mesmo quando tudo
+    // "Confere" — pra ficar visível no Histórico do Pedido depois, não só
+    // quando há falha ou alguma observação extra.
+    const relatorio = `Checklist do recebimento: ${CHECKLIST_RECEBIMENTO_CALDEIRARIA.map(comObs).join(' · ')}.`;
     const falhas = CHECKLIST_RECEBIMENTO_CALDEIRARIA.filter(c => checklist[c.id] === 'nao_confere');
     if (falhas.length > 0) {
-      setObsDiv(`Não conferiu no recebimento: ${falhas.map(comObs).join(', ')}.`);
+      setObsDiv(`${relatorio} Não conferiu: ${falhas.map(c => c.label).join(', ')}.`);
       setStep('divergente');
     } else {
-      const notas = CHECKLIST_RECEBIMENTO_CALDEIRARIA.filter(c => obsChecklist[c.id]?.trim());
-      if (notas.length > 0) {
-        setObsDiv(`Checklist do recebimento: ${notas.map(comObs).join(', ')}.`);
-      }
+      setObsDiv(relatorio);
       setStep('decisao');
     }
   }
@@ -218,6 +222,30 @@ export default function ReceberModal({ quantidade, unidade, setor = 'Setor', ite
                 );
               })}
             </div>
+
+            {/* Relatório ao vivo — vai se preenchendo conforme cada item é
+                selecionado, pra quem está recebendo ver na hora o que já
+                confirmou, sem precisar esperar terminar tudo. */}
+            {Object.keys(checklist).length > 0 && (() => {
+              const CORES: Record<EstadoChecklist, string> = { confere: '#16a34a', nao_confere: '#dc2626', na: '#6b7280' };
+              const LABELS: Record<EstadoChecklist, string> = { confere: '✓ Confere', nao_confere: '✕ Não confere', na: '— Não se aplica' };
+              return (
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 8px' }}>
+                    Relatório de conferência
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {CHECKLIST_RECEBIMENTO_CALDEIRARIA.filter(c => checklist[c.id]).map(c => (
+                      <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                        <span style={{ color: '#374151' }}>{c.label}</span>
+                        <span style={{ fontWeight: 700, color: CORES[checklist[c.id]] }}>{LABELS[checklist[c.id]]}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={onCancel} disabled={loading}
                 style={{ flex: 1, background: '#f3f4f6', color: '#555', border: 'none', borderRadius: 8, padding: '11px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
