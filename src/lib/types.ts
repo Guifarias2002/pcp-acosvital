@@ -374,6 +374,9 @@ export interface ItemParcial {
   origem_devolvido_de?: string | null;
   outras_parciais?: { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean }[];
   observacoes?: ItemObservacao[];
+  item_pai_id?: number | null;
+  item_pai_codigo?: string | null;
+  componentes?: { id: number; codigo: string; setor_atual: string; setor_nome: string; status: string }[];
 }
 
 export interface ResumoItemParcial {

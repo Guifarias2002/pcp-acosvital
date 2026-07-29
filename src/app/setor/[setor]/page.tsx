@@ -831,6 +831,23 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <i className="bi bi-eye" />
           </Link>
         </div>
+        {/* Aviso de projeto/receita — avisa que essa peça faz parte de algo
+            maior com componentes em outros setores, sem precisar clicar no
+            olho de rastreabilidade pra descobrir. */}
+        {parcial.item_pai_codigo && (
+          <div style={{ marginTop: 6, fontSize: 11, color: '#4338ca', background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 5, padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            🧩 Componente de <strong>{parcial.item_pai_codigo}</strong> — outras peças desse projeto podem estar em outros setores
+          </div>
+        )}
+        {parcial.componentes && parcial.componentes.length > 0 && (() => {
+          const outrosSetores = parcial.componentes!.filter(c => c.setor_atual !== setor);
+          if (outrosSetores.length === 0) return null;
+          return (
+            <div style={{ marginTop: 6, fontSize: 11, color: '#4338ca', background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 5, padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              🧩 Projeto com {parcial.componentes!.length} componente{parcial.componentes!.length > 1 ? 's' : ''} — {outrosSetores.length} em outro{outrosSetores.length > 1 ? 's' : ''} setor{outrosSetores.length > 1 ? 'es' : ''} ({outrosSetores.map(c => c.setor_nome).join(', ')})
+            </div>
+          );
+        })()}
       </div>}
 
       {/* Quando hideHeader, mostrar linha compacta de identificação */}
