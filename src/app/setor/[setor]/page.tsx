@@ -51,15 +51,15 @@ import MontarReceitaModal from '@/components/MontarReceitaModal';
 import ChecklistProcessoModal from '@/components/ChecklistProcessoModal';
 
 // Setores internos da Caldeiraria (Recebimento + etapas próprias) — entre eles
-// o envio manual pode ir pra qualquer um dos outros, mais Qualidade, Acabamento
-// e Logística (nunca pros setores do Flange, que não fazem sentido como
-// destino daqui).
+// o envio manual pode ir pra qualquer um dos outros, mais Qualidade, Acabamento,
+// Logística e Usinagem (pedidos mistos Flange+Caldeiraria às vezes chegam na
+// Caldeiraria por engano e precisam voltar pra Usinagem).
 const SETORES_CALDEIRARIA_INTERNOS = ['caldeiraria', 'chanfradeira', 'calandra', 'montagem', 'solda', 'liberado', 'pintura'];
 
 function destinosEnvio(setorAtual: string): [string, string][] {
   if (SETORES_CALDEIRARIA_INTERNOS.includes(setorAtual)) {
     return SETOR_CHOICES.filter(([cod]) =>
-      cod !== setorAtual && (SETORES_CALDEIRARIA_INTERNOS.includes(cod) || cod === 'qualidade' || cod === 'acabamento' || cod === 'logistica'));
+      cod !== setorAtual && (SETORES_CALDEIRARIA_INTERNOS.includes(cod) || cod === 'qualidade' || cod === 'acabamento' || cod === 'logistica' || cod === 'usinagem'));
   }
   return SETOR_CHOICES.filter(([cod]) => cod !== setorAtual);
 }
