@@ -5,7 +5,7 @@ import { PARCIAL_STATUS_LABELS } from '@/lib/types';
 
 interface ParcelSetor { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean; motivo_retrabalho: string | null; }
 interface ChecklistProcesso { id: number; setor: string; setor_nome: string; tipo_produto: string | null; respostas: { id: string; label: string; resposta: string; observacao: string }[]; usuario_nome: string; criado_em: string; }
-interface ItemRastreio { id: number; codigo: string; descricao: string; quantidade: string; unidade: string; status: string; parciais_por_setor: ParcelSetor[]; quantidade_entregue?: string; item_pai_id?: number | null; checklists_processo?: ChecklistProcesso[]; }
+interface ItemRastreio { id: number; codigo: string; descricao: string; quantidade: string; unidade: string; status: string; parciais_por_setor: ParcelSetor[]; quantidade_entregue?: string; item_pai_id?: number | null; checklists_processo?: ChecklistProcesso[]; inativo?: boolean; motivo_inativacao?: string | null; }
 
 // Mostra onde estão as peças de um pedido (rastreabilidade por setor) — usado tanto
 // na lista de Pedidos quanto em qualquer tela de Setor, sempre buscando os dados
@@ -40,6 +40,8 @@ export default function RastreioModal({ pedidoId, numero, onClose, podeVerComple
           parciais_por_setor: (i as Record<string, unknown>).parciais_por_setor || [],
           item_pai_id: (i as Record<string, unknown>).item_pai_id as number | null ?? null,
           checklists_processo: (i as Record<string, unknown>).checklists_processo as ChecklistProcesso[] || [],
+          inativo: Boolean((i as Record<string, unknown>).inativo),
+          motivo_inativacao: (i as Record<string, unknown>).motivo_inativacao as string | null ?? null,
         }));
         setItens(its as ItemRastreio[]);
       })
@@ -88,12 +90,17 @@ export default function RastreioModal({ pedidoId, numero, onClose, podeVerComple
               const entregues = Number(item.quantidade_entregue || 0);
               const temParciais = item.parciais_por_setor && item.parciais_por_setor.length > 0;
               return (
-                <div key={item.id} style={{ border: '1px solid #e2e8f0', borderRadius: 10 }}>
+                <div key={item.id} style={{ border: '1px solid #e2e8f0', borderRadius: 10, opacity: item.inativo ? 0.6 : 1 }}>
                   {/* Cabeçalho do item */}
-                  <div style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', borderTopLeftRadius: 9, borderTopRightRadius: 9, padding: compacto ? '8px 14px' : '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ background: item.inativo ? '#f1f5f9' : '#f8fafc', borderBottom: '1px solid #e2e8f0', borderTopLeftRadius: 9, borderTopRightRadius: 9, padding: compacto ? '8px 14px' : '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
                       <span style={{ fontWeight: 700, fontSize: compacto ? 13 : 14, color: '#1a3a5c' }}>{item.codigo}</span>
                       <span style={{ fontSize: 12, color: '#64748b', marginLeft: 8 }}>{String(item.descricao)}</span>
+                      {item.inativo && (
+                        <span title={item.motivo_inativacao || undefined} style={{ fontSize: 10, fontWeight: 700, color: '#475569', background: '#e2e8f0', borderRadius: 4, padding: '2px 6px', marginLeft: 8 }}>
+                          <i className="bi bi-eye-slash" style={{ marginRight: 3 }} />Inativado
+                        </span>
+                      )}
                     </div>
                     <span style={{ fontSize: 12, color: '#64748b' }}>{Number(item.quantidade)} {String(item.unidade)} total</span>
                   </div>
