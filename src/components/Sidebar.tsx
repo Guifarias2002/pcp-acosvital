@@ -58,12 +58,33 @@ function NavItem({ href, label, icon, onNav }: { href: string; label: string; ic
 
 function NavGroup({ label, defaultOpen = true, alwaysOpen = false, children }: { label: string; defaultOpen?: boolean; alwaysOpen?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(defaultOpen);
+  // Cada página tem seu próprio AuthGuard/Sidebar (não existe layout
+  // persistente), então o menu inteiro remonta a cada navegação — sem
+  // isso, fechar uma seção e clicar num link dentro dela reabria tudo de
+  // novo, porque o useState acima voltava pro defaultOpen.
+  const storageKey = `sidebar_group_open:${label}`;
+  useEffect(() => {
+    if (alwaysOpen) return;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved !== null) setOpen(saved === '1');
+    } catch { /* localStorage indisponível (ex: modo privado) */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const isOpen = alwaysOpen || open;
+  const toggle = () => {
+    if (alwaysOpen) return;
+    setOpen(v => {
+      const next = !v;
+      try { localStorage.setItem(storageKey, next ? '1' : '0'); } catch { /* localStorage indisponível */ }
+      return next;
+    });
+  };
   return (
     <>
       <button
         className="sec sec-toggle"
-        onClick={() => { if (!alwaysOpen) setOpen(v => !v); }}
+        onClick={toggle}
         aria-expanded={isOpen}
         style={{ cursor: alwaysOpen ? 'default' : 'pointer' }}
       >
