@@ -656,6 +656,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [showReceberModal, setShowReceberModal] = useState(false);
   const [qtdEnvio, setQtdEnvio] = useState('');
   const [setorDestino, setSetorDestino] = useState('');
+  const [obsEnvio, setObsEnvio] = useState('');
   const [setorDev, setSetorDev] = useState('');
   const [setorRetrabalho, setSetorRetrabalho] = useState('');
   const [motivoDiv, setMotivoDiv] = useState('');
@@ -1480,15 +1481,15 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button onClick={() => {
                   if (!parcial.proximo_setor) { mostrarErroParcial('Este item não tem próximo setor no roteiro do Flange. Use "outro setor" abaixo.'); return; }
-                  acao('mover', { setor_destino: parcial.proximo_setor, quantidade: Number(qtdEnvio) || Number(parcial.quantidade) });
-                  setShowEnviar(false);
+                  acao('mover', { setor_destino: parcial.proximo_setor, quantidade: Number(qtdEnvio) || Number(parcial.quantidade), ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
+                  setShowEnviar(false); setObsEnvio('');
                 }} disabled={loading || !parcial.proximo_setor}
                   style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: (loading || !parcial.proximo_setor) ? 'not-allowed' : 'pointer', opacity: !parcial.proximo_setor ? 0.5 : 1 }}>
                   <i className="bi bi-nut" style={{ marginRight: 5 }} />Flanges{parcial.proximo_setor ? ` → ${NOMES[parcial.proximo_setor] || parcial.proximo_setor}` : ''}
                 </button>
                 <button onClick={() => {
-                  acao('mover', { setor_destino: 'caldeiraria', quantidade: Number(qtdEnvio) || Number(parcial.quantidade) });
-                  setShowEnviar(false);
+                  acao('mover', { setor_destino: 'caldeiraria', quantidade: Number(qtdEnvio) || Number(parcial.quantidade), ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
+                  setShowEnviar(false); setObsEnvio('');
                 }} disabled={loading}
                   style={{ background: '#b45309', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
                   <i className="bi bi-hammer" style={{ marginRight: 5 }} />Caldeiraria → Recebimento
@@ -1522,12 +1523,22 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
               placeholder={`Máx: ${fmtQtd(parcial.quantidade)}`}
               style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 13, width: 90 }} />
           </div>
+          {/* Observação livre no envio — controle do que sai de Mogi (Flange) pra
+              Arujá (Caldeiraria), hoje sem rastreio formal em Acabamento/Embalagem. */}
+          {['acabamento', 'embalagem'].includes(parcial.setor_atual) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+              <label style={{ fontSize: 11, color: '#555' }}>Observação (opcional):</label>
+              <input type="text" value={obsEnvio} onChange={e => setObsEnvio(e.target.value)}
+                placeholder="Ex.: enviado para Arujá, lote X..."
+                style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12, width: '100%', boxSizing: 'border-box' }} />
+            </div>
+          )}
           <button onClick={() => comChecklistSeNecessario(() => {
             const dest = setorDestino || parcial.proximo_setor || '';
             if (!dest) { mostrarErroParcial('Selecione o setor destino'); return; }
             const qtd = Number(qtdEnvio) || Number(parcial.quantidade);
-            acao('mover', { setor_destino: dest, quantidade: qtd });
-            setShowEnviar(false);
+            acao('mover', { setor_destino: dest, quantidade: qtd, ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
+            setShowEnviar(false); setObsEnvio('');
           })} disabled={loading || (!setorDestino && !parcial.proximo_setor)}
             style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: (loading || (!setorDestino && !parcial.proximo_setor)) ? 'not-allowed' : 'pointer', opacity: (!setorDestino && !parcial.proximo_setor) ? 0.4 : 1 }}>
             Confirmar envio
@@ -1650,6 +1661,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   const [qtdParcial, setQtdParcial] = useState('');
   const [showDevolver, setShowDevolver] = useState(false);
   const [setorDestino, setSetorDestino] = useState('');
+  const [obsEnvio, setObsEnvio] = useState('');
   const [setorDev, setSetorDev] = useState('');
   const [setorRetrabalhoGrupo, setSetorRetrabalhoGrupo] = useState('');
   const [motivoDivGrupo, setMotivoDivGrupo] = useState('');
@@ -2213,15 +2225,15 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button onClick={() => {
                   if (!p0.proximo_setor) { mostrarErroGrupo('Este item não tem próximo setor no roteiro do Flange. Use "outro setor" abaixo.'); return; }
-                  acaoTodos('mover', { setor_destino: p0.proximo_setor });
-                  setShowEnviar(false);
+                  acaoTodos('mover', { setor_destino: p0.proximo_setor, ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
+                  setShowEnviar(false); setObsEnvio('');
                 }} disabled={loading || !p0.proximo_setor}
                   style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: (loading || !p0.proximo_setor) ? 'not-allowed' : 'pointer', opacity: !p0.proximo_setor ? 0.5 : 1 }}>
                   <i className="bi bi-nut" style={{ marginRight: 5 }} />Flanges{p0.proximo_setor ? ` → ${NOMES[p0.proximo_setor] || p0.proximo_setor}` : ''}
                 </button>
                 <button onClick={() => {
-                  acaoTodos('mover', { setor_destino: 'caldeiraria' });
-                  setShowEnviar(false);
+                  acaoTodos('mover', { setor_destino: 'caldeiraria', ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
+                  setShowEnviar(false); setObsEnvio('');
                 }} disabled={loading}
                   style={{ background: '#b45309', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
                   <i className="bi bi-hammer" style={{ marginRight: 5 }} />Caldeiraria → Recebimento
@@ -2242,13 +2254,23 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
               ))}
             </select>
           </div>
+          {/* Observação livre no envio — controle do que sai de Mogi (Flange) pra
+              Arujá (Caldeiraria), hoje sem rastreio formal em Acabamento/Embalagem. */}
+          {['acabamento', 'embalagem'].includes(p0.setor_atual) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+              <label style={{ fontSize: 11, color: '#555' }}>Observação (opcional):</label>
+              <input type="text" value={obsEnvio} onChange={e => setObsEnvio(e.target.value)}
+                placeholder="Ex.: enviado para Arujá, lote X..."
+                style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12, width: '100%', boxSizing: 'border-box' }} />
+            </div>
+          )}
           <button onClick={() => {
             const dest = setorDestino || p0.proximo_setor || '';
             if (!dest) { mostrarErroGrupo('Selecione o setor destino'); return; }
             // Sem quantidade explicita: cada parcial usa sua propria quantidade total
             // (o grupo pode ter parciais com quantidades diferentes, ex. apos uma divisao).
-            acaoTodos('mover', { setor_destino: dest });
-            setShowEnviar(false);
+            acaoTodos('mover', { setor_destino: dest, ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
+            setShowEnviar(false); setObsEnvio('');
           }} disabled={loading || (!setorDestino && !p0.proximo_setor)}
             style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: (loading || (!setorDestino && !p0.proximo_setor)) ? 'not-allowed' : 'pointer', opacity: (!setorDestino && !p0.proximo_setor) ? 0.4 : 1 }}>
             Confirmar envio
@@ -2284,6 +2306,14 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
               placeholder={String(totalQtd)} min={1} max={totalQtd}
               style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 13, width: 90 }} />
           </div>
+          {['acabamento', 'embalagem'].includes(p0.setor_atual) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+              <label style={{ fontSize: 11, color: '#555' }}>Observação (opcional):</label>
+              <input type="text" value={obsEnvio} onChange={e => setObsEnvio(e.target.value)}
+                placeholder="Ex.: enviado para Arujá, lote X..."
+                style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12, width: '100%', boxSizing: 'border-box' }} />
+            </div>
+          )}
           <button onClick={async () => {
             const dest = setorDestino || p0.proximo_setor || '';
             if (!dest) { mostrarErroGrupo('Selecione o setor destino'); return; }
@@ -2292,11 +2322,12 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             for (const p of parciais) {
               if (restante <= 0) break;
               const qtd = Math.min(restante, Number(p.quantidade));
-              await parcialAcao(p.id, 'mover', { setor_destino: dest, quantidade: qtd });
+              await parcialAcao(p.id, 'mover', { setor_destino: dest, quantidade: qtd, ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
               restante -= qtd;
             }
             setShowEnviarParcial(false);
             setQtdParcial('');
+            setObsEnvio('');
             onRefresh();
           }} disabled={loading || (!setorDestino && !p0.proximo_setor)}
             style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: (loading || (!setorDestino && !p0.proximo_setor)) ? 'not-allowed' : 'pointer', opacity: (!setorDestino && !p0.proximo_setor) ? 0.4 : 1 }}>

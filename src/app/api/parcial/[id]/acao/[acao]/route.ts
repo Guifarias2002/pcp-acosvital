@@ -233,7 +233,8 @@ async function handlePOST(
            ${`Parcial #${parcialId}: ${qtdMover} ${parcial.unidade} → ${nomeSector(setor_destino)}` +
              (qtdMover < qtdAtual
                ? `. Saldo em ${nomeSector(parcial.setor_atual)}: ${qtdAtual - qtdMover} ${parcial.unidade}.`
-               : '.')},
+               : '.') +
+             (obs ? ` Obs.: ${obs}` : '')},
            NOW())
       `;
 
