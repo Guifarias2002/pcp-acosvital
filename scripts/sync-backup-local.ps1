@@ -24,7 +24,7 @@
 $ErrorActionPreference = 'Stop'
 
 # ── Configuracao ──────────────────────────────────────────────────────────
-$BaseUrl       = 'https://sistemapcp-nine.vercel.app'
+$BaseUrl       = 'https://pcp-acosvital.vercel.app'
 # Caminho de rede completo (nao a letra Z:) - tarefas agendadas nem sempre
 # enxergam drives mapeados, principalmente sem sessao interativa aberta.
 $PastaDestino  = '\\server\REDE\Ordens de Serviço - IAPP\BACKUPS'
