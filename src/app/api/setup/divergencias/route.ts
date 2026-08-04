@@ -15,7 +15,7 @@ export async function POST(req: Request) {
         item_id               INTEGER REFERENCES producao_itempedido(id) ON DELETE SET NULL,
         usuario_id            INTEGER REFERENCES usuarios_usuario(id) ON DELETE SET NULL,
         tipo                  VARCHAR(50) NOT NULL
-                                CHECK (tipo IN ('qualidade','quantidade','prazo','dano','documentacao','outro')),
+                                CHECK (tipo IN ('qualidade','quantidade','prazo','dano','nao_conforme','documentacao','outro')),
         descricao             TEXT NOT NULL CHECK (TRIM(descricao) <> ''),
         setor_responsavel     VARCHAR(50),
         status                VARCHAR(50) NOT NULL DEFAULT 'aberta'

@@ -14,6 +14,7 @@ const TIPOS = [
   { value: 'qualidade',      label: 'Qualidade',      icon: 'bi-shield-exclamation', color: '#dc2626' },
   { value: 'quantidade',     label: 'Quantidade',     icon: 'bi-123',               color: '#d97706' },
   { value: 'dano',           label: 'Dano / Avaria',  icon: 'bi-box-seam',          color: '#7c3aed' },
+  { value: 'nao_conforme',   label: 'Material não conforme', icon: 'bi-x-octagon', color: '#e11d48' },
   { value: 'documentacao',   label: 'Documentação',   icon: 'bi-file-earmark-x',    color: '#0891b2' },
   { value: 'prazo',          label: 'Prazo',          icon: 'bi-calendar-x',        color: '#059669' },
   { value: 'outro',          label: 'Outro',          icon: 'bi-three-dots',        color: '#6b7280' },

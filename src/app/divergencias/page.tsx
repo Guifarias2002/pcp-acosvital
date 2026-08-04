@@ -34,6 +34,7 @@ const TIPO_INFO: Record<string, { icon: string; color: string; label: string }> 
   qualidade:    { icon: 'bi-shield-exclamation', color: '#dc2626', label: 'Qualidade' },
   quantidade:   { icon: 'bi-123',               color: '#d97706', label: 'Quantidade' },
   dano:         { icon: 'bi-box-seam',           color: '#7c3aed', label: 'Dano / Avaria' },
+  nao_conforme: { icon: 'bi-x-octagon',          color: '#e11d48', label: 'Material não conforme' },
   documentacao: { icon: 'bi-file-earmark-x',     color: '#0891b2', label: 'Documentação' },
   prazo:        { icon: 'bi-calendar-x',         color: '#059669', label: 'Prazo' },
   outro:        { icon: 'bi-three-dots',         color: '#6b7280', label: 'Outro' },

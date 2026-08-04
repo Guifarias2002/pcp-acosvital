@@ -80,7 +80,7 @@ export async function POST(req: Request) {
     if (!tipo) return NextResponse.json({ erro: 'tipo obrigatorio' }, { status: 400 });
     if (!descricao?.trim()) return NextResponse.json({ erro: 'descricao obrigatoria' }, { status: 400 });
 
-    const TIPOS = ['qualidade', 'quantidade', 'prazo', 'dano', 'documentacao', 'outro'];
+    const TIPOS = ['qualidade', 'quantidade', 'prazo', 'dano', 'nao_conforme', 'documentacao', 'outro'];
     if (!TIPOS.includes(tipo)) return NextResponse.json({ erro: 'tipo invalido' }, { status: 400 });
 
     const [pedido] = await sql`SELECT id FROM producao_pedido WHERE id = ${pedido_id}`;
