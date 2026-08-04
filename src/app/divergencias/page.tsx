@@ -78,7 +78,7 @@ export default function DivergenciasPage() {
   function buscar() {
     setLoading(true);
     const p = new URLSearchParams();
-    if (fStatus) p.set('status', fStatus);
+    if (fStatus && fStatus !== '__todas__') p.set('status', fStatus);
     if (fTipo) p.set('tipo', fTipo);
     if (fFabrica) p.set('fabrica', fFabrica);
     fetch(`/api/divergencias?${p}`, { headers: { Authorization: `Bearer ${getToken() || ''}` } })
@@ -226,12 +226,13 @@ export default function DivergenciasPage() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
         <select value={fStatus} onChange={e => setFStatus(e.target.value)}
           style={{ border: '1px solid #dee2e6', borderRadius: 6, padding: '6px 12px', fontSize: 13 }}>
-          <option value="">Todos os status</option>
+          <option value="">Em aberto (padrão)</option>
           <option value="aberta">Abertas</option>
           <option value="em_analise">Em Análise</option>
           <option value="resolvida">Resolvidas</option>
           <option value="nao_resolvida">Não Resolvidas</option>
           <option value="cancelada">Canceladas</option>
+          <option value="__todas__">Todas (incluindo fechadas)</option>
         </select>
         <select value={fTipo} onChange={e => setFTipo(e.target.value)}
           style={{ border: '1px solid #dee2e6', borderRadius: 6, padding: '6px 12px', fontSize: 13 }}>
@@ -254,16 +255,21 @@ export default function DivergenciasPage() {
 
       {loading && <p style={{ textAlign: 'center', color: '#aaa', padding: 40 }}>Carregando...</p>}
 
-      {/* Lista */}
+      {/* Lista — fechadas (resolvida/não resolvida/cancelada) só aparecem quando
+          filtradas explicitamente, senão continuam ocupando a tela à toa */}
+      {(() => {
+        const STATUS_FECHADOS = ['resolvida', 'nao_resolvida', 'cancelada'];
+        const divsVisiveis = fStatus ? divs : divs.filter(d => !STATUS_FECHADOS.includes(d.status));
+        return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {!loading && divs.length === 0 && (
+        {!loading && divsVisiveis.length === 0 && (
           <div className="card" style={{ padding: 40, textAlign: 'center', color: '#aaa' }}>
             <i className="bi bi-check-circle" style={{ fontSize: 40, display: 'block', marginBottom: 10, color: '#16a34a' }} />
             Nenhuma divergência encontrada.
           </div>
         )}
 
-        {divs.map(d => {
+        {divsVisiveis.map(d => {
           const ti = TIPO_INFO[d.tipo] || TIPO_INFO.outro;
           const si = STATUS_INFO[d.status] || STATUS_INFO.aberta;
           const aberto = expandido === d.id;
@@ -423,6 +429,8 @@ export default function DivergenciasPage() {
           );
         })}
       </div>
+        );
+      })()}
     </AuthGuard>
   );
 }
