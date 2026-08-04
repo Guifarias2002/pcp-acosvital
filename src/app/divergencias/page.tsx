@@ -320,15 +320,15 @@ export default function DivergenciasPage() {
                     </button>
                   )}
                   {(d.status === 'aberta' || d.status === 'em_analise') && (
-                    <button onClick={() => { setEncaminhando(d.id); setExpandido(d.id); setSetorDestino(d.setor_responsavel || ''); }}
-                      style={{ fontSize: 11, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 700 }}>
-                      <i className="bi bi-send" style={{ marginRight: 4 }} />Encaminhar
-                    </button>
-                  )}
-                  {(d.status === 'aberta' || d.status === 'em_analise') && (
                     <button onClick={() => { setResolvendo(d.id); setExpandido(d.id); }}
                       style={{ fontSize: 11, background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 700 }}>
                       <i className="bi bi-check-lg" style={{ marginRight: 4 }} />Resolver
+                    </button>
+                  )}
+                  {(d.status === 'aberta' || d.status === 'em_analise') && (
+                    <button onClick={() => { setEncaminhando(d.id); setExpandido(d.id); setSetorDestino(d.setor_responsavel || ''); }}
+                      style={{ fontSize: 11, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 700 }}>
+                      <i className="bi bi-send" style={{ marginRight: 4 }} />Encaminhar
                     </button>
                   )}
                   {d.status === 'aberta' && (
