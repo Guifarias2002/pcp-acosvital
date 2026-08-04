@@ -47,7 +47,8 @@ export async function GET(req: Request) {
       SELECT
         COUNT(*) FILTER (WHERE d.status = 'aberta')     AS abertas,
         COUNT(*) FILTER (WHERE d.status = 'em_analise') AS em_analise,
-        COUNT(*) FILTER (WHERE d.status = 'resolvida')  AS resolvidas,
+        COUNT(*) FILTER (WHERE d.status = 'resolvida')     AS resolvidas,
+        COUNT(*) FILTER (WHERE d.status = 'nao_resolvida') AS nao_resolvidas,
         COUNT(*) FILTER (WHERE d.status = 'cancelada')  AS canceladas,
         COUNT(*)                                         AS total
       FROM producao_divergencia d
@@ -61,7 +62,7 @@ export async function GET(req: Request) {
     // Tabela ainda não criada — retorna vazio sem erro
     return NextResponse.json({
       divergencias: [],
-      totais: { abertas: 0, em_analise: 0, resolvidas: 0, canceladas: 0, total: 0 },
+      totais: { abertas: 0, em_analise: 0, resolvidas: 0, nao_resolvidas: 0, canceladas: 0, total: 0 },
     });
   }
 }

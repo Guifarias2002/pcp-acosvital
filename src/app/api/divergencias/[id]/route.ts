@@ -23,18 +23,25 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
-  const { status, observacao_resolucao, prioridade, setor_responsavel } = body;
+  const { status, observacao_resolucao, prioridade, setor_responsavel, nota_encaminhamento } = body;
 
-  const STATUS_VALIDOS = ['aberta', 'em_analise', 'resolvida', 'cancelada'];
+  const STATUS_VALIDOS = ['aberta', 'em_analise', 'resolvida', 'nao_resolvida', 'cancelada'];
   if (status && !STATUS_VALIDOS.includes(status))
     return NextResponse.json({ erro: 'status invalido' }, { status: 400 });
 
-  const isResolvendo = status === 'resolvida' || status === 'cancelada';
+  const isResolvendo = status === 'resolvida' || status === 'nao_resolvida' || status === 'cancelada';
+
+  // Encaminhamento pra outro setor vira uma nota anexada à descrição — mantém
+  // histórico de quem encaminhou quando, sem precisar de coluna nova.
+  const nota = (typeof nota_encaminhamento === 'string' && nota_encaminhamento.trim())
+    ? `\n\n📤 Encaminhado${setor_responsavel ? ` para ${setor_responsavel}` : ''} em ${new Date().toLocaleString('pt-BR')} por ${user.nome || user.username}: ${nota_encaminhamento.trim()}`
+    : null;
 
   try {
     await sql`
       UPDATE producao_divergencia SET
         status               = COALESCE(${status || null}, status),
+        descricao            = ${nota ? sql`descricao || ${nota}` : sql`descricao`},
         observacao_resolucao = COALESCE(${observacao_resolucao || null}, observacao_resolucao),
         prioridade           = COALESCE(${prioridade || null}, prioridade),
         setor_responsavel    = COALESCE(${setor_responsavel || null}, setor_responsavel),

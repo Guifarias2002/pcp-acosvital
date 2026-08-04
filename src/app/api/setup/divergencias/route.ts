@@ -19,7 +19,7 @@ export async function POST(req: Request) {
         descricao             TEXT NOT NULL CHECK (TRIM(descricao) <> ''),
         setor_responsavel     VARCHAR(50),
         status                VARCHAR(50) NOT NULL DEFAULT 'aberta'
-                                CHECK (status IN ('aberta','em_analise','resolvida','cancelada')),
+                                CHECK (status IN ('aberta','em_analise','resolvida','nao_resolvida','cancelada')),
         prioridade            VARCHAR(50) NOT NULL DEFAULT 'normal'
                                 CHECK (prioridade IN ('baixa','normal','alta','urgente')),
         resolvido_em          TIMESTAMPTZ,

@@ -4,6 +4,7 @@ import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import Link from 'next/link';
 import { getToken, podeEditar } from '@/lib/auth';
+import { SETOR_CHOICES, NOMES } from '@/lib/types';
 
 interface Divergencia {
   id: number;
@@ -27,7 +28,7 @@ interface Divergencia {
 }
 
 interface Totais {
-  abertas: number; em_analise: number; resolvidas: number; canceladas: number; total: number;
+  abertas: number; em_analise: number; resolvidas: number; nao_resolvidas: number; canceladas: number; total: number;
 }
 
 const TIPO_INFO: Record<string, { icon: string; color: string; label: string }> = {
@@ -44,6 +45,7 @@ const STATUS_INFO: Record<string, { label: string; bg: string; color: string }> 
   aberta:     { label: 'Aberta',      bg: '#fef2f2', color: '#dc2626' },
   em_analise: { label: 'Em Análise',  bg: '#fffbeb', color: '#d97706' },
   resolvida:  { label: 'Resolvida',   bg: '#f0fdf4', color: '#16a34a' },
+  nao_resolvida: { label: 'Não Resolvida', bg: '#fee2e2', color: '#991b1b' },
   cancelada:  { label: 'Cancelada',   bg: '#f3f4f6', color: '#6b7280' },
 };
 
@@ -67,6 +69,9 @@ export default function DivergenciasPage() {
   const [expandido, setExpandido] = useState<number | null>(null);
   const [resolvendo, setResolvendo] = useState<number | null>(null);
   const [obsResolucao, setObsResolucao] = useState('');
+  const [encaminhando, setEncaminhando] = useState<number | null>(null);
+  const [setorDestino, setSetorDestino] = useState('');
+  const [obsEncaminhamento, setObsEncaminhamento] = useState('');
   const [atualizando, setAtualizando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -122,6 +127,34 @@ export default function DivergenciasPage() {
     }
   }
 
+  async function encaminhar(id: number) {
+    if (!setorDestino) { setErro('Selecione o setor de destino.'); return; }
+    setAtualizando(true);
+    try {
+      const res = await fetch(`/api/divergencias/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
+        body: JSON.stringify({
+          setor_responsavel: setorDestino,
+          nota_encaminhamento: obsEncaminhamento.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setErro(d.erro || 'Erro ao encaminhar divergência');
+        return;
+      }
+      setEncaminhando(null);
+      setSetorDestino('');
+      setObsEncaminhamento('');
+      buscar();
+    } catch {
+      setErro('Erro de rede ao encaminhar divergência');
+    } finally {
+      setAtualizando(false);
+    }
+  }
+
   return (
     <AuthGuard>
       {erro && (
@@ -163,12 +196,13 @@ export default function DivergenciasPage() {
 
       {/* Cards de totais */}
       {totais && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 18 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12, marginBottom: 18 }}>
           {[
-            { label: 'Abertas',     val: totais.abertas,     color: '#dc2626', icon: 'bi-exclamation-circle-fill', filtro: 'aberta' },
-            { label: 'Em Análise',  val: totais.em_analise,  color: '#d97706', icon: 'bi-hourglass-split',         filtro: 'em_analise' },
-            { label: 'Resolvidas',  val: totais.resolvidas,  color: '#16a34a', icon: 'bi-check-circle-fill',       filtro: 'resolvida' },
-            { label: 'Canceladas',  val: totais.canceladas,  color: '#6b7280', icon: 'bi-x-circle-fill',           filtro: 'cancelada' },
+            { label: 'Abertas',        val: totais.abertas,        color: '#dc2626', icon: 'bi-exclamation-circle-fill', filtro: 'aberta' },
+            { label: 'Em Análise',     val: totais.em_analise,     color: '#d97706', icon: 'bi-hourglass-split',         filtro: 'em_analise' },
+            { label: 'Resolvidas',     val: totais.resolvidas,     color: '#16a34a', icon: 'bi-check-circle-fill',       filtro: 'resolvida' },
+            { label: 'Não Resolvidas', val: totais.nao_resolvidas, color: '#991b1b', icon: 'bi-x-octagon-fill',          filtro: 'nao_resolvida' },
+            { label: 'Canceladas',     val: totais.canceladas,     color: '#6b7280', icon: 'bi-x-circle-fill',           filtro: 'cancelada' },
           ].map(c => (
             <button key={c.label} onClick={() => { setFStatus(fStatus === c.filtro ? '' : c.filtro); setTimeout(buscar, 0); }}
               className="card"
@@ -193,6 +227,7 @@ export default function DivergenciasPage() {
           <option value="aberta">Abertas</option>
           <option value="em_analise">Em Análise</option>
           <option value="resolvida">Resolvidas</option>
+          <option value="nao_resolvida">Não Resolvidas</option>
           <option value="cancelada">Canceladas</option>
         </select>
         <select value={fTipo} onChange={e => setFTipo(e.target.value)}
@@ -266,6 +301,12 @@ export default function DivergenciasPage() {
                     {d.item_codigo && <span><i className="bi bi-gear" style={{ marginRight: 4 }} />{d.item_codigo}</span>}
                     <span><i className="bi bi-clock" style={{ marginRight: 4 }} />{fmtHora(d.criado_em)}</span>
                     {d.usuario_nome && <span><i className="bi bi-person" style={{ marginRight: 4 }} />{d.usuario_nome}</span>}
+                    {d.setor_responsavel && (
+                      <span style={{ color: '#2563eb', fontWeight: 700 }}>
+                        <i className="bi bi-send" style={{ marginRight: 4 }} />
+                        Encaminhada: {NOMES[d.setor_responsavel] || d.setor_responsavel}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -276,6 +317,12 @@ export default function DivergenciasPage() {
                     <button onClick={() => atualizarStatus(d.id, 'em_analise')}
                       style={{ fontSize: 11, background: '#fffbeb', border: '1px solid #fde68a', color: '#d97706', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 700 }}>
                       <i className="bi bi-hourglass-split" style={{ marginRight: 4 }} />Em Análise
+                    </button>
+                  )}
+                  {(d.status === 'aberta' || d.status === 'em_analise') && (
+                    <button onClick={() => { setEncaminhando(d.id); setExpandido(d.id); setSetorDestino(d.setor_responsavel || ''); }}
+                      style={{ fontSize: 11, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 700 }}>
+                      <i className="bi bi-send" style={{ marginRight: 4 }} />Encaminhar
                     </button>
                   )}
                   {(d.status === 'aberta' || d.status === 'em_analise') && (
@@ -310,15 +357,47 @@ export default function DivergenciasPage() {
                     </div>
                   )}
 
+                  {/* Form de encaminhamento */}
+                  {encaminhando === d.id && (
+                    <div style={{ background: '#fff', border: '1px solid #bfdbfe', borderRadius: 10, padding: 14, marginTop: 8, marginBottom: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#1e40af', marginBottom: 8 }}>
+                        <i className="bi bi-send" style={{ marginRight: 6 }} />Encaminhar para outra área
+                      </div>
+                      <select value={setorDestino} onChange={e => setSetorDestino(e.target.value)}
+                        style={{ width: '100%', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }}>
+                        <option value="">— Selecione o setor —</option>
+                        {SETOR_CHOICES.map(([cod, nome]) => (
+                          <option key={cod} value={cod}>{nome}</option>
+                        ))}
+                      </select>
+                      <textarea
+                        value={obsEncaminhamento} onChange={e => setObsEncaminhamento(e.target.value)} rows={2}
+                        placeholder="Observação pra quem for receber (opcional)..."
+                        style={{ width: '100%', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', fontSize: 13, resize: 'none', boxSizing: 'border-box', marginBottom: 10 }}
+                      />
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => { setEncaminhando(null); setSetorDestino(''); setObsEncaminhamento(''); }}
+                          style={{ flex: 1, background: '#f3f4f6', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, cursor: 'pointer', color: '#555' }}>
+                          Cancelar
+                        </button>
+                        <button onClick={() => encaminhar(d.id)} disabled={atualizando || !setorDestino}
+                          style={{ flex: 2, background: '#2563eb', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', color: '#fff', opacity: !setorDestino ? .6 : 1 }}>
+                          <i className="bi bi-send" style={{ marginRight: 6 }} />
+                          {atualizando ? 'Enviando...' : 'Confirmar Encaminhamento'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Form de resolução */}
                   {resolvendo === d.id && (
                     <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: 10, padding: 14, marginTop: 8 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: '#166534', marginBottom: 8 }}>
-                        <i className="bi bi-check-circle" style={{ marginRight: 6 }} />Como foi resolvida?
+                        <i className="bi bi-check-circle" style={{ marginRight: 6 }} />Como ficou essa divergência?
                       </div>
                       <textarea
                         value={obsResolucao} onChange={e => setObsResolucao(e.target.value)} rows={3}
-                        placeholder="Descreva como a divergência foi resolvida..."
+                        placeholder="Descreva o que foi feito ou por que não foi possível resolver..."
                         style={{ width: '100%', border: '1px solid #d1fae5', borderRadius: 8, padding: '8px 12px', fontSize: 13, resize: 'none', boxSizing: 'border-box', marginBottom: 10 }}
                       />
                       <div style={{ display: 'flex', gap: 8 }}>
@@ -326,10 +405,15 @@ export default function DivergenciasPage() {
                           style={{ flex: 1, background: '#f3f4f6', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, cursor: 'pointer', color: '#555' }}>
                           Cancelar
                         </button>
+                        <button onClick={() => atualizarStatus(d.id, 'nao_resolvida', obsResolucao)} disabled={atualizando}
+                          style={{ flex: 1, background: '#991b1b', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', color: '#fff' }}>
+                          <i className="bi bi-x-octagon" style={{ marginRight: 6 }} />
+                          Não Resolvido
+                        </button>
                         <button onClick={() => atualizarStatus(d.id, 'resolvida', obsResolucao)} disabled={atualizando}
-                          style={{ flex: 2, background: '#16a34a', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', color: '#fff' }}>
+                          style={{ flex: 1, background: '#16a34a', border: 'none', borderRadius: 8, padding: '8px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', color: '#fff' }}>
                           <i className="bi bi-check-lg" style={{ marginRight: 6 }} />
-                          {atualizando ? 'Salvando...' : 'Confirmar Resolução'}
+                          Resolvido
                         </button>
                       </div>
                     </div>
