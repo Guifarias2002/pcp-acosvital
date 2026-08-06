@@ -61,6 +61,9 @@ export default function NovoPedidoPage() {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
   const [msgSalvo, setMsgSalvo] = useState('');
+  // PV duplicado: guarda o número base e a sugestão de sequencial (26433-2) pra
+  // oferecer criar o pedido com um número novo em vez de bloquear com erro.
+  const [dup, setDup] = useState<{ base: string; sugestao: string } | null>(null);
   const [importando, setImportando] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -229,6 +232,15 @@ export default function NovoPedidoPage() {
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
+    await enviar();
+  }
+
+  // `pvOverride` permite reenviar com um sequencial (26433-2) quando o PV
+  // original já existe — o aviso de duplicata chama isso ao confirmar.
+  async function enviar(pvOverride?: string) {
+    const pvFinal = (pvOverride ?? pv).trim();
+    if (pvOverride) setPv(pvFinal);
+    setDup(null);
     if (!op.trim()) { setErro('O Número da Ordem de Produção (OP) é obrigatório.'); return; }
 
     const comItens = FABRICAS.filter(f => itensValidos(grupos[f.cod]).length > 0);
@@ -285,7 +297,7 @@ export default function NovoPedidoPage() {
       let id: number;
       try {
         const res = await criarPedido({
-          numero_pedido_venda: pv, numero_op: op, cliente, vendedor,
+          numero_pedido_venda: pvFinal, numero_op: op, cliente, vendedor,
           prazo_entrega: prazo, prioridade, roteiro_base,
           observacoes: obs, itens: itensPayload,
         });
@@ -297,11 +309,15 @@ export default function NovoPedidoPage() {
       router.push(`/pedidos/${id}`);
     } catch (e: unknown) {
       const isAbort = (e as Error)?.name === 'AbortError' || (e as Error)?.message?.includes('aborted');
-      if (isAbort) {
+      const data = (e as {response?:{data?:{erro?:string; duplicado?:boolean; sugestao?:string; numero_base?:string}}}).response?.data;
+      if (data?.duplicado) {
+        // PV já existe → mostra o aviso amigável com a sugestão de sequencial.
+        setErro('');
+        setDup({ base: data.numero_base || pvFinal, sugestao: data.sugestao || `${pvFinal}-2` });
+      } else if (isAbort) {
         setErro('A requisição demorou demais. Verifique sua conexão e tente novamente.');
       } else {
-        const msg = (e as {response?:{data?:{erro?:string}}}).response?.data?.erro;
-        setErro(msg || 'Erro ao salvar pedido. Tente novamente.');
+        setErro(data?.erro || 'Erro ao salvar pedido. Tente novamente.');
       }
     } finally {
       setLoading(false);
@@ -405,6 +421,30 @@ export default function NovoPedidoPage() {
         {erro && (
           <div style={{ background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626', borderRadius:8, padding:'10px 14px', fontSize:13, marginBottom:16 }}>
             <i className="bi bi-exclamation-circle" style={{ marginRight:6 }} />{erro}
+          </div>
+        )}
+        {dup && (
+          <div style={{ background:'#fffbeb', border:'1px solid #fcd34d', color:'#92400e', borderRadius:8, padding:'14px 16px', marginBottom:16 }}>
+            <div style={{ fontSize:13, fontWeight:700, marginBottom:8 }}>
+              <i className="bi bi-exclamation-triangle" style={{ marginRight:6 }} />
+              O pedido {dup.base} já está no sistema.
+            </div>
+            <div style={{ fontSize:13, marginBottom:10 }}>
+              Você pode criar este pedido com um número sequencial:
+            </div>
+            <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+              <input value={dup.sugestao} onChange={e => setDup({ ...dup, sugestao: e.target.value })} maxLength={50}
+                style={{ border:'1px solid #fcd34d', borderRadius:8, padding:'8px 12px', fontSize:14, fontWeight:700, width:170, background:'#fff', color:'#1a3a5c' }} />
+              <button type="button" onClick={() => enviar(dup.sugestao)} disabled={loading || !dup.sugestao.trim()}
+                style={{ padding:'9px 18px', borderRadius:8, background:'#166534', color:'#fff', fontSize:13, fontWeight:700, border:'none', cursor:'pointer', opacity:(loading || !dup.sugestao.trim())?0.6:1 }}>
+                <i className="bi bi-plus-circle" style={{ marginRight:6 }} />
+                {loading ? 'Criando...' : `Criar como ${dup.sugestao || '...'}`}
+              </button>
+              <button type="button" onClick={() => setDup(null)}
+                style={{ padding:'9px 16px', borderRadius:8, background:'#fff', color:'#92400e', fontSize:13, fontWeight:600, border:'1px solid #fcd34d', cursor:'pointer' }}>
+                Cancelar
+              </button>
+            </div>
           </div>
         )}
         {msgSalvo && (

@@ -163,10 +163,15 @@ export async function POST(req: Request) {
   if (!checkMutationRateLimit(getClientIp(req)))
     return NextResponse.json({ erro: 'Muitas requisições. Aguarde um momento.' }, { status: 429 });
 
+  // Guardado fora do try pra ficar acessível no catch (usado pra sugerir o
+  // próximo sequencial quando o PV já existe).
+  let pvSubmetido = '';
+
   try {
     const body = await req.json().catch(() => ({}));
     const { numero_pedido_venda, numero_op, cliente, vendedor, prazo_entrega,
             prioridade, roteiro_base, observacoes, itens } = body;
+    pvSubmetido = numero_pedido_venda?.toString().trim() || '';
 
     if (!numero_pedido_venda?.toString().trim())
       return NextResponse.json({ erro: 'Numero do pedido obrigatorio' }, { status: 400 });
@@ -251,10 +256,41 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ id: pedidoId }, { status: 201 });
   } catch (e: unknown) {
-    // 23505 = unique_violation no Postgres — nº do pedido de venda já existe
     const pgErr = e as { code?: string; constraint_name?: string };
-    if (pgErr?.code === '23505' && pgErr?.constraint_name === 'uq_pedido_numero_venda')
-      return NextResponse.json({ erro: 'Já existe um pedido com esse número de pedido de venda.' }, { status: 409 });
+    // 23505 = unique_violation. O único índice único que o usuário controla é o
+    // de numero_pedido_venda — e há DOIS índices únicos nessa coluna
+    // (producao_pedido_numero_pedido_venda_key e uq_pedido_numero_venda); o
+    // Postgres reporta ora um nome, ora outro. Por isso casamos pelo CÓDIGO do
+    // erro, não pelo nome da constraint (que antes deixava a duplicata cair no
+    // 500 genérico). PV repetido → 409 com a próxima sequência livre sugerida.
+    if (pgErr?.code === '23505') {
+      // Base = PV sem o sufixo "-N" (ex.: "26433-2" → "26433"), pra numerar a
+      // partir do número raiz mesmo que o usuário já tenha mandado um sequencial.
+      const base = pvSubmetido.replace(/-\d+$/, '') || pvSubmetido;
+      try {
+        const existentes = await sql`
+          SELECT numero_pedido_venda FROM producao_pedido
+          WHERE numero_pedido_venda = ${base} OR numero_pedido_venda LIKE ${base + '-%'}
+        `;
+        const reBase = new RegExp('^' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '-(\\d+)$');
+        let maxN = 1; // o pedido "base" (sem sufixo) conta como #1
+        for (const r of existentes) {
+          const m = reBase.exec(String(r.numero_pedido_venda));
+          if (m) { const n = parseInt(m[1], 10); if (n > maxN) maxN = n; }
+        }
+        const sugestao = `${base}-${maxN + 1}`;
+        return NextResponse.json(
+          { erro: `O pedido ${base} já está no sistema.`, duplicado: true, numero_base: base, sugestao },
+          { status: 409 },
+        );
+      } catch {
+        // Se a consulta da sugestão falhar, ainda avisa que é duplicata.
+        return NextResponse.json(
+          { erro: 'Já existe um pedido com esse número de pedido de venda.', duplicado: true, numero_base: base },
+          { status: 409 },
+        );
+      }
+    }
     // 22001 = string_data_right_truncation — algum campo passou do limite de caracteres da coluna
     if (pgErr?.code === '22001')
       return NextResponse.json({ erro: 'Um dos campos passou do limite de caracteres (Nº PV e Nº OP: até 50 caracteres).' }, { status: 400 });
