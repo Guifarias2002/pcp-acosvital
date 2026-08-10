@@ -205,6 +205,65 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
     carregar();
   }
 
+  // Cache local dos documentos do pedido (Cache Storage do navegador).
+  // Guarda o arquivo depois da 1ª visualização pra não rebaixar do Supabase a cada clique.
+  const CACHE_DOCS = 'docs-pedido';
+  function chaveCacheDoc(tipo: 'pedido-venda' | 'ordem-producao') {
+    return `/doc-cache/${id}/${tipo}`;
+  }
+  async function limparCacheDoc(tipo: 'pedido-venda' | 'ordem-producao') {
+    if (typeof caches === 'undefined') return;
+    try { const c = await caches.open(CACHE_DOCS); await c.delete(chaveCacheDoc(tipo)); } catch { /* sem cache, tudo bem */ }
+  }
+
+  // Abre o PV/OP reaproveitando o cache local. Só baixa do servidor se ainda
+  // não tiver em cache — evita sobrecarregar o tráfego a cada clique.
+  async function abrirDoc(tipo: 'pedido-venda' | 'ordem-producao') {
+    // Abre a aba já no clique (senão o navegador bloqueia o pop-up depois do await)
+    const win = window.open('', '_blank');
+    setMsgDocPedido(null);
+    try {
+      let blob: Blob | undefined;
+
+      // 1) tenta o cache local — zero tráfego no Supabase
+      if (typeof caches !== 'undefined') {
+        try {
+          const cache = await caches.open(CACHE_DOCS);
+          const hit = await cache.match(chaveCacheDoc(tipo));
+          if (hit) blob = await hit.blob();
+        } catch { /* segue pro download */ }
+      }
+
+      // 2) não tinha em cache → baixa 1x e guarda
+      if (!blob) {
+        const token = getToken() || '';
+        const res = await fetch(`/api/pedidos/${id}/${tipo}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) {
+          let msg = 'Não foi possível abrir o arquivo.';
+          try { const j = await res.json(); if (j?.erro) msg = j.erro; } catch { /* corpo não-JSON */ }
+          if (win) win.close();
+          setMsgDocPedido(msg);
+          return;
+        }
+        const contentType = res.headers.get('content-type') || 'application/octet-stream';
+        blob = new Blob([await res.arrayBuffer()], { type: contentType });
+        if (typeof caches !== 'undefined') {
+          try {
+            const cache = await caches.open(CACHE_DOCS);
+            await cache.put(chaveCacheDoc(tipo), new Response(blob, { headers: { 'content-type': contentType } }));
+          } catch { /* sem cache, tudo bem */ }
+        }
+      }
+
+      const url = URL.createObjectURL(blob);
+      if (win) win.location.href = url; else window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch {
+      if (win) win.close();
+      setMsgDocPedido('Não foi possível abrir o arquivo.');
+    }
+  }
+
   async function uploadDocPedido(tipo: 'pedido-venda' | 'ordem-producao', arquivo: File) {
     const setUploading = tipo === 'pedido-venda' ? setUploadingPV : setUploadingOP;
     setUploading(true);
@@ -215,7 +274,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
       fd.append('arquivo', arquivo);
       const res = await fetch(`/api/pedidos/${id}/${tipo}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
       const data = await res.json();
-      if (data.ok) { setMsgDocPedido('Documento anexado com sucesso!'); carregar(); }
+      if (data.ok) { await limparCacheDoc(tipo); setMsgDocPedido('Documento anexado com sucesso!'); carregar(); }
       else setMsgDocPedido(data.erro || `Erro ${res.status}`);
     } catch { setMsgDocPedido('Erro ao enviar.'); }
     finally { setUploading(false); }
@@ -224,6 +283,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   async function removerDocPedido(tipo: 'pedido-venda' | 'ordem-producao') {
     const token = localStorage.getItem('token') || '';
     await fetch(`/api/pedidos/${id}/${tipo}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    await limparCacheDoc(tipo);
     setMsgDocPedido(null);
     carregar();
   }
@@ -1086,10 +1146,10 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                 <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '0 0 4px' }}>Pedido de Venda</p>
                 {pedido.tem_pedido_venda ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <a href={`/api/pedidos/${id}/pedido-venda?token=${encodeURIComponent(getToken() || '')}`} target="_blank" rel="noopener noreferrer"
-                      style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', flex: 1 }}>
+                    <button onClick={() => abrirDoc('pedido-venda')}
+                      style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', flex: 1, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
                       ✅ Ver / baixar pedido de venda
-                    </a>
+                    </button>
                     {isAdmin && (
                       <button onClick={() => removerDocPedido('pedido-venda')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12 }}>✕</button>
                     )}
@@ -1110,10 +1170,10 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                 <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '0 0 4px' }}>Ordem de Produção</p>
                 {pedido.tem_ordem_producao ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <a href={`/api/pedidos/${id}/ordem-producao?token=${encodeURIComponent(getToken() || '')}`} target="_blank" rel="noopener noreferrer"
-                      style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', flex: 1 }}>
+                    <button onClick={() => abrirDoc('ordem-producao')}
+                      style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', flex: 1, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
                       ✅ Ver / baixar ordem de produção
-                    </a>
+                    </button>
                     {isAdmin && (
                       <button onClick={() => removerDocPedido('ordem-producao')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 12 }}>✕</button>
                     )}

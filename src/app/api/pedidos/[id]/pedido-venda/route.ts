@@ -38,7 +38,17 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const fileRes = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${storagePath}`, {
       headers: { Authorization: `Bearer ${SERVICE_KEY}` },
     });
-    if (!fileRes.ok) return new Response('Erro ao buscar arquivo', { status: 500 });
+    if (!fileRes.ok) {
+      // 402 = cota de tráfego do Supabase estourada — trava o Storage inteiro
+      if (fileRes.status === 402) {
+        return NextResponse.json(
+          { erro: 'Armazenamento de arquivos indisponível no momento (limite de tráfego do plano). Tente novamente mais tarde.' },
+          { status: 402 },
+        );
+      }
+      console.error('[pedido-venda] Supabase respondeu', fileRes.status, await fileRes.text().catch(() => ''));
+      return NextResponse.json({ erro: 'Não foi possível abrir o arquivo.' }, { status: 502 });
+    }
 
     const contentType = fileRes.headers.get('content-type') || 'application/octet-stream';
     const ext = contentType.split('/')[1] || 'bin';
@@ -47,7 +57,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       headers: {
         'Content-Type': contentType,
         'Content-Disposition': `inline; filename="pedido_venda_${pedidoId}.${ext}"`,
-        'Cache-Control': 'private, max-age=3600',
+        // 7 dias — o navegador reaproveita e não rebaixa a cada clique
+        'Cache-Control': 'private, max-age=604800',
       },
     });
   } catch (e) {
@@ -94,7 +105,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     if (!upRes.ok) {
       const txt = await upRes.text();
-      return NextResponse.json({ erro: `Storage: ${upRes.status} - ${txt}` }, { status: 500 });
+      console.error('[pedido-venda] Supabase recusou upload', upRes.status, txt);
+      if (upRes.status === 402 || /egress|quota|restricted/i.test(txt)) {
+        return NextResponse.json(
+          { erro: 'Armazenamento indisponível no momento (limite de tráfego do plano atingido). O anexo não pôde ser enviado — tente novamente mais tarde.' },
+          { status: 402 },
+        );
+      }
+      return NextResponse.json({ erro: `Falha ao enviar o arquivo (Storage ${upRes.status}).` }, { status: 502 });
     }
 
     await sql`UPDATE producao_pedido SET pedido_venda_url = ${storagePath} WHERE id = ${pedidoId}`;
