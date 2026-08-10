@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
+import { b2Upload, b2Download, b2Delete, B2_CONFIGURADO } from '@/lib/b2';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +36,24 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
     if (!storagePath) return new Response('Sem ordem de produção anexada', { status: 404 });
 
+    // Arquivo novo (Backblaze) — marcado com prefixo "b2:"
+    if (storagePath.startsWith('b2:')) {
+      const r = await b2Download(storagePath.slice(3));
+      if (!r.ok) {
+        console.error('[ordem-producao] B2 download falhou', r.status);
+        return NextResponse.json({ erro: 'Não foi possível abrir o arquivo.' }, { status: 502 });
+      }
+      const extB2 = r.contentType.split('/')[1] || 'bin';
+      return new Response(r.body, {
+        headers: {
+          'Content-Type': r.contentType,
+          'Content-Disposition': `inline; filename="ordem_producao_${pedidoId}.${extB2}"`,
+          'Cache-Control': 'private, max-age=604800',
+        },
+      });
+    }
+
+    // Arquivo antigo — continua no Supabase Storage
     const fileRes = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${storagePath}`, {
       headers: { Authorization: `Bearer ${SERVICE_KEY}` },
     });
@@ -77,8 +96,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (!Number.isInteger(pedidoId) || pedidoId <= 0)
       return NextResponse.json({ erro: 'ID inválido' }, { status: 400 });
 
-    if (!SERVICE_KEY)
-      return NextResponse.json({ erro: 'Configuração do servidor incompleta (SERVICE_KEY)' }, { status: 500 });
+    if (!B2_CONFIGURADO)
+      return NextResponse.json({ erro: 'Armazenamento de anexos não configurado. Avise o TI.' }, { status: 500 });
 
     const formData = await req.formData();
     const arquivo = formData.get('arquivo') as File | null;
@@ -89,33 +108,20 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (arquivo.size > MAX_SIZE)
       return NextResponse.json({ erro: 'Arquivo muito grande (máx 20 MB)' }, { status: 400 });
 
+    // Anexo novo vai pro Backblaze (não conta no egress do Supabase).
     const ext = arquivo.type.split('/')[1] || 'bin';
-    const storagePath = `pedido_${pedidoId}_op.${ext}`;
+    const fileName = `pedido_${pedidoId}_op.${ext}`;
     const bytes = await arquivo.arrayBuffer();
 
-    const upRes = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${storagePath}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${SERVICE_KEY}`,
-        'Content-Type': arquivo.type,
-        'x-upsert': 'true',
-      },
-      body: bytes,
-    });
-
-    if (!upRes.ok) {
-      const txt = await upRes.text();
-      console.error('[ordem-producao] Supabase recusou upload', upRes.status, txt);
-      if (upRes.status === 402 || /egress|quota|restricted/i.test(txt)) {
-        return NextResponse.json(
-          { erro: 'Armazenamento indisponível no momento (limite de tráfego do plano atingido). O anexo não pôde ser enviado — tente novamente mais tarde.' },
-          { status: 402 },
-        );
-      }
-      return NextResponse.json({ erro: `Falha ao enviar o arquivo (Storage ${upRes.status}).` }, { status: 502 });
+    try {
+      await b2Upload(fileName, arquivo.type, bytes);
+    } catch (e) {
+      console.error('[ordem-producao] upload B2 falhou:', e);
+      return NextResponse.json({ erro: 'Falha ao enviar o arquivo pro armazenamento. Tente novamente.' }, { status: 502 });
     }
 
-    await sql`UPDATE producao_pedido SET ordem_producao_url = ${storagePath} WHERE id = ${pedidoId}`;
+    // Prefixo "b2:" marca que o arquivo está no Backblaze (os antigos ficam sem prefixo).
+    await sql`UPDATE producao_pedido SET ordem_producao_url = ${'b2:' + fileName} WHERE id = ${pedidoId}`;
 
     return NextResponse.json({ ok: true });
   } catch (e) {
@@ -137,7 +143,10 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     const rows = await sql`SELECT ordem_producao_url FROM producao_pedido WHERE id = ${pedidoId}`;
     const storagePath: string | null = rows[0]?.ordem_producao_url ?? null;
 
-    if (storagePath) await deleteStorage(storagePath);
+    if (storagePath) {
+      if (storagePath.startsWith('b2:')) await b2Delete(storagePath.slice(3));
+      else await deleteStorage(storagePath);
+    }
 
     await sql`UPDATE producao_pedido SET ordem_producao_url = NULL WHERE id = ${pedidoId}`;
 
