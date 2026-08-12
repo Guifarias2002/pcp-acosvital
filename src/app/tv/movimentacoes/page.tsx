@@ -275,36 +275,13 @@ export default function TVMovimentacoesPage() {
       })
       .then(data => { if (data) { setSemSessao(false); setSetoresKanban(data.setores || []); } })
       .catch(() => {});
-    fetch('/api/dashboard/pedidos-por-mes', { headers })
-      .then(r => (r.ok ? r.json() : null))
-      .then(data => { if (data) { setMeses(data.meses || []); setVariacaoPct(data.variacao_pct ?? null); } })
-      .catch(() => {});
-    fetch('/api/dashboard/analise-producao', { headers })
-      .then(r => (r.ok ? r.json() : null))
-      .then(data => { if (data) { setAtrasados(data.atrasados || []); setParados(data.parados || []); } })
-      .catch(() => {});
-    fetch('/api/dashboard/comparativo-velocidade', { headers })
-      .then(r => (r.ok ? r.json() : null))
-      .then(data => { if (data) { setVelHoje(data.hoje || VEL_VAZIO); setVelMes(data.mes || VEL_VAZIO); setVelOntem(data.ontem || VEL_VAZIO); } })
-      .catch(() => {});
-    fetch('/api/dashboard/producao-periodo', { headers })
-      .then(r => (r.ok ? r.json() : null))
-      .then(data => { if (data) { setProdContagem(data.contagem || CONTAGEM_VAZIA); setProdHoje(data.hoje || []); setProdSemana(data.semana || []); } })
-      .catch(() => {});
-    // Painel de Produção (quadro de etapas) — junta abertos + entregues, igual à /tv/kanban.
-    Promise.all([
-      fetch('/api/dashboard/pedidos', { headers }).then(r => (r.ok ? r.json() : { pedidos: [] })).catch(() => ({ pedidos: [] })),
-      fetch('/api/entregues', { headers }).then(r => (r.ok ? r.json() : { pedidos: [] })).catch(() => ({ pedidos: [] })),
-    ]).then(([abertos, entregues]) => {
-      const mapa = new Map<number, PedidoPainel>();
-      for (const p of (abertos.pedidos || [])) mapa.set(p.id, p);
-      for (const p of (entregues.pedidos || [])) if (!mapa.has(p.id)) mapa.set(p.id, p);
-      setPainelPedidos(Array.from(mapa.values()));
-    }).catch(() => {});
-    fetch('/api/dashboard/vendas', { headers })
-      .then(r => (r.ok ? r.json() : null))
-      .then(data => { if (data && data.hoje) setVendas(data); })
-      .catch(() => {});
+    // TV em modo "só kanban" (12/08) — os painéis pesados foram DESATIVADOS pra
+    // aliviar o banco (Free/saturado). Cada TV aberta antes disparava, a cada
+    // 30s, endpoints caríssimos (analise-producao ~9s, comparativo-velocidade
+    // ~6.8s) que sufocavam o pool. Removidos daqui: pedidos-por-mes,
+    // analise-producao, comparativo-velocidade, producao-periodo,
+    // pedidos+entregues (painel) e vendas. Pra reativar o rodízio completo,
+    // restaurar estes fetch + a rotação de telas (VIEW_ORDEM) acima.
   }, []);
 
   useEffect(() => {
@@ -318,12 +295,12 @@ export default function TVMovimentacoesPage() {
 
   useRealtime(['producao_movimentacaoitem', 'producao_itemparcial', 'producao_itempedido', 'producao_pedido'], carregar);
 
-  // Rodízio com tempo por tela (fade suave). Cada tela agenda a próxima com sua
-  // própria duração — telas de totais passam rápido (5s), as cheias ~25s.
+  // TV em modo "só kanban" (12/08) — rodízio DESATIVADO pra manter a tela no
+  // kanban e cortar carga do banco (Free/saturado). Se algo mudar a view, ela
+  // volta pro kanban. Pra reativar o rodízio, restaurar o setTimeout com
+  // VIEW_ORDEM/VIEW_DWELL abaixo.
   useEffect(() => {
-    const prox = VIEW_ORDEM[(VIEW_ORDEM.indexOf(view) + 1) % VIEW_ORDEM.length];
-    const t = setTimeout(() => setView(prox), VIEW_DWELL[view] ?? DWELL_VIEW_MS);
-    return () => clearTimeout(t);
+    if (view !== 'kanban') setView('kanban');
   }, [view]);
 
   // Na tela de velocidade, alterna sozinho entre Hoje, Mês atual e Ontem.
