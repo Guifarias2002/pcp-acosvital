@@ -525,12 +525,6 @@ export default function DashboardPage() {
                 href: '/kanban',
               },
               {
-                etapa: 'mat_concluido', bg: '#b45309', label: 'Mat. Concluído',
-                count: data.mat_concluido, val: null,
-                sub: 'produção ok, na logística', icon: 'bi-truck',
-                href: '/pedidos?setor=logistica',
-              },
-              {
                 etapa: 'entregue', bg: '#166534', label: 'Entregue',
                 count: data.entregues, val: data.valor_concluido,
                 sub: 'materiais entregues ao cliente', icon: 'bi-check-circle-fill',
