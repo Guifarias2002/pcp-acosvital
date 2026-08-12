@@ -64,8 +64,10 @@ export const SETORES_CALDEIRARIA_NOVOS = ['corte_chapas', 'corte_perfis', 'supor
 export const SETORES_CALDEIRARIA_LEGADO = ['chanfradeira', 'calandra', 'montagem', 'solda', 'pintura'];
 
 // Setores exclusivos da Caldeiraria — não aparecem no roteiro nem no menu do
-// Flange, mesmo estando na lista geral SETOR_CHOICES.
-const SETORES_EXCLUSIVOS_CALDEIRARIA = ['desenho', 'liberado', ...SETORES_CALDEIRARIA_LEGADO, ...SETORES_CALDEIRARIA_NOVOS];
+// Flange, mesmo estando na lista geral SETOR_CHOICES. Inclui os ANTIGOS
+// (legado) de propósito: eles saíram do menu da Caldeiraria mas continuam
+// sendo exclusivos dela, então NÃO podem vazar pro grupo Flanges no Sidebar.
+export const SETORES_EXCLUSIVOS_CALDEIRARIA = ['desenho', 'liberado', ...SETORES_CALDEIRARIA_LEGADO, ...SETORES_CALDEIRARIA_NOVOS];
 
 export const FABRICAS: { cod: string; nome: string; icon: string; setores: string[] }[] = [
   {

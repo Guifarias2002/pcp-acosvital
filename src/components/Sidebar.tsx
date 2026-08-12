@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { logout, getUser, vendedorRestrito } from '@/lib/auth';
-import { SETOR_CHOICES, NOMES, SETORES_CALDEIRARIA_MENU } from '@/lib/types';
+import { SETOR_CHOICES, NOMES, SETORES_CALDEIRARIA_MENU, SETORES_EXCLUSIVOS_CALDEIRARIA } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { JWTPayload } from '@/lib/auth';
 
@@ -37,10 +37,14 @@ const SETOR_ICONS: Record<string, string> = {
 // "Flanges" e ganham sua própria linha no menu (ver renderização abaixo).
 const SETORES_FORA_FLANGES = ['caldeiraria', 'beneficiadores', 'recebimento'];
 
-// Setores exclusivos da Caldeiraria — nunca aparecem no grupo "Flanges",
-// mesmo quando entram na lista geral SETOR_CHOICES.
+// Itens do menu da Caldeiraria (usado só pra RENDERIZAR o grupo Caldeiraria).
 // ('caldeiraria' sai fora porque já vira o item "Recebimento" à parte.)
 const SETORES_CALDEIRARIA_EXTRA = SETORES_CALDEIRARIA_MENU.filter(c => c !== 'caldeiraria');
+
+// Setores que NUNCA aparecem no grupo "Flanges" — tudo que é exclusivo da
+// Caldeiraria, incluindo os ANTIGOS já removidos do menu (senão eles vazam
+// pro Flanges, que lista "tudo que não é da Caldeiraria"). Ver types.ts.
+const SETORES_NAO_FLANGES = SETORES_EXCLUSIVOS_CALDEIRARIA;
 
 function NavItem({ href, label, icon, onNav }: { href: string; label: string; icon?: string; onNav?: () => void }) {
   const rawPath = usePathname();
@@ -162,13 +166,13 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
 
           {acessoIrrestrito ? (
             <NavGroup label="🔩 Flanges" defaultOpen={true}>
-              {SETOR_CHOICES.filter(([cod]) => !SETORES_FORA_FLANGES.includes(cod) && !SETORES_CALDEIRARIA_EXTRA.includes(cod)).map(([cod, nome]) => (
+              {SETOR_CHOICES.filter(([cod]) => !SETORES_FORA_FLANGES.includes(cod) && !SETORES_NAO_FLANGES.includes(cod)).map(([cod, nome]) => (
                 <NavItem key={cod} href={`/setor/${cod}`} label={nome} icon={SETOR_ICONS[cod]} onNav={fechar} />
               ))}
             </NavGroup>
-          ) : meusSetores.filter(cod => !SETORES_FORA_FLANGES.includes(cod) && !SETORES_CALDEIRARIA_EXTRA.includes(cod)).length > 0 ? (
+          ) : meusSetores.filter(cod => !SETORES_FORA_FLANGES.includes(cod) && !SETORES_NAO_FLANGES.includes(cod)).length > 0 ? (
             <NavGroup label="🔩 Flanges">
-              {meusSetores.filter(cod => !SETORES_FORA_FLANGES.includes(cod) && !SETORES_CALDEIRARIA_EXTRA.includes(cod)).map(cod => (
+              {meusSetores.filter(cod => !SETORES_FORA_FLANGES.includes(cod) && !SETORES_NAO_FLANGES.includes(cod)).map(cod => (
                 <NavItem
                   key={cod}
                   href={`/setor/${cod}`}
