@@ -23,6 +23,24 @@ export const SETOR_CHOICES: [string, string][] = [
   ['montagem', 'Montagem'],
   ['liberado', 'Liberado'],
   ['pintura', 'Pintura'],
+  // ── Caldeiraria — etapas novas do chão de fábrica (12/08) ──────────────────
+  // Modelo detalhado da Caldeiraria (roteiro completo passado pela área). É
+  // ADITIVO: os setores antigos (chanfradeira, calandra, montagem, solda,
+  // pintura) continuam existindo pros pedidos que já estão em produção
+  // terminarem em paz; estes novos valem pros pedidos novos. Ver
+  // [[project_caldeiraria_modelo]].
+  ['corte_chapas', 'Corte de Chapas'],
+  ['corte_perfis', 'Corte de Perfis'],
+  ['suporte', 'Suporte à Caldeiraria'],
+  ['recortes', 'Recortes de Perfis'],
+  ['tracagem', 'Traçagem'],
+  ['chanfros', 'Prep. Chanfros e Juntas'],
+  ['montagem_solda', 'Montagem / Solda Inicial'],
+  ['usinagem_final', 'Usinagem Final'],
+  ['acabamento_geral', 'Acabamento Geral / Tipar'],
+  ['conjuntos', 'Montagem de Conjuntos'],
+  ['jateamento', 'Jateamento'],
+  ['pintura_cald', 'Pintura (Caldeiraria)'],
 ];
 
 export const NOMES: Record<string, string> = Object.fromEntries(SETOR_CHOICES);
@@ -35,9 +53,18 @@ export const NOMES: Record<string, string> = Object.fromEntries(SETOR_CHOICES);
 //    pré-planejado, igual já acontece na tela de Flange.
 //  • Caldeiraria hoje só tem 'caldeiraria'; conforme as etapas forem definidas,
 //    é só acrescentar os setores aqui (nada mais muda).
+// Etapas novas do chão de fábrica da Caldeiraria (12/08), na ordem do roteiro.
+// Aditivas — fonte única reaproveitada nas listas de menu/kanban/roteiro abaixo.
+export const SETORES_CALDEIRARIA_NOVOS = ['corte_chapas', 'corte_perfis', 'suporte', 'recortes', 'tracagem', 'chanfros', 'montagem_solda', 'usinagem_final', 'acabamento_geral', 'conjuntos', 'jateamento', 'pintura_cald'];
+
+// Setores ANTIGOS da Caldeiraria — mantidos só pra os pedidos que já estão em
+// produção drenarem. Não entram mais no roteiro de pedido novo, mas continuam
+// visíveis no menu/kanban até esvaziarem (aí dá pra remover desta lista).
+export const SETORES_CALDEIRARIA_LEGADO = ['chanfradeira', 'calandra', 'montagem', 'solda', 'pintura'];
+
 // Setores exclusivos da Caldeiraria — não aparecem no roteiro nem no menu do
 // Flange, mesmo estando na lista geral SETOR_CHOICES.
-const SETORES_EXCLUSIVOS_CALDEIRARIA = ['desenho', 'calandra', 'chanfradeira', 'solda', 'montagem', 'liberado', 'pintura'];
+const SETORES_EXCLUSIVOS_CALDEIRARIA = ['desenho', 'liberado', ...SETORES_CALDEIRARIA_LEGADO, ...SETORES_CALDEIRARIA_NOVOS];
 
 export const FABRICAS: { cod: string; nome: string; icon: string; setores: string[] }[] = [
   {
@@ -52,13 +79,14 @@ export const FABRICAS: { cod: string; nome: string; icon: string; setores: strin
     cod: 'caldeiraria',
     nome: 'Caldeiraria',
     icon: 'bi-hammer',
-    // Lista fechada em 22/07 com o líder da Caldeiraria (kanban físico dele):
-    // Desenho/Compras (intake) → Recebimento (setor "caldeiraria") →
-    // Chanfradeira → Calandra → Montagem → Solda → Acabamento → Pintura →
-    // Liberado (pronto, espera antes do despacho) → Qualidade (Inspeção,
-    // no final de tudo). Todas opcionais por item — PCP escolhe quais usar e
-    // em que ordem, como no Flange.
-    setores: ['desenho', 'compras', 'caldeiraria', 'chanfradeira', 'calandra', 'montagem', 'solda', 'acabamento', 'pintura', 'liberado', 'qualidade'],
+    // Roteiro NOVO (12/08) — modelo detalhado passado pela área, do intake ao
+    // despacho: Desenho/Compras (intake) → Recebimento (setor "caldeiraria") →
+    // etapas novas do chão de fábrica (SETORES_CALDEIRARIA_NOVOS) → Liberado →
+    // Qualidade. Só afeta PEDIDO NOVO — pedido já criado guarda o próprio
+    // roteiro_efetivo, então os que estão em produção não mudam. Os setores
+    // antigos saíram do picker mas continuam em SETOR_CHOICES pra não orfanar.
+    // Todas opcionais por item — PCP escolhe quais usar e em que ordem.
+    setores: ['desenho', 'compras', 'caldeiraria', ...SETORES_CALDEIRARIA_NOVOS, 'liberado', 'qualidade'],
   },
 ];
 
@@ -66,14 +94,14 @@ export const FABRICAS: { cod: string; nome: string; icon: string; setores: strin
 // FABRICAS.caldeiraria.setores acima (que inclui Compras/Acabamento/
 // Qualidade como OPÇÃO DE ROTEIRO, mas esses 3 continuam aparecendo do lado
 // do Flange no menu/kanban, por serem compartilhados).
-export const SETORES_CALDEIRARIA_MENU = ['caldeiraria', 'desenho', 'chanfradeira', 'calandra', 'montagem', 'solda', 'pintura', 'liberado'];
+export const SETORES_CALDEIRARIA_MENU = ['caldeiraria', 'desenho', ...SETORES_CALDEIRARIA_NOVOS, 'liberado', ...SETORES_CALDEIRARIA_LEGADO];
 
 // Colunas do KANBAN da Caldeiraria — Desenho fica de fora (23/07: é feito na
 // abertura da OP, antes de a peça entrar em produção, não etapa que valha
 // acompanhar aqui). Recebimento ("caldeiraria") volta a aparecer (23/07,
 // tarde: senão o pedido recém-criado da Caldeiraria não aparece em lugar
 // nenhum do quadro até alguém avançar manualmente).
-export const SETORES_CALDEIRARIA_KANBAN = ['caldeiraria', 'chanfradeira', 'calandra', 'montagem', 'solda', 'pintura', 'liberado'];
+export const SETORES_CALDEIRARIA_KANBAN = ['caldeiraria', ...SETORES_CALDEIRARIA_NOVOS, 'liberado', ...SETORES_CALDEIRARIA_LEGADO];
 
 // Setores de CORTE — depois de cortada, a peça é direcionada pela mão do
 // operador do corte pra linha do Flange (segue o próximo do roteiro) ou pra
@@ -98,7 +126,7 @@ export const TIPOS_PRODUTO_CALDEIRARIA: { cod: string; label: string }[] = [
 // Etapas da Caldeiraria que exigem checklist de processo. Separada de
 // SETORES_CALDEIRARIA_INTERNOS de propósito — aquela constante já é usada em
 // outros lugares (menu, kanban) e não deve ganhar efeito colateral novo.
-export const SETORES_CHECKLIST_PROCESSO = ['chanfradeira', 'calandra', 'montagem', 'solda', 'acabamento', 'pintura', 'liberado', 'qualidade'];
+export const SETORES_CHECKLIST_PROCESSO = ['chanfros', 'montagem_solda', 'usinagem_final', 'acabamento_geral', 'conjuntos', 'jateamento', 'pintura_cald', 'liberado', 'qualidade', ...SETORES_CALDEIRARIA_LEGADO, 'acabamento'];
 
 export interface ChecklistItemDef { id: string; label: string; }
 
@@ -132,6 +160,48 @@ const CHECKLISTS_ETAPA_BASE: Record<string, ChecklistItemDef[]> = {
   qualidade: [
     { id: 'dimensional', label: 'Inspeção dimensional/visual' },
   ],
+  // ── Etapas novas do chão de fábrica da Caldeiraria (12/08) ─────────────────
+  chanfros: [
+    { id: 'angulo_chanfro', label: 'Ângulo/abertura de raiz do bisel conforme espessura' },
+  ],
+  tracagem: [
+    { id: 'marcacao', label: 'Marcação conforme desenho / plano de corte' },
+  ],
+  montagem_solda: [
+    { id: 'esquadro', label: 'Esquadro/alinhamento de eixo' },
+    { id: 'gap_pecas', label: 'Gap entre peças / ponteamento' },
+    { id: 'cordao', label: 'Cordão sem mordedura/trinca visível' },
+    { id: 'escoria', label: 'Escória removida' },
+    { id: 'consumivel', label: 'Consumível rastreável registrado' },
+    { id: 'ut_interm', label: 'UT intermediária (ultrassom) conferida' },
+    { id: 'dim_interm', label: 'Dimensional intermediária conferido' },
+  ],
+  usinagem_final: [
+    { id: 'acerto_dimensional', label: 'Acerto dimensional final' },
+  ],
+  acabamento_geral: [
+    { id: 'esmerilhamento', label: 'Esmerilhamento / acerto final e tipagem da peça' },
+    { id: 'teste_carga', label: 'Inspeção — teste de carga' },
+    { id: 'dimensional', label: 'Inspeção dimensional' },
+    { id: 'visual', label: 'Inspeção visual' },
+    { id: 'pm_lp', label: 'Inspeção PM / LP (partícula magnética / líquido penetrante)' },
+  ],
+  conjuntos: [
+    { id: 'dimensional_cliente', label: 'Inspeção dimensional (cliente)' },
+    { id: 'visual_cliente', label: 'Inspeção visual (cliente)' },
+  ],
+  jateamento: [
+    { id: 'grau_jateamento', label: 'Grau de preparação de superfície (jato) conforme especificação' },
+  ],
+  pintura_cald: [
+    { id: 'primer', label: 'Demão — primer' },
+    { id: 'intermediaria', label: 'Demão — intermediária' },
+    { id: 'acabamento_pint', label: 'Demão — acabamento' },
+    { id: 'antiderrapante', label: 'Demão — antiderrapante' },
+    { id: 'detalhes', label: 'Pintura de detalhes' },
+    { id: 'retoques', label: 'Retoques' },
+    { id: 'espessura_pelicula', label: 'Espessura de película conforme especificação' },
+  ],
 };
 
 // Pontos extras só pra produtos críticos (Vaso de Pressão / Tanque de
@@ -141,6 +211,13 @@ const CHECKLISTS_CRITICOS_EXTRA: Record<string, ChecklistItemDef[]> = {
   solda: [
     { id: 'soldador_qualificado', label: 'Soldador qualificado (AWS/ASME)' },
     { id: 'end_previsto', label: 'Ensaio Não Destrutivo previsto pro projeto' },
+  ],
+  montagem_solda: [
+    { id: 'soldador_qualificado', label: 'Soldador qualificado (AWS/ASME)' },
+    { id: 'end_previsto', label: 'Ensaio Não Destrutivo previsto pro projeto' },
+  ],
+  acabamento_geral: [
+    { id: 'end_executado', label: 'Ensaio Não Destrutivo executado (LP/UT/RX)' },
   ],
   qualidade: [
     { id: 'end_executado', label: 'Ensaio Não Destrutivo executado (LP/UT/RX)' },
