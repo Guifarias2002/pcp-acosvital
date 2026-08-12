@@ -116,8 +116,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     try {
       await b2Upload(fileName, arquivo.type, bytes);
     } catch (e) {
+      const motivo = e instanceof Error ? e.message : String(e);
       console.error('[pedido-venda] upload B2 falhou:', e);
-      return NextResponse.json({ erro: 'Falha ao enviar o arquivo pro armazenamento. Tente novamente.' }, { status: 502 });
+      return NextResponse.json({ erro: `Falha ao enviar o arquivo pro armazenamento: ${motivo}` }, { status: 502 });
     }
 
     // Prefixo "b2:" marca que o arquivo está no Backblaze (os antigos ficam sem prefixo).
