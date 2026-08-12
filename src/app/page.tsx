@@ -456,22 +456,13 @@ export default function DashboardPage() {
 
   const ultimosPedidos = pedidosData ?? [];
 
-  // Contagem dos 4 primeiros cards de etapa a partir do MESMO calculo (getPedidoEtapa)
-  // usado na tabela "Últimos Pedidos" logo abaixo - antes os cards vinham de uma
-  // contagem separada no banco (por status do pedido), que podia divergir da tabela
-  // (ex: item "recebido" mas ainda nao iniciado contava como "produzindo" nos cards,
-  // mas como "ag_recebimento" na tabela). "Entregue" continua vindo do backend.
-  const etapaCounts = { a_produzir: 0, produzindo: 0, mat_concluido: 0 };
-  if (pedidosData) {
-    for (const p of pedidosData) {
-      const e = getPedidoEtapa(p);
-      if (e === 'entregue') continue;
-      // "ag_recebimento" (enviado, aguardando setor receber) some como card separado
-      // e passa a contar dentro de "Produzindo" - decisão do usuário.
-      const key = e === 'ag_recebimento' ? 'produzindo' : e;
-      etapaCounts[key as keyof typeof etapaCounts]++;
-    }
-  }
+  // Os 4 cards de etapa vêm dos contadores do SERVIDOR (/api/dashboard), que
+  // particionam TODOS os pedidos em aberto por setor_atual (Emissão → A Produzir,
+  // Logística → Mat. Concluído, resto → Produzindo) e SEMPRE somam o "Total em
+  // aberto". Antes eram recalculados aqui a partir de uma lista de pedidos, que
+  // não fechava com o Total (ex: pedido com entrega parcial saía como
+  // "entregue" e sumia dos cards, mas continuava no Total). Ver
+  // dashboard/route.ts (ajuste 12/08).
 
   const pedidosFiltrados = ultimosPedidos.filter(p => {
     if (busca && !p.numero_pedido_venda?.toLowerCase().includes(busca.toLowerCase()) && !p.cliente?.toLowerCase().includes(busca.toLowerCase())) return false;
@@ -523,19 +514,19 @@ export default function DashboardPage() {
             {[
               {
                 etapa: 'a_produzir', bg: '#1a3a5c', label: 'A Produzir',
-                count: etapaCounts.a_produzir, val: data.valor_a_produzir,
-                sub: 'OPs emitidas aguardando início', icon: 'bi-hourglass-split',
+                count: data.a_produzir, val: data.valor_a_produzir,
+                sub: 'na Emissão, aguardando início', icon: 'bi-hourglass-split',
                 href: '/pedidos?status=emitido',
               },
               {
                 etapa: 'produzindo', bg: '#1d4ed8', label: 'Produzindo',
-                count: etapaCounts.produzindo, val: data.valor_em_producao,
+                count: data.produzindo, val: data.valor_em_producao,
                 sub: 'em trabalho nos setores', icon: 'bi-gear-fill',
                 href: '/kanban',
               },
               {
                 etapa: 'mat_concluido', bg: '#b45309', label: 'Mat. Concluído',
-                count: etapaCounts.mat_concluido, val: null,
+                count: data.mat_concluido, val: null,
                 sub: 'produção ok, na logística', icon: 'bi-truck',
                 href: '/pedidos?setor=logistica',
               },

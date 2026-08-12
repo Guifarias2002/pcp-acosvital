@@ -44,16 +44,23 @@ export async function GET(req: Request) {
     return NextResponse.json(cache.data);
   }
 
+  // Partição por ONDE o pedido está (setor_atual), pra os 3 cards de "em aberto"
+  // sempre somarem o Total (antes 'produzindo' só pegava status='em_producao' e
+  // deixava de fora pausado/aguardando/em_transito/etc. — faltava na conta):
+  //   Emissão            → A Produzir
+  //   Logística          → Mat. Concluído
+  //   qualquer outro     → Produzindo  (IS DISTINCT FROM cobre setor_atual NULL)
+  // 'entregue' fica fora do "em aberto". A Produzir + Produzindo + Mat.Concluído = Total.
   const qCounts = sql`
     SELECT
-      COUNT(*) FILTER (WHERE status != 'entregue')                                   AS total,
-      COUNT(*) FILTER (WHERE status = 'emitido')                                     AS a_produzir,
-      COUNT(*) FILTER (WHERE status = 'em_producao' AND setor_atual != 'logistica')  AS produzindo,
-      COUNT(*) FILTER (WHERE status = 'em_producao' AND setor_atual = 'logistica')   AS mat_concluido,
-      COUNT(*) FILTER (WHERE status = 'entregue')                                    AS entregues,
-      COUNT(*) FILTER (WHERE prazo_entrega < NOW()::date AND status != 'entregue')   AS atrasados,
-      COUNT(*) FILTER (WHERE prioridade = 'urgente' AND status != 'entregue')        AS urgentes,
-      COUNT(*) FILTER (WHERE status = 'bloqueado')                                   AS bloqueados
+      COUNT(*) FILTER (WHERE status != 'entregue')                                                                        AS total,
+      COUNT(*) FILTER (WHERE status != 'entregue' AND setor_atual = 'emissao')                                            AS a_produzir,
+      COUNT(*) FILTER (WHERE status != 'entregue' AND setor_atual IS DISTINCT FROM 'emissao' AND setor_atual IS DISTINCT FROM 'logistica') AS produzindo,
+      COUNT(*) FILTER (WHERE status != 'entregue' AND setor_atual = 'logistica')                                          AS mat_concluido,
+      COUNT(*) FILTER (WHERE status = 'entregue')                                                                         AS entregues,
+      COUNT(*) FILTER (WHERE prazo_entrega < NOW()::date AND status != 'entregue')                                        AS atrasados,
+      COUNT(*) FILTER (WHERE prioridade = 'urgente' AND status != 'entregue')                                             AS urgentes,
+      COUNT(*) FILTER (WHERE status = 'bloqueado')                                                                        AS bloqueados
     FROM producao_pedido
   `;
 
