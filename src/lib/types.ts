@@ -57,9 +57,10 @@ export const NOMES: Record<string, string> = Object.fromEntries(SETOR_CHOICES);
 // Aditivas — fonte única reaproveitada nas listas de menu/kanban/roteiro abaixo.
 export const SETORES_CALDEIRARIA_NOVOS = ['corte_chapas', 'corte_perfis', 'suporte', 'recortes', 'tracagem', 'chanfros', 'montagem_solda', 'usinagem_final', 'acabamento_geral', 'conjuntos', 'jateamento', 'pintura_cald'];
 
-// Setores ANTIGOS da Caldeiraria — mantidos só pra os pedidos que já estão em
-// produção drenarem. Não entram mais no roteiro de pedido novo, mas continuam
-// visíveis no menu/kanban até esvaziarem (aí dá pra remover desta lista).
+// Setores ANTIGOS da Caldeiraria — já esvaziados (12/08, confirmado com o
+// usuário) e REMOVIDOS do menu/kanban. Continuam em SETOR_CHOICES e em
+// SETORES_EXCLUSIVOS_CALDEIRARIA só pra resolver o nome em dados históricos
+// (movimentações antigas) e não vazarem pro Flange.
 export const SETORES_CALDEIRARIA_LEGADO = ['chanfradeira', 'calandra', 'montagem', 'solda', 'pintura'];
 
 // Setores exclusivos da Caldeiraria — não aparecem no roteiro nem no menu do
@@ -94,14 +95,14 @@ export const FABRICAS: { cod: string; nome: string; icon: string; setores: strin
 // FABRICAS.caldeiraria.setores acima (que inclui Compras/Acabamento/
 // Qualidade como OPÇÃO DE ROTEIRO, mas esses 3 continuam aparecendo do lado
 // do Flange no menu/kanban, por serem compartilhados).
-export const SETORES_CALDEIRARIA_MENU = ['caldeiraria', 'desenho', ...SETORES_CALDEIRARIA_NOVOS, 'liberado', ...SETORES_CALDEIRARIA_LEGADO];
+export const SETORES_CALDEIRARIA_MENU = ['caldeiraria', 'desenho', ...SETORES_CALDEIRARIA_NOVOS, 'liberado'];
 
 // Colunas do KANBAN da Caldeiraria — Desenho fica de fora (23/07: é feito na
 // abertura da OP, antes de a peça entrar em produção, não etapa que valha
 // acompanhar aqui). Recebimento ("caldeiraria") volta a aparecer (23/07,
 // tarde: senão o pedido recém-criado da Caldeiraria não aparece em lugar
 // nenhum do quadro até alguém avançar manualmente).
-export const SETORES_CALDEIRARIA_KANBAN = ['caldeiraria', ...SETORES_CALDEIRARIA_NOVOS, 'liberado', ...SETORES_CALDEIRARIA_LEGADO];
+export const SETORES_CALDEIRARIA_KANBAN = ['caldeiraria', ...SETORES_CALDEIRARIA_NOVOS, 'liberado'];
 
 // Setores de CORTE — depois de cortada, a peça é direcionada pela mão do
 // operador do corte pra linha do Flange (segue o próximo do roteiro) ou pra
