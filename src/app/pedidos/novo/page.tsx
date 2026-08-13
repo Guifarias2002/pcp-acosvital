@@ -83,6 +83,11 @@ export default function NovoPedidoPage() {
   const naAbaTodos = fabricaAtiva === TAB_TODOS;
   const grupoAtivo = grupos[fabricaAtiva] ?? { roteiro: ['emissao'], itens: [novoItem()] };
   const fabDef = FABRICAS.find(f => f.cod === fabricaAtiva) ?? FABRICAS[0];
+  // O seletor de roteiro some na aba "Todos os Produtos" e na Caldeiraria: a
+  // Caldeiraria não escolhe mais roteiro na tela — a OP nasce com o roteiro
+  // padrão completo da fábrica (ver roteiroParaSalvar). Flanges segue com o
+  // painel manual como sempre.
+  const mostrarRoteiro = !naAbaTodos && fabricaAtiva !== 'caldeiraria';
 
   function setGrupo(fabCod: string, patch: Partial<Grupo>) {
     setGrupos(prev => ({ ...prev, [fabCod]: { ...prev[fabCod], ...patch } }));
@@ -237,6 +242,20 @@ export default function NovoPedidoPage() {
 
   // `pvOverride` permite reenviar com um sequencial (26433-2) quando o PV
   // original já existe — o aviso de duplicata chama isso ao confirmar.
+  // Roteiro que vai pra OP. A Caldeiraria perdeu o seletor manual na tela, então
+  // nasce sempre com o roteiro padrão completo da fábrica (Emissão + todas as
+  // etapas de FABRICAS.caldeiraria.setores) — assim o item não fica preso na
+  // emissão sem pra onde ir. TEMPORÁRIO: quando existir o catálogo de produtos
+  // da pesada, esse roteiro fixo vira o roteiro que vem do produto escolhido.
+  // Demais fábricas usam o que o usuário montou no painel.
+  function roteiroParaSalvar(fabCod: string): string[] {
+    if (fabCod === 'caldeiraria') {
+      const setores = FABRICAS.find(f => f.cod === 'caldeiraria')?.setores ?? [];
+      return ['emissao', ...setores];
+    }
+    return grupos[fabCod].roteiro;
+  }
+
   async function enviar(pvOverride?: string) {
     const pvFinal = (pvOverride ?? pv).trim();
     if (pvOverride) setPv(pvFinal);
@@ -258,7 +277,7 @@ export default function NovoPedidoPage() {
     if (misto) {
       roteiro_base = ['emissao'];
       for (const f of comItens) {
-        const rot = grupos[f.cod].roteiro;
+        const rot = roteiroParaSalvar(f.cod);
         for (const it of itensValidos(grupos[f.cod])) {
           itensPayload.push({
             codigo: it.codigo, descricao: it.descricao,
@@ -271,7 +290,7 @@ export default function NovoPedidoPage() {
       }
     } else {
       const f = comItens[0];
-      roteiro_base = grupos[f.cod].roteiro;
+      roteiro_base = roteiroParaSalvar(f.cod);
       for (const it of itensValidos(grupos[f.cod])) {
         itensPayload.push({
           codigo: it.codigo, descricao: it.descricao,
@@ -498,7 +517,7 @@ export default function NovoPedidoPage() {
         </div>
 
         {/* Layout: 2 colunas no desktop, 1 no mobile */}
-        <div className="novo-pedido-grid">
+        <div className={`novo-pedido-grid${fabricaAtiva === 'caldeiraria' ? ' novo-pedido-grid--full' : ''}`}>
 
           {/* COLUNA ESQUERDA */}
           <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
@@ -699,8 +718,8 @@ export default function NovoPedidoPage() {
             )}
           </div>
 
-          {/* COLUNA DIREITA — Roteiro da fábrica ativa (some na aba Todos os Produtos) */}
-          {!naAbaTodos && (
+          {/* COLUNA DIREITA — Roteiro da fábrica ativa (some na aba Todos os Produtos e na Caldeiraria) */}
+          {mostrarRoteiro && (
           <div>
             <div className="card" style={{ padding:20, position:'sticky', top:66 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6, flexWrap:'wrap', gap:8 }}>

@@ -423,6 +423,10 @@ body {
   gap: 16px;
   align-items: start;
 }
+/* Sem painel de roteiro (Caldeiraria): a coluna esquerda ocupa a largura toda. */
+.novo-pedido-grid--full {
+  grid-template-columns: 1fr;
+}
 .grid-6 {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
