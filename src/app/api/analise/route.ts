@@ -75,14 +75,22 @@ export async function GET(req: Request) {
       FROM producao_itempedido i
       WHERE ${FLANGE} AND i.criado_em BETWEEN ${de} AND ${ate}`;
 
-    // ── 3. Throughput por setor (finalizações no período) ─────────────────────
+    // ── 3. Por setor: peças e itens finalizados (etapa concluída) no período ───
+    // pecas = soma da quantidade dos itens, contando cada item UMA vez por setor
+    // (rn=1) — senão retrabalho no mesmo setor contaria a peça 2x.
     const qThroughput = sql`
-      SELECT COALESCE(m.setor_origem, m.setor_destino) AS setor,
-             COUNT(*) AS finalizacoes, COUNT(DISTINCT m.item_id) AS itens
-      FROM producao_movimentacaoitem m
-      JOIN producao_itempedido i ON i.id = m.item_id AND ${FLANGE}
-      WHERE m.status_novo = 'finalizado_setor' AND m.criado_em BETWEEN ${de} AND ${ate} ${fOrig}
-      GROUP BY 1 ORDER BY 2 DESC`;
+      SELECT setor,
+             COUNT(*) AS finalizacoes,
+             COUNT(DISTINCT item_id) AS itens,
+             COALESCE(SUM(CASE WHEN rn = 1 THEN quantidade ELSE 0 END), 0) AS pecas
+      FROM (
+        SELECT COALESCE(m.setor_origem, m.setor_destino) AS setor, m.item_id, i.quantidade,
+               ROW_NUMBER() OVER (PARTITION BY COALESCE(m.setor_origem, m.setor_destino), m.item_id ORDER BY m.criado_em) AS rn
+        FROM producao_movimentacaoitem m
+        JOIN producao_itempedido i ON i.id = m.item_id AND ${FLANGE}
+        WHERE m.status_novo = 'finalizado_setor' AND m.criado_em BETWEEN ${de} AND ${ate} ${fOrig}
+      ) t
+      GROUP BY setor ORDER BY pecas DESC`;
 
     // ── 4. Semanal — criados, finalizações, entregues ─────────────────────────
     const qSemCriados = sql`
@@ -91,12 +99,16 @@ export async function GET(req: Request) {
       FROM producao_itempedido i
       WHERE ${FLANGE} AND i.criado_em BETWEEN ${de} AND ${ate}
       GROUP BY 1 ORDER BY 1`;
+    // "Finalizados" = itens que CHEGARAM na Logística (produção concluída,
+    // pronta pra expedir). Conta a 1ª chegada de cada item na logística.
     const qSemFinal = sql`
-      SELECT date_trunc('week', m.criado_em)::date AS semana, COUNT(*) AS finalizacoes
-      FROM producao_movimentacaoitem m
-      JOIN producao_itempedido i ON i.id = m.item_id AND ${FLANGE}
-      WHERE m.status_novo = 'finalizado_setor' AND m.criado_em BETWEEN ${de} AND ${ate} ${fOrig}
-      GROUP BY 1 ORDER BY 1`;
+      WITH cheg AS (
+        SELECT m.item_id, MIN(m.criado_em) AS t
+        FROM producao_movimentacaoitem m
+        JOIN producao_itempedido i ON i.id = m.item_id AND ${FLANGE}
+        WHERE m.setor_destino = 'logistica' GROUP BY 1)
+      SELECT date_trunc('week', t)::date AS semana, COUNT(*) AS finalizacoes
+      FROM cheg WHERE t BETWEEN ${de} AND ${ate} GROUP BY 1 ORDER BY 1`;
     const qSemEntregas = sql`
       WITH ent AS (
         SELECT m.item_id, MIN(m.criado_em) t
@@ -219,7 +231,7 @@ export async function GET(req: Request) {
       periodo: { de: de.slice(0, 10), ate: ate.slice(0, 10), setores },
       etapas: etapas[0] || {},
       volume: volume[0] || {},
-      throughput: throughput.map((r: Record<string, unknown>) => ({ setor: r.setor, finalizacoes: num(r.finalizacoes), itens: num(r.itens) })),
+      throughput: throughput.map((r: Record<string, unknown>) => ({ setor: r.setor, finalizacoes: num(r.finalizacoes), itens: num(r.itens), pecas: num(r.pecas) })),
       semanal: { criados: semCriados, final: semFinal, entregas: semEntregas },
       tempo_etapa: tempoEtapa,
       lead: lead[0] || {},

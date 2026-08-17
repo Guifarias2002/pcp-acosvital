@@ -30,7 +30,7 @@ interface Dados {
   periodo: { de: string; ate: string; setores: string[] };
   etapas: { entregue?: string; a_produzir?: string; produzindo?: string; atrasados?: string; total?: string };
   volume: { pedidos?: string; itens?: string; pecas?: string };
-  throughput: { setor: string; finalizacoes: number; itens: number }[];
+  throughput: { setor: string; finalizacoes: number; itens: number; pecas: number }[];
   semanal: { criados: Rec[]; final: Rec[]; entregas: Rec[] };
   tempo_etapa: Rec[];
   lead: { n?: string; media_dias?: string; mediana_dias?: string; min_dias?: string; max_dias?: string };
@@ -192,7 +192,7 @@ export default function AnalisePage() {
           <div className="card" style={{ padding: 18, marginBottom: 24 }}>
             {/* Legenda: o que é cada número */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 18px', marginBottom: 16, fontSize: 12, color: '#64748b' }}>
-              <span><b style={{ color: C.azul2 }}>Número de cima</b> = finalizações de setor na semana <i>(etapas concluídas — ritmo de produção)</i></span>
+              <span><b style={{ color: C.azul2 }}>Número de cima</b> = finalizados na semana <i>(itens que chegaram na Logística — produção concluída)</i></span>
               <span><b style={{ color: '#94a3b8' }}>Número de baixo</b> = itens criados na semana <i>(entrada de novos pedidos)</i></span>
             </div>
             {semanas.length === 0 ? <Vazio /> : (
@@ -210,19 +210,20 @@ export default function AnalisePage() {
           </div>
 
           {/* Throughput + tempo por etapa */}
-          <SectionTitle icon="bi-speedometer" t="Desempenho por setor" s="Quanto cada setor produziu e quanto tempo a peça leva ali" />
+          <SectionTitle icon="bi-speedometer" t="Desempenho por setor" s="Peças e itens finalizados em cada setor, e quanto tempo a peça leva ali" />
           <div className="card" style={{ padding: 0, marginBottom: 24, overflowX: 'auto' }}>
             <table style={tbl}>
               <thead><tr>
-                {['Setor', 'Finaliz. de etapa', 'Itens', 'Tempo médio (h)', 'Espera p/ iniciar (h)', 'Em pausa (h)'].map(h =>
+                {['Setor', 'Peças finalizadas', 'Itens', 'Etapas concluídas', 'Tempo médio (h)', 'Espera p/ iniciar (h)', 'Em pausa (h)'].map(h =>
                   <th key={h} style={th}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {ordenarSetores(dados).map(r => (
                   <tr key={r.setor}>
                     <td style={{ ...td, fontWeight: 700 }}>{nm(r.setor)}</td>
-                    <td style={tdR}>{fmt(r.finalizacoes)}</td>
+                    <td style={{ ...tdR, fontWeight: 700, color: C.azul }}>{fmt(r.pecas)}</td>
                     <td style={tdR}>{fmt(r.itens)}</td>
+                    <td style={tdR}>{fmt(r.finalizacoes)}</td>
                     <td style={tdR}>{fmt(r.media_h, 0)}</td>
                     <td style={tdR}>{fmt(r.espera_h, 0)}</td>
                     <td style={{ ...tdR, color: Number(r.parada_h) > 10 ? C.laranja : undefined, fontWeight: Number(r.parada_h) > 10 ? 700 : 400 }}>{fmt(r.parada_h, 0)}</td>
@@ -280,7 +281,7 @@ export default function AnalisePage() {
             </div>
             <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
               <p style={{ ...cardTitle, padding: '18px 16px 0' }}>Apontamento por líder</p>
-              <table style={tbl}><thead><tr>{['Líder', 'Setor', 'Finaliz.', 'Inícios', 'Total'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <table style={tbl}><thead><tr>{['Líder', 'Setor', 'Etapas', 'Inícios', 'Total'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
                 <tbody>{dados.lideres.slice(0, 10).map((l, i) => (
                   <tr key={i}><td style={{ ...td, fontWeight: 700 }}>{l.nome || '—'}</td><td style={td}>{nm(l.setor)}</td>
                     <td style={tdR}>{fmt(l.finalizacoes)}</td><td style={tdR}>{fmt(l.inicios)}</td><td style={tdR}>{fmt(l.total_mov)}</td></tr>
@@ -303,7 +304,7 @@ export default function AnalisePage() {
         <div className="card" style={{ padding: 0, overflowX: 'auto', marginBottom: 40 }}>
           {fechamentos.length === 0 ? <Vazio /> : (
             <table style={tbl}>
-              <thead><tr>{['Semana', 'Pedidos', 'Itens criados', 'Peças', 'Finaliz. de etapa', 'Itens entregues', 'Lead mediano'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <thead><tr>{['Semana', 'Pedidos', 'Itens criados', 'Peças', 'Finalizados (logística)', 'Itens entregues', 'Lead mediano'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
               <tbody>
                 {fechamentos.map((f, i) => (
                   <tr key={i}>
@@ -339,7 +340,7 @@ function ordenarSetores(d: Dados) {
   // junta throughput + tempo_etapa + wip por setor
   const map: Record<string, Rec & { setor: string }> = {};
   const g = (s: string) => (map[s] = map[s] || { setor: s });
-  d.throughput.forEach(t => Object.assign(g(t.setor), { finalizacoes: String(t.finalizacoes), itens: String(t.itens) }));
+  d.throughput.forEach(t => Object.assign(g(t.setor), { finalizacoes: String(t.finalizacoes), itens: String(t.itens), pecas: String(t.pecas) }));
   d.tempo_etapa.forEach(t => Object.assign(g(t.setor), { media_h: t.media_h, espera_h: t.espera_h, parada_h: t.parada_h }));
   d.wip.forEach(w => Object.assign(g(w.setor), { fila: w.itens, idade_max: w.idade_max }));
   return Object.values(map).filter(r => r.setor && r.setor !== '(nulo)')
