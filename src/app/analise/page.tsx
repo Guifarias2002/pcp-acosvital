@@ -188,15 +188,21 @@ export default function AnalisePage() {
           </div>
 
           {/* Produção semanal */}
-          <SectionTitle icon="bi-bar-chart-line" t="Produção por semana" s="Finalizações de setor = ritmo de produção" />
+          <SectionTitle icon="bi-bar-chart-line" t="Produção por semana" />
           <div className="card" style={{ padding: 18, marginBottom: 24 }}>
+            {/* Legenda: o que é cada número */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 18px', marginBottom: 16, fontSize: 12, color: '#64748b' }}>
+              <span><b style={{ color: C.azul2 }}>Número de cima</b> = finalizações de setor na semana <i>(etapas concluídas — ritmo de produção)</i></span>
+              <span><b style={{ color: '#94a3b8' }}>Número de baixo</b> = itens criados na semana <i>(entrada de novos pedidos)</i></span>
+            </div>
             {semanas.length === 0 ? <Vazio /> : (
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 180, paddingTop: 10 }}>
                 {semanas.map(s => (
                   <div key={s.semana} style={{ flex: 1, textAlign: 'center' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: C.azul }}>{s.final}</div>
-                    <div style={{ background: s.final === picoFinal ? C.azul2 : '#93b4d6', borderRadius: '4px 4px 0 0', height: `${(s.final / picoFinal) * 130}px`, minHeight: 2 }} />
+                    <div style={{ fontSize: 13, fontWeight: 800, color: C.azul }}>{fmt(s.final)}</div>
+                    <div style={{ background: s.final === picoFinal ? C.azul2 : '#93b4d6', borderRadius: '4px 4px 0 0', height: `${(s.final / picoFinal) * 120}px`, minHeight: 2 }} />
                     <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>{labelSemana(s.semana)}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8' }}>{fmt(s.criados)}</div>
                   </div>
                 ))}
               </div>
