@@ -217,9 +217,9 @@ export default function AnalisePage() {
                     <td style={{ ...td, fontWeight: 700 }}>{nm(r.setor)}</td>
                     <td style={tdR}>{fmt(r.finalizacoes)}</td>
                     <td style={tdR}>{fmt(r.itens)}</td>
-                    <td style={tdR}>{fmt(r.media_h, 1)}</td>
-                    <td style={tdR}>{fmt(r.espera_h, 1)}</td>
-                    <td style={{ ...tdR, color: Number(r.parada_h) > 10 ? C.laranja : undefined, fontWeight: Number(r.parada_h) > 10 ? 700 : 400 }}>{fmt(r.parada_h, 1)}</td>
+                    <td style={tdR}>{fmt(r.media_h, 0)}</td>
+                    <td style={tdR}>{fmt(r.espera_h, 0)}</td>
+                    <td style={{ ...tdR, color: Number(r.parada_h) > 10 ? C.laranja : undefined, fontWeight: Number(r.parada_h) > 10 ? 700 : 400 }}>{fmt(r.parada_h, 0)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -238,7 +238,7 @@ export default function AnalisePage() {
               <table style={tbl}><thead><tr>{['PV', 'Código', 'Setor', 'Dias'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
                 <tbody>{dados.top_paradas.slice(0, 8).map((r, i) => (
                   <tr key={i}><td style={td}>{r.pv}</td><td style={td}>{r.codigo}</td><td style={td}>{nm(r.setor)}</td>
-                    <td style={{ ...tdR, color: C.vermelho, fontWeight: 700 }}>{fmt(r.dias, 1)}</td></tr>
+                    <td style={{ ...tdR, color: C.vermelho, fontWeight: 700 }}>{fmt(r.dias, 0)}</td></tr>
                 ))}</tbody></table>
             </div>
           </div>
@@ -264,10 +264,10 @@ export default function AnalisePage() {
               <p style={cardTitle}>Lead time dos itens entregues no período</p>
               {lead.n && Number(lead.n) > 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
-                  <MiniKpi v={`${fmt(lead.mediana_dias, 1)} d`} l="mediana" />
-                  <MiniKpi v={`${fmt(lead.media_dias, 1)} d`} l="média" />
-                  <MiniKpi v={`${fmt(lead.min_dias, 1)} d`} l="mais rápido" />
-                  <MiniKpi v={`${fmt(lead.max_dias, 1)} d`} l="mais lento" />
+                  <MiniKpi v={`${fmt(lead.mediana_dias, 0)} d`} l="mediana" />
+                  <MiniKpi v={`${fmt(lead.media_dias, 0)} d`} l="média" />
+                  <MiniKpi v={`${fmt(lead.min_dias, 0)} d`} l="mais rápido" />
+                  <MiniKpi v={`${fmt(lead.max_dias, 0)} d`} l="mais lento" />
                 </div>
               ) : <Vazio />}
               <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 10, marginBottom: 0 }}>Base: {fmt(lead.n)} itens entregues no período (da 1ª etapa à entrega).</p>
@@ -307,7 +307,7 @@ export default function AnalisePage() {
                     <td style={tdR}>{fmt(f.pecas_criadas)}</td>
                     <td style={tdR}>{fmt(f.finalizacoes)}</td>
                     <td style={tdR}>{fmt(f.itens_entregues)}</td>
-                    <td style={tdR}>{f.lead_mediana ? `${fmt(f.lead_mediana, 1)} d` : '—'}</td>
+                    <td style={tdR}>{f.lead_mediana ? `${fmt(f.lead_mediana, 0)} d` : '—'}</td>
                   </tr>
                 ))}
               </tbody>
