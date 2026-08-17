@@ -149,6 +149,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
               <>
                 <NavItem href="/kanban" label="Kanban" icon="bi-kanban" onNav={fechar} />
                 <NavItem href="/por-lider" label="Por Líder" icon="bi-people-fill" onNav={fechar} />
+                {isSuperAdmin && <NavItem href="/analise" label="Análise PCP" icon="bi-graph-up-arrow" onNav={fechar} />}
                 <NavItem href="/emitidos" label="Em Produção" icon="bi-send-fill" onNav={fechar} />
                 <NavItem href="/entregues" label="Entregues" icon="bi-check-circle" onNav={fechar} />
                 <NavItem href="/divergencias" label="Divergências" icon="bi-exclamation-triangle" onNav={fechar} />
@@ -251,6 +252,7 @@ export function TopBar({ onHamburger, colapsada, onExpandir }: TopBarProps) {
     '/pedidos': vendedorRestrito(user) ? 'Meus Pedidos' : 'Todos os Pedidos',
     '/kanban': 'Kanban',
     '/por-lider': 'Painel por Líder',
+    '/analise': 'Análise de PCP',
     '/emitidos': 'Ordens de Produção Emitidas',
     '/entregues': 'Entregues',
     '/divergencias': 'Divergências',

@@ -1,0 +1,222 @@
+import { NextResponse } from 'next/server';
+import sql from '@/lib/db';
+import { autenticar } from '@/lib/middleware';
+import { isAdministrador } from '@/lib/auth';
+import { withTimeout } from '@/lib/queryTimeout';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+// Setores válidos aceitos no filtro (evita injeção via lista de setores).
+const SETORES_OK = new Set([
+  'emissao', 'usinagem', 'maçarico', 'plasma', 'laser', 'serra', 'estoque',
+  'furacao', 'qualidade', 'acabamento', 'logistica', 'recebimento', 'compras',
+  'beneficiadores', 'embalagem', 'quarentena', 'desenho',
+]);
+
+// Análise de PCP (fábrica de Flanges). Só administrador.
+// Params: de, ate (YYYY-MM-DD), setores (csv). "flange" = COALESCE(fabrica,'flange').
+export async function GET(req: Request) {
+  try {
+    const user = await autenticar(req);
+    if (user instanceof NextResponse) return user;
+    if (!isAdministrador(user)) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+
+    const url = new URL(req.url);
+    const deP = url.searchParams.get('de');
+    const ateP = url.searchParams.get('ate');
+    if (deP && !DATE_RE.test(deP)) return NextResponse.json({ erro: 'Parâmetro "de" inválido' }, { status: 400 });
+    if (ateP && !DATE_RE.test(ateP)) return NextResponse.json({ erro: 'Parâmetro "ate" inválido' }, { status: 400 });
+
+    // Período padrão: últimas 4 semanas
+    const hoje = new Date();
+    const quatroSem = new Date(hoje); quatroSem.setDate(hoje.getDate() - 28);
+    const de = (deP ? new Date(deP + 'T00:00:00') : quatroSem).toISOString();
+    const ate = (ateP ? new Date(ateP + 'T23:59:59') : hoje).toISOString();
+
+    const setores = (url.searchParams.get('setores') || '')
+      .split(',').map(s => s.trim()).filter(s => s && SETORES_OK.has(s));
+    // Fragmentos de filtro por setor (só quando há seleção)
+    const fDest = setores.length ? sql`AND m.setor_destino IN ${sql(setores)}` : sql``;
+    const fOrig = setores.length ? sql`AND COALESCE(m.setor_origem, m.setor_destino) IN ${sql(setores)}` : sql``;
+    const fAtual = setores.length ? sql`AND i.setor_atual IN ${sql(setores)}` : sql``;
+
+    const FLANGE = sql`COALESCE(i.fabrica,'flange') = 'flange' AND i.inativo IS NOT TRUE`;
+
+    // ── 1. Etapas atuais (nível pedido) — mesma regra do Dashboard ────────────
+    const qEtapas = sql`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'entregue')                                                  AS entregue,
+        COUNT(*) FILTER (WHERE status != 'entregue' AND setor_atual = 'emissao')                     AS a_produzir,
+        COUNT(*) FILTER (WHERE status != 'entregue' AND setor_atual IS DISTINCT FROM 'emissao')      AS produzindo,
+        COUNT(*) FILTER (WHERE prazo_entrega < NOW()::date AND status != 'entregue')                 AS atrasados,
+        COUNT(*)                                                                                     AS total
+      FROM producao_pedido`;
+
+    // ── 2. Volume no período (itens criados) ─────────────────────────────────
+    const qVolume = sql`
+      SELECT COUNT(DISTINCT i.pedido_id) AS pedidos, COUNT(*) AS itens,
+             COALESCE(SUM(i.quantidade), 0) AS pecas
+      FROM producao_itempedido i
+      WHERE ${FLANGE} AND i.criado_em BETWEEN ${de} AND ${ate}`;
+
+    // ── 3. Throughput por setor (finalizações no período) ─────────────────────
+    const qThroughput = sql`
+      SELECT COALESCE(m.setor_origem, m.setor_destino) AS setor,
+             COUNT(*) AS finalizacoes, COUNT(DISTINCT m.item_id) AS itens
+      FROM producao_movimentacaoitem m
+      JOIN producao_itempedido i ON i.id = m.item_id AND ${FLANGE}
+      WHERE m.status_novo = 'finalizado_setor' AND m.criado_em BETWEEN ${de} AND ${ate} ${fOrig}
+      GROUP BY 1 ORDER BY 2 DESC`;
+
+    // ── 4. Semanal — criados, finalizações, entregues ─────────────────────────
+    const qSemCriados = sql`
+      SELECT date_trunc('week', i.criado_em)::date AS semana,
+             COUNT(*) AS itens, COALESCE(SUM(i.quantidade),0) AS pecas, COUNT(DISTINCT i.pedido_id) AS pedidos
+      FROM producao_itempedido i
+      WHERE ${FLANGE} AND i.criado_em BETWEEN ${de} AND ${ate}
+      GROUP BY 1 ORDER BY 1`;
+    const qSemFinal = sql`
+      SELECT date_trunc('week', m.criado_em)::date AS semana, COUNT(*) AS finalizacoes
+      FROM producao_movimentacaoitem m
+      JOIN producao_itempedido i ON i.id = m.item_id AND ${FLANGE}
+      WHERE m.status_novo = 'finalizado_setor' AND m.criado_em BETWEEN ${de} AND ${ate} ${fOrig}
+      GROUP BY 1 ORDER BY 1`;
+    const qSemEntregas = sql`
+      WITH ent AS (
+        SELECT m.item_id, MIN(m.criado_em) t
+        FROM producao_movimentacaoitem m
+        JOIN producao_itempedido i ON i.id = m.item_id AND ${FLANGE}
+        WHERE m.status_novo = 'entregue' GROUP BY 1)
+      SELECT date_trunc('week', e.t)::date AS semana, COUNT(*) AS concluidos,
+             COALESCE(SUM(i.quantidade),0) AS pecas
+      FROM ent e JOIN producao_itempedido i ON i.id = e.item_id
+      WHERE e.t BETWEEN ${de} AND ${ate}
+      GROUP BY 1 ORDER BY 1`;
+
+    // ── 5. Tempo por etapa (dwell entre setores, no período) ──────────────────
+    const qTempoEtapa = sql`
+      WITH ev AS (
+        SELECT m.item_id, m.criado_em, COALESCE(m.setor_destino,'(nulo)') AS setor, m.status_novo,
+               LEAD(m.criado_em) OVER (PARTITION BY m.item_id ORDER BY m.criado_em, m.id) AS next_t
+        FROM producao_movimentacaoitem m
+        JOIN producao_itempedido i ON i.id = m.item_id AND ${FLANGE}
+      ), iv AS (
+        SELECT setor, status_novo, (EXTRACT(EPOCH FROM (next_t - criado_em))/3600.0)::numeric AS horas
+        FROM ev WHERE next_t IS NOT NULL AND criado_em BETWEEN ${de} AND ${ate}
+          ${setores.length ? sql`AND setor IN ${sql(setores)}` : sql``}
+      )
+      SELECT setor, COUNT(*) AS n,
+             ROUND(AVG(horas),1) AS media_h,
+             ROUND((percentile_cont(0.5) WITHIN GROUP (ORDER BY horas))::numeric,1) AS mediana_h,
+             ROUND(AVG(horas) FILTER (WHERE status_novo IN ('aguardando','recebido','criado')),1) AS espera_h,
+             ROUND(AVG(horas) FILTER (WHERE status_novo = 'em_andamento'),1) AS proc_h,
+             ROUND(AVG(horas) FILTER (WHERE status_novo = 'pausado'),1) AS parada_h
+      FROM iv GROUP BY setor ORDER BY SUM(horas) DESC`;
+
+    // ── 6. Lead time (itens entregues no período) ─────────────────────────────
+    const qLead = sql`
+      WITH fst AS (
+        SELECT m.item_id, MIN(m.criado_em) t0 FROM producao_movimentacaoitem m
+        JOIN producao_itempedido i ON i.id = m.item_id AND ${FLANGE} GROUP BY 1),
+      ent AS (SELECT m.item_id, MIN(m.criado_em) t1 FROM producao_movimentacaoitem m
+        WHERE m.status_novo='entregue' GROUP BY 1)
+      SELECT COUNT(*) n,
+             ROUND(AVG((EXTRACT(EPOCH FROM (e.t1-f.t0))/86400.0)::numeric),1) media_dias,
+             ROUND((percentile_cont(0.5) WITHIN GROUP (ORDER BY (EXTRACT(EPOCH FROM (e.t1-f.t0))/86400.0)))::numeric,1) mediana_dias,
+             ROUND(MIN((EXTRACT(EPOCH FROM (e.t1-f.t0))/86400.0)::numeric),1) min_dias,
+             ROUND(MAX((EXTRACT(EPOCH FROM (e.t1-f.t0))/86400.0)::numeric),1) max_dias
+      FROM ent e JOIN fst f ON f.item_id = e.item_id
+      WHERE e.t1 BETWEEN ${de} AND ${ate}`;
+
+    // ── 7. WIP atual + idade (itens parados agora, por setor) ─────────────────
+    const qWip = sql`
+      WITH ev AS (
+        SELECT m.item_id, m.criado_em, COALESCE(m.setor_destino,'(nulo)') AS setor,
+               ROW_NUMBER() OVER (PARTITION BY m.item_id ORDER BY m.criado_em DESC, m.id DESC) rn
+        FROM producao_movimentacaoitem m
+        JOIN producao_itempedido i ON i.id = m.item_id AND ${FLANGE} AND i.status <> 'entregue')
+      SELECT setor, COUNT(*) AS itens,
+             ROUND(AVG((EXTRACT(EPOCH FROM (NOW() - criado_em))/86400.0)::numeric),1) AS idade_media,
+             ROUND(MAX((EXTRACT(EPOCH FROM (NOW() - criado_em))/86400.0)::numeric),1) AS idade_max
+      FROM ev WHERE rn = 1 ${setores.length ? sql`AND setor IN ${sql(setores)}` : sql``}
+      GROUP BY setor ORDER BY itens DESC`;
+
+    // ── 8. Ordens paradas há mais tempo (em produção) ─────────────────────────
+    const qTopParadas = sql`
+      WITH ev AS (
+        SELECT m.item_id, m.criado_em, COALESCE(m.setor_destino,'(nulo)') AS setor,
+               ROW_NUMBER() OVER (PARTITION BY m.item_id ORDER BY m.criado_em DESC, m.id DESC) rn
+        FROM producao_movimentacaoitem m
+        JOIN producao_itempedido i ON i.id = m.item_id AND ${FLANGE} AND i.status <> 'entregue')
+      SELECT p.numero_pedido_venda AS pv, i.codigo, LEFT(i.descricao,44) AS descricao, ev.setor,
+             ROUND((EXTRACT(EPOCH FROM (NOW() - ev.criado_em))/86400.0)::numeric,1) AS dias
+      FROM ev JOIN producao_itempedido i ON i.id = ev.item_id
+      JOIN producao_pedido p ON p.id = i.pedido_id
+      WHERE ev.rn = 1 ${setores.length ? sql`AND ev.setor IN ${sql(setores)}` : sql``}
+      ORDER BY ev.criado_em ASC LIMIT 12`;
+
+    // ── 9. Mix por tipo e norma (itens criados no período) ────────────────────
+    const qMixTipo = sql`
+      SELECT tipo, COUNT(*) itens, COALESCE(SUM(quantidade),0) pecas FROM (
+        SELECT quantidade, CASE
+          WHEN descricao ILIKE '%CEGO%' THEN 'Cego'
+          WHEN descricao ILIKE '%SOBREPOSTO%' THEN 'Sobreposto'
+          WHEN descricao ILIKE '%SOLTO%' OR descricao ILIKE '%PEAD%' THEN 'Solto p/ PEAD'
+          WHEN descricao ILIKE '%PESTANA%' THEN 'Pestana'
+          WHEN descricao ILIKE '%ANEL%' THEN 'Anel'
+          WHEN descricao ILIKE '%DISCO%' THEN 'Disco'
+          WHEN descricao ILIKE '%LISO%' THEN 'Liso'
+          WHEN descricao ILIKE '%FLANGE%' THEN 'Outro flange'
+          ELSE 'Não classificado' END tipo
+        FROM producao_itempedido i
+        WHERE ${FLANGE} AND i.criado_em BETWEEN ${de} AND ${ate}
+      ) t GROUP BY 1 ORDER BY 3 DESC`;
+
+    // ── 10. Produtividade por líder (movimentações no período) ────────────────
+    const qLideres = sql`
+      SELECT u.nome, u.setor, u.perfil,
+             COUNT(*) FILTER (WHERE m.status_novo='finalizado_setor') AS finalizacoes,
+             COUNT(*) FILTER (WHERE m.status_novo='em_andamento') AS inicios,
+             COUNT(*) AS total_mov
+      FROM producao_movimentacaoitem m
+      JOIN producao_itempedido i ON i.id = m.item_id AND ${FLANGE}
+      LEFT JOIN usuarios_usuario u ON u.id = m.usuario_id
+      WHERE m.criado_em BETWEEN ${de} AND ${ate} ${fDest}
+      GROUP BY 1,2,3 ORDER BY total_mov DESC LIMIT 15`;
+
+    // ── 11. Atrasos por setor (atuais) ────────────────────────────────────────
+    const qAtrasoSetor = sql`
+      SELECT i.setor_atual AS setor, COUNT(DISTINCT p.id) AS pedidos, COUNT(*) AS itens
+      FROM producao_pedido p JOIN producao_itempedido i ON i.pedido_id = p.id
+      WHERE p.prazo_entrega < NOW()::date AND p.status <> 'entregue'
+        AND ${FLANGE} AND i.status <> 'entregue' ${fAtual}
+      GROUP BY 1 ORDER BY 2 DESC`;
+
+    const queries = [qEtapas, qVolume, qThroughput, qSemCriados, qSemFinal, qSemEntregas,
+      qTempoEtapa, qLead, qWip, qTopParadas, qMixTipo, qLideres, qAtrasoSetor];
+    const [etapas, volume, throughput, semCriados, semFinal, semEntregas,
+      tempoEtapa, lead, wip, topParadas, mixTipo, lideres, atrasoSetor] =
+      await withTimeout(Promise.all(queries.map(q => q.catch(() => []))), 55000, queries);
+
+    const num = (v: unknown) => Number(v || 0);
+    return NextResponse.json({
+      periodo: { de: de.slice(0, 10), ate: ate.slice(0, 10), setores },
+      etapas: etapas[0] || {},
+      volume: volume[0] || {},
+      throughput: throughput.map((r: Record<string, unknown>) => ({ setor: r.setor, finalizacoes: num(r.finalizacoes), itens: num(r.itens) })),
+      semanal: { criados: semCriados, final: semFinal, entregas: semEntregas },
+      tempo_etapa: tempoEtapa,
+      lead: lead[0] || {},
+      wip,
+      top_paradas: topParadas,
+      mix_tipo: mixTipo,
+      lideres,
+      atraso_setor: atrasoSetor,
+    });
+  } catch (e) {
+    console.error('[analise]', e);
+    return NextResponse.json({ erro: 'Erro ao gerar análise' }, { status: 500 });
+  }
+}
