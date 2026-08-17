@@ -79,8 +79,12 @@ export async function POST(req: Request) {
     finais.forEach((r: Record<string, string>) => { g(r.semana).finalizacoes = Number(r.finalizacoes); });
     entregas.forEach((r: Record<string, string>) => { const w = g(r.semana); w.itens_entregues = Number(r.entregues); w.pecas_entregues = Number(r.pecas_entregues); w.lead_mediana = Number(r.lead_mediana || 0); });
 
-    // Só semanas FECHADAS (anteriores à segunda-feira desta semana)
-    const cutoff = segunda(new Date());
+    // Só semanas FECHADAS. O corte é a segunda-feira da semana do ÚLTIMO dado
+    // registrado (não o relógio do servidor) — assim a semana em andamento
+    // (ainda recebendo apontamentos) nunca vira fechamento, e a lógica não
+    // depende do relógio da máquina bater com a data dos dados.
+    const maxRow: { mx: string | null }[] = await sql`SELECT MAX(criado_em)::text AS mx FROM producao_movimentacaoitem`;
+    const cutoff = segunda(maxRow[0]?.mx ? new Date(maxRow[0].mx) : new Date());
     const existentes: { semana: string }[] = await sql`SELECT semana_inicio::text AS semana FROM producao_fechamento_semanal WHERE fabrica='flange'`;
     const jaTem = new Set(existentes.map(r => r.semana));
 
