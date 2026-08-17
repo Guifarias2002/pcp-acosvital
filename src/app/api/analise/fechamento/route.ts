@@ -73,11 +73,15 @@ export async function POST(req: Request) {
     const finais = await withTimeout(qFinal.catch(() => []), 20000, [qFinal]);
     const entregas = await withTimeout(qEntregas.catch(() => []), 20000, [qEntregas]);
 
+    // date_trunc(...)::date volta como Date no postgres.js — normaliza a chave
+    // pra 'AAAA-MM-DD' (senão a chave vira "Mon Jul 06 2026…" e quebra tanto o
+    // dedupe quanto o corte por data).
+    const wk = (d: unknown) => new Date(d as string).toISOString().slice(0, 10);
     const map: Record<string, Record<string, number>> = {};
     const g = (s: string) => (map[s] = map[s] || { itens_criados: 0, pecas_criadas: 0, pedidos: 0, finalizacoes: 0, itens_entregues: 0, pecas_entregues: 0, lead_mediana: 0 });
-    criados.forEach((r: Record<string, string>) => { const w = g(r.semana); w.itens_criados = Number(r.itens); w.pecas_criadas = Number(r.pecas); w.pedidos = Number(r.pedidos); });
-    finais.forEach((r: Record<string, string>) => { g(r.semana).finalizacoes = Number(r.finalizacoes); });
-    entregas.forEach((r: Record<string, string>) => { const w = g(r.semana); w.itens_entregues = Number(r.entregues); w.pecas_entregues = Number(r.pecas_entregues); w.lead_mediana = Number(r.lead_mediana || 0); });
+    criados.forEach((r: Record<string, string>) => { const w = g(wk(r.semana)); w.itens_criados = Number(r.itens); w.pecas_criadas = Number(r.pecas); w.pedidos = Number(r.pedidos); });
+    finais.forEach((r: Record<string, string>) => { g(wk(r.semana)).finalizacoes = Number(r.finalizacoes); });
+    entregas.forEach((r: Record<string, string>) => { const w = g(wk(r.semana)); w.itens_entregues = Number(r.entregues); w.pecas_entregues = Number(r.pecas_entregues); w.lead_mediana = Number(r.lead_mediana || 0); });
 
     // Só semanas FECHADAS. O corte é a segunda-feira da semana do ÚLTIMO dado
     // registrado (não o relógio do servidor) — assim a semana em andamento
