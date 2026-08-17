@@ -39,6 +39,7 @@ interface Dados {
   mix_tipo: Rec[];
   lideres: Rec[];
   atraso_setor: Rec[];
+  produtos: Rec[];
 }
 type Rec = Record<string, string>;
 
@@ -54,7 +55,18 @@ export default function AnalisePage() {
   const [erro, setErro] = useState('');
   const [fechamentos, setFechamentos] = useState<Rec[]>([]);
   const [genLoad, setGenLoad] = useState(false);
+  const [detalhe, setDetalhe] = useState<{ titulo: string; loading: boolean; itens: Rec[] } | null>(null);
   const admin = isAdministrador();
+
+  async function abrirDetalhe(tipo: string, chave: string, titulo: string) {
+    setDetalhe({ titulo, loading: true, itens: [] });
+    try {
+      const q = new URLSearchParams({ tipo, chave, de, ate });
+      const res = await fetch(`/api/analise/detalhe?${q}`, { headers: { Authorization: `Bearer ${getToken() || ''}` } });
+      const j = await res.json();
+      setDetalhe({ titulo, loading: false, itens: res.ok ? (j.itens || []) : [] });
+    } catch { setDetalhe({ titulo, loading: false, itens: [] }); }
+  }
 
   const carregar = useCallback(async (d: string, a: string, s: string[]) => {
     setLoading(true); setErro('');
@@ -111,6 +123,13 @@ export default function AnalisePage() {
   const lead = dados?.lead || {};
   const semanas = mergeSemanas(dados);
   const picoFinal = Math.max(1, ...semanas.map(s => s.final));
+  // Projeção (média observada por semana → mês). Não é modelo estatístico:
+  // é o ritmo real médio do período selecionado, projetado adiante.
+  const nSem = Math.max(1, semanas.length);
+  const capSemana = (dados?.semanal.final || []).reduce((a, r) => a + Number(r.pecas || 0), 0) / nSem;
+  const demSemana = (dados?.semanal.criados || []).reduce((a, r) => a + Number(r.pecas || 0), 0) / nSem;
+  const capMes = capSemana * 4.3;
+  const saldoSemana = demSemana - capSemana;
 
   return (
     <AuthGuard>
@@ -238,7 +257,8 @@ export default function AnalisePage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 16, marginBottom: 24 }}>
             <div className="card" style={{ padding: 16 }}>
               <p style={cardTitle}>Itens parados por setor</p>
-              {barras(dados.wip.map(w => ({ label: nm(w.setor), value: Number(w.itens), hi: ['plasma', 'quarentena', 'usinagem'].includes(w.setor) })))}
+              {barras(dados.wip.map(w => ({ label: nm(w.setor), value: Number(w.itens), hi: ['plasma', 'quarentena', 'usinagem'].includes(w.setor), key: w.setor })), '#1d4ed8',
+                d => abrirDetalhe('wip', d.key || '', `Itens parados em ${d.label}`))}
             </div>
             <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
               <p style={{ ...cardTitle, padding: '16px 16px 0' }}>Ordens paradas há mais tempo</p>
@@ -255,12 +275,14 @@ export default function AnalisePage() {
             <div className="card" style={{ padding: 16 }}>
               <p style={cardTitle}>Materiais atrasados por setor onde estão</p>
               {dados.atraso_setor.length === 0 ? <Vazio /> :
-                barras(dados.atraso_setor.slice(0, 8).map(a => ({ label: nm(a.setor), value: Number(a.pedidos), hi: false })), C.vermelho)}
+                barras(dados.atraso_setor.slice(0, 8).map(a => ({ label: nm(a.setor), value: Number(a.pedidos), hi: false, key: a.setor })), C.vermelho,
+                  d => abrirDetalhe('atraso', d.key || '', `Materiais atrasados em ${d.label}`))}
             </div>
             <div className="card" style={{ padding: 16 }}>
               <p style={cardTitle}>Mix — peças por tipo de flange</p>
               {dados.mix_tipo.length === 0 ? <Vazio /> :
-                barras(dados.mix_tipo.slice(0, 8).map(m => ({ label: m.tipo, value: Number(m.pecas), hi: false })), C.azul)}
+                barras(dados.mix_tipo.slice(0, 8).map(m => ({ label: m.tipo, value: Number(m.pecas), hi: false, key: m.tipo })), C.azul,
+                  d => abrirDetalhe('mix', d.key || '', `Produtos do tipo "${d.label}"`))}
             </div>
           </div>
 
@@ -287,6 +309,40 @@ export default function AnalisePage() {
                     <td style={tdR}>{fmt(l.finalizacoes)}</td><td style={tdR}>{fmt(l.inicios)}</td><td style={tdR}>{fmt(l.total_mov)}</td></tr>
                 ))}</tbody></table>
             </div>
+          </div>
+
+          {/* Projeção de produção */}
+          <SectionTitle icon="bi-graph-up" t="Projeção de produção" s="Ritmo real médio do período, projetado adiante — capacidade observada, não teórica" />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 12, marginBottom: 12 }}>
+            <Kpi v={`~${fmt(capSemana)}`} l="peças finalizadas / semana (média)" cor={C.verde} />
+            <Kpi v={`~${fmt(capMes)}`} l="projeção de peças / mês (ritmo atual)" cor={C.verde} />
+            <Kpi v={`~${fmt(demSemana)}`} l="peças que entram / semana (demanda)" cor={C.azul} />
+            <Kpi v={`${saldoSemana > 0 ? '+' : ''}${fmt(saldoSemana)}`} l={saldoSemana > 0 ? 'entra mais do que sai (fila cresce)' : 'sai mais do que entra (fila cai)'} cor={saldoSemana > 0 ? C.vermelho : C.verde} />
+          </div>
+          <div style={{ background: '#eff6ff', border: '1px solid #dbeafe', borderLeft: `3px solid ${C.azul}`, borderRadius: 10, padding: '12px 16px', fontSize: 12.5, color: '#334155', marginBottom: 28 }}>
+            No ritmo médio do período, a fábrica finaliza <b>~{fmt(capSemana)} peças/semana</b> (~{fmt(capMes)}/mês). {saldoSemana > 0
+              ? <>Como entram <b>~{fmt(demSemana)} peças/semana</b>, está <b>entrando mais do que saindo</b> (~{fmt(saldoSemana)}/semana) — a fila tende a crescer se o ritmo não subir.</>
+              : <>Como entram <b>~{fmt(demSemana)} peças/semana</b>, a saída está acompanhando a demanda.</>} É uma projeção do ritmo observado, não uma previsão estatística — muda conforme o período escolhido nos filtros.
+          </div>
+
+          {/* Produtos cadastrados */}
+          <SectionTitle icon="bi-box-seam" t="Produtos cadastrados" s="Todo o histórico — por nº de pedidos e de peças (clique no cabeçalho não ordena; já vem por peças)" />
+          <div className="card" style={{ padding: 0, marginBottom: 28, maxHeight: 440, overflow: 'auto' }}>
+            {(dados.produtos || []).length === 0 ? <Vazio /> : (
+              <table style={tbl}>
+                <thead><tr>{['Código', 'Produto', 'Pedidos', 'Peças'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {dados.produtos.map((p, i) => (
+                    <tr key={i}>
+                      <td style={{ ...td, whiteSpace: 'nowrap' }}><code>{p.codigo}</code></td>
+                      <td style={td}>{p.descricao}</td>
+                      <td style={tdR}>{fmt(p.pedidos)}</td>
+                      <td style={{ ...tdR, fontWeight: 700, color: C.azul }}>{fmt(p.pecas)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
 
           <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 16px', fontSize: 12, color: '#64748b', marginBottom: 40 }}>
@@ -321,6 +377,36 @@ export default function AnalisePage() {
             </table>
           )}
         </div>
+
+        {/* Modal de detalhe — pedidos e produtos por trás de um número */}
+        {detalhe && (
+          <div onClick={() => setDetalhe(null)} className="no-print"
+            style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div onClick={e => e.stopPropagation()} className="card" style={{ maxWidth: 820, width: '100%', maxHeight: '85vh', overflow: 'auto', padding: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
+                <div>
+                  <b style={{ fontSize: 16, color: '#1a3a5c' }}>{detalhe.titulo}</b>
+                  {!detalhe.loading && <span style={{ marginLeft: 8, color: '#94a3b8', fontSize: 13 }}>{detalhe.itens.length} {detalhe.itens.length === 1 ? 'item' : 'itens'}</span>}
+                </div>
+                <button onClick={() => setDetalhe(null)} className="abtn"><i className="bi bi-x-lg" /></button>
+              </div>
+              {detalhe.loading ? <div style={{ padding: 30, textAlign: 'center', color: C.cinza }}><i className="bi bi-hourglass-split" /> Carregando…</div>
+                : detalhe.itens.length === 0 ? <Vazio />
+                  : <table style={tbl}>
+                    <thead><tr>{['PV', 'Cliente', 'Código', 'Produto', 'Qtd'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                    <tbody>{detalhe.itens.map((it, i) => (
+                      <tr key={i}>
+                        <td style={td}><code>{it.pv}</code></td>
+                        <td style={td}>{it.cliente || '—'}</td>
+                        <td style={td}>{it.codigo}</td>
+                        <td style={td}>{it.descricao}</td>
+                        <td style={tdR}>{fmt(it.quantidade)} {it.unidade || ''}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>}
+            </div>
+          </div>
+        )}
       </div>
     </AuthGuard>
   );
@@ -375,12 +461,14 @@ function MiniKpi({ v, l }: { v: string; l: string }) {
   </div>;
 }
 function Vazio() { return <p style={{ color: '#cbd5e1', fontSize: 13, textAlign: 'center', padding: 16, margin: 0 }}>Sem dados no período/setor.</p>; }
-function barras(data: { label: string; value: number; hi: boolean }[], cor = '#1d4ed8') {
+function barras(data: { label: string; value: number; hi: boolean; key?: string }[], cor = '#1d4ed8', onBar?: (d: { label: string; key?: string }) => void) {
   const mx = Math.max(1, ...data.map(d => d.value));
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
     {data.map((d, i) => (
-      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 110, fontSize: 12, color: '#475569', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.label}</div>
+      <div key={i} onClick={onBar ? () => onBar(d) : undefined}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: onBar ? 'pointer' : 'default', borderRadius: 4 }}
+        title={onBar ? 'Ver pedidos e produtos' : undefined}>
+        <div style={{ width: 110, fontSize: 12, color: onBar ? '#1d4ed8' : '#475569', fontWeight: onBar ? 600 : 400, textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.label}</div>
         <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 4, height: 18 }}>
           <div style={{ width: `${(d.value / mx) * 100}%`, background: d.hi ? '#dc2626' : cor, height: 18, borderRadius: 4, minWidth: 2 }} />
         </div>

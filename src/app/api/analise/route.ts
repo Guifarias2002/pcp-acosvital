@@ -107,8 +107,10 @@ export async function GET(req: Request) {
         FROM producao_movimentacaoitem m
         JOIN producao_itempedido i ON i.id = m.item_id AND ${FLANGE}
         WHERE m.setor_destino = 'logistica' GROUP BY 1)
-      SELECT date_trunc('week', t)::date AS semana, COUNT(*) AS finalizacoes
-      FROM cheg WHERE t BETWEEN ${de} AND ${ate} GROUP BY 1 ORDER BY 1`;
+      SELECT date_trunc('week', c.t)::date AS semana, COUNT(*) AS finalizacoes,
+             COALESCE(SUM(i.quantidade), 0) AS pecas
+      FROM cheg c JOIN producao_itempedido i ON i.id = c.item_id
+      WHERE c.t BETWEEN ${de} AND ${ate} GROUP BY 1 ORDER BY 1`;
     const qSemEntregas = sql`
       WITH ent AS (
         SELECT m.item_id, MIN(m.criado_em) t
@@ -220,10 +222,18 @@ export async function GET(req: Request) {
         AND ${FLANGE} AND i.status <> 'entregue' ${fAtual}
       GROUP BY 1 ORDER BY 2 DESC`;
 
+    // ── 12. Produtos cadastrados (TODO o histórico) — nº de pedidos e peças ────
+    const qProdutos = sql`
+      SELECT i.codigo, MAX(i.descricao) AS descricao,
+             COUNT(DISTINCT i.pedido_id) AS pedidos,
+             COALESCE(SUM(i.quantidade), 0) AS pecas, COUNT(*) AS itens
+      FROM producao_itempedido i WHERE ${FLANGE}
+      GROUP BY i.codigo ORDER BY pecas DESC LIMIT 100`;
+
     const queries = [qEtapas, qVolume, qThroughput, qSemCriados, qSemFinal, qSemEntregas,
-      qTempoEtapa, qLead, qWip, qTopParadas, qMixTipo, qLideres, qAtrasoSetor];
+      qTempoEtapa, qLead, qWip, qTopParadas, qMixTipo, qLideres, qAtrasoSetor, qProdutos];
     const [etapas, volume, throughput, semCriados, semFinal, semEntregas,
-      tempoEtapa, lead, wip, topParadas, mixTipo, lideres, atrasoSetor] =
+      tempoEtapa, lead, wip, topParadas, mixTipo, lideres, atrasoSetor, produtos] =
       await runChunked(queries as never[], 4, 20000) as Record<string, unknown>[][];
 
     const num = (v: unknown) => Number(v || 0);
@@ -240,6 +250,7 @@ export async function GET(req: Request) {
       mix_tipo: mixTipo,
       lideres,
       atraso_setor: atrasoSetor,
+      produtos,
     });
   } catch (e) {
     console.error('[analise]', e);
