@@ -197,7 +197,6 @@ export default function AnalisePage() {
                     <div style={{ fontSize: 11, fontWeight: 700, color: C.azul }}>{s.final}</div>
                     <div style={{ background: s.final === picoFinal ? C.azul2 : '#93b4d6', borderRadius: '4px 4px 0 0', height: `${(s.final / picoFinal) * 130}px`, minHeight: 2 }} />
                     <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>{labelSemana(s.semana)}</div>
-                    <div style={{ fontSize: 10, color: '#cbd5e1' }}>{s.criados} criados</div>
                   </div>
                 ))}
               </div>

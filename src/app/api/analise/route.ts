@@ -7,6 +7,20 @@ import { withTimeout } from '@/lib/queryTimeout';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
+// Executa as queries em LOTES pequenos (não todas de uma vez). O banco é
+// compartilhado/enxuto e disparar 13 queries simultâneas afoga o pool de
+// conexões e trava a função (visto em prod: timeout de 55s). Lotes de 4 mantêm
+// a carga baixa — cada query é rápida, o custo de serializar é pequeno.
+async function runChunked<T>(queries: { catch: (f: () => unknown) => Promise<T>; cancel: () => void }[], size: number, perChunkMs: number): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < queries.length; i += size) {
+    const chunk = queries.slice(i, i + size);
+    const r = await withTimeout(Promise.all(chunk.map(q => q.catch(() => [] as unknown as T))), perChunkMs, chunk);
+    out.push(...r);
+  }
+  return out;
+}
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // Setores válidos aceitos no filtro (evita injeção via lista de setores).
 const SETORES_OK = new Set([
@@ -198,7 +212,7 @@ export async function GET(req: Request) {
       qTempoEtapa, qLead, qWip, qTopParadas, qMixTipo, qLideres, qAtrasoSetor];
     const [etapas, volume, throughput, semCriados, semFinal, semEntregas,
       tempoEtapa, lead, wip, topParadas, mixTipo, lideres, atrasoSetor] =
-      await withTimeout(Promise.all(queries.map(q => q.catch(() => []))), 55000, queries);
+      await runChunked(queries as never[], 4, 20000) as Record<string, unknown>[][];
 
     const num = (v: unknown) => Number(v || 0);
     return NextResponse.json({

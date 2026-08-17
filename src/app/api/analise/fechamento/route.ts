@@ -68,8 +68,10 @@ export async function POST(req: Request) {
       FROM ent e JOIN fst f ON f.item_id=e.item_id JOIN producao_itempedido i ON i.id=e.item_id
       GROUP BY 1`;
 
-    const qs = [qCriados, qFinal, qEntregas];
-    const [criados, finais, entregas] = await withTimeout(Promise.all(qs.map(q => q.catch(() => []))), 50000, qs);
+    // Sequencial (uma de cada vez) — não afoga o pool de conexões do banco enxuto
+    const criados = await withTimeout(qCriados.catch(() => []), 20000, [qCriados]);
+    const finais = await withTimeout(qFinal.catch(() => []), 20000, [qFinal]);
+    const entregas = await withTimeout(qEntregas.catch(() => []), 20000, [qEntregas]);
 
     const map: Record<string, Record<string, number>> = {};
     const g = (s: string) => (map[s] = map[s] || { itens_criados: 0, pecas_criadas: 0, pedidos: 0, finalizacoes: 0, itens_entregues: 0, pecas_entregues: 0, lead_mediana: 0 });
