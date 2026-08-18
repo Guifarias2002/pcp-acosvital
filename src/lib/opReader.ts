@@ -77,15 +77,17 @@ async function extractDoc(buf: Buffer): Promise<Pagina[]> {
   return paginas;
 }
 
-// Agrupa páginas em SEÇÕES: cada página que traz um quadro vermelho INICIA uma
-// nova seção (é a "nova marcação em vermelho"). Páginas seguintes sem quadro
-// pertencem à seção corrente. Um mesmo PDF pode ter várias seções (cada uma com
-// seu Produto/COMPONENTES/ROTEIRO), mesmo que o PN/NS do quadro se repita.
+// Agrupa páginas em SEÇÕES: uma página com quadro vermelho DIFERENTE do
+// anterior inicia uma nova seção. Página sem quadro, ou com o MESMO texto de
+// quadro da seção corrente, é continuação (o Totvs re-carimba o mesmo PN/PO/NS
+// em páginas de continuação de uma ordem que não coube numa página só —
+// tratar como ordem nova duplicava a ordem inteira, partindo componentes e
+// roteiro ao meio). Só PN/PO/NS realmente diferente abre ordem nova.
 function agruparOrdens(paginas: Pagina[]): { redbox: string | null; lines: Line[] }[] {
   const grupos: { redbox: string | null; lines: Line[] }[] = [];
   let cur: { redbox: string | null; lines: Line[] } | null = null;
   for (const pg of paginas) {
-    if (pg.redbox) { cur = { redbox: pg.redbox, lines: [] }; grupos.push(cur); }
+    if (pg.redbox && (!cur || pg.redbox !== cur.redbox)) { cur = { redbox: pg.redbox, lines: [] }; grupos.push(cur); }
     if (!cur) { cur = { redbox: null, lines: [] }; grupos.push(cur); }
     cur.lines.push(...pg.lines);
   }
