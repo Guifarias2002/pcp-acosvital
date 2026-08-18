@@ -109,6 +109,7 @@ interface SidebarProps {
 
 export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: SidebarProps) {
   const [user, setUser] = useState<JWTPayload | null>(null);
+  const router = useRouter();
   useEffect(() => { setUser(getUser()); }, []);
 
   const isAdmin = user?.is_staff;
@@ -136,6 +137,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
   function trocarWorkspace(w: 'acosvital' | 'hrm') {
     setWorkspace(w);
     try { localStorage.setItem('pcp_workspace', w); } catch { /* storage off */ }
+    router.push(w === 'hrm' ? '/pcp-hrm' : '/');
   }
   const emAcosvital = !isAdmin || workspace === 'acosvital';
   const emHrm = !!isAdmin && workspace === 'hrm';
