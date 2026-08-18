@@ -51,9 +51,46 @@ export default function PcpHrmPage() {
   const [erroLeitura, setErroLeitura] = useState('');
   const [componentesAbertos, setComponentesAbertos] = useState<Set<number>>(new Set());
 
+  // "Por onde passa" é editável (clicar numa etapa corrige o texto, dá pra
+  // add/remover) — só pra CONFERIR a leitura na hora, não grava em lugar
+  // nenhum ainda: essa tela só anexa a OP, os itens de produção de verdade só
+  // nascem na Conferência (Fase 3, futura). Por isso o estado é só local,
+  // por índice de ordem, e some se trocar o arquivo.
+  const [rotasEditadas, setRotasEditadas] = useState<Record<number, string[]>>({});
+  const [editandoPill, setEditandoPill] = useState<{ ordem: number; i: number } | null>(null);
+  const [textoPill, setTextoPill] = useState('');
+
+  function setoresDaOrdem(idx: number, op: OPItem): string[] {
+    if (rotasEditadas[idx]) return rotasEditadas[idx];
+    return Array.from(new Set(op.roteiro.map(o => o.setorNome || o.setor).filter(Boolean)));
+  }
+  function abrirEdicaoPill(idx: number, i: number, valorAtual: string) {
+    setEditandoPill({ ordem: idx, i }); setTextoPill(valorAtual);
+  }
+  function salvarEdicaoPill(idx: number, op: OPItem) {
+    if (!editandoPill || editandoPill.ordem !== idx) return;
+    const atual = setoresDaOrdem(idx, op).slice();
+    const texto = textoPill.trim();
+    if (texto) atual[editandoPill.i] = texto; else atual.splice(editandoPill.i, 1);
+    setRotasEditadas(prev => ({ ...prev, [idx]: atual }));
+    setEditandoPill(null);
+  }
+  function removerPill(idx: number, op: OPItem, i: number) {
+    const atual = setoresDaOrdem(idx, op).slice();
+    atual.splice(i, 1);
+    setRotasEditadas(prev => ({ ...prev, [idx]: atual }));
+  }
+  function adicionarPill(idx: number, op: OPItem) {
+    const atual = setoresDaOrdem(idx, op).slice();
+    atual.push('Nova etapa');
+    setRotasEditadas(prev => ({ ...prev, [idx]: atual }));
+    setEditandoPill({ ordem: idx, i: atual.length - 1 }); setTextoPill('Nova etapa');
+  }
+
   async function selecionarArquivo(f: File | null) {
     setArquivo(f);
     setLeitura(null); setErroLeitura(''); setComponentesAbertos(new Set());
+    setRotasEditadas({}); setEditandoPill(null);
     if (!f) return;
     if (f.type && f.type !== 'application/pdf') return; // leitura automática só p/ PDF
     setLendo(true);
@@ -291,7 +328,7 @@ export default function PcpHrmPage() {
               <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
                 {leitura.ops.map((op, idx) => {
                   const multi = leitura.ops.length > 1;
-                  const setoresRoteiro = Array.from(new Set(op.roteiro.map(o => o.setorNome || o.setor).filter(Boolean)));
+                  const setoresRoteiro = setoresDaOrdem(idx, op);
                   const aberto = componentesAbertos.has(idx);
                   return (
                     <div key={idx}>
@@ -334,19 +371,40 @@ export default function PcpHrmPage() {
                             </div>
                           )}
 
-                          {/* Por onde passa (setores do roteiro) — leitura sugerida, PCP confirma na Conferência */}
-                          {setoresRoteiro.length > 0 && (
-                            <div style={{ marginBottom:16 }}>
-                              <span className={labelCls}>Por onde passa (sugestão da leitura)</span>
-                              <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
-                                {setoresRoteiro.map((s, i) => (
-                                  <span key={s} style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#eef4fb', border:'1px solid #cfe0f2', color:'#1a3a5c', borderRadius:20, padding:'4px 12px', fontSize:12.5, fontWeight:700 }}>
-                                    <span style={{ opacity:.6 }}>{i + 1}.</span>{s}
+                          {/* Por onde passa (setores do roteiro) — leitura sugerida, editável aqui só
+                              pra conferir na hora (não grava ainda; a Conferência real vem na Fase 3).
+                              Clicar numa etapa corrige o texto; "x" remove; "+" adiciona. */}
+                          <div style={{ marginBottom:16 }}>
+                            <span className={labelCls}>Por onde passa (sugestão da leitura — clique pra corrigir)</span>
+                            <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6, alignItems:'center' }}>
+                              {setoresRoteiro.map((s, i) => {
+                                const editando = editandoPill?.ordem === idx && editandoPill?.i === i;
+                                if (editando) return (
+                                  <input key={i} autoFocus value={textoPill}
+                                    onChange={e => setTextoPill(e.target.value)}
+                                    onBlur={() => salvarEdicaoPill(idx, op)}
+                                    onKeyDown={e => { if (e.key === 'Enter') salvarEdicaoPill(idx, op); if (e.key === 'Escape') setEditandoPill(null); }}
+                                    style={{ border:'1.5px solid #1a3a5c', borderRadius:20, padding:'4px 12px', fontSize:12.5, fontWeight:700, color:'#1a3a5c', width:160 }} />
+                                );
+                                return (
+                                  <span key={i} style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#eef4fb', border:'1px solid #cfe0f2', color:'#1a3a5c', borderRadius:20, padding:'4px 6px 4px 12px', fontSize:12.5, fontWeight:700 }}>
+                                    <button type="button" onClick={() => abrirEdicaoPill(idx, i, s)}
+                                      style={{ background:'none', border:'none', cursor:'pointer', color:'#1a3a5c', fontWeight:700, fontSize:12.5, padding:0 }}>
+                                      <span style={{ opacity:.6 }}>{i + 1}.</span> {s}
+                                    </button>
+                                    <button type="button" onClick={() => removerPill(idx, op, i)} title="Remover etapa"
+                                      style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:'0 2px', fontSize:13, lineHeight:1 }}>
+                                      <i className="bi bi-x-lg" />
+                                    </button>
                                   </span>
-                                ))}
-                              </div>
+                                );
+                              })}
+                              <button type="button" onClick={() => adicionarPill(idx, op)}
+                                style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#fff', border:'1px dashed #cfe0f2', color:'#1a3a5c', borderRadius:20, padding:'4px 12px', fontSize:12.5, fontWeight:700, cursor:'pointer' }}>
+                                <i className="bi bi-plus-lg" />Etapa
+                              </button>
                             </div>
-                          )}
+                          </div>
 
                           {op.materiais.length > 0 && (
                             <div style={{ overflowX:'auto', marginTop:16 }}>
