@@ -77,17 +77,33 @@ async function extractDoc(buf: Buffer): Promise<Pagina[]> {
   return paginas;
 }
 
-// Agrupa páginas em SEÇÕES: uma página com quadro vermelho DIFERENTE do
-// anterior inicia uma nova seção. Página sem quadro, ou com o MESMO texto de
-// quadro da seção corrente, é continuação (o Totvs re-carimba o mesmo PN/PO/NS
-// em páginas de continuação de uma ordem que não coube numa página só —
-// tratar como ordem nova duplicava a ordem inteira, partindo componentes e
-// roteiro ao meio). Só PN/PO/NS realmente diferente abre ordem nova.
+// Chave de identidade do quadro vermelho (PN|PO|NS, normalizado) — comparar o
+// texto CRU da anotação falhava: a mesma ordem re-carimbada numa página de
+// continuação pode sair com espaçamento/quebra de linha levemente diferente
+// (rendering da anotação varia por página), então `pg.redbox !== cur.redbox`
+// ainda enxergava "ordem nova" onde era a mesma. Comparar PN/PO/NS já
+// parseados e normalizados é resistente a isso.
+function chaveCabecalho(redbox: string | null): string {
+  if (!redbox) return '';
+  const c = parseCabecalho(redbox);
+  const chave = `${c.pn}|${c.po}|${c.ns}`.replace(/\s+/g, ' ').trim();
+  return chave === '||' ? '' : chave;
+}
+
+// Agrupa páginas em SEÇÕES: uma página cujo quadro vermelho tem PN/PO/NS
+// DIFERENTE do da seção corrente inicia uma nova seção. Página sem quadro, ou
+// com o MESMO PN/PO/NS da seção corrente, é continuação (o Totvs re-carimba o
+// mesmo PN/PO/NS em páginas de continuação de uma ordem que não coube numa
+// página só — tratar como ordem nova duplicava a ordem inteira, partindo
+// componentes e roteiro ao meio).
 function agruparOrdens(paginas: Pagina[]): { redbox: string | null; lines: Line[] }[] {
   const grupos: { redbox: string | null; lines: Line[] }[] = [];
   let cur: { redbox: string | null; lines: Line[] } | null = null;
+  let curChave = '';
   for (const pg of paginas) {
-    if (pg.redbox && (!cur || pg.redbox !== cur.redbox)) { cur = { redbox: pg.redbox, lines: [] }; grupos.push(cur); }
+    const chave = chaveCabecalho(pg.redbox);
+    const continuacao = !!(pg.redbox && cur && chave && chave === curChave);
+    if (pg.redbox && !continuacao) { cur = { redbox: pg.redbox, lines: [] }; curChave = chave; grupos.push(cur); }
     if (!cur) { cur = { redbox: null, lines: [] }; grupos.push(cur); }
     cur.lines.push(...pg.lines);
   }
