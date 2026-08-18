@@ -36,22 +36,24 @@ export default function PcpHrmPage() {
   const [obs, setObs] = useState('');
   const [arquivo, setArquivo] = useState<File | null>(null);
 
-  // Leitura automática da OP (materiais + roteiro) assim que anexa o PDF.
+  // Leitura automática da OP (materiais + roteiro) assim que anexa o PDF. Um
+  // mesmo PDF pode trazer mais de uma ordem (cada quadro vermelho abre uma).
   interface OPMat { codigo: string; descricao: string; quantidade: string; unidade: string; }
-  interface OPOp { seq: string; setor: string; descricao: string; tc: string; tf: string; }
-  interface OPLeitura {
+  interface OPOp { seq: string; setor: string; setorNome: string; etapa: string; tc: string; tf: string; }
+  interface OPItem {
     cabecalho: { pn: string; po: string; ns: string };
     produto: { codigo: string; descricao: string };
     materiais: OPMat[]; roteiro: OPOp[]; confianca: number; paginas: number;
   }
+  interface OPLeitura { ops: OPItem[]; totalPaginas: number; }
   const [lendo, setLendo] = useState(false);
   const [leitura, setLeitura] = useState<OPLeitura | null>(null);
   const [erroLeitura, setErroLeitura] = useState('');
-  const [verComponentes, setVerComponentes] = useState(false);
+  const [componentesAbertos, setComponentesAbertos] = useState<Set<number>>(new Set());
 
   async function selecionarArquivo(f: File | null) {
     setArquivo(f);
-    setLeitura(null); setErroLeitura(''); setVerComponentes(false);
+    setLeitura(null); setErroLeitura(''); setComponentesAbertos(new Set());
     if (!f) return;
     if (f.type && f.type !== 'application/pdf') return; // leitura automática só p/ PDF
     setLendo(true);
@@ -61,12 +63,7 @@ export default function PcpHrmPage() {
       fd.append('arquivo', f);
       const res = await fetch('/api/pcp-hrm/ler-op', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
       const data = await res.json();
-      if (data.ok) setLeitura({
-        cabecalho: data.cabecalho || { pn: '', po: '', ns: '' },
-        produto: data.produto || { codigo: '', descricao: '' },
-        materiais: data.materiais || [], roteiro: data.roteiro || [],
-        confianca: data.confianca ?? 0, paginas: data.paginas ?? 0,
-      });
+      if (data.ok) setLeitura({ ops: data.ops || [], totalPaginas: data.totalPaginas ?? 0 });
       else setErroLeitura(data.erro || 'Não consegui ler a OP.');
     } catch {
       setErroLeitura('Falha ao ler a OP. O arquivo foi anexado, mas não consegui extrair os itens.');
@@ -75,8 +72,9 @@ export default function PcpHrmPage() {
     }
   }
 
-  // setores distintos do roteiro = "por onde a peça passa"
-  const setoresRoteiro = leitura ? Array.from(new Set(leitura.roteiro.map(o => o.setor).filter(Boolean))) : [];
+  function toggleComponentes(i: number) {
+    setComponentesAbertos(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; });
+  }
 
   const fabricaLabel: Record<FabricaEscolha, string> = {
     leve: 'Caldeiraria Leve',
@@ -274,121 +272,145 @@ export default function PcpHrmPage() {
             )}
           </div>
 
-          {/* Resultado da leitura */}
+          {/* Resultado da leitura — uma OP pode trazer mais de uma ordem */}
           {leitura && (
             <div className="card" style={{ padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6, flexWrap:'wrap', gap:8 }}>
                 <span style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1 }}>
                   <i className="bi bi-card-checklist" style={{ marginRight:6 }} />Leitura da OP
                   <span style={{ fontWeight:500, textTransform:'none', color:'#7a8aa0', marginLeft:8 }}>
-                    {leitura.paginas} pág. · {leitura.materiais.length} materiais · {leitura.roteiro.length} operações
+                    {leitura.totalPaginas} pág. · {leitura.ops.length} {leitura.ops.length === 1 ? 'ordem' : 'ordens'}
                   </span>
                 </span>
-                {leitura.confianca < 0.5 && (
-                  <span style={{ fontSize:11.5, fontWeight:700, color:'#92400e', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:6, padding:'3px 10px' }}>
-                    <i className="bi bi-eye" style={{ marginRight:5 }} />Leitura parcial — confira os itens
-                  </span>
-                )}
               </div>
 
-              {/* Identificação (quadro vermelho da OP): PN / PO / NS */}
-              {(leitura.cabecalho.pn || leitura.cabecalho.po || leitura.cabecalho.ns) && (
-                <div style={{ border:'1.5px solid #dc2626', borderRadius:10, padding:'12px 14px', marginBottom:14, background:'#fef5f5' }}>
-                  <div style={{ fontSize:10.5, fontWeight:700, color:'#dc2626', textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>
-                    <i className="bi bi-bookmark-star" style={{ marginRight:5 }} />Identificação
-                  </div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:3, fontSize:13.5, fontWeight:700, color:'#991b1b', fontFamily:'monospace' }}>
-                    {leitura.cabecalho.pn && <div><span style={{ opacity:.6 }}>PN</span> {leitura.cabecalho.pn}</div>}
-                    {leitura.cabecalho.po && <div><span style={{ opacity:.6 }}>PO</span> {leitura.cabecalho.po}</div>}
-                    {leitura.cabecalho.ns && <div><span style={{ opacity:.6 }}>NS</span> {leitura.cabecalho.ns}</div>}
-                  </div>
-                </div>
+              {leitura.ops.length === 0 && (
+                <div style={{ fontSize:13, color:'#92400e' }}>Não consegui identificar nenhuma ordem neste PDF. Confira se é uma OP do Totvs.</div>
               )}
 
-              {/* Produto + Descrição — clicável pra ver os COMPONENTES */}
-              <button type="button" onClick={() => setVerComponentes(v => !v)}
-                style={{ width:'100%', textAlign:'left', background:'#f8faff', border:'1px solid #cfe0f2', borderRadius:10, padding:'12px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:10 }}>
-                <i className={`bi ${verComponentes ? 'bi-chevron-down' : 'bi-chevron-right'}`} style={{ color:'#1a3a5c', fontSize:14 }} />
-                <span style={{ flex:1, minWidth:0 }}>
-                  <span className={labelCls}>Produto{leitura.produto.codigo ? ` — ${leitura.produto.codigo}` : ''}</span>
-                  <div style={{ fontSize:13.5, fontWeight:700, color:'#1a3a5c', marginTop:2 }}>{leitura.produto.descricao || '—'}</div>
-                </span>
-                <span style={{ fontSize:11.5, fontWeight:700, color:'#1a3a5c', background:'#eef4fb', border:'1px solid #cfe0f2', borderRadius:20, padding:'3px 10px', whiteSpace:'nowrap' }}>
-                  {leitura.materiais.length} componentes
-                </span>
-              </button>
+              <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+                {leitura.ops.map((op, idx) => {
+                  const multi = leitura.ops.length > 1;
+                  const setoresRoteiro = Array.from(new Set(op.roteiro.map(o => o.setorNome || o.setor).filter(Boolean)));
+                  const aberto = componentesAbertos.has(idx);
+                  return (
+                    <div key={idx} style={multi ? { border:'1px solid #e9ecef', borderRadius:10, padding:14 } : undefined}>
+                      {multi && (
+                        <div style={{ fontSize:11, fontWeight:700, color:'#7a8aa0', textTransform:'uppercase', letterSpacing:1, marginBottom:10 }}>
+                          Ordem {idx + 1} de {leitura.ops.length}
+                        </div>
+                      )}
 
-              {/* Por onde passa (setores do roteiro) */}
-              {setoresRoteiro.length > 0 && (
-                <div style={{ marginTop:16 }}>
-                  <span className={labelCls}>Por onde passa</span>
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
-                    {setoresRoteiro.map((s, i) => (
-                      <span key={s} style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#eef4fb', border:'1px solid #cfe0f2', color:'#1a3a5c', borderRadius:20, padding:'4px 12px', fontSize:12.5, fontWeight:700 }}>
-                        <span style={{ opacity:.6 }}>{i + 1}.</span>{s}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+                      {op.confianca < 0.5 && (
+                        <div style={{ marginBottom:10 }}>
+                          <span style={{ fontSize:11.5, fontWeight:700, color:'#92400e', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:6, padding:'3px 10px' }}>
+                            <i className="bi bi-eye" style={{ marginRight:5 }} />Leitura parcial — confira os itens
+                          </span>
+                        </div>
+                      )}
 
-              {/* Expandido: COMPONENTES + roteiro detalhado */}
-              {verComponentes && (
-                <>
-                  {leitura.materiais.length > 0 && (
-                    <div style={{ overflowX:'auto', marginTop:16 }}>
-                      <span className={labelCls}>Componentes</span>
-                      <table style={{ width:'100%', borderCollapse:'collapse', marginTop:6, fontSize:12.5, minWidth:520 }}>
-                        <thead>
-                          <tr style={{ textAlign:'left', color:'#6c757d', borderBottom:'1px solid #e9ecef' }}>
-                            <th style={{ padding:'5px 8px' }}>Código</th><th style={{ padding:'5px 8px' }}>Descrição</th>
-                            <th style={{ padding:'5px 8px' }}>Qtd</th><th style={{ padding:'5px 8px' }}>Un</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {leitura.materiais.map((m, i) => (
-                            <tr key={i} style={{ borderBottom:'1px solid #f1f3f5' }}>
-                              <td style={{ padding:'5px 8px', fontWeight:700, color:'#1a3a5c', whiteSpace:'nowrap' }}>{m.codigo}</td>
-                              <td style={{ padding:'5px 8px' }}>{m.descricao}</td>
-                              <td style={{ padding:'5px 8px', whiteSpace:'nowrap' }}>{m.quantidade}</td>
-                              <td style={{ padding:'5px 8px' }}>{m.unidade}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      {/* Identificação (quadro vermelho da OP): PN / PO / NS */}
+                      {(op.cabecalho.pn || op.cabecalho.po || op.cabecalho.ns) && (
+                        <div style={{ border:'1.5px solid #dc2626', borderRadius:10, padding:'12px 14px', marginBottom:14, background:'#fef5f5' }}>
+                          <div style={{ fontSize:10.5, fontWeight:700, color:'#dc2626', textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>
+                            <i className="bi bi-bookmark-star" style={{ marginRight:5 }} />Identificação
+                          </div>
+                          <div style={{ display:'flex', flexDirection:'column', gap:3, fontSize:13.5, fontWeight:700, color:'#991b1b', fontFamily:'monospace' }}>
+                            {op.cabecalho.pn && <div><span style={{ opacity:.6 }}>PN</span> {op.cabecalho.pn}</div>}
+                            {op.cabecalho.po && <div><span style={{ opacity:.6 }}>PO</span> {op.cabecalho.po}</div>}
+                            {op.cabecalho.ns && <div><span style={{ opacity:.6 }}>NS</span> {op.cabecalho.ns}</div>}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Produto + Descrição — clicável pra ver os COMPONENTES */}
+                      <button type="button" onClick={() => toggleComponentes(idx)}
+                        style={{ width:'100%', textAlign:'left', background:'#f8faff', border:'1px solid #cfe0f2', borderRadius:10, padding:'12px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:10 }}>
+                        <i className={`bi ${aberto ? 'bi-chevron-down' : 'bi-chevron-right'}`} style={{ color:'#1a3a5c', fontSize:14 }} />
+                        <span style={{ flex:1, minWidth:0 }}>
+                          <span className={labelCls}>Produto{op.produto.codigo ? ` — ${op.produto.codigo}` : ''}</span>
+                          <div style={{ fontSize:13.5, fontWeight:700, color:'#1a3a5c', marginTop:2 }}>{op.produto.descricao || '—'}</div>
+                        </span>
+                        <span style={{ fontSize:11.5, fontWeight:700, color:'#1a3a5c', background:'#eef4fb', border:'1px solid #cfe0f2', borderRadius:20, padding:'3px 10px', whiteSpace:'nowrap' }}>
+                          {op.materiais.length} componentes
+                        </span>
+                      </button>
+
+                      {/* Por onde passa (setores do roteiro) */}
+                      {setoresRoteiro.length > 0 && (
+                        <div style={{ marginTop:16 }}>
+                          <span className={labelCls}>Por onde passa</span>
+                          <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
+                            {setoresRoteiro.map((s, i) => (
+                              <span key={s} style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#eef4fb', border:'1px solid #cfe0f2', color:'#1a3a5c', borderRadius:20, padding:'4px 12px', fontSize:12.5, fontWeight:700 }}>
+                                <span style={{ opacity:.6 }}>{i + 1}.</span>{s}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Expandido: COMPONENTES + roteiro detalhado */}
+                      {aberto && (
+                        <>
+                          {op.materiais.length > 0 && (
+                            <div style={{ overflowX:'auto', marginTop:16 }}>
+                              <span className={labelCls}>Componentes</span>
+                              <table style={{ width:'100%', borderCollapse:'collapse', marginTop:6, fontSize:12.5, minWidth:520 }}>
+                                <thead>
+                                  <tr style={{ textAlign:'left', color:'#6c757d', borderBottom:'1px solid #e9ecef' }}>
+                                    <th style={{ padding:'5px 8px' }}>Código</th><th style={{ padding:'5px 8px' }}>Descrição</th>
+                                    <th style={{ padding:'5px 8px' }}>Qtd</th><th style={{ padding:'5px 8px' }}>Un</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {op.materiais.map((m, i) => (
+                                    <tr key={i} style={{ borderBottom:'1px solid #f1f3f5' }}>
+                                      <td style={{ padding:'5px 8px', fontWeight:700, color:'#1a3a5c', whiteSpace:'nowrap' }}>{m.codigo}</td>
+                                      <td style={{ padding:'5px 8px' }}>{m.descricao}</td>
+                                      <td style={{ padding:'5px 8px', whiteSpace:'nowrap' }}>{m.quantidade}</td>
+                                      <td style={{ padding:'5px 8px' }}>{m.unidade}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+
+                          {op.roteiro.length > 0 && (
+                            <div style={{ marginTop:16, overflowX:'auto' }}>
+                              <span className={labelCls}>Roteiro de operações</span>
+                              <table style={{ width:'100%', borderCollapse:'collapse', marginTop:6, fontSize:12.5, minWidth:520 }}>
+                                <thead>
+                                  <tr style={{ textAlign:'left', color:'#6c757d', borderBottom:'1px solid #e9ecef' }}>
+                                    <th style={{ padding:'5px 8px' }}>Seq</th><th style={{ padding:'5px 8px' }}>Setor</th>
+                                    <th style={{ padding:'5px 8px' }}>Etapa</th><th style={{ padding:'5px 8px' }}>TC</th><th style={{ padding:'5px 8px' }}>TF</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {op.roteiro.map((o, i) => (
+                                    <tr key={i} style={{ borderBottom:'1px solid #f1f3f5' }}>
+                                      <td style={{ padding:'5px 8px', fontWeight:700, color:'#1a3a5c' }}>{o.seq}</td>
+                                      <td style={{ padding:'5px 8px' }}>{o.setorNome || o.setor}</td>
+                                      <td style={{ padding:'5px 8px' }}>{o.etapa}</td>
+                                      <td style={{ padding:'5px 8px', color:'#6c757d' }}>{o.tc}</td>
+                                      <td style={{ padding:'5px 8px', color:'#6c757d' }}>{o.tf}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {!op.roteiro.length && !op.materiais.length && (
+                        <div style={{ fontSize:13, color:'#92400e', marginTop:12 }}>Não consegui identificar materiais nem roteiro nesta ordem.</div>
+                      )}
                     </div>
-                  )}
-
-                  {leitura.roteiro.length > 0 && (
-                    <div style={{ marginTop:16, overflowX:'auto' }}>
-                      <span className={labelCls}>Roteiro de operações</span>
-                      <table style={{ width:'100%', borderCollapse:'collapse', marginTop:6, fontSize:12.5, minWidth:520 }}>
-                        <thead>
-                          <tr style={{ textAlign:'left', color:'#6c757d', borderBottom:'1px solid #e9ecef' }}>
-                            <th style={{ padding:'5px 8px' }}>Seq</th><th style={{ padding:'5px 8px' }}>Setor</th>
-                            <th style={{ padding:'5px 8px' }}>Etapa</th><th style={{ padding:'5px 8px' }}>TC</th><th style={{ padding:'5px 8px' }}>TF</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {leitura.roteiro.map((o, i) => (
-                            <tr key={i} style={{ borderBottom:'1px solid #f1f3f5' }}>
-                              <td style={{ padding:'5px 8px', fontWeight:700, color:'#1a3a5c' }}>{o.seq}</td>
-                              <td style={{ padding:'5px 8px' }}>{o.setor}</td>
-                              <td style={{ padding:'5px 8px' }}>{o.descricao}</td>
-                              <td style={{ padding:'5px 8px', color:'#6c757d' }}>{o.tc}</td>
-                              <td style={{ padding:'5px 8px', color:'#6c757d' }}>{o.tf}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {!leitura.roteiro.length && !leitura.materiais.length && (
-                <div style={{ fontSize:13, color:'#92400e', marginTop:12 }}>Não consegui identificar materiais nem roteiro neste PDF. Confira se é uma OP do Totvs.</div>
-              )}
+                  );
+                })}
+              </div>
             </div>
           )}
 
