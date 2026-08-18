@@ -294,65 +294,60 @@ export default function PcpHrmPage() {
                   const setoresRoteiro = Array.from(new Set(op.roteiro.map(o => o.setorNome || o.setor).filter(Boolean)));
                   const aberto = componentesAbertos.has(idx);
                   return (
-                    <div key={idx} style={multi ? { border:'1px solid #e9ecef', borderRadius:10, padding:14 } : undefined}>
-                      {multi && (
-                        <div style={{ fontSize:11, fontWeight:700, color:'#7a8aa0', textTransform:'uppercase', letterSpacing:1, marginBottom:10 }}>
-                          Ordem {idx + 1} de {leitura.ops.length}
-                        </div>
-                      )}
-
-                      {op.confianca < 0.5 && (
-                        <div style={{ marginBottom:10 }}>
-                          <span style={{ fontSize:11.5, fontWeight:700, color:'#92400e', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:6, padding:'3px 10px' }}>
-                            <i className="bi bi-eye" style={{ marginRight:5 }} />Leitura parcial — confira os itens
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Identificação (quadro vermelho da OP): PN / PO / NS */}
-                      {(op.cabecalho.pn || op.cabecalho.po || op.cabecalho.ns) && (
-                        <div style={{ border:'1.5px solid #dc2626', borderRadius:10, padding:'12px 14px', marginBottom:14, background:'#fef5f5' }}>
-                          <div style={{ fontSize:10.5, fontWeight:700, color:'#dc2626', textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>
-                            <i className="bi bi-bookmark-star" style={{ marginRight:5 }} />Identificação
-                          </div>
-                          <div style={{ display:'flex', flexDirection:'column', gap:3, fontSize:13.5, fontWeight:700, color:'#991b1b', fontFamily:'monospace' }}>
-                            {op.cabecalho.pn && <div><span style={{ opacity:.6 }}>PN</span> {op.cabecalho.pn}</div>}
-                            {op.cabecalho.po && <div><span style={{ opacity:.6 }}>PO</span> {op.cabecalho.po}</div>}
-                            {op.cabecalho.ns && <div><span style={{ opacity:.6 }}>NS</span> {op.cabecalho.ns}</div>}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Produto + Descrição — clicável pra ver os COMPONENTES */}
+                    <div key={idx}>
+                      {/* Linha resumo — só Produto/Descrição, igual uma linha de item do
+                          Flange. Clicável: só abre identificação/componentes/roteiro
+                          quando a pessoa quer conferir. Nada de roteiro pré-aberto — a
+                          leitura automática é sugestão, quem direciona o processo é o PCP. */}
                       <button type="button" onClick={() => toggleComponentes(idx)}
                         style={{ width:'100%', textAlign:'left', background:'#f8faff', border:'1px solid #cfe0f2', borderRadius:10, padding:'12px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:10 }}>
                         <i className={`bi ${aberto ? 'bi-chevron-down' : 'bi-chevron-right'}`} style={{ color:'#1a3a5c', fontSize:14 }} />
                         <span style={{ flex:1, minWidth:0 }}>
-                          <span className={labelCls}>Produto{op.produto.codigo ? ` — ${op.produto.codigo}` : ''}</span>
+                          {multi && <span style={{ fontSize:10.5, fontWeight:700, color:'#7a8aa0', textTransform:'uppercase', letterSpacing:.5 }}>Ordem {idx + 1} de {leitura.ops.length}</span>}
+                          <span className={labelCls} style={{ display:'block' }}>Produto{op.produto.codigo ? ` — ${op.produto.codigo}` : ''}</span>
                           <div style={{ fontSize:13.5, fontWeight:700, color:'#1a3a5c', marginTop:2 }}>{op.produto.descricao || '—'}</div>
                         </span>
+                        {op.confianca < 0.5 && (
+                          <span style={{ fontSize:11, fontWeight:700, color:'#92400e', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:6, padding:'3px 8px', whiteSpace:'nowrap' }}>
+                            <i className="bi bi-eye" style={{ marginRight:4 }} />confira
+                          </span>
+                        )}
                         <span style={{ fontSize:11.5, fontWeight:700, color:'#1a3a5c', background:'#eef4fb', border:'1px solid #cfe0f2', borderRadius:20, padding:'3px 10px', whiteSpace:'nowrap' }}>
                           {op.materiais.length} componentes
                         </span>
                       </button>
 
-                      {/* Por onde passa (setores do roteiro) */}
-                      {setoresRoteiro.length > 0 && (
-                        <div style={{ marginTop:16 }}>
-                          <span className={labelCls}>Por onde passa</span>
-                          <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
-                            {setoresRoteiro.map((s, i) => (
-                              <span key={s} style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#eef4fb', border:'1px solid #cfe0f2', color:'#1a3a5c', borderRadius:20, padding:'4px 12px', fontSize:12.5, fontWeight:700 }}>
-                                <span style={{ opacity:.6 }}>{i + 1}.</span>{s}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Expandido: COMPONENTES + roteiro detalhado */}
+                      {/* Expandido: identificação + Por onde passa + COMPONENTES + roteiro */}
                       {aberto && (
-                        <>
+                        <div style={{ marginTop:10, paddingLeft:4 }}>
+                          {/* Identificação (quadro vermelho da OP): PN / PO / NS */}
+                          {(op.cabecalho.pn || op.cabecalho.po || op.cabecalho.ns) && (
+                            <div style={{ border:'1.5px solid #dc2626', borderRadius:10, padding:'12px 14px', marginBottom:14, background:'#fef5f5' }}>
+                              <div style={{ fontSize:10.5, fontWeight:700, color:'#dc2626', textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>
+                                <i className="bi bi-bookmark-star" style={{ marginRight:5 }} />Identificação
+                              </div>
+                              <div style={{ display:'flex', flexDirection:'column', gap:3, fontSize:13.5, fontWeight:700, color:'#991b1b', fontFamily:'monospace' }}>
+                                {op.cabecalho.pn && <div><span style={{ opacity:.6 }}>PN</span> {op.cabecalho.pn}</div>}
+                                {op.cabecalho.po && <div><span style={{ opacity:.6 }}>PO</span> {op.cabecalho.po}</div>}
+                                {op.cabecalho.ns && <div><span style={{ opacity:.6 }}>NS</span> {op.cabecalho.ns}</div>}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Por onde passa (setores do roteiro) — leitura sugerida, PCP confirma na Conferência */}
+                          {setoresRoteiro.length > 0 && (
+                            <div style={{ marginBottom:16 }}>
+                              <span className={labelCls}>Por onde passa (sugestão da leitura)</span>
+                              <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
+                                {setoresRoteiro.map((s, i) => (
+                                  <span key={s} style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#eef4fb', border:'1px solid #cfe0f2', color:'#1a3a5c', borderRadius:20, padding:'4px 12px', fontSize:12.5, fontWeight:700 }}>
+                                    <span style={{ opacity:.6 }}>{i + 1}.</span>{s}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           {op.materiais.length > 0 && (
                             <div style={{ overflowX:'auto', marginTop:16 }}>
                               <span className={labelCls}>Componentes</span>
@@ -401,7 +396,7 @@ export default function PcpHrmPage() {
                               </table>
                             </div>
                           )}
-                        </>
+                        </div>
                       )}
 
                       {!op.roteiro.length && !op.materiais.length && (
