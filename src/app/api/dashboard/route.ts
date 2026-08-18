@@ -44,24 +44,47 @@ export async function GET(req: Request) {
     return NextResponse.json(cache.data);
   }
 
-  // Partição por ONDE o pedido está (setor_atual), pra os 3 cards de "em aberto"
-  // sempre somarem o Total (antes 'produzindo' só pegava status='em_producao' e
-  // deixava de fora pausado/aguardando/em_transito/etc. — faltava na conta):
-  //   Emissão            → A Produzir
-  //   Logística          → Mat. Concluído
-  //   qualquer outro     → Produzindo  (IS DISTINCT FROM cobre setor_atual NULL)
+  // Partição por ONDE o pedido está, pra os 3 cards de "em aberto" sempre
+  // somarem o Total. A fase é derivada do setor_atual dos ITENS (nível item),
+  // não do campo setor_atual do PEDIDO — esse campo do pedido só é sincronizado
+  // pelas ações de nível-item (liberar/enviar), então fica desatualizado quando
+  // a peça anda pelo fluxo via parciais (telas de setor). Derivar dos itens
+  // deixa o card consistente com "Itens por Setor" e com a tela de Emissão, e é
+  // auto-corretivo (não depende do campo denormalizado do pedido).
+  //   todos os itens ativos em Emissão   → A Produzir
+  //   todos os itens ativos em Logística → Mat. Concluído
+  //   qualquer mistura / demais setores  → Produzindo
   // 'entregue' fica fora do "em aberto". A Produzir + Produzindo + Mat.Concluído = Total.
   const qCounts = sql`
+    WITH itens_por_pedido AS (
+      SELECT pedido_id,
+             COUNT(*)                                             AS ativos,
+             COUNT(*) FILTER (WHERE setor_atual = 'emissao')      AS em_emissao,
+             COUNT(*) FILTER (WHERE setor_atual = 'logistica')    AS em_logistica
+      FROM producao_itempedido
+      WHERE status NOT IN ('entregue', 'cancelado') AND inativo = false
+      GROUP BY pedido_id
+    ),
+    pedidos_abertos AS (
+      SELECT p.prazo_entrega, p.prioridade, p.status,
+             COALESCE(ia.ativos, 0)       AS ativos,
+             COALESCE(ia.em_emissao, 0)   AS em_emissao,
+             COALESCE(ia.em_logistica, 0) AS em_logistica
+      FROM producao_pedido p
+      LEFT JOIN itens_por_pedido ia ON ia.pedido_id = p.id
+      WHERE p.status != 'entregue'
+    )
     SELECT
-      COUNT(*) FILTER (WHERE status != 'entregue')                                                                        AS total,
-      COUNT(*) FILTER (WHERE status != 'entregue' AND setor_atual = 'emissao')                                            AS a_produzir,
-      COUNT(*) FILTER (WHERE status != 'entregue' AND setor_atual IS DISTINCT FROM 'emissao' AND setor_atual IS DISTINCT FROM 'logistica') AS produzindo,
-      COUNT(*) FILTER (WHERE status != 'entregue' AND setor_atual = 'logistica')                                          AS mat_concluido,
-      COUNT(*) FILTER (WHERE status = 'entregue')                                                                         AS entregues,
-      COUNT(*) FILTER (WHERE prazo_entrega < NOW()::date AND status != 'entregue')                                        AS atrasados,
-      COUNT(*) FILTER (WHERE prioridade = 'urgente' AND status != 'entregue')                                             AS urgentes,
-      COUNT(*) FILTER (WHERE status = 'bloqueado')                                                                        AS bloqueados
-    FROM producao_pedido
+      (SELECT COUNT(*) FROM producao_pedido WHERE status = 'entregue')                          AS entregues,
+      COUNT(*)                                                                                  AS total,
+      COUNT(*) FILTER (WHERE ativos > 0 AND em_emissao = ativos)                                AS a_produzir,
+      COUNT(*) FILTER (WHERE ativos > 0 AND em_logistica = ativos)                              AS mat_concluido,
+      COUNT(*) FILTER (WHERE NOT (ativos > 0 AND em_emissao = ativos)
+                         AND NOT (ativos > 0 AND em_logistica = ativos))                        AS produzindo,
+      COUNT(*) FILTER (WHERE prazo_entrega < NOW()::date)                                       AS atrasados,
+      COUNT(*) FILTER (WHERE prioridade = 'urgente')                                            AS urgentes,
+      COUNT(*) FILTER (WHERE status = 'bloqueado')                                              AS bloqueados
+    FROM pedidos_abertos
   `;
 
   const qPorSetor = sql`
