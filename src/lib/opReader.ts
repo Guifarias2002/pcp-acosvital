@@ -25,7 +25,7 @@ export interface OPLeitura { ops: OPItem[]; totalPaginas: number; }
 
 interface Item { s: string; x: number; }
 interface Line { items: Item[]; raw: string; }
-interface Pagina { lines: Line[]; redbox: string | null; }
+interface Pagina { lines: Line[]; redbox: string | null; nro: string | null; }
 
 const isCtrl = (s: string) => { for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) < 32) return true; return false; };
 
@@ -72,7 +72,13 @@ async function extractDoc(buf: Buffer): Promise<Pagina[]> {
         if (a.subtype === 'FreeText' && typeof txt === 'string' && /\bPN\b|\bNS\b/.test(txt)) { redbox = txt; break; }
       }
     } catch { /* sem anotações */ }
-    paginas.push({ lines, redbox });
+    // NRO da ordem — carimbado em TODA página no cabeçalho fixo do template
+    // ("...ORDEM DE PRODUCAO NRO : 01316901003..."), texto legível (não
+    // embaralhado, é boilerplate). É o identificador confiável de ordem — ver
+    // agruparOrdens.
+    let nro: string | null = null;
+    for (const ln of lines) { const m = ln.raw.match(/NRO\s*:?\s*(\d{4,})/i); if (m) { nro = m[1]; break; } }
+    paginas.push({ lines, redbox, nro });
   }
   return paginas;
 }
@@ -90,13 +96,39 @@ function chaveCabecalho(redbox: string | null): string {
   return chave === '||' ? '' : chave;
 }
 
-// Agrupa páginas em SEÇÕES: uma página cujo quadro vermelho tem PN/PO/NS
-// DIFERENTE do da seção corrente inicia uma nova seção. Página sem quadro, ou
-// com o MESMO PN/PO/NS da seção corrente, é continuação (o Totvs re-carimba o
-// mesmo PN/PO/NS em páginas de continuação de uma ordem que não coube numa
-// página só — tratar como ordem nova duplicava a ordem inteira, partindo
-// componentes e roteiro ao meio).
+// Agrupa páginas em SEÇÕES = ORDENS reais.
+//
+// Identificador confiável: o NRO da ordem (cabeçalho fixo de cada página,
+// texto legível). Testado com PDF real (5 ordens, `OP 013169-01-001.pdf`) e
+// descobrimos que o quadro vermelho (PN/PO/NS) NÃO serve pra separar ordens:
+// ele identifica o PEDIDO/ORDEM PAI e se repete IDÊNTICO em várias ordens
+// diferentes do mesmo documento — cada uma delas é uma sub-ordem de
+// fabricação de um COMPONENTE diferente da mesma peça pai (o "Produto" logo
+// após "***** ORDEM DE PRODUCAO - PAI ******" muda a cada ordem, embora o
+// PN/PO/NS não mude). Uma tentativa anterior agrupava por PN/PO/NS igual e
+// colava ordens DIFERENTES numa só, misturando componentes/roteiro de peças
+// distintas — o NRO não tem esse problema, é único por ordem.
+//
+// Fallback pro quadro vermelho só entra se nenhuma página do documento tiver
+// NRO legível (outro template de OP): aí sim assume que quadro vermelho
+// DIFERENTE = ordem nova, e quadro igual/ausente = continuação da mesma.
 function agruparOrdens(paginas: Pagina[]): { redbox: string | null; lines: Line[] }[] {
+  return paginas.some(pg => pg.nro) ? agruparPorNro(paginas) : agruparPorQuadroVermelho(paginas);
+}
+
+function agruparPorNro(paginas: Pagina[]): { redbox: string | null; lines: Line[] }[] {
+  const grupos: ({ redbox: string | null; lines: Line[] } & { nro: string | null })[] = [];
+  let cur: (typeof grupos)[number] | null = null;
+  for (const pg of paginas) {
+    if (pg.nro && (!cur || pg.nro !== cur.nro)) { cur = { redbox: pg.redbox, lines: [], nro: pg.nro }; grupos.push(cur); }
+    if (!cur) { cur = { redbox: pg.redbox, lines: [], nro: pg.nro }; grupos.push(cur); }
+    if (!cur.redbox && pg.redbox) cur.redbox = pg.redbox;
+    cur.lines.push(...pg.lines);
+  }
+  return grupos;
+}
+
+function agruparPorQuadroVermelho(paginas: Pagina[]): { redbox: string | null; lines: Line[] }[] {
   const grupos: { redbox: string | null; lines: Line[] }[] = [];
   let cur: { redbox: string | null; lines: Line[] } | null = null;
   let curChave = '';
@@ -155,13 +187,25 @@ function deriveMap(lines: Line[]): Record<string, string> {
 function parseProduto(lines: Line[], map: Record<string, string>): OPProduto {
   const dec = (s: string) => s.split('').map(c => (c in map ? map[c] : c)).join('');
   const norm = (s: string) => dec(s).replace(/[-\s]/g, '').toUpperCase();
+  // Ordem com sub-item ("***** ORDEM DE PRODUCAO - PAI ******"): vem o
+  // Produto PAI (a peça maior) e, depois de uma linha de traços, o Produto
+  // FILHO — que é o que ESSA ordem de verdade fabrica/roteia (o PN/PO/NS do
+  // quadro vermelho não muda entre pai e filho, só o Produto). Pegamos o
+  // ÚLTIMO "Produto:" encontrado antes de COMPONENTES: quando só tem um
+  // (ordem sem sub-item, marcador "V I A P E Ç A"), é ele mesmo; quando tem
+  // dois, é o filho.
+  const fimBusca = (() => { const i = lines.findIndex(ln => norm(ln.raw).includes('COMPONENTES')); return i >= 0 ? i : lines.length; })();
+  const candidatos: OPProduto[] = [];
+  for (let i = 0; i < fimBusca; i++) {
+    const d = dec(lines[i].raw).replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+    const m = d.match(/Produto:?\s*(\S+)\s+Descric[a-z]*:?\s*(.+)/i);
+    if (m) candidatos.push({ codigo: m[1], descricao: m[2].trim() });
+  }
+  if (candidatos.length > 0) return candidatos[candidatos.length - 1];
+
+  // Fallback pra OP embaralhada sem "Produto:" legível.
   const viaIdx = lines.findIndex(ln => norm(ln.raw).includes('VIAPECA'));
   const cand = viaIdx >= 0 ? lines.slice(viaIdx + 1, viaIdx + 3) : lines.slice(4, 8);
-  for (const ln of cand) {
-    const d = dec(ln.raw).replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
-    const m = d.match(/Produto:?\s*(\S+)\s+Descric[a-z]*:?\s*(.+)/i);
-    if (m) return { codigo: m[1], descricao: m[2].trim() };
-  }
   let melhor = '';
   for (const ln of cand) { const d = dec(ln.raw).replace(/-/g, ' ').replace(/\s+/g, ' ').trim(); if ((d.match(/[A-Za-z]/g) || []).length > (melhor.match(/[A-Za-z]/g) || []).length) melhor = d; }
   const toks = melhor.split(' ');
@@ -174,7 +218,15 @@ function parseBlocos(lines: Line[], map: Record<string, string>): { materiais: O
   const norm = (s: string) => dec(s).replace(/[-\s]/g, '').toUpperCase();
   const skip = (d: string) => !d || isCtrl(d)
     || /^(FOLHA|HORA|SIGA|GRUPODEEMPRESA|ORDEMDEPRODUCAO|NRO|DTREF|VIAPECA)/i.test(d.replace(/[-\s.]/g, ''))
-    || /^(INICIO|TERMINO)REAL/i.test(d.replace(/[-\s]/g, '')) || /PROIBIDA|IMPRESSO/i.test(d);
+    || /^(INICIO|TERMINO)REAL/i.test(d.replace(/[-\s]/g, '')) || /PROIBIDA|IMPRESSO/i.test(d)
+    // Stub de apontamento/histórico ("Inspecao CQ de Producao ... Descricao: ...
+    // Item: ... Loja: ... Situacao: ...") que aparece intercalado no meio do
+    // roteiro em OPs de várias páginas — nunca é um passo de roteiro de
+    // verdade. Visto em teste real virando uma linha gigante e falsa na lista
+    // de "por onde passa". 3+ ":" também pega as continuações desse stub
+    // (rótulo:valor repetido), que não têm outro jeito fácil de reconhecer.
+    || /INSPE[CÇ][AÃ]O\s*CQ\s*DE\s*PRODU[CÇ][AÃ]O/i.test(d)
+    || (d.match(/:/g) || []).length >= 3;
 
   const compIdx = lines.findIndex(ln => norm(ln.raw).includes('COMPONENTES'));
   const rotIdx = lines.findIndex(ln => norm(ln.raw).includes('ROTEIRODEOPERA'));
