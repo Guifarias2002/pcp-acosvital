@@ -12,9 +12,11 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.110.0",
     "axios": "^1.18.0",
+    "docx": "^9.7.1",
     "jose": "5.6.3",
     "next": "^14.2.35",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^3.11.174",
     "postgres": "3.4.4",
     "react": "18",
     "react-dom": "18",

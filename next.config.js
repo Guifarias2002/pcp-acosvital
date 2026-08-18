@@ -24,6 +24,10 @@ const securityHeaders = [
 const nextConfig = {
   experimental: {
     instrumentationHook: true,
+    // pdfjs-dist (leitor de OP do PCP HRM) roda só no servidor; deixá-lo externo
+    // evita que o webpack tente empacotá-lo (dynamic requires / canvas opcional)
+    // e quebre o build.
+    serverComponentsExternalPackages: ['pdfjs-dist'],
   },
   async headers() {
     return [
