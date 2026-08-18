@@ -1,0 +1,503 @@
+<title>Caldeiraria — Processos e Apontamento</title>
+<style>
+  :root {
+    --bg: #eef1f4;
+    --surface: #ffffff;
+    --surface-2: #f5f7f9;
+    --ink: #171c22;
+    --ink-soft: #48525d;
+    --ink-faint: #7a8593;
+    --line: #dde2e8;
+    --line-strong: #c3ccd5;
+    --accent: #c2410c;         /* aço quente — família Caldeiraria */
+    --accent-2: #9a3412;
+    --accent-soft: #fbe9e0;
+    /* fases */
+    --entrada: #0369a1;
+    --prep: #6d28d9;
+    --fab: #c2410c;
+    --revest: #0f766e;
+    --lib: #15803d;
+    --shadow: 0 1px 2px rgba(20,28,38,.06), 0 8px 24px rgba(20,28,38,.06);
+    --mono: "Cascadia Code", "Consolas", ui-monospace, monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10141a; --surface: #1a2028; --surface-2: #212934;
+      --ink: #eef2f6; --ink-soft: #aab6c2; --ink-faint: #7c8794;
+      --line: #2b333d; --line-strong: #3a4552;
+      --accent: #fb7a4b; --accent-2: #fca06f; --accent-soft: #3a231a;
+      --entrada: #4ea6da; --prep: #a98bec; --fab: #fb7a4b; --revest: #3fb0a5; --lib: #4ade80;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10141a; --surface: #1a2028; --surface-2: #212934;
+    --ink: #eef2f6; --ink-soft: #aab6c2; --ink-faint: #7c8794;
+    --line: #2b333d; --line-strong: #3a4552;
+    --accent: #fb7a4b; --accent-2: #fca06f; --accent-soft: #3a231a;
+    --entrada: #4ea6da; --prep: #a98bec; --fab: #fb7a4b; --revest: #3fb0a5; --lib: #4ade80;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 24px 96px; }
+
+  header.hero { background: var(--surface); border-bottom: 3px solid var(--accent);
+    padding: 40px 0 34px; margin-bottom: 38px; }
+  .hero-inner { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
+  .eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin: 0 0 10px; }
+  h1 { font-size: clamp(28px, 5vw, 42px); line-height: 1.05; margin: 0 0 12px;
+    font-weight: 800; letter-spacing: -.02em; text-wrap: balance; }
+  .hero p { margin: 0; color: var(--ink-soft); max-width: 66ch; font-size: 16px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 20px;
+    font-size: 13px; color: var(--ink-faint); }
+  .meta b { color: var(--ink-soft); font-weight: 600; }
+
+  section { margin-top: 46px; }
+  h2.sec { font-size: 22px; font-weight: 800; letter-spacing: -.01em; margin: 0 0 6px;
+    display: flex; align-items: baseline; gap: 12px; }
+  h2.sec .num { font-family: var(--mono); font-size: 13px; color: var(--accent); font-weight: 700; }
+  .lead { color: var(--ink-soft); margin: 0 0 22px; max-width: 72ch; }
+
+  /* Ciclo (como funciona cada etapa) */
+  .cycle { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0;
+    border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+    box-shadow: var(--shadow); background: var(--surface); }
+  .cy { padding: 20px 16px 22px; position: relative; border-right: 1px solid var(--line); }
+  .cy:last-child { border-right: none; }
+  .cy .step-n { font-family: var(--mono); font-size: 11px; color: var(--ink-faint);
+    letter-spacing: .08em; }
+  .cy h3 { margin: 8px 0 6px; font-size: 16px; font-weight: 800; }
+  .cy p { margin: 0; font-size: 12.5px; color: var(--ink-soft); }
+  .cy .ic { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
+    font-size: 18px; background: var(--accent-soft); margin-bottom: 4px; }
+  .cy.hi { background: var(--accent-soft); }
+  .cy.hi h3 { color: var(--accent-2); }
+  .cy.hi .ic { background: var(--accent); }
+  .cy .arrow { position: absolute; right: -9px; top: 50%; transform: translateY(-50%);
+    z-index: 2; color: var(--line-strong); font-size: 18px; background: var(--surface);
+    width: 18px; text-align: center; }
+  @media (max-width: 760px) {
+    .cycle { grid-template-columns: 1fr; }
+    .cy { border-right: none; border-bottom: 1px solid var(--line); }
+    .cy:last-child { border-bottom: none; }
+    .cy .arrow { display: none; }
+  }
+  .cycle-note { font-size: 13px; color: var(--ink-faint); margin-top: 12px;
+    display: flex; align-items: center; gap: 8px; }
+
+  /* Fluxo desenhado por fase */
+  .phase { margin-top: 26px; }
+  .phase-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .phase-badge { font-family: var(--mono); font-size: 11.5px; font-weight: 700;
+    letter-spacing: .1em; text-transform: uppercase; color: #fff; padding: 5px 12px; border-radius: 999px; }
+  .b-entrada { background: var(--entrada); } .b-prep { background: var(--prep); }
+  .b-fab { background: var(--fab); } .b-revest { background: var(--revest); } .b-lib { background: var(--lib); }
+  .phase-head h3 { font-size: 17px; font-weight: 800; margin: 0; }
+  .phase-head .sub { margin-left: auto; color: var(--ink-faint); font-size: 13px; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 15px 15px; box-shadow: var(--shadow); border-top: 3px solid var(--edge); }
+  .card.entrada { --edge: var(--entrada); } .card.prep { --edge: var(--prep); }
+  .card.fab { --edge: var(--fab); } .card.revest { --edge: var(--revest); } .card.lib { --edge: var(--lib); }
+  .card .top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .card .idx { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--ink-faint); }
+  .card code.sec { font-family: var(--mono); font-size: 10.5px; background: var(--surface-2);
+    border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; color: var(--ink-soft); white-space: nowrap; }
+  .card h4 { margin: 7px 0 5px; font-size: 15px; font-weight: 700; }
+  .card p { margin: 0; font-size: 12.5px; color: var(--ink-soft); }
+  .card .aponta { margin-top: 10px; padding-top: 9px; border-top: 1px dashed var(--line);
+    font-size: 12px; display: flex; align-items: center; gap: 7px; }
+  .card .aponta b { color: var(--ink); font-weight: 600; }
+  .card .aponta .hand { flex: none; }
+  .card .aponta.tbd b { color: var(--ink-faint); font-style: italic; font-weight: 500; }
+
+  .arrow-row { display: flex; justify-content: center; margin: 8px 0; }
+  .arrow-row span { color: var(--line-strong); font-size: 20px; }
+
+  /* Quem aponta */
+  .team { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px,1fr)); gap: 14px; }
+  .tcard { background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 18px; box-shadow: var(--shadow); }
+  .tcard h4 { margin: 0 0 3px; font-size: 15px; font-weight: 700; }
+  .tcard .cnt { float: right; font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: var(--ink-faint); background: var(--surface-2); border-radius: 6px; padding: 1px 8px; }
+  .tcard .who { font-size: 12px; color: var(--ink-faint); margin: 0 0 10px; }
+  .tcard .where { font-size: 12.5px; color: var(--ink-soft); }
+  .tcard .where code { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+
+  .note { background: var(--accent-soft); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent); border-radius: 10px; padding: 16px 18px; }
+  .note h4 { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: var(--accent-2); }
+  .note p { margin: 0 0 8px; font-size: 13.5px; color: var(--ink-soft); }
+  .note p:last-child { margin-bottom: 0; }
+  .note b { color: var(--ink); }
+
+  /* Rotina do apontador */
+  .routine { counter-reset: r; display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .routine li { counter-increment: r; position: relative; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px 14px 56px; box-shadow: var(--shadow); }
+  .routine li::before { content: counter(r); position: absolute; left: 15px; top: 14px;
+    width: 27px; height: 27px; border-radius: 7px; background: var(--accent); color: #fff;
+    font-family: var(--mono); font-weight: 700; font-size: 13px; display: grid; place-items: center; }
+  .routine li b.h { display: block; font-size: 14.5px; margin-bottom: 3px; }
+  .routine li p { margin: 0; font-size: 13px; color: var(--ink-soft); }
+  .routine li .sys { display: inline-block; margin-top: 8px; font-size: 11.5px; font-family: var(--mono);
+    color: var(--accent-2); background: var(--accent-soft); border: 1px solid var(--line); border-radius: 5px; padding: 2px 8px; }
+  .models { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+  @media (max-width: 640px) { .models { grid-template-columns: 1fr; } }
+  .model { background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 18px; box-shadow: var(--shadow); border-top: 3px solid var(--accent); }
+  .model .tag { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); letter-spacing: .06em; }
+  .model h4 { margin: 4px 0 8px; font-size: 15.5px; font-weight: 700; }
+  .model p { margin: 0 0 6px; font-size: 13px; color: var(--ink-soft); }
+  .model p:last-child { margin-bottom: 0; }
+  .subhead { font-size: 16px; font-weight: 800; margin: 28px 0 4px; letter-spacing: -.01em; }
+
+  footer { margin-top: 52px; padding-top: 20px; border-top: 1px solid var(--line);
+    font-size: 12.5px; color: var(--ink-faint); }
+  @media print { body { background: #fff; } .card, .tcard, .cycle, .note { box-shadow: none; } }
+</style>
+
+<header class="hero">
+  <div class="hero-inner">
+    <p class="eyebrow">Caldeiraria · Processos e apontamento</p>
+    <div class="meta">
+      <span><b>Fábrica:</b> Caldeiraria</span>
+      <span><b>Elaborado:</b> 17/08/2026</span>
+      <span><b>Base:</b> áreas da Caldeiraria no sistema</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section>
+    <h2 class="sec"><span class="num">01</span> Como funciona cada etapa</h2>
+    <div class="cycle">
+      <div class="cy">
+        <div class="ic">📥</div>
+        <span class="step-n">Passo 1</span>
+        <h3>Recebe</h3>
+        <p>Pega a peça do setor anterior. Na entrada da Caldeiraria, faz o checklist de recebimento (OP, desenho, PV, material).</p>
+        <span class="arrow">→</span>
+      </div>
+      <div class="cy">
+        <div class="ic">🛠️</div>
+        <span class="step-n">Passo 2</span>
+        <h3>Executa</h3>
+        <p>Faz o processo daquela etapa (cortar, chanfrar, montar, soldar, usinar, pintar…).</p>
+        <span class="arrow">→</span>
+      </div>
+      <div class="cy hi">
+        <div class="ic">✍️</div>
+        <span class="step-n">Passo 3</span>
+        <h3>Aponta</h3>
+        <p>Registra a produção: quanto fez (parcial ou total), quem fez e quando. É o coração do controle.</p>
+        <span class="arrow">→</span>
+      </div>
+      <div class="cy">
+        <div class="ic">✅</div>
+        <span class="step-n">Passo 4</span>
+        <h3>Confere</h3>
+        <p>Checklist da etapa (dimensional, visual de solda, teste, etc.) quando o tipo de peça exige.</p>
+        <span class="arrow">→</span>
+      </div>
+      <div class="cy">
+        <div class="ic">📤</div>
+        <span class="step-n">Passo 5</span>
+        <h3>Encaminha</h3>
+        <p>Envia pro próximo setor. Se algo não confere, abre divergência ou devolve.</p>
+      </div>
+    </div>
+    <p class="cycle-note">🔁 Esse ciclo roda igual em cada área abaixo — muda só o processo do Passo 2 e quem aponta.</p>
+  </section>
+
+  <section>
+    <h2 class="sec"><span class="num">02</span> Como isso funciona no sistema</h2>
+    <p class="lead">Igual já funciona no Flange: o <b>físico e o sistema andam juntos</b>. A peça tem um lugar certo pra ficar em cada área, e o apontamento no sistema é só o <b>espelho do que aconteceu no chão</b> — nunca o contrário. É isto que o apontador faz, em toda etapa:</p>
+
+    <ol class="routine">
+      <li>
+        <b class="h">Fica sabendo que a peça chegou</b>
+        <p>Quando a área anterior encaminha, o item aparece na <b>fila do setor</b> daquele apontador no sistema. Ele tem ciência de que o material está ali pra ser trabalhado.</p>
+        <span class="sys">no sistema → item cai na fila do setor</span>
+      </li>
+      <li>
+        <b class="h">Confere o físico no local da área</b>
+        <p>Cada área tem um <b>local definido</b> pra deixar a peça (um ponto/endereço de recebimento). O apontador bate o que está no local com o que o sistema mostra e recebe.</p>
+        <span class="sys">no sistema → Receber (+ checklist na entrada)</span>
+      </li>
+      <li>
+        <b class="h">Executa o processo da área</b>
+        <p>Faz o trabalho daquela etapa — cortar, montar, soldar, pintar, o que for.</p>
+      </li>
+      <li>
+        <b class="h">Aponta o real e leva o físico pra próxima área</b>
+        <p>Ao terminar, registra no sistema <b>o que realmente fez</b> (quanto — parcial ou total) e leva a peça física pro local da próxima área. O físico se move; o apontamento acompanha.</p>
+        <span class="sys">no sistema → Apontar produção + Encaminhar ao próximo setor</span>
+      </li>
+      <li>
+        <b class="h">O sistema espelha o chão de fábrica</b>
+        <p>A peça "anda" no sistema pro próximo setor do mesmo jeito que andou no físico. Quem olha o sistema sabe exatamente onde a peça está de verdade.</p>
+      </li>
+    </ol>
+
+    <div class="note" style="margin-top:18px">
+      <h4>Regra de ouro</h4>
+      <p>Só se aponta <b>o que é real</b>. O sistema não manda a peça andar — a peça anda no chão e o apontador registra. Se o físico está numa área, o sistema tem que mostrar essa área. Físico e sistema sempre batendo.</p>
+      <p>Por isso cada área precisa de um <b>local físico definido</b> pra deixar a peça. Sem endereço no chão, o apontamento não tem como bater.</p>
+    </div>
+
+    <h3 class="subhead">Um apontador por área, ou um só pela Caldeiraria?</h3>
+    <p class="lead" style="margin-bottom:0">O sistema aceita os dois jeitos — é decisão de vocês:</p>
+    <div class="models">
+      <div class="model">
+        <span class="tag">MODELO A</span>
+        <h4>Um apontador por área</h4>
+        <p>Cada área tem seu responsável, que aponta a própria produção na hora. Mais preciso e mais rápido.</p>
+        <p style="color:var(--ink-faint)">Exige mais gente usando o sistema.</p>
+      </div>
+      <div class="model">
+        <span class="tag">MODELO B</span>
+        <h4>Um apontador pela Caldeiraria</h4>
+        <p>Uma pessoa percorre as áreas e aponta por todas. Concentra o sistema em quem tem prática.</p>
+        <p style="color:var(--ink-faint)">Depende dessa pessoa passar em cada área; risco de apontamento atrasado.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec"><span class="num">03</span> O caminho completo da peça</h2>
+    <p class="lead">As áreas da Caldeiraria no sistema, na ordem do roteiro, agrupadas em 5 fases. Cada card mostra o que se faz e <b>quem aponta</b> ali. As etapas são opcionais por item — o PCP escolhe quais a peça usa.</p>
+
+    <!-- ENTRADA -->
+    <div class="phase">
+      <div class="phase-head">
+        <span class="phase-badge b-entrada">Entrada</span>
+        <h3>Abertura e recebimento</h3>
+        <span class="sub">a peça entra na fábrica</span>
+      </div>
+      <div class="cards">
+        <div class="card entrada">
+          <div class="top"><span class="idx">01</span><code class="sec">desenho</code></div>
+          <h4>Desenho</h4>
+          <p>Projeto e detalhamento técnico do item. Feito na abertura da OP.</p>
+          <div class="aponta tbd"><span class="hand">🖐</span><b>Projeto / Engenharia</b></div>
+        </div>
+        <div class="card entrada">
+          <div class="top"><span class="idx">02</span><code class="sec">compras</code></div>
+          <h4>Compras</h4>
+          <p>Garante o material e insumos da OP antes de a fábrica começar.</p>
+          <div class="aponta tbd"><span class="hand">🖐</span><b>Comprador / Suprimentos</b></div>
+        </div>
+        <div class="card entrada">
+          <div class="top"><span class="idx">03</span><code class="sec">caldeiraria</code></div>
+          <h4>Recebimento</h4>
+          <p>Confere OP, desenho, PV e material (checklist). Item errado cai em divergência.</p>
+          <div class="aponta tbd"><span class="hand">🖐</span><b>Conferente / Encarregado</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-row"><span>↓</span></div>
+
+    <!-- PREPARAÇÃO -->
+    <div class="phase">
+      <div class="phase-head">
+        <span class="phase-badge b-prep">Preparação</span>
+        <h3>Corte e preparo do material</h3>
+        <span class="sub">destinos paralelos, conforme a peça</span>
+      </div>
+      <div class="cards">
+        <div class="card prep">
+          <div class="top"><span class="idx">04</span><code class="sec">corte_chapas</code></div>
+          <h4>Corte de Chapas</h4>
+          <p>Corta as chapas conforme a OP.</p>
+          <div class="aponta tbd"><span class="hand">🖐</span><b>Operador de corte</b></div>
+        </div>
+        <div class="card prep">
+          <div class="top"><span class="idx">05</span><code class="sec">corte_perfis</code></div>
+          <h4>Corte de Perfis</h4>
+          <p>Corta perfis e barras estruturais.</p>
+          <div class="aponta tbd"><span class="hand">🖐</span><b>Operador de corte</b></div>
+        </div>
+        <div class="card prep">
+          <div class="top"><span class="idx">06</span><code class="sec">recortes</code></div>
+          <h4>Recortes de Perfis</h4>
+          <p>Recortes e ajustes finos nos perfis.</p>
+          <div class="aponta tbd"><span class="hand">🖐</span><b>Operador de serra</b></div>
+        </div>
+        <div class="card prep">
+          <div class="top"><span class="idx">07</span><code class="sec">tracagem</code></div>
+          <h4>Traçagem</h4>
+          <p>Marca as peças pra montagem e furação.</p>
+          <div class="aponta tbd"><span class="hand">🖐</span><b>Traçador / Caldeireiro</b></div>
+        </div>
+        <div class="card prep">
+          <div class="top"><span class="idx">08</span><code class="sec">chanfros</code></div>
+          <h4>Prep. de Chanfros</h4>
+          <p>Chanfros e preparação das juntas de solda.</p>
+          <div class="aponta tbd"><span class="hand">🖐</span><b>Caldeireiro</b></div>
+        </div>
+        <div class="card prep">
+          <div class="top"><span class="idx">09</span><code class="sec">suporte</code></div>
+          <h4>Conformação (Calandra)</h4>
+          <p>Dobra e calandragem — dá forma às peças.</p>
+          <div class="aponta"><span class="hand">🖐</span><b>Operador de Calandra</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-row"><span>↓</span></div>
+
+    <!-- FABRICAÇÃO -->
+    <div class="phase">
+      <div class="phase-head">
+        <span class="phase-badge b-fab">Fabricação</span>
+        <h3>Montagem, solda e usinagem</h3>
+        <span class="sub">o grosso do trabalho + inspeções</span>
+      </div>
+      <div class="cards">
+        <div class="card fab">
+          <div class="top"><span class="idx">10</span><code class="sec">montagem_solda</code></div>
+          <h4>Montagem / Solda</h4>
+          <p>Monta o conjunto e solda. Solda registrada na OP; obrigatório carimbar a peça com o soldador.</p>
+          <div class="aponta"><span class="hand">🖐</span><b>Caldeireiro Montador + Soldador</b></div>
+        </div>
+        <div class="card fab">
+          <div class="top"><span class="idx">11</span><code class="sec">usinagem_final</code></div>
+          <h4>Usinagem Final</h4>
+          <p>Torno, furadeira, mandrilhadora — furações, olhais e calibração.</p>
+          <div class="aponta tbd"><span class="hand">🖐</span><b>Operador de usinagem</b></div>
+        </div>
+        <div class="card fab">
+          <div class="top"><span class="idx">12</span><code class="sec">acabamento_geral</code></div>
+          <h4>Acabamento Geral</h4>
+          <p>Rebarba, esmerilhamento e tipar. Testes (carga, dimensional, PM/LP) quando exigido.</p>
+          <div class="aponta"><span class="hand">🖐</span><b>Operador de Lixadeira</b></div>
+        </div>
+        <div class="card fab">
+          <div class="top"><span class="idx">13</span><code class="sec">conjuntos</code></div>
+          <h4>Montagem de Conjuntos</h4>
+          <p>Une os subconjuntos no produto final. Inspeção dimensional + visual do cliente.</p>
+          <div class="aponta"><span class="hand">🖐</span><b>Caldeireiro Montador</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-row"><span>↓</span></div>
+
+    <!-- REVESTIMENTO -->
+    <div class="phase">
+      <div class="phase-head">
+        <span class="phase-badge b-revest">Revestimento</span>
+        <h3>Jateamento e pintura</h3>
+        <span class="sub">proteção da peça</span>
+      </div>
+      <div class="cards">
+        <div class="card revest">
+          <div class="top"><span class="idx">14</span><code class="sec">jateamento</code></div>
+          <h4>Jateamento</h4>
+          <p>Prepara a superfície (grau de jato) antes da pintura.</p>
+          <div class="aponta tbd"><span class="hand">🖐</span><b>Operador de jato</b></div>
+        </div>
+        <div class="card revest">
+          <div class="top"><span class="idx">15</span><code class="sec">pintura_cald</code></div>
+          <h4>Pintura</h4>
+          <p>Primer, demãos intermediárias, acabamento e retoques. Controle de película.</p>
+          <div class="aponta tbd"><span class="hand">🖐</span><b>Pintor</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-row"><span>↓</span></div>
+
+    <!-- LIBERAÇÃO -->
+    <div class="phase">
+      <div class="phase-head">
+        <span class="phase-badge b-lib">Liberação</span>
+        <h3>Inspeção final e liberação</h3>
+        <span class="sub">a peça sai da Caldeiraria</span>
+      </div>
+      <div class="cards">
+        <div class="card lib">
+          <div class="top"><span class="idx">16</span><code class="sec">qualidade</code></div>
+          <h4>Inspeção de Qualidade</h4>
+          <p>Inspeção final, marcação (nº série/PN) e dados pro Data Book. Reprovou → volta pra etapa.</p>
+          <div class="aponta tbd"><span class="hand">🖐</span><b>Inspetor de Qualidade</b></div>
+        </div>
+        <div class="card lib">
+          <div class="top"><span class="idx">17</span><code class="sec">liberado</code></div>
+          <h4>Liberado</h4>
+          <p>Peça aprovada e liberada. Segue pra entrega/coleta.</p>
+          <div class="aponta tbd"><span class="hand">🖐</span><b>PCP / Qualidade</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec"><span class="num">04</span> Quem aponta em cada etapa</h2>
+    <p class="lead">A equipe confirmada da Caldeiraria (18 pessoas, lista de 12/08) cobre montagem, solda, conformação e acabamento. As demais funções (corte, usinagem, jato, pintura, qualidade) ficam <b>a definir</b> — quem vai apontar cada uma.</p>
+    <div class="team">
+      <div class="tcard">
+        <span class="cnt">5</span>
+        <h4>Caldeireiro Montador</h4>
+        <p class="who">Clebson · Douglas · Fernando · Reginaldo…</p>
+        <p class="where">Aponta em <code>montagem_solda</code> · <code>conjuntos</code> · <code>tracagem</code></p>
+      </div>
+      <div class="tcard">
+        <span class="cnt">7</span>
+        <h4>Soldadores (I · II · III)</h4>
+        <p class="who">Edivaldo · Jenivaldo · Marcelo · Rafael · Miguel…</p>
+        <p class="where">Aponta a solda em <code>montagem_solda</code></p>
+      </div>
+      <div class="tcard">
+        <span class="cnt">1</span>
+        <h4>Operador de Calandra</h4>
+        <p class="who">Elias</p>
+        <p class="where">Aponta a conformação em <code>suporte</code></p>
+      </div>
+      <div class="tcard">
+        <span class="cnt">1</span>
+        <h4>Operador de Lixadeira</h4>
+        <p class="who">Valmir</p>
+        <p class="where">Aponta em <code>acabamento_geral</code></p>
+      </div>
+      <div class="tcard">
+        <span class="cnt">4</span>
+        <h4>Meio Oficial</h4>
+        <p class="who">Lincon · Patrick · Matheus…</p>
+        <p class="where">Auxilia e aponta junto nas mesmas etapas</p>
+      </div>
+      <div class="tcard">
+        <span class="cnt">?</span>
+        <h4>A definir</h4>
+        <p class="who">Corte · Usinagem · Jato · Pintura · Qualidade</p>
+        <p class="where">Quem aponta essas áreas ainda precisa ser definido</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec"><span class="num">05</span> O que falta decidir</h2>
+    <div class="note">
+      <h4>Para o apontamento funcionar de ponta a ponta</h4>
+      <p><b>1. Quem aponta cada área.</b> As etapas de fabricação já têm gente; corte, usinagem, jato, pintura e qualidade precisam de responsável definido.</p>
+      <p><b>2. Nível do apontamento.</b> Hoje o sistema registra a produção por setor (parcial: quanto/quando). Registrar <b>a pessoa exata</b> que fez cada etapa (ex.: qual soldador carimbou a peça) é um passo a mais — dá pra fazer, é só confirmar que é isso que vocês querem.</p>
+      <p><b>3. Líder e divisão das turmas.</b> Definir o líder de cada grupo e como dividir (por turno, por linha, por tipo de peça) pra fechar as equipes.</p>
+    </div>
+  </section>
+
+  <footer>
+    Documento de trabalho interno · Sistema PCP — Aços Vital. Áreas extraídas da fábrica “Caldeiraria” do sistema (roteiro de 12/08). O ciclo Recebe→Executa→Aponta→Confere→Encaminha reflete como o sistema já opera cada setor.
+  </footer>
+
+</div>

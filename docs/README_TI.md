@@ -1,5 +1,23 @@
 # PCP AcosVital — Guia de Instalação para o TI
 
+## ⚠️ Atualização (Agosto/2026) — Situação Atual
+
+Este guia descreve a instalação **definitiva** no servidor próprio do TI (ainda não executada).
+Enquanto isso não acontece, o sistema está rodando **temporariamente na Vercel** (hospedagem em
+nuvem, plano limitado), para não ficar fora do ar:
+
+- **Link atual:** `https://sistemapcp-nine.vercel.app` — mesmo login e senha de sempre.
+- Trocou de link em 04/08/2026 porque o anterior (`pcp-acosvital.vercel.app`) atingiu o limite de
+  uso do plano gratuito da Vercel e ficou pausado. O link novo é outra conta Vercel, também em
+  plano limitado, usada como contorno.
+- O **banco de dados é o mesmo de sempre** — não mudou, só trocou onde a aplicação roda.
+- Planos limitados de hospedagem têm restrição de tempo/recursos por execução — sob picos de
+  acesso simultâneo isso pode causar lentidão ou erro ao carregar o dashboard. Não há perda de
+  dados; o sistema já foi ajustado para desistir e mostrar erro em vez de travar.
+- **Isso é temporário.** A solução definitiva continua sendo o TI provisionar o próprio
+  servidor/infraestrutura seguindo as instruções abaixo — ver também `docs/dossie_ti.html`
+  (seção 0 e seção 7) para o cronograma completo.
+
 ## Requisitos
 
 - Node.js 18 LTS ou superior

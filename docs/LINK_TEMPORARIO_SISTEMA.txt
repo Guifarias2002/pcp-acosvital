@@ -1,0 +1,15 @@
+SISTEMA PCP — LINK TEMPORÁRIO (enquanto o link principal está pausado)
+
+Use este link pra acessar o sistema normalmente, com login e senha de sempre:
+
+https://sistemapcp-nine.vercel.app
+
+O que mudou:
+- O link antigo (pcp-acosvital.vercel.app) está pausado por limite de uso na Vercel.
+- Este link novo é uma conta diferente da Vercel, já atualizado com todas as
+  funcionalidades e permissões mais recentes (inclui divergências, acessos
+  restritos por setor, etc.).
+- É o MESMO banco de dados de sempre — tudo que for feito aqui é real,
+  não é ambiente de teste.
+
+Atualizado em: 04/08/2026

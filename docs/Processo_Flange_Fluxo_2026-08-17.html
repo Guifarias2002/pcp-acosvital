@@ -1,0 +1,256 @@
+<title>Fluxo do Flange</title>
+<style>
+  :root {
+    --bg: #eef1f4;
+    --surface: #ffffff;
+    --surface-2: #f4f7fa;
+    --ink: #131a22;
+    --ink-soft: #46525f;
+    --ink-faint: #78848f;
+    --line: #dbe2e9;
+    --line-strong: #c1ccd6;
+    --accent: #1d6fa5;          /* azul-aço */
+    --accent-2: #0e4d78;
+    --accent-soft: #e3eef6;
+    --inicio: #1d6fa5;
+    --meio: #b45309;            /* usinagem = calor/cavaco */
+    --fim: #15803d;
+    --aux: #64748b;
+    --shadow: 0 1px 2px rgba(19,26,34,.06), 0 8px 24px rgba(19,26,34,.06);
+    --mono: "Cascadia Code", "Consolas", ui-monospace, monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f141a; --surface: #191f27; --surface-2: #202832;
+      --ink: #edf2f7; --ink-soft: #a9b5c1; --ink-faint: #7a8592;
+      --line: #29323c; --line-strong: #3a4653;
+      --accent: #4ea6da; --accent-2: #7ec1e8; --accent-soft: #14293a;
+      --inicio: #4ea6da; --meio: #f0a94a; --fim: #4ade80; --aux: #93a1b0;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f141a; --surface: #191f27; --surface-2: #202832;
+    --ink: #edf2f7; --ink-soft: #a9b5c1; --ink-faint: #7a8592;
+    --line: #29323c; --line-strong: #3a4653;
+    --accent: #4ea6da; --accent-2: #7ec1e8; --accent-soft: #14293a;
+    --inicio: #4ea6da; --meio: #f0a94a; --fim: #4ade80; --aux: #93a1b0;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px 96px; }
+
+  header.hero { background: var(--surface); border-bottom: 3px solid var(--accent);
+    padding: 40px 0 34px; margin-bottom: 40px; }
+  .hero-inner { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+  .eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin: 0 0 10px; }
+  h1 { font-size: clamp(28px, 5vw, 42px); line-height: 1.05; margin: 0 0 12px;
+    font-weight: 800; letter-spacing: -.02em; text-wrap: balance; }
+  .hero p { margin: 0; color: var(--ink-soft); max-width: 64ch; font-size: 16px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 20px;
+    font-size: 13px; color: var(--ink-faint); }
+  .meta b { color: var(--ink-soft); font-weight: 600; }
+
+  section { margin-top: 40px; }
+  .lead { color: var(--ink-soft); margin: 0 0 22px; max-width: 70ch; }
+
+  /* Phase band */
+  .phase { margin-top: 30px; }
+  .phase-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+  .phase-badge { font-family: var(--mono); font-size: 12px; font-weight: 700;
+    letter-spacing: .1em; text-transform: uppercase; color: #fff;
+    padding: 5px 12px; border-radius: 999px; }
+  .phase-badge.inicio { background: var(--inicio); }
+  .phase-badge.meio { background: var(--meio); }
+  .phase-badge.fim { background: var(--fim); }
+  .phase-head h2 { font-size: 20px; font-weight: 800; margin: 0; letter-spacing: -.01em; }
+  .phase-head .sub { color: var(--ink-faint); font-size: 14px; margin-left: auto; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px 18px 18px; box-shadow: var(--shadow);
+    position: relative; border-top: 3px solid var(--edge, var(--line-strong)); }
+  .card.inicio { --edge: var(--inicio); }
+  .card.meio { --edge: var(--meio); }
+  .card.fim { --edge: var(--fim); }
+  .card .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .card .idx { font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: var(--ink-faint); }
+  .card code.sec { font-family: var(--mono); font-size: 11px; background: var(--surface-2);
+    border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; color: var(--ink-soft); }
+  .card h3 { margin: 8px 0 6px; font-size: 16px; font-weight: 700; }
+  .card p { margin: 0; font-size: 13.5px; color: var(--ink-soft); }
+  .card .choose { margin-top: 10px; font-size: 12px; color: var(--ink-faint);
+    border-top: 1px dashed var(--line); padding-top: 9px; }
+  .card .choose b { color: var(--ink-soft); }
+
+  .arrow-row { display: flex; justify-content: center; margin: 6px 0; }
+  .arrow-row span { color: var(--line-strong); font-size: 22px; line-height: 1; }
+
+  /* Aux */
+  .aux-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px,1fr)); gap: 12px; }
+  .aux { background: var(--surface-2); border: 1px solid var(--line);
+    border-left: 3px solid var(--aux); border-radius: 10px; padding: 14px 16px; }
+  .aux h4 { margin: 0 0 4px; font-size: 14.5px; font-weight: 700;
+    display: flex; align-items: center; gap: 8px; }
+  .aux code { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint);
+    background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; }
+  .aux p { margin: 0; font-size: 12.5px; color: var(--ink-soft); }
+
+  .note { background: var(--accent-soft); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent); border-radius: 10px; padding: 16px 18px;
+    margin-top: 12px; }
+  .note h4 { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: var(--accent-2); }
+  .note p { margin: 0; font-size: 13.5px; color: var(--ink-soft); }
+  :root[data-theme="dark"] .note h4, :root:not([data-theme="light"]) .note h4 { color: var(--accent-2); }
+
+  h2.sec-title { font-size: 21px; font-weight: 800; letter-spacing: -.01em; margin: 0 0 6px; }
+
+  footer { margin-top: 52px; padding-top: 20px; border-top: 1px solid var(--line);
+    font-size: 12.5px; color: var(--ink-faint); }
+  @media print { body { background: #fff; } .card, .aux, .note { box-shadow: none; } }
+</style>
+
+<header class="hero">
+  <div class="hero-inner">
+    <p class="eyebrow">Linha de produção · Flanges</p>
+    <h1>Fluxo do Flange</h1>
+    <p>O caminho da peça de ponta a ponta — <b>início, meio e fim</b>. Da abertura da ordem até a expedição, mostrando por quais processos o flange passa e o que se decide em cada um.</p>
+    <div class="meta">
+      <span><b>Fábrica:</b> Flanges</span>
+      <span><b>Elaborado:</b> 17/08/2026</span>
+      <span><b>Base:</b> setores da fábrica Flange no sistema</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section>
+    <p class="lead">São três blocos. O <b style="color:var(--inicio)">Início</b> prepara a matéria-prima e tira a peça bruta; o <b style="color:var(--meio)">Meio</b> usina o flange de verdade; o <b style="color:var(--fim)">Fim</b> inspeciona e entrega. Em volta ficam os apoios (compras, beneficiadores, quarentena, estoque), que entram só quando a peça precisa.</p>
+
+    <!-- INÍCIO -->
+    <div class="phase">
+      <div class="phase-head">
+        <span class="phase-badge inicio">Início</span>
+        <h2>Preparação — a matéria-prima vira peça bruta</h2>
+        <span class="sub">emissão · material · corte</span>
+      </div>
+      <div class="cards">
+        <div class="card inicio">
+          <div class="top"><span class="idx">01</span><code class="sec">emissao</code></div>
+          <h3>Emissão de Ordens</h3>
+          <p>Nasce a OP do item, com o roteiro que ele vai seguir. Ponto de partida de todo flange.</p>
+        </div>
+        <div class="card inicio">
+          <div class="top"><span class="idx">02</span><code class="sec">estoque</code></div>
+          <h3>Material / Estoque</h3>
+          <p>Separa a matéria-prima (chapa, tarugo ou barra). Se faltar, dispara Compras.</p>
+        </div>
+        <div class="card inicio">
+          <div class="top"><span class="idx">03</span><code class="sec">corte</code></div>
+          <h3>Corte</h3>
+          <p>Tira o disco/anel bruto do flange a partir da matéria-prima.</p>
+          <div class="choose"><b>Escolhe 1:</b> Maçarico · Plasma · Laser · Serra — conforme espessura e material.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-row"><span>↓</span></div>
+
+    <!-- MEIO -->
+    <div class="phase">
+      <div class="phase-head">
+        <span class="phase-badge meio">Meio</span>
+        <h2>Usinagem — vira flange de verdade</h2>
+        <span class="sub">tornear · furar · acabar</span>
+      </div>
+      <div class="cards">
+        <div class="card meio">
+          <div class="top"><span class="idx">04</span><code class="sec">usinagem</code></div>
+          <h3>Usinagem</h3>
+          <p>Torneamento e faceamento: diâmetros, espessura, ressaltos e o assento de vedação.</p>
+        </div>
+        <div class="card meio">
+          <div class="top"><span class="idx">05</span><code class="sec">furacao</code></div>
+          <h3>Furação</h3>
+          <p>Fura os furos dos parafusos no diâmetro do círculo (PCD), na quantidade da norma.</p>
+        </div>
+        <div class="card meio">
+          <div class="top"><span class="idx">06</span><code class="sec">acabamento</code></div>
+          <h3>Acabamento</h3>
+          <p>Rebarba, chanfro, quebra de canto e marcação/gravação da peça.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow-row"><span>↓</span></div>
+
+    <!-- FIM -->
+    <div class="phase">
+      <div class="phase-head">
+        <span class="phase-badge fim">Fim</span>
+        <h2>Liberação e saída — inspeciona e entrega</h2>
+        <span class="sub">qualidade · embalagem · expedição</span>
+      </div>
+      <div class="cards">
+        <div class="card fim">
+          <div class="top"><span class="idx">07</span><code class="sec">qualidade</code></div>
+          <h3>Inspeção de Qualidade</h3>
+          <p>Conferência dimensional e visual. Aprova a peça ou manda pra Quarentena se reprovar.</p>
+        </div>
+        <div class="card fim">
+          <div class="top"><span class="idx">08</span><code class="sec">embalagem</code></div>
+          <h3>Embalagem</h3>
+          <p>Proteção e identificação da peça pronta para o transporte.</p>
+        </div>
+        <div class="card fim">
+          <div class="top"><span class="idx">09</span><code class="sec">logistica</code></div>
+          <h3>Logística</h3>
+          <p>Expedição e entrega ao cliente. Fim do caminho do flange.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec-title">Apoios e desvios</h2>
+    <p class="lead">Não fazem parte da linha reta, mas entram quando a peça precisa. Um flange pode passar por nenhum deles ou por vários.</p>
+    <div class="aux-grid">
+      <div class="aux">
+        <h4>Compras <code>compras</code></h4>
+        <p>Quando falta matéria-prima ou insumo pra a OP seguir.</p>
+      </div>
+      <div class="aux">
+        <h4>Beneficiadores <code>beneficiadores</code></h4>
+        <p>Tratamento externo (zincagem, tratamento térmico, pintura especial): a peça sai e volta.</p>
+      </div>
+      <div class="aux">
+        <h4>Quarentena <code>quarentena</code></h4>
+        <p>Peça reprovada na Qualidade ou parada aguardando decisão.</p>
+      </div>
+      <div class="aux">
+        <h4>Estoque <code>estoque</code></h4>
+        <p>Matéria-prima na entrada, ou peça pronta aguardando o pedido na saída.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="sec-title">Como o sistema trata isso hoje</h2>
+    <div class="note">
+      <h4>A ordem acima é o caminho típico — não uma trava</h4>
+      <p>No sistema, o Flange <b>não tem uma sequência fixa obrigatória</b>: quando o PCP abre a OP, ele escolhe quais setores o item passa e em que ordem (todos opcionais por item). Este documento serve pra padronizar o entendimento do <b>início → meio → fim</b>; se a ideia for <b>travar essa sequência</b> ou <b>já deixá-la pré-marcada</b> na abertura da OP, isso é uma mudança à parte no sistema — é só decidir e a gente encaixa.</p>
+    </div>
+  </section>
+
+  <footer>
+    Documento de trabalho interno · Sistema PCP — Aços Vital. Setores extraídos da fábrica “Flanges” do sistema; o agrupamento em início/meio/fim reflete a sequência típica de fabricação do flange.
+  </footer>
+
+</div>

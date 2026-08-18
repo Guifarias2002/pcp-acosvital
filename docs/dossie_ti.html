@@ -107,13 +107,78 @@
   <p>Documento de entrega ao Departamento de TI &#183; Revis&#227;o de Seguran&#231;a, LGPD e Arquitetura</p>
   <div class="header-meta">
     <span>&#128197; Gerado em 19 jun 2026</span>
+    <span>&#128260; Atualizado em 05 ago 2026</span>
     <span>&#127959; Next.js 14 + PostgreSQL (Supabase)</span>
     <span>&#128272; JWT HS256 + PBKDF2-SHA256</span>
-    <span>&#128203; Vers&#227;o 2.0 &#8212; P&#243;s-Hardening</span>
+    <span>&#128203; Vers&#227;o 2.1 &#8212; P&#243;s-Hardening</span>
   </div>
 </div>
 
 <div class="container">
+
+  <div class="section">
+    <div class="section-title">0 &#183; Atualiza&#231;&#227;o &#8212; Hospedagem Tempor&#225;ria (Ago/2026)</div>
+    <div class="card">
+      <div class="warn-box">
+        &#9888;&#65039; <strong>Situa&#231;&#227;o atual difere do plano original das se&#231;&#245;es 7 e 8 deste dossi&#234;.</strong>
+        O sistema ainda n&#227;o est&#225; hospedado no servidor pr&#243;prio do TI &#8212; est&#225; rodando de forma
+        <strong>tempor&#225;ria na Vercel</strong> (hospedagem em nuvem, plano com limite de uso), enquanto a
+        infraestrutura definitiva (servidor + banco do TI, conforme cronograma da se&#231;&#227;o 7) n&#227;o &#233; integrada.
+      </div>
+      <ul class="checklist">
+        <li>
+          <div class="check-icon ci-info">1</div>
+          <div class="check-text">
+            <strong>Link atual do sistema</strong>
+            <span><code>https://sistemapcp-nine.vercel.app</code> &#8212; mesmo login e senha de sempre.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-info">Tempor&#225;rio</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-warn">!</div>
+          <div class="check-text">
+            <strong>Por que trocou de link em 04/08/2026</strong>
+            <span>O link anterior (<code>pcp-acosvital.vercel.app</code>) atingiu o limite de uso do plano
+            gratuito da Vercel e ficou pausado. O link novo &#233; uma conta Vercel diferente, tamb&#233;m em
+            plano limitado (Hobby), usada como contorno at&#233; a integra&#231;&#227;o com a infraestrutura do TI.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-warn">A&#231;&#227;o TI</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-info">2</div>
+          <div class="check-text">
+            <strong>Banco de dados</strong>
+            <span>Continua sendo o <strong>mesmo banco Supabase de sempre</strong> &#8212; a troca foi s&#243; de onde
+            a aplica&#231;&#227;o (Next.js) roda, o banco n&#227;o mudou.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-ok">Sem mudan&#231;a</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-warn">!</div>
+          <div class="check-text">
+            <strong>Motivo das quedas/lentid&#227;o pontuais relatadas</strong>
+            <span>Planos limitados de hospedagem (como o Hobby da Vercel) t&#234;m restri&#231;&#245;es de tempo de
+            execu&#231;&#227;o de fun&#231;&#227;o e de recursos simult&#226;neos. Sob picos de acesso (v&#225;rios usu&#225;rios
+            entrando ao mesmo tempo), o carregamento do dashboard pode ficar lento ou expirar antes de
+            responder. N&#227;o &#233; perda de dados &#8212; o pr&#243;prio sistema j&#225; desiste e mostra erro em vez de
+            travar, e os dados continuam &#237;ntegros no banco.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-warn">Conhecido</span></div>
+        </li>
+        <li>
+          <div class="check-icon ci-info">3</div>
+          <div class="check-text">
+            <strong>Solu&#231;&#227;o definitiva</strong>
+            <span>Permanece o plano original: integrar o sistema &#224; infraestrutura pr&#243;pria do TI
+            (servidor + banco definitivo), conforme cronograma da se&#231;&#227;o 7 e checklist da se&#231;&#227;o 8. A
+            hospedagem tempor&#225;ria na Vercel deve ser descontinuada assim que essa integra&#231;&#227;o for
+            conclu&#237;da.</span>
+          </div>
+          <div class="check-pill"><span class="pill pill-info">Pendente</span></div>
+        </li>
+      </ul>
+    </div>
+  </div>
 
   <div class="section">
     <div class="section-title">Sum&#225;rio Executivo</div>
@@ -478,6 +543,13 @@
           <div class="timeline-title">Go-live e congelamento de escopo</div>
           <div class="timeline-desc">Sistema vai para produ&#231;&#227;o. Cust&#243;dia passa ao TI. Qualquer nova funcionalidade segue processo formal de solicita&#231;&#227;o e aprova&#231;&#227;o pelo TI.</div>
         </li>
+        <li>
+          <div class="timeline-badge">Ago/2026 &#8212; status atual</div>
+          <div class="timeline-title">Cronograma ainda n&#227;o executado &#8212; hospedagem tempor&#225;ria em uso</div>
+          <div class="timeline-desc">As semanas 1&#8211;4 acima ainda n&#227;o foram executadas pelo TI. Enquanto isso, o sistema roda
+          tempor&#225;riamente na Vercel (plano limitado) para n&#227;o ficar fora do ar &#8212; ver se&#231;&#227;o 0. Assim que o TI iniciar
+          o provisionamento do ambiente pr&#243;prio, este cronograma volta a valer normalmente.</div>
+        </li>
       </ul>
     </div>
   </div>
@@ -518,7 +590,7 @@
   </div>
 
   <div style="text-align:center; color:var(--texto-leve); font-size:12px; margin-top:48px; padding-top:24px; border-top:1px solid var(--borda);">
-    PCP AcosVital &#183; Dossii&#234; T&#233;cnico v2.0 &#183; Gerado em 19 jun 2026 &#183; Confidencial &#8212; Uso Interno
+    PCP AcosVital &#183; Dossii&#234; T&#233;cnico v2.1 &#183; Gerado em 19 jun 2026 &#183; Atualizado em 05 ago 2026 &#183; Confidencial &#8212; Uso Interno
   </div>
 
 </div>

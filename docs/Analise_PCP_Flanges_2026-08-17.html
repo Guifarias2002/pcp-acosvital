@@ -1,0 +1,578 @@
+<title>Análise PCP — Produção de Flanges</title>
+<style>
+:root{
+ --bg:#eceff3;--surface:#fff;--surface-2:#f4f7fa;--ink:#141a21;--ink-soft:#48545f;--ink-faint:#79838f;
+ --line:#dde3ea;--line-strong:#c4ccd5;--accent:#1d6fa5;--accent-2:#0e4d78;--accent-soft:#e4eef6;
+ --good:#15803d;--good-soft:#e5f3ea;--warn:#b45309;--warn-soft:#fbeddb;--bad:#c0392b;--bad-soft:#fbe6e3;
+ --mono:"Cascadia Code","Consolas",ui-monospace,monospace;--sans:"Segoe UI",system-ui,-apple-system,sans-serif;
+ --shadow:0 1px 2px rgba(20,28,38,.06),0 8px 24px rgba(20,28,38,.07);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+ --bg:#0f141a;--surface:#181f27;--surface-2:#1f2833;--ink:#eef2f6;--ink-soft:#a9b5c1;--ink-faint:#7b8794;
+ --line:#29323d;--line-strong:#3a4653;--accent:#4ea6da;--accent-2:#7ec1e8;--accent-soft:#14293a;
+ --good:#4ade80;--good-soft:#16301f;--warn:#f0a94a;--warn-soft:#33260f;--bad:#f2867a;--bad-soft:#37201d;
+ --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.4);
+}}
+:root[data-theme="dark"]{
+ --bg:#0f141a;--surface:#181f27;--surface-2:#1f2833;--ink:#eef2f6;--ink-soft:#a9b5c1;--ink-faint:#7b8794;
+ --line:#29323d;--line-strong:#3a4653;--accent:#4ea6da;--accent-2:#7ec1e8;--accent-soft:#14293a;
+ --good:#4ade80;--good-soft:#16301f;--warn:#f0a94a;--warn-soft:#33260f;--bad:#f2867a;--bad-soft:#37201d;
+ --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto;padding:0 24px 100px}
+header.hero{background:var(--surface);border-bottom:3px solid var(--accent);padding:44px 0 34px;margin-bottom:16px}
+.hi{max-width:1000px;margin:0 auto;padding:0 24px}
+.eyebrow{font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);font-weight:700;margin:0 0 10px}
+h1{font-size:clamp(28px,5vw,44px);line-height:1.04;margin:0 0 12px;font-weight:800;letter-spacing:-.02em;text-wrap:balance}
+.hero p.sub{margin:0;color:var(--ink-soft);max-width:70ch;font-size:16px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:20px;font-size:13px;color:var(--ink-faint)}
+.meta b{color:var(--ink-soft);font-weight:600}
+section{margin-top:44px;scroll-margin-top:20px}
+h2{font-size:22px;font-weight:800;letter-spacing:-.01em;margin:0 0 4px;display:flex;align-items:baseline;gap:12px}
+h2 .num{font-family:var(--mono);font-size:13px;color:var(--accent);font-weight:700}
+h3.sub2{font-size:16px;font-weight:800;margin:26px 0 8px}
+.lead{color:var(--ink-soft);margin:0 0 18px;max-width:74ch}
+/* 3 etapas (painel) */
+.etapas{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:2px 0 20px}
+@media(max-width:640px){.etapas{grid-template-columns:1fr}}
+.etapa{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow)}
+.etapa.e1{border-left-color:var(--ink-faint)} .etapa.e2{border-left-color:var(--accent)} .etapa.e3{border-left-color:var(--good)}
+.etapa .tag{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--ink-faint);text-transform:uppercase}
+.etapa .nm{font-size:16px;font-weight:800;margin:3px 0 8px}
+.etapa .v{font-size:44px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.etapa .d{font-size:12.5px;color:var(--ink-soft);margin-top:8px}
+/* KPI cards */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:12px;padding:15px 16px;box-shadow:var(--shadow)}
+.kpi.good{border-top-color:var(--good)} .kpi.warn{border-top-color:var(--warn)} .kpi.bad{border-top-color:var(--bad)}
+.kpi .v{font-size:27px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:12.5px;color:var(--ink-faint);margin-top:2px}
+.kpi .s{font-size:11.5px;color:var(--ink-soft);margin-top:6px}
+/* tables */
+.tscroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);margin-top:6px}
+table{border-collapse:collapse;width:100%;min-width:560px;background:var(--surface);font-size:13.5px}
+thead th{text-align:left;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);font-weight:700;padding:11px 14px;background:var(--surface-2);border-bottom:1px solid var(--line);white-space:nowrap}
+tbody td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top;font-variant-numeric:tabular-nums}
+tbody tr:last-child td{border-bottom:none}
+td.r,th.r{text-align:right}
+tbody tr:hover{background:var(--surface-2)}
+code{font-family:var(--mono);font-size:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--ink-soft)}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.p-bad{background:var(--bad-soft);color:var(--bad)} .p-warn{background:var(--warn-soft);color:var(--warn)} .p-good{background:var(--good-soft);color:var(--good)}
+/* chart */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);margin-top:6px}
+.chart{width:100%;height:auto}
+.c-lab{fill:var(--ink-soft);font:600 12px var(--sans)}
+.c-lab2{fill:var(--ink-faint);font:600 10px var(--sans)}
+.c-val{fill:var(--ink);font:700 12px var(--mono)}
+.c-track{fill:var(--surface-2)}
+.chart-title{font-size:13px;font-weight:700;color:var(--ink-soft);margin:0 0 10px;text-transform:uppercase;letter-spacing:.04em}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:720px){.grid2{grid-template-columns:1fr}}
+/* note boxes */
+.note{border:1px solid var(--line);border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:10px;padding:15px 17px;margin-top:14px}
+.note.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.note.bad{border-left-color:var(--bad);background:var(--bad-soft)}
+.note h4{margin:0 0 6px;font-size:14.5px;font-weight:700}
+.note p{margin:0 0 6px;font-size:13.5px;color:var(--ink-soft)} .note p:last-child{margin:0}
+.note b{color:var(--ink)}
+ul.clean{margin:8px 0 0;padding-left:20px} ul.clean li{margin:5px 0;font-size:14px;color:var(--ink-soft)}
+ul.clean li b{color:var(--ink)}
+.qa{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);margin-top:12px}
+.qa q{display:block;font-weight:800;font-size:15px;margin-bottom:5px;color:var(--ink)}
+.qa q::before{content:"“"} .qa q::after{content:"”"}
+.qa p{margin:0;font-size:13.5px;color:var(--ink-soft)}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.toc a{font-size:12.5px;text-decoration:none;color:var(--ink-soft);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 12px}
+.toc a:hover{border-color:var(--accent);color:var(--accent)}
+footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-faint)}
+@media print{body{background:#fff}.card,.kpi,.tscroll,.qa,.note{box-shadow:none}}
+</style>
+<header class="hero"><div class="hi">
+ <p class="eyebrow">Sistema PCP · Análise gerencial da produção</p>
+ <h1>Capacidade e Desempenho da Produção de Flanges</h1>
+ <p class="sub">Leitura completa dos dados do Sistema PCP no período em que foi usado para controlar a produção de flanges. Todos os números vêm direto do banco do sistema. Onde os dados não permitem um cálculo confiável, isso está declarado — nenhum valor foi estimado sem base.</p>
+ <div class="meta">
+  <span><b>Período:</b> 07/07/2026 a 17/08/2026 (42 dias)</span>
+  <span><b>Fábrica:</b> Flanges (100% dos itens)</span>
+  <span><b>Base:</b> 147 pedidos · 341 itens · 7.972 peças</span>
+  <span><b>Emitido:</b> 17/08/2026</span>
+ </div>
+ <nav class="toc">
+  <a href="#resumo">Resumo</a><a href="#metodo">Metodologia &amp; limitações</a><a href="#s1">1· Por período</a>
+  <a href="#s2">2· Comparação</a><a href="#s3">3· Consolidado</a><a href="#s4">4· Capacidade</a>
+  <a href="#s5">5· Gargalos</a><a href="#s6">6· KPIs</a><a href="#s7">7· Conclusão</a>
+ </nav>
+</div></header>
+
+<div class="wrap">
+
+<section id="resumo">
+ <h2><span class="num">◆</span> Resumo executivo</h2>
+ <p class="lead">Em ~6 semanas de uso, o sistema controlou <b>147 materiais</b> (pedidos) de flange. A situação deles, no modelo de 3 etapas do painel:</p>
+ <div class="etapas">
+  <div class="etapa e1"><span class="tag">Etapa 1</span><div class="nm">A Produzir</div><div class="v">0</div><div class="d">na Emissão, aguardando início</div></div>
+  <div class="etapa e2"><span class="tag">Etapa 2</span><div class="nm">Produzindo</div><div class="v">128</div><div class="d">em trabalho nos setores</div></div>
+  <div class="etapa e3"><span class="tag">Etapa 3</span><div class="nm">Entregue</div><div class="v">19</div><div class="d">materiais entregues ao cliente</div></div>
+ </div>
+ <div class="kpis">
+  <div class="kpi good"><div class="v">13%</div><div class="l">materiais entregues</div><div class="s">19 de 147 concluídos</div></div>
+  <div class="kpi "><div class="v">15,8 d</div><div class="l">lead time mediano</div><div class="s">da 1ª etapa à entrega (mín 3,9 / máx 28,7 d)</div></div>
+  <div class="kpi bad"><div class="v">102</div><div class="l">materiais atrasados</div><div class="s">dos 128 em produção, com prazo vencido</div></div>
+  <div class="kpi warn"><div class="v">Corte Plasma</div><div class="l">principal gargalo</div><div class="s">peça parada até 32,3 dias na fila</div></div>
+  <div class="kpi warn"><div class="v">94</div><div class="l">prontos parados</div><div class="s">já produzidos, aguardando expedição</div></div>
+  <div class="kpi "><div class="v">7.972</div><div class="l">peças no total</div><div class="s">volume das 147 ordens</div></div>
+ </div>
+ <div class="note"><h4>Uma frase para a diretoria</h4><p>Dos <b>147 materiais</b>, quase todos (<b>128</b>) estão em produção e só <b>19</b> foram entregues. O que segura a saída é o <b>corte (plasma)</b> e a <b>usinagem</b>, o acúmulo em <b>quarentena</b>, e <b>94 itens já prontos parados na expedição</b>. Há gargalo a montante e capacidade ociosa a jusante ao mesmo tempo.</p></div>
+</section>
+
+<section id="metodo">
+ <h2><span class="num">§</span> Metodologia &amp; limitações</h2>
+ <p class="lead">Para a análise ser confiável, é preciso deixar claro de onde vem cada número e o que os dados <b>não</b> permitem calcular.</p>
+ <div class="grid2">
+  <div>
+   <h3 class="sub2">De onde vêm os números</h3>
+   <ul class="clean">
+    <li><b>Movimentações</b> (5.463 registros carimbados com hora e usuário) — base dos tempos por etapa, throughput e lead time.</li>
+    <li><b>Itens e pedidos</b> — quantidades, status, prazos e mix por tipo/norma (lidos da descrição).</li>
+    <li><b>Parciais</b> — início/conclusão de produção por lote.</li>
+    <li>Tempo por etapa = intervalo entre a chegada da peça num setor e a saída para o próximo.</li>
+   </ul>
+  </div>
+  <div>
+   <h3 class="sub2">O que os dados NÃO permitem (sem inventar)</h3>
+   <ul class="clean">
+    <li><b>Capacidade teórica</b>: não há tempo-padrão de engenharia por peça → só dá para medir capacidade <b>efetiva observada</b>, não a instalada.</li>
+    <li><b>Hora-máquina / turno</b>: tempos são corridos (incluem noite e fim de semana), não horas úteis.</li>
+    <li><b>Produção individual</b>: o apontamento é feito pelo <b>líder do setor</b>, não por trabalhador — "produtividade por operador" = atividade de apontamento por líder.</li>
+    <li><b>Máquina</b>: não há ID de equipamento nem horímetro — "máquina" = setor (plasma, maçarico, usinagem…).</li>
+    <li><b>Atrasos</b> incluem pedidos cadastrados já com prazo vencido (backlog herdado), não só do período.</li>
+   </ul>
+  </div>
+ </div>
+</section>
+
+<section id="s1">
+ <h2><span class="num">1</span> Análise por período (semana a semana)</h2>
+ <p class="lead">Como o período tem ~6 semanas, a leitura semanal é a mais informativa (mês a mês seria só "julho parcial × agosto parcial"). "Finalizações de setor" = quantas etapas foram concluídas na semana — o melhor termômetro de ritmo de produção.</p>
+ <div class="tscroll"><table>
+  <thead><tr><th>Semana</th><th class="r">Pedidos novos</th><th class="r">Itens criados</th><th class="r">Peças criadas</th><th class="r">Itens iniciados</th><th class="r">Itens concluídos</th><th class="r">Finaliz. de setor</th></tr></thead>
+  <tbody><tr>
+ <td><b>06–12/jul</b></td>
+ <td class="r">9</td>
+ <td class="r">49</td>
+ <td class="r">2.845</td>
+ <td class="r">51</td>
+ <td class="r">0</td>
+ <td class="r">53</td>
+</tr><tr>
+ <td><b>13–19/jul</b></td>
+ <td class="r">25</td>
+ <td class="r">41</td>
+ <td class="r">1.724</td>
+ <td class="r">11</td>
+ <td class="r">1</td>
+ <td class="r">78</td>
+</tr><tr>
+ <td><b>20–26/jul</b></td>
+ <td class="r">26</td>
+ <td class="r">73</td>
+ <td class="r">733</td>
+ <td class="r">24</td>
+ <td class="r">6</td>
+ <td class="r">190</td>
+</tr><tr>
+ <td><b>27/jul–02/ago</b></td>
+ <td class="r">27</td>
+ <td class="r">53</td>
+ <td class="r">1.285</td>
+ <td class="r">89</td>
+ <td class="r">25</td>
+ <td class="r">315</td>
+</tr><tr>
+ <td><b>03–09/ago</b></td>
+ <td class="r">17</td>
+ <td class="r">34</td>
+ <td class="r">314</td>
+ <td class="r">32</td>
+ <td class="r">24</td>
+ <td class="r">183</td>
+</tr><tr>
+ <td><b>10–16/ago</b></td>
+ <td class="r">35</td>
+ <td class="r">73</td>
+ <td class="r">1.005</td>
+ <td class="r">64</td>
+ <td class="r">0</td>
+ <td class="r">109</td>
+</tr><tr>
+ <td><b>17/ago*</b></td>
+ <td class="r">8</td>
+ <td class="r">18</td>
+ <td class="r">66</td>
+ <td class="r">8</td>
+ <td class="r">0</td>
+ <td class="r">19</td>
+</tr></tbody>
+ </table></div>
+ <p class="lead" style="font-size:12.5px;margin-top:8px">* A semana de 17/ago tem só 1 dia (segunda) — valores baixos são esperados. Itens "concluídos" pararam de ser registrados após 03/ago (ver seção 2).</p>
+ <div class="grid2" style="margin-top:16px">
+  <div class="card"><p class="chart-title">Ritmo de produção — finalizações de setor / semana</p><svg viewBox="0 0 560 200" role="img" class="chart" preserveAspectRatio="xMinYMin meet"><rect x="20.434285714285714" y="140.42539682539683" width="52.84571428571429" height="25.574603174603176" rx="3" fill="var(--accent)"/><text x="46.85714285714286" y="136.42539682539683" text-anchor="middle" class="c-val">53</text><text x="46.85714285714286" y="180" text-anchor="middle" class="c-lab2">06-12/jul</text><rect x="98.14857142857142" y="128.36190476190475" width="52.84571428571429" height="37.63809523809524" rx="3" fill="var(--accent)"/><text x="124.57142857142856" y="124.36190476190475" text-anchor="middle" class="c-val">78</text><text x="124.57142857142856" y="180" text-anchor="middle" class="c-lab2">13-19/jul</text><rect x="175.86285714285714" y="74.31746031746032" width="52.84571428571429" height="91.68253968253968" rx="3" fill="var(--accent)"/><text x="202.28571428571428" y="70.31746031746032" text-anchor="middle" class="c-val">190</text><text x="202.28571428571428" y="180" text-anchor="middle" class="c-lab2">20-26/jul</text><rect x="253.57714285714283" y="14" width="52.84571428571429" height="152" rx="3" fill="var(--accent-2)"/><text x="280" y="10" text-anchor="middle" class="c-val">315</text><text x="280" y="180" text-anchor="middle" class="c-lab2">27/jul-02/ago</text><rect x="331.2914285714285" y="77.69523809523808" width="52.84571428571429" height="88.30476190476192" rx="3" fill="var(--accent)"/><text x="357.71428571428567" y="73.69523809523808" text-anchor="middle" class="c-val">183</text><text x="357.71428571428567" y="180" text-anchor="middle" class="c-lab2">03-09/ago</text><rect x="409.00571428571425" y="113.4031746031746" width="52.84571428571429" height="52.596825396825395" rx="3" fill="var(--accent)"/><text x="435.4285714285714" y="109.4031746031746" text-anchor="middle" class="c-val">109</text><text x="435.4285714285714" y="180" text-anchor="middle" class="c-lab2">10-16/ago</text><rect x="486.7199999999999" y="156.83174603174604" width="52.84571428571429" height="9.168253968253968" rx="3" fill="var(--accent)"/><text x="513.1428571428571" y="152.83174603174604" text-anchor="middle" class="c-val">19</text><text x="513.1428571428571" y="180" text-anchor="middle" class="c-lab2">17/ago*</text></svg></div>
+  <div class="card"><p class="chart-title">Entrada — itens criados / semana</p><svg viewBox="0 0 560 200" role="img" class="chart" preserveAspectRatio="xMinYMin meet"><rect x="20.434285714285714" y="63.97260273972603" width="52.84571428571429" height="102.02739726027397" rx="3" fill="var(--accent)"/><text x="46.85714285714286" y="59.97260273972603" text-anchor="middle" class="c-val">49</text><text x="46.85714285714286" y="180" text-anchor="middle" class="c-lab2">06-12/jul</text><rect x="98.14857142857142" y="80.63013698630137" width="52.84571428571429" height="85.36986301369863" rx="3" fill="var(--accent)"/><text x="124.57142857142856" y="76.63013698630137" text-anchor="middle" class="c-val">41</text><text x="124.57142857142856" y="180" text-anchor="middle" class="c-lab2">13-19/jul</text><rect x="175.86285714285714" y="14" width="52.84571428571429" height="152" rx="3" fill="var(--accent)"/><text x="202.28571428571428" y="10" text-anchor="middle" class="c-val">73</text><text x="202.28571428571428" y="180" text-anchor="middle" class="c-lab2">20-26/jul</text><rect x="253.57714285714283" y="55.64383561643835" width="52.84571428571429" height="110.35616438356165" rx="3" fill="var(--accent)"/><text x="280" y="51.64383561643835" text-anchor="middle" class="c-val">53</text><text x="280" y="180" text-anchor="middle" class="c-lab2">27/jul-02/ago</text><rect x="331.2914285714285" y="95.2054794520548" width="52.84571428571429" height="70.7945205479452" rx="3" fill="var(--accent)"/><text x="357.71428571428567" y="91.2054794520548" text-anchor="middle" class="c-val">34</text><text x="357.71428571428567" y="180" text-anchor="middle" class="c-lab2">03-09/ago</text><rect x="409.00571428571425" y="14" width="52.84571428571429" height="152" rx="3" fill="var(--accent)"/><text x="435.4285714285714" y="10" text-anchor="middle" class="c-val">73</text><text x="435.4285714285714" y="180" text-anchor="middle" class="c-lab2">10-16/ago</text><rect x="486.7199999999999" y="128.52054794520546" width="52.84571428571429" height="37.47945205479452" rx="3" fill="var(--accent)"/><text x="513.1428571428571" y="124.52054794520546" text-anchor="middle" class="c-val">18</text><text x="513.1428571428571" y="180" text-anchor="middle" class="c-lab2">17/ago*</text></svg></div>
+ </div>
+</section>
+
+<section id="s2">
+ <h2><span class="num">2</span> Comparação entre os períodos</h2>
+ <p class="lead">O que mudou ao longo das semanas:</p>
+ <ul class="clean">
+  <li><b>Produção subiu forte e depois caiu.</b> O ritmo cresceu de 53 → 78 → 190 → <b>315 finalizações/semana</b> (pico em 27/jul), depois recuou para 183 e 109 em agosto.</li>
+  <li><b>Adoção em rampa.</b> A curva de subida reflete tanto produção real quanto a equipe passando a apontar tudo. A queda de agosto pode ser desaceleração real <b>ou</b> subnotificação — precisa ser confirmado com o chão de fábrica.</li>
+  <li><b>Conclusões pararam de ser registradas após 03/ago.</b> Nenhum item foi marcado como "entregue" nas semanas de 10 e 17/ago. Ou as entregas pararam, ou deixaram de ser lançadas — é o ponto mais importante a checar.</li>
+  <li><b>Entrada de pedidos seguiu firme</b> (34 a 73 itens/semana), enquanto a saída não acompanhou → o <b>backlog cresceu</b>.</li>
+  <li><b>Gargalo do corte permaneceu</b> o tempo todo: o plasma nunca passou de ~30 finalizações/semana, sempre abaixo dos setores seguintes (qualidade, acabamento, usinagem passavam de 50).</li>
+ </ul>
+ <div class="note warn"><h4>Tendência</h4><p>A produção <b>não está em crescimento sustentado</b>: teve um pico de adoção no fim de julho e recuou. Como a entrada de pedidos continua alta, a diferença vira atraso e fila.</p></div>
+</section>
+
+<section id="s3">
+ <h2><span class="num">3</span> Consolidado do período total</h2>
+ <p class="lead">Situação dos <b>147 materiais</b> nas 3 etapas do painel:</p>
+ <div class="etapas">
+  <div class="etapa e1"><span class="tag">Etapa 1 · A Produzir</span><div class="nm">Emissão</div><div class="v">0</div><div class="d">aguardando início</div></div>
+  <div class="etapa e2"><span class="tag">Etapa 2 · Produzindo</span><div class="nm">Nos setores</div><div class="v">128</div><div class="d">102 com prazo vencido</div></div>
+  <div class="etapa e3"><span class="tag">Etapa 3 · Entregue</span><div class="nm">Ao cliente</div><div class="v">19</div><div class="d">13% do total</div></div>
+ </div>
+ <div class="kpis">
+  <div class="kpi "><div class="v">7.972</div><div class="l">peças no total</div><div class="s">volume das 147 ordens</div></div>
+  <div class="kpi good"><div class="v">1.688</div><div class="l">peças já entregues</div><div class="s">~21% do volume</div></div>
+  <div class="kpi "><div class="v">341</div><div class="l">itens (linhas)</div><div class="s">dentro dos materiais — vários itens por pedido</div></div>
+  <div class="kpi "><div class="v">947</div><div class="l">etapas concluídas</div><div class="s">somando todos os setores no período</div></div>
+  <div class="kpi "><div class="v">315</div><div class="l">pico semanal</div><div class="s">finalizações de setor (semana de 27/jul)</div></div>
+  <div class="kpi "><div class="v">15,8 d</div><div class="l">lead time mediano</div><div class="s">1ª etapa → entrega</div></div>
+ </div>
+
+ <h3 class="sub2">Tempo por etapa do processo</h3>
+ <p class="lead">Tempo médio que a peça passa em cada setor (chegada → saída), em horas corridas. A <b>mediana perto de zero</b> mostra que a maioria das peças passa rápido; a <b>média puxada para cima</b> vem de peças que ficam presas. As colunas de <b>parada</b> e <b>idade máxima</b> revelam onde há acúmulo.</p>
+ <div class="tscroll"><table>
+  <thead><tr><th>Setor</th><th class="r">Passagens</th><th class="r">Média (h)</th><th class="r">Mediana (h)</th><th class="r">Espera méd. (h)</th><th class="r">Parada méd. (h)</th><th class="r">Em fila hoje</th><th class="r">+ velho (d)</th></tr></thead>
+  <tbody><tr>
+   <td><b>Logística</b></td>
+   <td class="r">123</td>
+   <td class="r">56,2</td>
+   <td class="r">16,0</td>
+   <td class="r">69,2</td>
+   <td class="r">—</td>
+   <td class="r">35</td>
+   <td class="r">28,5</td>
+  </tr><tr>
+   <td><b>Quarentena</b></td>
+   <td class="r">140</td>
+   <td class="r">28,0</td>
+   <td class="r">1,8</td>
+   <td class="r">29,1</td>
+   <td class="r">—</td>
+   <td class="r">41</td>
+   <td class="r">20,2</td>
+  </tr><tr>
+   <td><b>Corte Plasma</b></td>
+   <td class="r">476</td>
+   <td class="r">27,3</td>
+   <td class="r">0,2</td>
+   <td class="r">43,0</td>
+   <td class="r">15,2</td>
+   <td class="r">33</td>
+   <td class="r">32,3</td>
+  </tr><tr>
+   <td><b>Acabamento</b></td>
+   <td class="r">634</td>
+   <td class="r">25,6</td>
+   <td class="r">0,5</td>
+   <td class="r">34,5</td>
+   <td class="r">2,3</td>
+   <td class="r">28</td>
+   <td class="r">20,5</td>
+  </tr><tr>
+   <td><b>Estoque</b></td>
+   <td class="r">935</td>
+   <td class="r">21,0</td>
+   <td class="r">0,0</td>
+   <td class="r">28,4</td>
+   <td class="r">0,0</td>
+   <td class="r">27</td>
+   <td class="r">3,5</td>
+  </tr><tr>
+   <td><b>Corte Maçarico</b></td>
+   <td class="r">194</td>
+   <td class="r">19,9</td>
+   <td class="r">0,0</td>
+   <td class="r">28,8</td>
+   <td class="r">0,8</td>
+   <td class="r">11</td>
+   <td class="r">12,2</td>
+  </tr><tr>
+   <td><b>Qualidade</b></td>
+   <td class="r">752</td>
+   <td class="r">17,6</td>
+   <td class="r">0,0</td>
+   <td class="r">35,7</td>
+   <td class="r">0,2</td>
+   <td class="r">20</td>
+   <td class="r">5,3</td>
+  </tr><tr>
+   <td><b>Furação</b></td>
+   <td class="r">495</td>
+   <td class="r">16,7</td>
+   <td class="r">0,8</td>
+   <td class="r">28,7</td>
+   <td class="r">25,7</td>
+   <td class="r">3</td>
+   <td class="r">3,2</td>
+  </tr><tr>
+   <td><b>Usinagem</b></td>
+   <td class="r">662</td>
+   <td class="r">16,5</td>
+   <td class="r">0,5</td>
+   <td class="r">28,6</td>
+   <td class="r">25,0</td>
+   <td class="r">25</td>
+   <td class="r">28,2</td>
+  </tr><tr>
+   <td><b>Corte Laser</b></td>
+   <td class="r">29</td>
+   <td class="r">7,9</td>
+   <td class="r">0,2</td>
+   <td class="r">12,6</td>
+   <td class="r">20,8</td>
+   <td class="r">—</td>
+   <td class="r">—</td>
+  </tr><tr>
+   <td><b>Emissão</b></td>
+   <td class="r">136</td>
+   <td class="r">4,8</td>
+   <td class="r">0,7</td>
+   <td class="r">4,8</td>
+   <td class="r">—</td>
+   <td class="r">1</td>
+   <td class="r">2,6</td>
+  </tr><tr>
+   <td><b>Embalagem</b></td>
+   <td class="r">490</td>
+   <td class="r">0,5</td>
+   <td class="r">0,0</td>
+   <td class="r">0,8</td>
+   <td class="r">0,0</td>
+   <td class="r">60</td>
+   <td class="r">10,5</td>
+  </tr></tbody>
+ </table></div>
+ <p class="lead" style="font-size:12.5px;margin-top:8px">"Parada" = tempo em status pausado. "Em fila hoje / + velho" = itens parados no setor agora e há quantos dias está o mais antigo.</p>
+
+ <div class="grid2" style="margin-top:18px">
+  <div class="card"><p class="chart-title">Throughput — finalizações por setor (período)</p><svg viewBox="0 0 520 418" role="img" class="chart" preserveAspectRatio="xMinYMin meet"><text x="0" y="15" dominant-baseline="middle" class="c-lab">Qualidade</text><rect x="150" y="3" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="3" width="306" height="24" rx="4" fill="var(--accent)"/><text x="520" y="15" text-anchor="end" dominant-baseline="middle" class="c-val">181</text><text x="0" y="53" dominant-baseline="middle" class="c-lab">Acabamento</text><rect x="150" y="41" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="41" width="258.6629834254143" height="24" rx="4" fill="var(--accent)"/><text x="520" y="53" text-anchor="end" dominant-baseline="middle" class="c-val">153</text><text x="0" y="91" dominant-baseline="middle" class="c-lab">Usinagem</text><rect x="150" y="79" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="79" width="236.68508287292818" height="24" rx="4" fill="var(--accent)"/><text x="520" y="91" text-anchor="end" dominant-baseline="middle" class="c-val">140</text><text x="0" y="129" dominant-baseline="middle" class="c-lab">Embalagem</text><rect x="150" y="117" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="117" width="219.7790055248619" height="24" rx="4" fill="var(--accent)"/><text x="520" y="129" text-anchor="end" dominant-baseline="middle" class="c-val">130</text><text x="0" y="167" dominant-baseline="middle" class="c-lab">Estoque</text><rect x="150" y="155" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="155" width="202.87292817679557" height="24" rx="4" fill="var(--accent)"/><text x="520" y="167" text-anchor="end" dominant-baseline="middle" class="c-val">120</text><text x="0" y="205" dominant-baseline="middle" class="c-lab">Furação</text><rect x="150" y="193" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="193" width="194.41988950276243" height="24" rx="4" fill="var(--accent)"/><text x="520" y="205" text-anchor="end" dominant-baseline="middle" class="c-val">115</text><text x="0" y="243" dominant-baseline="middle" class="c-lab">Corte Plasma</text><rect x="150" y="231" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="231" width="130.1767955801105" height="24" rx="4" fill="var(--accent)"/><text x="520" y="243" text-anchor="end" dominant-baseline="middle" class="c-val">77</text><text x="0" y="281" dominant-baseline="middle" class="c-lab">Corte Maçarico</text><rect x="150" y="269" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="269" width="33.812154696132595" height="24" rx="4" fill="var(--accent)"/><text x="520" y="281" text-anchor="end" dominant-baseline="middle" class="c-val">20</text><text x="0" y="319" dominant-baseline="middle" class="c-lab">Corte Laser</text><rect x="150" y="307" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="307" width="8.453038674033149" height="24" rx="4" fill="var(--accent)"/><text x="520" y="319" text-anchor="end" dominant-baseline="middle" class="c-val">5</text><text x="0" y="357" dominant-baseline="middle" class="c-lab">Emissão</text><rect x="150" y="345" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="345" width="6.762430939226519" height="24" rx="4" fill="var(--accent)"/><text x="520" y="357" text-anchor="end" dominant-baseline="middle" class="c-val">4</text><text x="0" y="395" dominant-baseline="middle" class="c-lab">Beneficiadores</text><rect x="150" y="383" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="383" width="3.3812154696132595" height="24" rx="4" fill="var(--accent)"/><text x="520" y="395" text-anchor="end" dominant-baseline="middle" class="c-val">2</text></svg></div>
+  <div class="card"><p class="chart-title">Itens parados hoje por setor (WIP)</p><svg viewBox="0 0 520 342" role="img" class="chart" preserveAspectRatio="xMinYMin meet"><text x="0" y="15" dominant-baseline="middle" class="c-lab">Embalagem</text><rect x="150" y="3" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="3" width="306" height="24" rx="4" fill="var(--accent)"/><text x="520" y="15" text-anchor="end" dominant-baseline="middle" class="c-val">59</text><text x="0" y="53" dominant-baseline="middle" class="c-lab">Quarentena</text><rect x="150" y="41" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="41" width="217.83050847457628" height="24" rx="4" fill="var(--bad)"/><text x="520" y="53" text-anchor="end" dominant-baseline="middle" class="c-val">42</text><text x="0" y="91" dominant-baseline="middle" class="c-lab">Logística</text><rect x="150" y="79" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="79" width="181.52542372881356" height="24" rx="4" fill="var(--accent)"/><text x="520" y="91" text-anchor="end" dominant-baseline="middle" class="c-val">35</text><text x="0" y="129" dominant-baseline="middle" class="c-lab">Corte Plasma</text><rect x="150" y="117" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="117" width="171.15254237288133" height="24" rx="4" fill="var(--bad)"/><text x="520" y="129" text-anchor="end" dominant-baseline="middle" class="c-val">33</text><text x="0" y="167" dominant-baseline="middle" class="c-lab">Estoque</text><rect x="150" y="155" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="155" width="140.03389830508473" height="24" rx="4" fill="var(--accent)"/><text x="520" y="167" text-anchor="end" dominant-baseline="middle" class="c-val">27</text><text x="0" y="205" dominant-baseline="middle" class="c-lab">Acabamento</text><rect x="150" y="193" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="193" width="134.84745762711864" height="24" rx="4" fill="var(--accent)"/><text x="520" y="205" text-anchor="end" dominant-baseline="middle" class="c-val">26</text><text x="0" y="243" dominant-baseline="middle" class="c-lab">Usinagem</text><rect x="150" y="231" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="231" width="129.66101694915253" height="24" rx="4" fill="var(--bad)"/><text x="520" y="243" text-anchor="end" dominant-baseline="middle" class="c-val">25</text><text x="0" y="281" dominant-baseline="middle" class="c-lab">Qualidade</text><rect x="150" y="269" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="269" width="103.72881355932203" height="24" rx="4" fill="var(--accent)"/><text x="520" y="281" text-anchor="end" dominant-baseline="middle" class="c-val">20</text><text x="0" y="319" dominant-baseline="middle" class="c-lab">Corte Maçarico</text><rect x="150" y="307" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="307" width="57.05084745762712" height="24" rx="4" fill="var(--accent)"/><text x="520" y="319" text-anchor="end" dominant-baseline="middle" class="c-val">11</text></svg></div>
+ </div>
+
+ <h3 class="sub2">Mix de produtos</h3>
+ <div class="grid2">
+  <div class="card"><p class="chart-title">Peças por tipo de flange</p><svg viewBox="0 0 520 342" role="img" class="chart" preserveAspectRatio="xMinYMin meet"><text x="0" y="15" dominant-baseline="middle" class="c-lab">Sobreposto</text><rect x="150" y="3" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="3" width="306" height="24" rx="4" fill="var(--accent)"/><text x="520" y="15" text-anchor="end" dominant-baseline="middle" class="c-val">3.976 pç</text><text x="0" y="53" dominant-baseline="middle" class="c-lab">Solto p/ PEAD</text><rect x="150" y="41" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="41" width="202.40945674044264" height="24" rx="4" fill="var(--accent)"/><text x="520" y="53" text-anchor="end" dominant-baseline="middle" class="c-val">2.630 pç</text><text x="0" y="91" dominant-baseline="middle" class="c-lab">Outro flange</text><rect x="150" y="79" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="79" width="32.0930583501006" height="24" rx="4" fill="var(--accent)"/><text x="520" y="91" text-anchor="end" dominant-baseline="middle" class="c-val">417 pç</text><text x="0" y="129" dominant-baseline="middle" class="c-lab">Liso</text><rect x="150" y="117" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="117" width="27.167505030181086" height="24" rx="4" fill="var(--accent)"/><text x="520" y="129" text-anchor="end" dominant-baseline="middle" class="c-val">353 pç</text><text x="0" y="167" dominant-baseline="middle" class="c-lab">SO (encaixe)</text><rect x="150" y="155" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="155" width="21.318410462776658" height="24" rx="4" fill="var(--accent)"/><text x="520" y="167" text-anchor="end" dominant-baseline="middle" class="c-val">277 pç</text><text x="0" y="205" dominant-baseline="middle" class="c-lab">Cego</text><rect x="150" y="193" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="193" width="13.622233400402415" height="24" rx="4" fill="var(--accent)"/><text x="520" y="205" text-anchor="end" dominant-baseline="middle" class="c-val">177 pç</text><text x="0" y="243" dominant-baseline="middle" class="c-lab">Pestana</text><rect x="150" y="231" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="231" width="9.928068410462776" height="24" rx="4" fill="var(--accent)"/><text x="520" y="243" text-anchor="end" dominant-baseline="middle" class="c-val">129 pç</text><text x="0" y="281" dominant-baseline="middle" class="c-lab">Disco</text><rect x="150" y="269" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="269" width="2" height="24" rx="4" fill="var(--accent)"/><text x="520" y="281" text-anchor="end" dominant-baseline="middle" class="c-val">12 pç</text><text x="0" y="319" dominant-baseline="middle" class="c-lab">Anel</text><rect x="150" y="307" width="306" height="24" rx="4" class="c-track"/><rect x="150" y="307" width="2" height="24" rx="4" fill="var(--accent)"/><text x="520" y="319" text-anchor="end" dominant-baseline="middle" class="c-val">1 pç</text></svg></div>
+  <div>
+   <div class="tscroll"><table>
+    <thead><tr><th>Norma</th><th class="r">Itens</th><th class="r">Peças</th></tr></thead>
+    <tbody><tr><td><b>ASME B16.5</b></td><td class="r">162</td><td class="r">2.543</td></tr><tr><td><b>EN 1092-1</b></td><td class="r">33</td><td class="r">2.255</td></tr><tr><td><b>ANSI</b></td><td class="r">36</td><td class="r">1.795</td></tr><tr><td><b>Outra/N.I.</b></td><td class="r">41</td><td class="r">510</td></tr><tr><td><b>AWWA</b></td><td class="r">31</td><td class="r">496</td></tr><tr><td><b>DIN/PN</b></td><td class="r">38</td><td class="r">373</td></tr></tbody>
+   </table></div>
+   <p class="lead" style="font-size:12.5px;margin-top:8px">Tipo e norma lidos da descrição do item. "Sobreposto" + "Solto p/ PEAD" concentram ~83% das peças.</p>
+  </div>
+ </div>
+</section>
+
+<section id="s4">
+ <h2><span class="num">4</span> Capacidade produtiva</h2>
+ <p class="lead">Sem tempo-padrão de engenharia, <b>a capacidade teórica (instalada) não é calculável</b>. O que os dados permitem é a <b>capacidade efetiva observada</b> — o ritmo real que a fábrica sustentou no período.</p>
+ <div class="kpis">
+  <div class="kpi "><div class="v">~2,8</div><div class="l">itens / dia útil</div><div class="s">ritmo de entrega observado</div></div>
+  <div class="kpi "><div class="v">~86</div><div class="l">peças / dia útil</div><div class="s">na janela produtiva</div></div>
+  <div class="kpi "><div class="v">~14</div><div class="l">itens / semana</div><div class="s">≈ 429 peças / semana</div></div>
+  <div class="kpi "><div class="v">~1.845</div><div class="l">peças / mês</div><div class="s">projeção do ritmo observado</div></div>
+ </div>
+ <div class="note"><h4>Como ler estes números</h4><p>São o <b>ritmo efetivo observado</b> (média da janela com entregas, ~4 semanas), não a capacidade máxima da fábrica. A capacidade real instalada é provavelmente maior — o que trava o número é o gargalo, não a falta de máquina.</p></div>
+
+ <h3 class="sub2">Capacidade por etapa e o gargalo</h3>
+ <ul class="clean">
+  <li><b>Etapa que limita a fábrica: Corte Plasma.</b> No pico fez ~30 finalizações/semana — o menor entre as etapas por onde quase toda peça passa. Downstream (qualidade, acabamento, usinagem) sustentaram 50–72/semana. Ou seja, <b>o corte não alimenta o resto na velocidade que ele consegue trabalhar</b>.</li>
+  <li><b>Capacidade ociosa a jusante:</b> Maçarico e Laser fizeram pouquíssimo (20 e 5 no total) — capacidade de corte alternativa subutilizada. Embalagem/Logística têm 94 itens prontos parados: capacidade de expedição ociosa frente ao que já foi produzido.</li>
+  <li><b>Ocupação:</b> não dá para calcular % de ocupação de máquina sem horímetro/turno. O indicador possível é a <b>fila (WIP)</b>: plasma, usinagem e quarentena concentram os itens parados há mais tempo.</li>
+ </ul>
+ <div class="note warn"><h4>Para calcular capacidade com precisão, faltam</h4><p>Tempo-padrão por peça e etapa · horas trabalhadas por turno/máquina · nº de máquinas e operadores por setor · registro de parada (motivo/duração). Com isso, dá para calcular capacidade instalada, % de utilização e eficiência (OEE) de verdade.</p></div>
+</section>
+
+<section id="s5">
+ <h2><span class="num">5</span> Análise dos gargalos</h2>
+ <p class="lead">Cruzando fila atual, idade das peças paradas, tempo de parada e throughput, os gargalos são:</p>
+ <div class="tscroll"><table>
+  <thead><tr><th>Gargalo</th><th class="r">Itens na fila</th><th class="r">Peça + velha</th><th>Evidência nos dados</th><th>Impacto</th></tr></thead>
+  <tbody>
+   <tr><td><b>Corte Plasma</b></td><td class="r">33</td><td class="r">32,3 d</td><td>Menor throughput (~30/sem) entre etapas obrigatórias; 15h médias em parada.</td><td><span class="pill p-bad">Alto</span></td></tr>
+   <tr><td><b>Usinagem</b></td><td class="r">25</td><td class="r">28,2 d</td><td>25h médias em parada — a maior; peças presas até 28 dias.</td><td><span class="pill p-bad">Alto</span></td></tr>
+   <tr><td><b>Quarentena</b></td><td class="r">42</td><td class="r">20,2 d</td><td>42 itens retidos, idade média 15,6 d — grande "estacionamento" de peças.</td><td><span class="pill p-warn">Médio-alto</span></td></tr>
+   <tr><td><b>Expedição (Emb.+Log.)</b></td><td class="r">94</td><td class="r">28,5 d</td><td>Itens já prontos parados; logística com média de 56h por passagem.</td><td><span class="pill p-warn">Médio</span></td></tr>
+   <tr><td><b>Furação</b></td><td class="r">4</td><td class="r">3,2 d</td><td>26h médias em parada, mas fila pequena — gargalo intermitente.</td><td><span class="pill p-good">Baixo</span></td></tr>
+  </tbody>
+ </table></div>
+
+ <h3 class="sub2">Ordens paradas há mais tempo (em produção)</h3>
+ <div class="tscroll"><table>
+  <thead><tr><th>PV</th><th>Código</th><th>Descrição</th><th>Setor</th><th class="r">Parada há</th></tr></thead>
+  <tbody><tr>
+ <td><code>26009</code></td><td>015SRI304112</td><td>FLANGE SO RF B16.5 150LBS INOX 316/L 1.1/2</td>
+ <td>Corte Plasma</td><td class="r"><span class="pill p-bad">32,3 d</span></td>
+</tr><tr>
+ <td><code>25719/2</code></td><td>015WR40120</td><td>FLANGE WN RF B16.5 150LBS SCH.40 AC 12 </td>
+ <td>Corte Plasma</td><td class="r"><span class="pill p-bad">31,4 d</span></td>
+</tr><tr>
+ <td><code>25962</code></td><td>015CR020I</td><td>FLANGE CEGO RF B16.5 150LBS AC 2" </td>
+ <td>Logística</td><td class="r"><span class="pill p-bad">28,5 d</span></td>
+</tr><tr>
+ <td><code>26146</code></td><td>PEAD15025</td><td>FLANGE SOLTO P/TUBO PEAD ANSI 150LBS AC DN</td>
+ <td>Usinagem</td><td class="r"><span class="pill p-bad">28,2 d</span></td>
+</tr><tr>
+ <td><code>26146</code></td><td>PEAD15032</td><td>FLANGE SOLTO P/TUBO PEAD ANSI 150LBS AC DN</td>
+ <td>Usinagem</td><td class="r"><span class="pill p-bad">28,2 d</span></td>
+</tr><tr>
+ <td><code>25744</code></td><td>TBCK</td><td>FLANGE LISO FP AWWA TAB.2 CL.D AC 24"</td>
+ <td>Caldeiraria</td><td class="r"><span class="pill p-bad">27,2 d</span></td>
+</tr><tr>
+ <td><code>26182</code></td><td>P10LRI3042</td><td>FLANGE SOBREPOSTO RF NBR 7675 PN10 INOX 30</td>
+ <td>Corte Plasma</td><td class="r"><span class="pill p-bad">25,4 d</span></td>
+</tr><tr>
+ <td><code>26182</code></td><td>P10LRI3044</td><td>FLANGE SOBREPOSTO RF NBR 7675 PN10 INOX 30</td>
+ <td>Corte Plasma</td><td class="r"><span class="pill p-bad">25,4 d</span></td>
+</tr><tr>
+ <td><code>25327</code></td><td>015LR010I</td><td>FLANGE SOBREPOSTO RF B16.5 150LBS AC 1" I</td>
+ <td>Logística</td><td class="r"><span class="pill p-bad">21,2 d</span></td>
+</tr><tr>
+ <td><code>25327</code></td><td>015LRI304112</td><td>FLANGE SOBREPOSTO RF B16.5 150LBS INOX 304</td>
+ <td>Logística</td><td class="r"><span class="pill p-bad">21,2 d</span></td>
+</tr></tbody>
+ </table></div>
+
+ <h3 class="sub2">Ordens com maior tempo até a entrega (concluídas)</h3>
+ <div class="tscroll"><table>
+  <thead><tr><th>PV</th><th>Código</th><th>Descrição</th><th class="r">Qtd</th><th class="r">Lead time</th></tr></thead>
+  <tbody><tr>
+ <td><code>25488</code></td><td>P16WR080</td><td>FLANGE WN RF EN1092-1 PN16 AC 8"</td>
+ <td class="r">1</td><td class="r">28,7 d</td>
+</tr><tr>
+ <td><code>25488</code></td><td>P16WR320</td><td>FLANGE WN RF EN1092-1 PN16 AC 32"</td>
+ <td class="r">2</td><td class="r">28,7 d</td>
+</tr><tr>
+ <td><code>25488</code></td><td>P25LR080</td><td>FLANGE SOBREPOSTO RF EN1092-1 PN25 AC 8"</td>
+ <td class="r">2</td><td class="r">28,7 d</td>
+</tr><tr>
+ <td><code>25488</code></td><td>WWALP6F320</td><td>FLANGE SOBREPOSTO  FP AWWA TAB.6 CL.F AC 3</td>
+ <td class="r">16</td><td class="r">28,7 d</td>
+</tr><tr>
+ <td><code>25701</code></td><td>015LT010I</td><td>FLANGE LISO SOLTO B16.5 150LBS AC 1" I</td>
+ <td class="r">30</td><td class="r">22,7 d</td>
+</tr><tr>
+ <td><code>25701</code></td><td>015LT020I</td><td>FLANGE LISO SOLTO B16.5 150LBS AC 2"  I</td>
+ <td class="r">30</td><td class="r">22,7 d</td>
+</tr><tr>
+ <td><code>25701</code></td><td>015LT030I</td><td>FLANGE LISO SOLTO B16.5 150LBS AC 3" I</td>
+ <td class="r">30</td><td class="r">22,7 d</td>
+</tr><tr>
+ <td><code>25701</code></td><td>015LT114</td><td>FLANGE LISO SOLTO B16.5 150LBS AC 1.1/4"</td>
+ <td class="r">30</td><td class="r">22,7 d</td>
+</tr></tbody>
+ </table></div>
+</section>
+
+<section id="s6">
+ <h2><span class="num">6</span> Indicadores de PCP (KPIs)</h2>
+ <div class="tscroll"><table>
+  <thead><tr><th>Indicador</th><th class="r">Valor</th><th>Observação</th></tr></thead>
+  <tbody>
+   <tr><td><b>Produção total</b></td><td class="r">7.972 pç</td><td>em 341 itens / 147 pedidos</td></tr>
+   <tr><td><b>Produção entregue</b></td><td class="r">1.688 pç</td><td>56 itens (16% dos itens)</td></tr>
+   <tr><td><b>Produção média</b></td><td class="r">~429 pç/sem</td><td>ritmo efetivo observado (~14 itens/sem)</td></tr>
+   <tr><td><b>Lead time (mediana)</b></td><td class="r">15,8 d</td><td>1ª etapa → entrega; média 16,3 d</td></tr>
+   <tr><td><b>Tempo de ciclo / etapa</b></td><td class="r">baixo</td><td>mediana perto de 0h — a peça em si é rápida; o tempo é de <b>espera</b></td></tr>
+   <tr><td><b>Tempo de espera</b></td><td class="r">~99 h</td><td>média entre chegar num setor e começar a produzir</td></tr>
+   <tr><td><b>Taxa de conclusão (materiais)</b></td><td class="r">13%</td><td>19 de 147 materiais entregues (Etapa 3)</td></tr>
+   <tr><td><b>Materiais em produção</b></td><td class="r">128</td><td>Etapa 2 — nenhum parado na Emissão (Etapa 1 = 0)</td></tr>
+   <tr><td><b>Cumprimento de prazo</b></td><td class="r">102 atrasados</td><td>dos 128 em produção, com prazo vencido (inclui backlog herdado)</td></tr>
+   <tr><td><b>Backlog interno (itens)</b></td><td class="r">192 itens</td><td>itens em fila <b>dentro</b> dos materiais já em produção</td></tr>
+   <tr><td><b>Utilização por máquina</b></td><td class="r">n/d</td><td>sem horímetro; proxy = throughput e fila por setor (seção 3)</td></tr>
+   <tr><td><b>Índice de paradas</b></td><td class="r">parcial</td><td>concentradas em usinagem (25h), furação (26h), plasma (15h)</td></tr>
+   <tr><td><b>Eficiência (OEE)</b></td><td class="r">n/d</td><td>exige tempo-padrão e hora-máquina — ver seção 4</td></tr>
+  </tbody>
+ </table></div>
+
+ <h3 class="sub2">Atividade de apontamento por líder de setor</h3>
+ <div class="tscroll"><table>
+  <thead><tr><th>Líder</th><th>Setor</th><th>Perfil</th><th class="r">Finalizações</th><th class="r">Inícios</th><th class="r">Recebimentos</th><th class="r">Total mov.</th></tr></thead>
+  <tbody><tr>
+ <td><b>Luan</b></td><td>Acabamento</td><td>lider</td>
+ <td class="r">277</td><td class="r">291</td><td class="r">91</td><td class="r">933</td>
+</tr><tr>
+ <td><b>Diego</b></td><td>Estoque</td><td>lider</td>
+ <td class="r">120</td><td class="r">133</td><td class="r">306</td><td class="r">859</td>
+</tr><tr>
+ <td><b>Silson</b></td><td>Qualidade</td><td>lider</td>
+ <td class="r">180</td><td class="r">198</td><td class="r">104</td><td class="r">720</td>
+</tr><tr>
+ <td><b>Gabriel Ribeiro</b></td><td>—</td><td>administrador</td>
+ <td class="r">6</td><td class="r">4</td><td class="r">32</td><td class="r">542</td>
+</tr><tr>
+ <td><b>João Batalha</b></td><td>Corte Plasma</td><td>lider</td>
+ <td class="r">76</td><td class="r">115</td><td class="r">131</td><td class="r">471</td>
+</tr><tr>
+ <td><b>Danilo José</b></td><td>Furação</td><td>lider</td>
+ <td class="r">86</td><td class="r">109</td><td class="r">85</td><td class="r">398</td>
+</tr><tr>
+ <td><b>Reginaldo Negri</b></td><td>Usinagem</td><td>lider</td>
+ <td class="r">67</td><td class="r">87</td><td class="r">81</td><td class="r">334</td>
+</tr><tr>
+ <td><b>Rafael</b></td><td>Usinagem</td><td>lider</td>
+ <td class="r">70</td><td class="r">87</td><td class="r">57</td><td class="r">319</td>
+</tr><tr>
+ <td><b>Gilmar</b></td><td>Usinagem</td><td>lider</td>
+ <td class="r">6</td><td class="r">30</td><td class="r">100</td><td class="r">237</td>
+</tr><tr>
+ <td><b>Nestor</b></td><td>Corte Maçarico</td><td>lider</td>
+ <td class="r">14</td><td class="r">29</td><td class="r">46</td><td class="r">146</td>
+</tr><tr>
+ <td><b>Guilherme Santos</b></td><td>—</td><td>administrador</td>
+ <td class="r">11</td><td class="r">13</td><td class="r">27</td><td class="r">145</td>
+</tr><tr>
+ <td><b>Ananda</b></td><td>Quarentena</td><td>pcp</td>
+ <td class="r">0</td><td class="r">8</td><td class="r">51</td><td class="r">104</td>
+</tr><tr>
+ <td><b>Lucas</b></td><td>Furação</td><td>lider</td>
+ <td class="r">29</td><td class="r">29</td><td class="r">20</td><td class="r">98</td>
+</tr><tr>
+ <td><b>Diego Felipe</b></td><td>Logística</td><td>lider</td>
+ <td class="r">0</td><td class="r">29</td><td class="r">0</td><td class="r">93</td>
+</tr></tbody>
+ </table></div>
+ <p class="lead" style="font-size:12.5px;margin-top:8px">Reflete quem <b>registra</b> a produção (o líder), não a produção individual de cada trabalhador.</p>
+</section>
+
+<section id="s7">
+ <h2><span class="num">7</span> Conclusão gerencial</h2>
+ <div class="qa"><q>O que os dados do Sistema PCP mostram sobre a capacidade produtiva?</q><p>Que a fábrica sustenta um ritmo efetivo de <b>~429 peças / ~14 itens por semana</b>, com lead time mediano de <b>15,8 dias</b>. A capacidade real instalada é provavelmente maior — o número é limitado pelo gargalo, não pela falta de máquina.</p></div>
+ <div class="qa"><q>A empresa está utilizando bem sua capacidade?</q><p>Só em parte. Dos 147 materiais, <b>128 estão em produção e só 19 foram entregues</b> — e 102 desses em produção já estão atrasados. O fluxo trava no corte e, ao mesmo tempo, há <b>94 itens prontos parados na expedição</b> e máquinas de corte alternativas (maçarico/laser) subutilizadas. Há gargalo e ociosidade convivendo.</p></div>
+ <div class="qa"><q>Onde está o principal gargalo?</q><p>No <b>Corte Plasma</b> (menor vazão, peças paradas até 32 dias) e na <b>Usinagem</b> (maior tempo em parada). A <b>Quarentena</b> retém 42 itens por ~15 dias em média.</p></div>
+ <div class="qa"><q>O que mais impacta a produção de flanges?</q><p>A <b>espera entre etapas</b>, não o trabalho em si: o processamento por etapa é rápido (mediana perto de 0h), mas a peça espera em média ~99h para começar em cada setor. O tempo é perdido em fila, não na máquina.</p></div>
+ <div class="qa"><q>A produtividade melhorou ou piorou no período?</q><p>Melhorou até o fim de julho (pico de 315 finalizações/semana em 27/jul) e <b>recuou em agosto</b> (183 → 109). Parte pode ser subnotificação por adoção — precisa ser confirmado, porque as conclusões pararam de ser lançadas após 03/ago.</p></div>
+ <div class="qa"><q>Qual o principal ponto a atacar para aumentar a produção?</q><p><b>Desafogar o corte:</b> priorizar/balancear plasma × maçarico × laser para o corte deixar de segurar o fluxo. Em paralelo, <b>reduzir a fila da quarentena</b> e <b>expedir os 94 itens já prontos</b> — isso libera resultado imediato sem produzir nada novo.</p></div>
+ <div class="qa"><q>Existe capacidade ociosa que poderia ser aproveitada?</q><p>Sim: máquinas de corte alternativas pouco usadas e a expedição parada sobre itens prontos. Redistribuir o corte e escoar o pronto aumenta a saída sem investimento.</p></div>
+ <div class="qa"><q>Que informações o Sistema PCP deveria continuar (ou passar a) coletar?</q><p><b>Tempo-padrão por peça/etapa</b>, <b>horas trabalhadas por turno/máquina</b>, <b>apontamento individual do operador</b>, <b>motivo estruturado de parada e de quarentena</b>, e a <b>data real de entrega</b> sempre lançada. Com isso, os próximos relatórios calculam capacidade instalada, % de utilização e eficiência (OEE) com precisão — hoje impossíveis.</p></div>
+</section>
+
+<footer>
+ Relatório gerado a partir dos dados do Sistema PCP (Aços Vital) em 17/08/2026 · Período 07/07/2026–17/08/2026 · Fonte: banco de produção (movimentações, itens, pedidos, parciais). Números efetivos observados; indicadores marcados "n/d" dependem de dados ainda não coletados (ver Metodologia).
+</footer>
+</div>
