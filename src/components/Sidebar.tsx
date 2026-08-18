@@ -254,18 +254,6 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
             </NavGroup>
           )}
 
-          {/* Futuras linhas de produto */}
-          {isAdmin && emAcosvital && (
-            <>
-              <NavGroup label="🔧 Serralheria" defaultOpen={false}>
-                <span style={{ fontSize: 11, color: '#666', padding: '4px 16px', display: 'block', fontStyle: 'italic' }}>Em breve</span>
-              </NavGroup>
-              <NavGroup label="🏠 Prod. de Telhas" defaultOpen={false}>
-                <span style={{ fontSize: 11, color: '#666', padding: '4px 16px', display: 'block', fontStyle: 'italic' }}>Em breve</span>
-              </NavGroup>
-            </>
-          )}
-
           {isSuperAdmin && (
             <NavGroup label="Sistema" defaultOpen={false}>
               <NavItem href="/usuarios" label="Usuários" icon="bi-people" onNav={fechar} />
