@@ -125,6 +125,30 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
   // movimentar na Quarentena mas mantém a visão ampla do resto do sistema).
   const acessoIrrestrito = isAdmin && meusSetores.length === 0;
 
+  // ── Workspace (PCP AÇOS VITAL × PCP HRM) ──────────────────────────────────
+  // Só admin/PCP (staff) trocam de mundo. Operador (não-staff) NUNCA vê o
+  // seletor e `emAcosvital` fica sempre true pra ele — o menu dele não muda.
+  // 'acosvital' = Flange (tudo de hoje) · 'hrm' = Caldeiraria nova.
+  const [workspace, setWorkspace] = useState<'acosvital' | 'hrm'>('acosvital');
+  useEffect(() => {
+    try { const w = localStorage.getItem('pcp_workspace'); if (w === 'hrm' || w === 'acosvital') setWorkspace(w); } catch { /* storage off */ }
+  }, []);
+  function trocarWorkspace(w: 'acosvital' | 'hrm') {
+    setWorkspace(w);
+    try { localStorage.setItem('pcp_workspace', w); } catch { /* storage off */ }
+  }
+  const emAcosvital = !isAdmin || workspace === 'acosvital';
+  const emHrm = !!isAdmin && workspace === 'hrm';
+
+  const wsBtn = (active: boolean): React.CSSProperties => ({
+    flex: 1, padding: '5px 8px', borderRadius: 6, cursor: 'pointer', fontSize: 11.5,
+    fontWeight: 800, letterSpacing: 0.3, lineHeight: 1.1, textAlign: 'center',
+    border: active ? '1px solid #ffffff' : '1px solid rgba(255,255,255,0.28)',
+    background: active ? '#ffffff' : 'transparent',
+    color: active ? '#1a3a5c' : 'rgba(255,255,255,0.78)',
+    transition: 'all .12s',
+  });
+
   return (
     <>
       {/* Overlay mobile */}
@@ -132,9 +156,25 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
       <div id="sidebar" className={`${aberto ? 'aberto' : ''} ${colapsada ? 'colapsada' : ''}`}>
         <div className="brand">
           <div className="brand-header">
-            <div>
-              <h5>PCP ACOSVITAL</h5>
-              <small>Planejamento e Controle</small>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              {isAdmin ? (
+                <>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 5 }}>
+                    <button type="button" onClick={() => trocarWorkspace('acosvital')} style={wsBtn(workspace === 'acosvital')} title="Sistema atual — Flanges">
+                      AÇOS VITAL
+                    </button>
+                    <button type="button" onClick={() => trocarWorkspace('hrm')} style={wsBtn(workspace === 'hrm')} title="Novo — Caldeiraria (PCP HRM)">
+                      HRM
+                    </button>
+                  </div>
+                  <small>{workspace === 'hrm' ? 'PCP HRM — Caldeiraria' : 'Planejamento e Controle'}</small>
+                </>
+              ) : (
+                <>
+                  <h5>PCP ACOSVITAL</h5>
+                  <small>Planejamento e Controle</small>
+                </>
+              )}
             </div>
             <button className="btn-colapsar" onClick={onColapsar} title={colapsada ? 'Expandir menu' : 'Recolher menu'}>
               <i className={`bi ${colapsada ? 'bi-chevron-right' : 'bi-chevron-left'}`}></i>
@@ -165,7 +205,14 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
             )}
           </NavGroup>
 
-          {acessoIrrestrito ? (
+          {/* PCP HRM — mundo novo da Caldeiraria (só admin, no workspace HRM) */}
+          {emHrm && (
+            <NavGroup label="🏭 PCP HRM" defaultOpen={true}>
+              <NavItem href="/pcp-hrm" label="Anexar OP" icon="bi-file-earmark-arrow-up" onNav={fechar} />
+            </NavGroup>
+          )}
+
+          {(acessoIrrestrito && emAcosvital) ? (
             <NavGroup label="🔩 Flanges" defaultOpen={true}>
               {SETOR_CHOICES.filter(([cod]) => !SETORES_FORA_FLANGES.includes(cod) && !SETORES_NAO_FLANGES.includes(cod)).map(([cod, nome]) => (
                 <NavItem key={cod} href={`/setor/${cod}`} label={nome} icon={SETOR_ICONS[cod]} onNav={fechar} />
@@ -185,8 +232,8 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
             </NavGroup>
           ) : null}
 
-          {/* Caldeiraria — linha própria, separada dos Flanges */}
-          {(acessoIrrestrito || meusSetores.includes('caldeiraria') || meusSetores.some(cod => SETORES_CALDEIRARIA_EXTRA.includes(cod))) && (
+          {/* Caldeiraria — no workspace HRM pro admin; operador vê sempre (intocado) */}
+          {(!isAdmin || emHrm) && (acessoIrrestrito || meusSetores.includes('caldeiraria') || meusSetores.some(cod => SETORES_CALDEIRARIA_EXTRA.includes(cod))) && (
             <NavGroup label="🏗 Caldeiraria" defaultOpen={true}>
               {(acessoIrrestrito || meusSetores.includes('caldeiraria')) && (
                 <NavItem href="/setor/caldeiraria" label="Recebimento" icon={SETOR_ICONS.caldeiraria} onNav={fechar} />
@@ -199,7 +246,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
 
           {/* Beneficiadores e Recebimento — setores compartilhados, vão poder
               atender tanto Flanges quanto Caldeiraria no futuro */}
-          {(acessoIrrestrito || meusSetores.includes('beneficiadores') || meusSetores.includes('recebimento')) && (
+          {(!isAdmin || emAcosvital) && (acessoIrrestrito || meusSetores.includes('beneficiadores') || meusSetores.includes('recebimento')) && (
             <NavGroup label="🔗 Compartilhados" defaultOpen={true}>
               {(acessoIrrestrito ? ['beneficiadores', 'recebimento'] : meusSetores.filter(cod => ['beneficiadores', 'recebimento'].includes(cod))).map(cod => (
                 <NavItem key={cod} href={`/setor/${cod}`} label={NOMES[cod] || cod} icon={SETOR_ICONS[cod]} onNav={fechar} />
@@ -208,7 +255,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
           )}
 
           {/* Futuras linhas de produto */}
-          {isAdmin && (
+          {isAdmin && emAcosvital && (
             <>
               <NavGroup label="🔧 Serralheria" defaultOpen={false}>
                 <span style={{ fontSize: 11, color: '#666', padding: '4px 16px', display: 'block', fontStyle: 'italic' }}>Em breve</span>

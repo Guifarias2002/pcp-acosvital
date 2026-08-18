@@ -93,18 +93,20 @@ export const FABRICAS: { cod: string; nome: string; icon: string; setores: strin
   },
 ];
 
-// Setores da Caldeiraria que aparecem no MENU (Sidebar) — distinto de
-// FABRICAS.caldeiraria.setores acima (que inclui Compras/Acabamento/
-// Qualidade como OPÇÃO DE ROTEIRO, mas esses 3 continuam aparecendo do lado
-// do Flange no menu/kanban, por serem compartilhados).
-export const SETORES_CALDEIRARIA_MENU = ['caldeiraria', 'desenho', ...SETORES_CALDEIRARIA_NOVOS, 'liberado'];
+// ── LIMPEZA 18/08/2026 — reconstrução em Caldeiraria Leve/Pesada ────────────
+// A área migrou pra uma empresa nova que roda o PCP no Protheus (TOTVS). O
+// modelo antigo (fábrica única "caldeiraria" com o roteiro de 12/08) vai ser
+// substituído por DUAS fábricas: Caldeiraria Leve e Caldeiraria Pesada, com os
+// setores que a área ainda vai passar. Passo 1 (aqui): limpar o menu/kanban,
+// deixando só os setores que HOJE têm peça — Recebimento ("caldeiraria", 2
+// itens) e Usinagem Final (1 item) — pra não orfanar nada. Os demais setores
+// (SETORES_CALDEIRARIA_NOVOS/LEGADO) continuam em SETOR_CHOICES e em
+// SETORES_EXCLUSIVOS_CALDEIRARIA só pra resolver nome em dados históricos e não
+// vazarem pro grupo Flanges. Passo 2 (aguardando lista de setores): criar
+// Leve/Pesada em FABRICAS e redefinir estas listas.
+export const SETORES_CALDEIRARIA_MENU = ['caldeiraria', 'usinagem_final'];
 
-// Colunas do KANBAN da Caldeiraria — Desenho fica de fora (23/07: é feito na
-// abertura da OP, antes de a peça entrar em produção, não etapa que valha
-// acompanhar aqui). Recebimento ("caldeiraria") volta a aparecer (23/07,
-// tarde: senão o pedido recém-criado da Caldeiraria não aparece em lugar
-// nenhum do quadro até alguém avançar manualmente).
-export const SETORES_CALDEIRARIA_KANBAN = ['caldeiraria', ...SETORES_CALDEIRARIA_NOVOS, 'liberado'];
+export const SETORES_CALDEIRARIA_KANBAN = ['caldeiraria', 'usinagem_final'];
 
 // Setores de CORTE — depois de cortada, a peça é direcionada pela mão do
 // operador do corte pra linha do Flange (segue o próximo do roteiro) ou pra
