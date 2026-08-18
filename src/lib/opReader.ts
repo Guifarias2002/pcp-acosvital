@@ -36,6 +36,20 @@ async function extractPages(buf: Buffer): Promise<Line[][]> {
   // pdfjs-dist legacy (CommonJS) — import dinâmico pra não bundlar no client
   const pdfjsMod: any = await import('pdfjs-dist/legacy/build/pdf.js');
   const pdfjs = pdfjsMod.getDocument ? pdfjsMod : (pdfjsMod.default || pdfjsMod);
+  // Serverless (Vercel): sem isso o pdfjs tenta um "fake worker" via require
+  // relativo './pdf.worker.js' que não resolve no bundle. Apontamos o workerSrc
+  // pro caminho ABSOLUTO do worker no node_modules (pacote é externo, então o
+  // arquivo está no disco em runtime).
+  try {
+    const mod = await import('module');
+    const req = mod.createRequire(process.cwd() + '/package.json');
+    pdfjs.GlobalWorkerOptions.workerSrc = req.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
+  } catch {
+    try {
+      const pathMod = await import('path');
+      pdfjs.GlobalWorkerOptions.workerSrc = pathMod.join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.js');
+    } catch { /* deixa o default */ }
+  }
   const doc = await pdfjs.getDocument({ data: new Uint8Array(buf), useSystemFonts: true, isEvalSupported: false }).promise;
   const pages: Line[][] = [];
   for (let p = 1; p <= doc.numPages; p++) {

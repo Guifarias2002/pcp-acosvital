@@ -28,6 +28,11 @@ const nextConfig = {
     // evita que o webpack tente empacotá-lo (dynamic requires / canvas opcional)
     // e quebre o build.
     serverComponentsExternalPackages: ['pdfjs-dist'],
+    // garante que o worker do pdfjs seja deployado junto da rota (senão o
+    // "fake worker" do pdfjs não acha o arquivo em runtime na Vercel).
+    outputFileTracingIncludes: {
+      '/api/pcp-hrm/ler-op': ['./node_modules/pdfjs-dist/legacy/build/pdf.worker.js'],
+    },
   },
   async headers() {
     return [
