@@ -57,6 +57,7 @@ export default function AnalisePage() {
   const [fechamentos, setFechamentos] = useState<Rec[]>([]);
   const [genLoad, setGenLoad] = useState(false);
   const [detalhe, setDetalhe] = useState<{ titulo: string; loading: boolean; itens: Rec[] } | null>(null);
+  const [aba, setAba] = useState<'geral' | 'homem' | 'maquina'>('geral');
   const admin = isAdministrador();
 
   async function abrirDetalhe(tipo: string, chave: string, titulo: string) {
@@ -142,7 +143,7 @@ export default function AnalisePage() {
       `}</style>
       <div className="analise" style={{ maxWidth: 1080, margin: '0 auto' }}>
         {/* Cabeçalho */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
           <div>
             <h4 style={{ margin: 0, fontWeight: 800, color: C.azul, fontSize: 22 }}>
               <i className="bi bi-graph-up-arrow" style={{ marginRight: 8 }} />Análise de PCP — Flanges
@@ -151,7 +152,27 @@ export default function AnalisePage() {
               Indicadores de produção para decisão de fábrica e diretoria. {dados && `Período ${dados.periodo.de} a ${dados.periodo.ate}.`}
             </small>
           </div>
-          <button className="abtn no-print" onClick={() => window.print()}><i className="bi bi-printer" style={{ marginRight: 6 }} />Imprimir / PDF</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button className="abtn no-print" onClick={() => window.print()}><i className="bi bi-printer" style={{ marginRight: 6 }} />Imprimir / PDF</button>
+          </div>
+        </div>
+
+        {/* Abas */}
+        <div className="no-print" style={{ display: 'flex', gap: 8, marginBottom: 18, borderBottom: '1.5px solid #e2e8f0', paddingBottom: 2 }}>
+          {([
+            { id: 'geral' as const, icon: 'bi-speedometer2', label: 'Geral' },
+            { id: 'homem' as const, icon: 'bi-people', label: 'Produção Homem' },
+            { id: 'maquina' as const, icon: 'bi-gear-wide-connected', label: 'Produção Máquina' },
+          ]).map(t => (
+            <button key={t.id} onClick={() => setAba(t.id)}
+              style={{
+                border: 'none', background: 'none', cursor: 'pointer', padding: '8px 4px', marginBottom: -2,
+                fontSize: 13.5, fontWeight: 700, color: aba === t.id ? C.azul : '#94a3b8',
+                borderBottom: aba === t.id ? `2.5px solid ${C.azul}` : '2.5px solid transparent',
+              }}>
+              <i className={`bi ${t.icon}`} style={{ marginRight: 6 }} />{t.label}
+            </button>
+          ))}
         </div>
 
         {/* Filtros */}
@@ -194,6 +215,7 @@ export default function AnalisePage() {
         {erro && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: 14, color: C.vermelho }}><i className="bi bi-x-circle-fill" style={{ marginRight: 8 }} />{erro}</div>}
 
         {dados && !loading && (<>
+          {aba === 'geral' && (<>
           {/* 3 Etapas */}
           <SectionTitle icon="bi-signpost-split" t="Situação dos materiais (agora)" s="Nível pedido — mesma contagem do painel" />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 8 }}>
@@ -287,41 +309,49 @@ export default function AnalisePage() {
             </div>
           </div>
 
-          {/* Lead time + produtividade */}
-          <SectionTitle icon="bi-people" t="Lead time e apontamento por líder" s="Tempo até entrega e atividade de registro por setor" />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 16, marginBottom: 24 }}>
-            <div className="card" style={{ padding: 18 }}>
-              <p style={cardTitle}>Lead time dos itens entregues no período</p>
-              {lead.n && Number(lead.n) > 0 ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
-                  <MiniKpi v={`${fmt(lead.mediana_dias, 0)} d`} l="mediana" />
-                  <MiniKpi v={`${fmt(lead.media_dias, 0)} d`} l="média" />
-                  <MiniKpi v={`${fmt(lead.min_dias, 0)} d`} l="mais rápido" />
-                  <MiniKpi v={`${fmt(lead.max_dias, 0)} d`} l="mais lento" />
-                </div>
-              ) : <Vazio />}
-              <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 10, marginBottom: 0 }}>Base: {fmt(lead.n)} itens entregues no período (da 1ª etapa à entrega).</p>
-            </div>
-            <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-              <p style={{ ...cardTitle, padding: '18px 16px 0' }}>Apontamento por líder</p>
-              <table style={tbl}><thead><tr>{['Líder', 'Setor', 'Etapas', 'Inícios', 'Total'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
-                <tbody>{dados.lideres.slice(0, 10).map((l, i) => (
-                  <tr key={i}><td style={{ ...td, fontWeight: 700 }}>{l.nome || '—'}</td><td style={td}>{nm(l.setor)}</td>
-                    <td style={tdR}>{fmt(l.finalizacoes)}</td><td style={tdR}>{fmt(l.inicios)}</td><td style={tdR}>{fmt(l.total_mov)}</td></tr>
-                ))}</tbody></table>
-            </div>
-            <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-              <p style={{ ...cardTitle, padding: '18px 16px 0' }}>Apontamento por máquina (Usinagem/Furação)</p>
-              {(dados.maquinas || []).length === 0 ? <div style={{ padding: 16 }}><Vazio /></div> : (
-                <table style={tbl}><thead><tr>{['Máquina', 'Operador', 'Setor', 'Inícios', 'Peças'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
-                  <tbody>{dados.maquinas.slice(0, 10).map((mq, i) => (
-                    <tr key={i}><td style={{ ...td, fontWeight: 700 }}>{mq.maquina || '—'}</td><td style={td}>{mq.operador || '—'}</td><td style={td}>{nm(mq.setor)}</td>
-                      <td style={tdR}>{fmt(mq.inicios)}</td><td style={{ ...tdR, fontWeight: 700, color: C.azul }}>{fmt(mq.pecas)}</td></tr>
-                  ))}</tbody></table>
-              )}
-            </div>
+          {/* Lead time */}
+          <SectionTitle icon="bi-hourglass-split" t="Lead time de entrega" s="Tempo até entrega, do período selecionado" />
+          <div className="card" style={{ padding: 18, marginBottom: 24, maxWidth: 480 }}>
+            <p style={cardTitle}>Lead time dos itens entregues no período</p>
+            {lead.n && Number(lead.n) > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
+                <MiniKpi v={`${fmt(lead.mediana_dias, 0)} d`} l="mediana" />
+                <MiniKpi v={`${fmt(lead.media_dias, 0)} d`} l="média" />
+                <MiniKpi v={`${fmt(lead.min_dias, 0)} d`} l="mais rápido" />
+                <MiniKpi v={`${fmt(lead.max_dias, 0)} d`} l="mais lento" />
+              </div>
+            ) : <Vazio />}
+            <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 10, marginBottom: 0 }}>Base: {fmt(lead.n)} itens entregues no período (da 1ª etapa à entrega).</p>
           </div>
+          </>)}
 
+          {aba === 'homem' && (<>
+          {/* Apontamento por líder */}
+          <SectionTitle icon="bi-people" t="Apontamento por líder" s="Atividade de registro por setor, no período selecionado" />
+          <div className="card" style={{ padding: 0, overflowX: 'auto', marginBottom: 24 }}>
+            <table style={tbl}><thead><tr>{['Líder', 'Setor', 'Etapas', 'Inícios', 'Total'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <tbody>{dados.lideres.slice(0, 10).map((l, i) => (
+                <tr key={i}><td style={{ ...td, fontWeight: 700 }}>{l.nome || '—'}</td><td style={td}>{nm(l.setor)}</td>
+                  <td style={tdR}>{fmt(l.finalizacoes)}</td><td style={tdR}>{fmt(l.inicios)}</td><td style={tdR}>{fmt(l.total_mov)}</td></tr>
+              ))}</tbody></table>
+          </div>
+          </>)}
+
+          {aba === 'maquina' && (<>
+          {/* Apontamento por máquina */}
+          <SectionTitle icon="bi-gear-wide-connected" t="Apontamento por máquina" s="Usinagem/Furação — início e peças por máquina/operador, no período selecionado" />
+          <div className="card" style={{ padding: 0, overflowX: 'auto', marginBottom: 24 }}>
+            {(dados.maquinas || []).length === 0 ? <div style={{ padding: 16 }}><Vazio /></div> : (
+              <table style={tbl}><thead><tr>{['Máquina', 'Operador', 'Setor', 'Inícios', 'Peças'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                <tbody>{dados.maquinas.map((mq, i) => (
+                  <tr key={i}><td style={{ ...td, fontWeight: 700 }}>{mq.maquina || '—'}</td><td style={td}>{mq.operador || '—'}</td><td style={td}>{nm(mq.setor)}</td>
+                    <td style={tdR}>{fmt(mq.inicios)}</td><td style={{ ...tdR, fontWeight: 700, color: C.azul }}>{fmt(mq.pecas)}</td></tr>
+                ))}</tbody></table>
+            )}
+          </div>
+          </>)}
+
+          {aba === 'geral' && (<>
           {/* Projeção de produção */}
           <SectionTitle icon="bi-graph-up" t="Projeção de produção" s="Ritmo real médio do período, projetado adiante — capacidade observada, não teórica" />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 12, marginBottom: 12 }}>
@@ -357,12 +387,13 @@ export default function AnalisePage() {
           </div>
 
           <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 16px', fontSize: 12, color: '#64748b', marginBottom: 40 }}>
-            <b>Notas:</b> "Situação dos materiais" é a foto de agora (não muda com o período). Tempos são corridos (incluem noite/fim de semana). "Apontamento por líder" reflete quem registra a produção, não a produção individual. Capacidade teórica/OEE precisa de tempo-padrão de engenharia — ainda não coletado.
+            <b>Notas:</b> "Situação dos materiais" é a foto de agora (não muda com o período). Tempos são corridos (incluem noite/fim de semana). "Apontamento por líder" (aba Produção Homem) reflete quem registra a produção, não a produção individual. Capacidade teórica/OEE precisa de tempo-padrão de engenharia — ainda não coletado.
           </div>
+          </>)}
         </>)}
 
         {/* Fechamento semanal — histórico automático */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 8 }}>
+        {aba === 'geral' && (<><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 8 }}>
           <SectionTitle icon="bi-calendar-week" t="Fechamento semanal (histórico)" s="Cada semana fechada é gravada automaticamente ao abrir esta tela" />
           <button className="abtn no-print" disabled={genLoad} onClick={gerarFechamentos}>
             <i className={`bi ${genLoad ? 'bi-hourglass-split' : 'bi-arrow-repeat'}`} style={{ marginRight: 6 }} />{genLoad ? 'Gerando…' : 'Gerar agora'}
@@ -388,6 +419,7 @@ export default function AnalisePage() {
             </table>
           )}
         </div>
+        </>)}
 
         {/* Modal de detalhe — pedidos e produtos por trás de um número */}
         {detalhe && (
