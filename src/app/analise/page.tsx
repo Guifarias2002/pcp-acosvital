@@ -14,6 +14,14 @@ const SETORES_FILTRO = ['maçarico', 'plasma', 'laser', 'serra', 'usinagem', 'fu
 const nm = (c: string) => NOMES[c] || c || '—';
 const fmt = (x: number | string | null | undefined, d = 0) =>
   x == null || x === '' ? '—' : Number(x).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+// Horas+minutos exatos a partir de segundos corridos (sem passar por hora
+// arredondada antes) — soma de segundos inteiros, sem perda de precisão.
+function fmtHorasMin(segundos: number | string | null | undefined) {
+  const s = Math.max(0, Math.round(Number(segundos || 0)));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return `${h}h ${String(m).padStart(2, '0')}min`;
+}
 
 // ── datas (segunda-feira = início da semana, igual date_trunc('week')) ────────
 function iso(d: Date) { return d.toISOString().slice(0, 10); }
@@ -343,20 +351,20 @@ export default function AnalisePage() {
           <div className="card" style={{ padding: 0, overflowX: 'auto', marginBottom: 24 }}>
             {(dados.maquinas || []).length === 0 ? <div style={{ padding: 16 }}><Vazio /></div> : (() => {
               const totalPecas = dados.maquinas.reduce((s, mq) => s + Number(mq.pecas || 0), 0);
-              const totalHoras = dados.maquinas.reduce((s, mq) => s + Number(mq.horas || 0), 0);
+              const totalSegundos = dados.maquinas.reduce((s, mq) => s + Number(mq.segundos || 0), 0);
               return (
-                <table style={tbl}><thead><tr>{['Máquina', 'Operador', 'Setor', 'Inícios', 'Peças', 'Tempo total (h)'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                <table style={tbl}><thead><tr>{['Máquina', 'Operador', 'Setor', 'Inícios', 'Peças', 'Tempo total'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
                   <tbody>
                     {dados.maquinas.map((mq, i) => (
                       <tr key={i}><td style={{ ...td, fontWeight: 700 }}>{mq.maquina || '—'}</td><td style={td}>{mq.operador || '—'}</td><td style={td}>{nm(mq.setor)}</td>
                         <td style={tdR}>{fmt(mq.inicios)}</td>
                         <td style={{ ...tdR, fontWeight: 700, color: C.azul }}>{fmt(mq.pecas)} {mq.unidade || 'un'}</td>
-                        <td style={tdR}>{fmt(mq.horas, 1)} h</td></tr>
+                        <td style={tdR}>{fmtHorasMin(mq.segundos)}</td></tr>
                     ))}
                     <tr>
                       <td style={{ ...td, fontWeight: 800, color: C.azul }} colSpan={4}>Total</td>
                       <td style={{ ...tdR, fontWeight: 800, color: C.azul }}>{fmt(totalPecas)}</td>
-                      <td style={{ ...tdR, fontWeight: 800, color: C.azul }}>{fmt(totalHoras, 1)} h</td>
+                      <td style={{ ...tdR, fontWeight: 800, color: C.azul }}>{fmtHorasMin(totalSegundos)}</td>
                     </tr>
                   </tbody>
                 </table>

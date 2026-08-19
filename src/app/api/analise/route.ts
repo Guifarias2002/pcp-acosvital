@@ -223,7 +223,7 @@ export async function GET(req: Request) {
              MAX(i.unidade) AS unidade,
              COUNT(*) AS inicios,
              COALESCE(SUM(ip.quantidade), 0) AS pecas,
-             ROUND(SUM(EXTRACT(EPOCH FROM (COALESCE(ip.concluido_em, NOW()) - ip.iniciado_em)) / 3600.0)::numeric, 1) AS horas
+             SUM(EXTRACT(EPOCH FROM (COALESCE(ip.concluido_em, NOW()) - ip.iniciado_em))) AS segundos
       FROM producao_itemparcial ip
       JOIN producao_itempedido i ON i.id = ip.item_pedido_id AND ${FLANGE}
       WHERE ip.maquina IS NOT NULL AND ip.iniciado_em BETWEEN ${de} AND ${ate}
