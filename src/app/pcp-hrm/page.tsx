@@ -179,7 +179,7 @@ export default function PcpHrmPage() {
   });
 
   return (
-    <AuthGuard adminOnly>
+    <AuthGuard hrmOnly>
       <style>{`
         .hrm-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
         @media (max-width:768px){ .hrm-grid{ grid-template-columns:1fr; } }

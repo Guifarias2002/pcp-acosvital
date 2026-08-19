@@ -76,7 +76,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: 'Usuario e senha obrigatorios' }, { status: 400 });
 
     const [user] = await sql`
-      SELECT id, username, password, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, ve_todos_pedidos, pode_desfazer_recebimento, pode_ver_analise
+      SELECT id, username, password, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, ve_todos_pedidos, pode_desfazer_recebimento, pode_ver_analise, acesso_hrm
       FROM usuarios_usuario
       WHERE username = ${String(username).slice(0, 150)}
     `;
@@ -111,6 +111,7 @@ export async function POST(req: Request) {
     const veTodosPedidos = user.ve_todos_pedidos === true;
     const podeDesfazerRecebimento = user.pode_desfazer_recebimento === true;
     const podeVerAnalise = user.pode_ver_analise === true;
+    const acessoHrm = user.acesso_hrm === true;
     const token = await signToken({
       id: user.id,
       username: user.username,
@@ -123,6 +124,7 @@ export async function POST(req: Request) {
       ve_todos_pedidos: veTodosPedidos,
       pode_desfazer_recebimento: podeDesfazerRecebimento,
       pode_ver_analise: podeVerAnalise,
+      acesso_hrm: acessoHrm,
     });
 
     const isProd = process.env.NODE_ENV === 'production';
@@ -139,6 +141,7 @@ export async function POST(req: Request) {
       ve_todos_pedidos: veTodosPedidos,
       pode_desfazer_recebimento: podeDesfazerRecebimento,
       pode_ver_analise: podeVerAnalise,
+      acesso_hrm: acessoHrm,
     };
 
     // Retorna o token (para localStorage) e os dados do usuário (para exibição)

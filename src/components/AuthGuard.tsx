@@ -1,16 +1,19 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getToken, getUser, podeEditar } from '@/lib/auth';
+import { getToken, getUser, podeEditar, podeAcessarHrm } from '@/lib/auth';
 import Sidebar, { TopBar } from '@/components/Sidebar';
 import NotificacoesLive from '@/components/NotificacoesLive';
 
 interface Props {
   children: React.ReactNode;
   adminOnly?: boolean;
+  // Libera pra staff (admin/PCP) OU usuário com a flag acesso_hrm. Usado na
+  // tela "Anexar OP" do PCP HRM.
+  hrmOnly?: boolean;
 }
 
-export default function AuthGuard({ children, adminOnly }: Props) {
+export default function AuthGuard({ children, adminOnly, hrmOnly }: Props) {
   const router = useRouter();
 
   const [ok, setOk] = useState(false);
@@ -32,11 +35,12 @@ export default function AuthGuard({ children, adminOnly }: Props) {
       const isSuperAdmin = user?.perfil === 'administrador' || (user?.is_staff && user?.perfil !== 'pcp' && user?.perfil !== 'lider');
       if (!isSuperAdmin) { router.replace('/'); return; }
     }
+    if (hrmOnly && !podeAcessarHrm(getUser())) { router.replace('/'); return; }
     const u = getUser();
     setMostraAvisos(u?.perfil === 'administrador' || u?.perfil === 'pcp');
     setSomenteLeitura(!podeEditar());
     setOk(true);
-  }, [router, adminOnly]);
+  }, [router, adminOnly, hrmOnly]);
 
   if (!ok) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

@@ -27,6 +27,9 @@ export interface JWTPayload {
   // administrador. Só leitura — gerar fechamento semanal continua só admin.
   // Ver `podeVerAnalise` abaixo.
   pode_ver_analise?: boolean;
+  // Acesso ao workspace PCP HRM (hoje só a tela "Anexar OP") sem ser staff.
+  // Ver `podeAcessarHrm` abaixo.
+  acesso_hrm?: boolean;
 }
 
 // Um vendedor "restrito" só pode ver/filtrar os próprios pedidos (por nome).
@@ -111,6 +114,13 @@ export function podeDesfazerRecebimento(u?: JWTPayload | null): boolean {
 export function podeVerAnalise(u?: JWTPayload | null): boolean {
   const user = u ?? getUser();
   return isAdministrador(user) || user?.pode_ver_analise === true;
+}
+
+// Pode acessar o PCP HRM (tela "Anexar OP")? Staff (admin/PCP) já entra pelo
+// seletor de workspace; além deles, usuários comuns com a flag `acesso_hrm`.
+export function podeAcessarHrm(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return !!user && (!!user.is_staff || user.acesso_hrm === true);
 }
 
 // Pode editar/agir no sistema? Falso apenas para usuários somente-leitura.

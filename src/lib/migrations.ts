@@ -273,4 +273,9 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   // default false, marcado explicitamente por um admin. Gerar fechamento
   // semanal continua só admin — quem tem essa flag apenas VISUALIZA.
   await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS pode_ver_analise BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
+
+  // M24: acesso ao PCP HRM (tela "Anexar OP") pra usuários que NÃO são staff.
+  // Hoje o workspace HRM só aparece pra is_staff. Certos operadores (ex.: quem
+  // anexa OP do Totvs) precisam SÓ dessa tela, sem virar admin. Default false.
+  await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS acesso_hrm BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
 }

@@ -17,6 +17,7 @@ interface Usuario {
   setores_nomes: string[];
   somente_leitura: boolean;
   pode_desfazer_recebimento: boolean;
+  acesso_hrm: boolean;
 }
 
 const PERFIL_BADGE: Record<string, { bg: string; cor: string }> = {
@@ -87,12 +88,12 @@ export default function UsuariosPage() {
   const [copiadoId, setCopiadoId] = useState<number | null>(null);
   const [copiadoLogin, setCopiadoLogin] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] as string[], somente_leitura: false, pode_desfazer_recebimento: false });
+  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] as string[], somente_leitura: false, pode_desfazer_recebimento: false, acesso_hrm: false });
   const [salvando, setSalvando] = useState(false);
   const [formMsg, setFormMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   // Edição de usuário existente
   const [editUser, setEditUser] = useState<Usuario | null>(null);
-  const [editForm, setEditForm] = useState({ nome: '', perfil: 'operador', setores: [] as string[], is_active: true, senha: '', somente_leitura: false, pode_desfazer_recebimento: false });
+  const [editForm, setEditForm] = useState({ nome: '', perfil: 'operador', setores: [] as string[], is_active: true, senha: '', somente_leitura: false, pode_desfazer_recebimento: false, acesso_hrm: false });
   const [editMsg, setEditMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [editSalvando, setEditSalvando] = useState(false);
   const isAdmin = getUser()?.is_staff;
@@ -141,7 +142,7 @@ export default function UsuariosPage() {
         setFormMsg({ tipo: 'erro', texto: data.erro || 'Erro ao criar usuário.' });
       } else {
         setFormMsg({ tipo: 'ok', texto: 'Usuário criado com sucesso!' });
-        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setores: [], somente_leitura: false, pode_desfazer_recebimento: false });
+        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setores: [], somente_leitura: false, pode_desfazer_recebimento: false, acesso_hrm: false });
         setShowForm(false);
         carregarUsuarios();
       }
@@ -162,6 +163,7 @@ export default function UsuariosPage() {
       senha: '',
       somente_leitura: u.somente_leitura || false,
       pode_desfazer_recebimento: u.pode_desfazer_recebimento || false,
+      acesso_hrm: u.acesso_hrm || false,
     });
     setEditMsg(null);
   }
@@ -179,6 +181,7 @@ export default function UsuariosPage() {
         is_active: editForm.is_active,
         somente_leitura: editForm.somente_leitura,
         pode_desfazer_recebimento: editForm.pode_desfazer_recebimento,
+        acesso_hrm: editForm.acesso_hrm,
       };
       if (editForm.senha) body.senha = editForm.senha;
       const res = await fetch(`/api/usuarios/${editUser.id}`, {
@@ -334,6 +337,16 @@ export default function UsuariosPage() {
                 </div>
               )}
 
+              <div style={{ marginBottom: 20, background: '#f5f3ff', border: '1px solid #c4b5fd', borderRadius: 6, padding: '10px 12px' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#6d28d9', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={form.acesso_hrm} onChange={e => setForm(f => ({ ...f, acesso_hrm: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                  <span><i className="bi bi-file-earmark-arrow-up" style={{ marginRight: 6 }}></i>Acesso PCP HRM — Anexar OP</span>
+                </label>
+                <div style={{ fontSize: 12, color: '#7c3aed', marginTop: 4, paddingLeft: 24 }}>
+                  Libera só a tela &quot;Anexar OP&quot; do PCP HRM, sem virar administrador.
+                </div>
+              </div>
+
               {formMsg && (
                 <div style={{
                   marginBottom: 14, padding: '8px 12px', borderRadius: 6, fontSize: 13,
@@ -466,6 +479,16 @@ export default function UsuariosPage() {
                   </div>
                 </div>
               )}
+
+              <div style={{ marginBottom: 20, background: '#f5f3ff', border: '1px solid #c4b5fd', borderRadius: 6, padding: '10px 12px' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#6d28d9', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={editForm.acesso_hrm} onChange={e => setEditForm(f => ({ ...f, acesso_hrm: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                  <span><i className="bi bi-file-earmark-arrow-up" style={{ marginRight: 6 }}></i>Acesso PCP HRM — Anexar OP</span>
+                </label>
+                <div style={{ fontSize: 12, color: '#7c3aed', marginTop: 4, paddingLeft: 24 }}>
+                  Libera só a tela &quot;Anexar OP&quot; do PCP HRM, sem virar administrador.
+                </div>
+              </div>
 
               {editMsg && (
                 <div style={{

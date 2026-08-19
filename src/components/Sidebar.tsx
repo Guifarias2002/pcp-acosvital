@@ -207,8 +207,9 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
             )}
           </NavGroup>
 
-          {/* PCP HRM — mundo novo da Caldeiraria (só admin, no workspace HRM) */}
-          {emHrm && (
+          {/* PCP HRM — Anexar OP. Admin/PCP vê no workspace HRM; usuário comum
+              com a flag acesso_hrm vê sempre (sem seletor de workspace). */}
+          {(emHrm || (!isAdmin && !!user?.acesso_hrm)) && (
             <NavGroup label="🏭 PCP HRM" defaultOpen={true}>
               <NavItem href="/pcp-hrm" label="Anexar OP" icon="bi-file-earmark-arrow-up" onNav={fechar} />
             </NavGroup>

@@ -27,7 +27,7 @@ export async function GET(req: Request) {
   if (user.somente_leitura === true) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   const users = await sql`
-    SELECT id, username, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, pode_desfazer_recebimento
+    SELECT id, username, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, pode_desfazer_recebimento, acesso_hrm
     FROM usuarios_usuario
     ORDER BY is_active DESC, nome
   `;
@@ -50,6 +50,7 @@ export async function GET(req: Request) {
       setores_nomes: setores.map(s => NOMES[s] || s),
       somente_leitura: u.somente_leitura === true,
       pode_desfazer_recebimento: u.pode_desfazer_recebimento === true,
+      acesso_hrm: u.acesso_hrm === true,
     };
   }));
 }
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
   if (!checkMutationRateLimit(getClientIp(req)))
     return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
-  const { username, nome, senha, perfil, setor, setores, somente_leitura, pode_desfazer_recebimento } = await req.json();
+  const { username, nome, senha, perfil, setor, setores, somente_leitura, pode_desfazer_recebimento, acesso_hrm } = await req.json();
 
   if (!username || !nome || !senha || !perfil)
     return NextResponse.json({ erro: 'Preencha todos os campos obrigatórios.' }, { status: 400 });
@@ -86,11 +87,12 @@ export async function POST(req: Request) {
   // Só faz sentido pra líder — administrador já pode, e outros perfis não
   // acessam ação de setor pra usar isso de qualquer forma.
   const podeDesfazer = perfil === 'lider' && pode_desfazer_recebimento === true;
+  const acessoHrm = acesso_hrm === true;
 
   try {
     await sql`
-      INSERT INTO usuarios_usuario (username, nome, password, perfil, setor, setores, is_staff, is_active, somente_leitura, pode_desfazer_recebimento, date_joined)
-      VALUES (${username}, ${nome}, ${hashed}, ${perfil}, ${setorPrincipal}, ${listaSetores}, ${is_staff}, true, ${soLeitura}, ${podeDesfazer}, NOW())
+      INSERT INTO usuarios_usuario (username, nome, password, perfil, setor, setores, is_staff, is_active, somente_leitura, pode_desfazer_recebimento, acesso_hrm, date_joined)
+      VALUES (${username}, ${nome}, ${hashed}, ${perfil}, ${setorPrincipal}, ${listaSetores}, ${is_staff}, true, ${soLeitura}, ${podeDesfazer}, ${acessoHrm}, NOW())
     `;
   } catch (e: unknown) {
     console.error('[POST /api/usuarios]', e);
