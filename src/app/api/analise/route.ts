@@ -214,6 +214,16 @@ export async function GET(req: Request) {
       WHERE m.criado_em BETWEEN ${de} AND ${ate} ${fDest}
       GROUP BY 1,2,3 ORDER BY total_mov DESC LIMIT 15`;
 
+    // ── 10.1 Apontamento por máquina/operador (Usinagem/Furação) ──────────────
+    const qMaquinas = sql`
+      SELECT ip.maquina, ip.operador, ip.setor_atual AS setor,
+             COUNT(*) AS inicios,
+             COALESCE(SUM(ip.quantidade), 0) AS pecas
+      FROM producao_itemparcial ip
+      JOIN producao_itempedido i ON i.id = ip.item_pedido_id AND ${FLANGE}
+      WHERE ip.maquina IS NOT NULL AND ip.iniciado_em BETWEEN ${de} AND ${ate}
+      GROUP BY 1,2,3 ORDER BY inicios DESC LIMIT 15`;
+
     // ── 11. Atrasos por setor (atuais) ────────────────────────────────────────
     const qAtrasoSetor = sql`
       SELECT i.setor_atual AS setor, COUNT(DISTINCT p.id) AS pedidos, COUNT(*) AS itens
@@ -231,9 +241,9 @@ export async function GET(req: Request) {
       GROUP BY i.codigo ORDER BY pecas DESC LIMIT 100`;
 
     const queries = [qEtapas, qVolume, qThroughput, qSemCriados, qSemFinal, qSemEntregas,
-      qTempoEtapa, qLead, qWip, qTopParadas, qMixTipo, qLideres, qAtrasoSetor, qProdutos];
+      qTempoEtapa, qLead, qWip, qTopParadas, qMixTipo, qLideres, qMaquinas, qAtrasoSetor, qProdutos];
     const [etapas, volume, throughput, semCriados, semFinal, semEntregas,
-      tempoEtapa, lead, wip, topParadas, mixTipo, lideres, atrasoSetor, produtos] =
+      tempoEtapa, lead, wip, topParadas, mixTipo, lideres, maquinas, atrasoSetor, produtos] =
       await runChunked(queries as never[], 4, 20000) as Record<string, unknown>[][];
 
     const num = (v: unknown) => Number(v || 0);
@@ -249,6 +259,7 @@ export async function GET(req: Request) {
       top_paradas: topParadas,
       mix_tipo: mixTipo,
       lideres,
+      maquinas,
       atraso_setor: atrasoSetor,
       produtos,
     });

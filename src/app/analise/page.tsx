@@ -38,6 +38,7 @@ interface Dados {
   top_paradas: Rec[];
   mix_tipo: Rec[];
   lideres: Rec[];
+  maquinas: Rec[];
   atraso_setor: Rec[];
   produtos: Rec[];
 }
@@ -308,6 +309,16 @@ export default function AnalisePage() {
                   <tr key={i}><td style={{ ...td, fontWeight: 700 }}>{l.nome || '—'}</td><td style={td}>{nm(l.setor)}</td>
                     <td style={tdR}>{fmt(l.finalizacoes)}</td><td style={tdR}>{fmt(l.inicios)}</td><td style={tdR}>{fmt(l.total_mov)}</td></tr>
                 ))}</tbody></table>
+            </div>
+            <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+              <p style={{ ...cardTitle, padding: '18px 16px 0' }}>Apontamento por máquina (Usinagem/Furação)</p>
+              {(dados.maquinas || []).length === 0 ? <div style={{ padding: 16 }}><Vazio /></div> : (
+                <table style={tbl}><thead><tr>{['Máquina', 'Operador', 'Setor', 'Inícios', 'Peças'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                  <tbody>{dados.maquinas.slice(0, 10).map((mq, i) => (
+                    <tr key={i}><td style={{ ...td, fontWeight: 700 }}>{mq.maquina || '—'}</td><td style={td}>{mq.operador || '—'}</td><td style={td}>{nm(mq.setor)}</td>
+                      <td style={tdR}>{fmt(mq.inicios)}</td><td style={{ ...tdR, fontWeight: 700, color: C.azul }}>{fmt(mq.pecas)}</td></tr>
+                  ))}</tbody></table>
+              )}
             </div>
           </div>
 

@@ -8,6 +8,8 @@ import { getUser, getToken, podeEditar } from '@/lib/auth';
 import { fmtData, fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
+import IniciarProducaoModal from '@/components/IniciarProducaoModal';
+import { temMaquinas } from '@/lib/maquinas';
 import DespacharModal from '@/components/DespacharModal';
 import EntregarModal from '@/components/EntregarModal';
 import AnexarComprovanteModal from '@/components/AnexarComprovanteModal';
@@ -34,6 +36,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   const [qtdParcial, setQtdParcial] = useState('');
   const [showParcial, setShowParcial] = useState(false);
   const [showReceber, setShowReceber] = useState(false);
+  const [showIniciarProducao, setShowIniciarProducao] = useState(false);
   const [showDespachar, setShowDespachar] = useState(false);
   const [showEntregar, setShowEntregar] = useState(false);
   const [showAnexar, setShowAnexar] = useState(false);
@@ -473,7 +476,8 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                     quantidade={item.quantidade_pendente}
                     unidade={item.unidade}
                     setor={item.nome_setor_atual}
-                    ocultarIniciar={item.setor_atual === 'logistica'}
+                    ocultarIniciar={item.setor_atual === 'logistica' || temMaquinas(item.setor_atual)}
+                    textoConfirmar={temMaquinas(item.setor_atual) ? { titulo: 'Confirmar recebimento', desc: 'Material recebido, escolha a máquina para iniciar' } : undefined}
                     loading={atuando}
                     onCancel={() => setShowReceber(false)}
                     onConfirm={async (decisao, qtd, obsR) => {
@@ -488,11 +492,30 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                   />
                 )}
 
-                {!entregue && item.status === 'recebido' && item.setor_atual !== 'logistica' && (
+                {!entregue && item.status === 'recebido' && item.setor_atual !== 'logistica' && !temMaquinas(item.setor_atual) && (
                   <button onClick={() => acao('iniciar')} disabled={atuando}
                     className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
                     ▶ Iniciar produção
                   </button>
+                )}
+
+                {!entregue && item.status === 'recebido' && temMaquinas(item.setor_atual) && (
+                  <button onClick={() => setShowIniciarProducao(true)} disabled={atuando}
+                    className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
+                    ▶ Iniciar produção
+                  </button>
+                )}
+
+                {showIniciarProducao && item.status === 'recebido' && temMaquinas(item.setor_atual) && (
+                  <IniciarProducaoModal
+                    setor={item.setor_atual}
+                    loading={atuando}
+                    onCancel={() => setShowIniciarProducao(false)}
+                    onConfirm={async (maquina, operador) => {
+                      setShowIniciarProducao(false);
+                      await acao('iniciar', { maquina, operador });
+                    }}
+                  />
                 )}
 
                 {!entregue && item.status === 'recebido' && item.setor_atual === 'logistica' && (

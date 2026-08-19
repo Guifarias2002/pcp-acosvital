@@ -246,4 +246,11 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   // a financeiro, gestão de usuários, etc). Default false: ninguém ganha a
   // permissão de graça, precisa ser marcado explicitamente por um admin.
   await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS pode_desfazer_recebimento BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
+
+  // M21: máquina + operador ao iniciar produção na Usinagem/Furação — pra medir
+  // depois tempo de máquina e peças feitas por máquina/operador (Análise PCP).
+  // Não substitui o usuário logado (usuario_id em producao_movimentacaoitem):
+  // quem inicia pode ser diferente de quem efetivamente opera a máquina.
+  await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS maquina VARCHAR(60)`).catch(() => {});
+  await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS operador VARCHAR(120)`).catch(() => {});
 }

@@ -6,6 +6,7 @@ import { nomeSector } from '@/lib/queries';
 import { SETOR_CHOICES, injetarQuarentena } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
+import { temMaquinas } from '@/lib/maquinas';
 
 export const dynamic = 'force-dynamic';
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
@@ -828,6 +829,11 @@ async function handlePOST(
 
   // ── iniciar ───────────────────────────────────────────────────────────────
   } else if (acao === 'iniciar') {
+    const maquina = typeof body.maquina === 'string' ? body.maquina.trim() : '';
+    const operador = typeof body.operador === 'string' ? body.operador.trim() : '';
+    if (temMaquinas(item.setor_atual) && (!maquina || !operador))
+      return NextResponse.json({ erro: 'Informe a máquina e o operador para iniciar a produção.' }, { status: 400 });
+
     await sql.begin(async (tx) => {
       await tx`
         INSERT INTO producao_movimentacaoitem
@@ -843,6 +849,8 @@ async function handlePOST(
         UPDATE producao_itemparcial
         SET status = 'em_andamento',
             iniciado_em = COALESCE(iniciado_em, NOW()),
+            maquina = COALESCE(${maquina || null}, maquina),
+            operador = COALESCE(${operador || null}, operador),
             atualizado_em = NOW()
         WHERE item_pedido_id = ${item.id}
           AND setor_atual = ${item.setor_atual}

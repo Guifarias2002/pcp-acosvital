@@ -22,6 +22,10 @@ interface Props {
   unidade: string;
   setor?: string;
   ocultarIniciar?: boolean;
+  /** Sobrescreve o texto do botão principal quando ocultarIniciar=true — usado
+   * quando o motivo de esconder "iniciar" não é ir pra despacho (ex: setores
+   * que exigem escolher máquina/operador numa tela separada antes de iniciar). */
+  textoConfirmar?: { titulo: string; desc: string };
   /** Esconde a opção "receber parcial" — use quando quem chama não sabe dividir
    * a quantidade recebida (ex: parcial individual, que já é uma fração de um item). */
   ocultarParcial?: boolean;
@@ -32,7 +36,7 @@ interface Props {
   loading?: boolean;
 }
 
-export default function ReceberModal({ quantidade, unidade, setor = 'Setor', itemCodigo, itemDescricao, setorOrigem, ocultarIniciar, ocultarParcial, mostrarChecklist, onConfirm, onCancel, loading }: Props) {
+export default function ReceberModal({ quantidade, unidade, setor = 'Setor', itemCodigo, itemDescricao, setorOrigem, ocultarIniciar, textoConfirmar, ocultarParcial, mostrarChecklist, onConfirm, onCancel, loading }: Props) {
   const [step, setStep] = useState<'quantidade' | 'checklist' | 'decisao' | 'divergente'>(
     ocultarParcial ? (mostrarChecklist ? 'checklist' : 'decisao') : 'quantidade'
   );
@@ -290,8 +294,8 @@ export default function ReceberModal({ quantidade, unidade, setor = 'Setor', ite
                 style={{ ...btnBase, background: ocultarIniciar ? '#dcfce7' : '#fef9c3', border: ocultarIniciar ? '2px solid #16a34a' : '2px solid #ca8a04', color: ocultarIniciar ? '#166534' : '#92400e' }}>
                 <i className={`bi ${ocultarIniciar ? 'bi-box-seam-fill' : 'bi-hourglass-split'}`} style={{ fontSize: 22, marginTop: 1 }} />
                 <div>
-                  <div>{ocultarIniciar ? 'Confirmar recebimento' : 'Ainda estou me preparando'}</div>
-                  <div style={{ fontSize: 11, fontWeight: 400, opacity: .75 }}>{ocultarIniciar ? 'Material chegou OK, aguardando despacho' : 'Material recebido, vou iniciar depois'}</div>
+                  <div>{ocultarIniciar ? (textoConfirmar?.titulo || 'Confirmar recebimento') : 'Ainda estou me preparando'}</div>
+                  <div style={{ fontSize: 11, fontWeight: 400, opacity: .75 }}>{ocultarIniciar ? (textoConfirmar?.desc || 'Material chegou OK, aguardando despacho') : 'Material recebido, vou iniciar depois'}</div>
                 </div>
               </button>
 
