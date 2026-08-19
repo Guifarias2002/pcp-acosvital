@@ -10,7 +10,6 @@ const NOMES: Record<string, string> = {
   qualidade: 'Qualidade', acabamento: 'Acabamento', logistica: 'Logística', recebimento: 'Recebimento',
   compras: 'Compras', beneficiadores: 'Beneficiadores', embalagem: 'Embalagem', quarentena: 'Quarentena', desenho: 'Desenho',
 };
-const SETORES_FILTRO = ['maçarico', 'plasma', 'laser', 'serra', 'usinagem', 'furacao', 'acabamento', 'qualidade', 'estoque', 'embalagem', 'logistica', 'quarentena'];
 
 const nm = (c: string) => NOMES[c] || c || '—';
 const fmt = (x: number | string | null | undefined, d = 0) =>
@@ -69,7 +68,7 @@ export default function AnalisePage() {
   const hoje = new Date();
   const [de, setDe] = useState(iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)));
   const [ate, setAte] = useState(iso(hoje));
-  const [setores, setSetores] = useState<string[]>([]);
+  const setores: string[] = []; // filtro de setores removido — Análise sempre considera todos
   const [dados, setDados] = useState<Dados | null>(null);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
@@ -141,10 +140,6 @@ export default function AnalisePage() {
   function atalhoMes() {
     const d = iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)), a = iso(hoje);
     setDe(d); setAte(a); carregar(d, a, setores);
-  }
-  function toggleSetor(s: string) {
-    const novo = setores.includes(s) ? setores.filter(x => x !== s) : [...setores, s];
-    setSetores(novo);
   }
 
   if (!admin) return (
@@ -231,17 +226,6 @@ export default function AnalisePage() {
               onClick={() => carregar(de, ate, setores)}>
               <i className="bi bi-arrow-repeat" style={{ marginRight: 6 }} />Atualizar
             </button>
-          </div>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block', marginBottom: 6 }}>
-              Setores {setores.length ? `(${setores.length} selecionados)` : '(todos)'}
-            </label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {SETORES_FILTRO.map(s => (
-                <span key={s} className={`achip${setores.includes(s) ? ' on' : ''}`} onClick={() => toggleSetor(s)}>{nm(s)}</span>
-              ))}
-              {setores.length > 0 && <span className="achip" onClick={() => setSetores([])} style={{ color: C.vermelho }}>× limpar</span>}
-            </div>
           </div>
         </div>
 
