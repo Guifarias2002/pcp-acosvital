@@ -241,8 +241,15 @@ function parseBlocos(lines: Line[], map: Record<string, string>): { materiais: O
     const cols = d.split('|').map(c => c.replace(/^[-\s]+|[-\s]+$/g, '').replace(/-/g, ' ').trim());
     if (cols.length >= 4 && /\d/.test(cols[0]) && cols[0].length >= 4) {
       materiais.push({ codigo: cols[0].replace(/\s/g, ''), descricao: cols[1] || '', quantidade: (cols[2] || '').replace(/\s/g, ''), unidade: (cols[3] || '').replace(/\s/g, '') });
-    } else if (materiais.length && clean(d) && !/^\d/.test(n)) {
-      materiais[materiais.length - 1].descricao += ' ' + clean(d);
+    } else if (materiais.length && clean(d) && !/^\d/.test(n) && !skip(d)) {
+      // Continuação da descrição do material anterior (quebra de linha). Guardas
+      // pra NÃO engolir o roteiro/rodapé inteiro quando o título "ROTEIRO DE
+      // OPERAÇÕES" não foi achado (rotIdx=-1, ex.: OP muito embaralhada) — sem
+      // isso a descrição do último material virava um parágrafo gigante com o
+      // roteiro todo dentro. Só concatena trecho curto e limita o tamanho total.
+      const last = materiais[materiais.length - 1];
+      const add = clean(d);
+      if (add.length <= 60 && last.descricao.length < 120) last.descricao += ' ' + add;
     }
   }
 
