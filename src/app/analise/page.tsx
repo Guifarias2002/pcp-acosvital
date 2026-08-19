@@ -34,6 +34,11 @@ function labelSemana(dataIso: string) {
   const f = (x: Date) => `${String(x.getDate()).padStart(2, '0')}/${String(x.getMonth() + 1).padStart(2, '0')}`;
   return `${f(d)}–${f(fim)}`;
 }
+// "01/08/2026 → 19/08/2026" a partir de dois ISO 'YYYY-MM-DD'.
+function labelPeriodo(deIso: string, ateIso: string) {
+  const br = (s: string) => s ? s.split('-').reverse().join('/') : '—';
+  return `${br(deIso)} → ${br(ateIso)}`;
+}
 
 interface Dados {
   periodo: { de: string; ate: string; setores: string[] };
@@ -67,7 +72,7 @@ export default function AnalisePage() {
   const [genLoad, setGenLoad] = useState(false);
   const [detalhe, setDetalhe] = useState<{ titulo: string; loading: boolean; itens: Rec[] } | null>(null);
   const [aba, setAba] = useState<'geral' | 'homem' | 'maquina'>('geral');
-  const [fotoZoom, setFotoZoom] = useState<{ src: string; nome: string } | null>(null);
+  const [maquinaSel, setMaquinaSel] = useState<string | null>(null);
   const admin = isAdministrador();
 
   async function abrirDetalhe(tipo: string, chave: string, titulo: string) {
@@ -351,25 +356,29 @@ export default function AnalisePage() {
 
           {aba === 'maquina' && (<>
           {/* Catálogo de máquinas com foto */}
-          <SectionTitle icon="bi-images" t="Máquinas" s="Usinagem/Furação — clique na foto para ampliar" />
+          <SectionTitle icon="bi-images" t="Máquinas" s="Usinagem/Furação — clique na máquina para ver o resumo de produção" />
           <div className="card" style={{ marginBottom: 24 }}>
-            {[...(MAQUINAS_POR_SETOR.usinagem || []), ...(MAQUINAS_POR_SETOR.furacao || [])].map((grupo) => (
-              <div key={grupo.categoria} style={{ marginBottom: 16 }}>
+            {[...(MAQUINAS_POR_SETOR.usinagem || []), ...(MAQUINAS_POR_SETOR.furacao || [])]
+              .map((grupo) => ({ categoria: grupo.categoria, comFoto: grupo.maquinas.filter((n) => fotoMaquina(n)) }))
+              .filter((grupo) => grupo.comFoto.length > 0)
+              .map((grupo) => (
+              <div key={grupo.categoria} style={{ marginBottom: 22 }}>
                 <div style={cardTitle}>{grupo.categoria}</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
-                  {grupo.maquinas.map((nome) => {
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 168px)', gap: 14, justifyContent: 'start' }}>
+                  {grupo.comFoto.map((nome) => {
                     const src = fotoMaquina(nome);
                     return (
-                      <div key={nome} style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
+                      <div key={nome} onClick={() => setMaquinaSel(nome)} title={`Ver resumo de produção · ${nome}`}
+                        style={{ width: 168, border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden', background: '#fff', cursor: 'pointer' }}>
                         {src ? (
-                          <img src={src} alt={nome} loading="lazy" onClick={() => setFotoZoom({ src, nome })}
-                            style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block', cursor: 'zoom-in' }} />
+                          <img src={src} alt={nome} loading="lazy"
+                            style={{ width: '100%', height: 116, objectFit: 'cover', display: 'block' }} />
                         ) : (
-                          <div style={{ width: '100%', height: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', color: '#cbd5e1' }}>
+                          <div style={{ width: '100%', height: 116, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', color: '#cbd5e1' }}>
                             <i className="bi bi-camera" style={{ fontSize: 26 }} />
                           </div>
                         )}
-                        <div style={{ padding: '7px 10px', fontSize: 12, fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={nome}>{nome}</div>
+                        <div style={{ padding: '8px 10px', fontSize: 12, fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={nome}>{nome}</div>
                       </div>
                     );
                   })}
@@ -391,8 +400,8 @@ export default function AnalisePage() {
                       return (
                       <tr key={i}><td style={{ ...td, fontWeight: 700 }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                          {src && <img src={src} alt={mq.maquina} loading="lazy" onClick={() => setFotoZoom({ src, nome: mq.maquina })}
-                            style={{ width: 40, height: 30, objectFit: 'cover', borderRadius: 5, cursor: 'zoom-in', flexShrink: 0 }} />}
+                          {src && <img src={src} alt={mq.maquina} loading="lazy" onClick={() => setMaquinaSel(mq.maquina)}
+                            style={{ width: 40, height: 30, objectFit: 'cover', borderRadius: 5, cursor: 'pointer', flexShrink: 0 }} />}
                           {mq.maquina || '—'}
                         </span>
                       </td><td style={td}>{mq.operador || '—'}</td><td style={td}>{nm(mq.setor)}</td>
@@ -511,13 +520,52 @@ export default function AnalisePage() {
             </div>
           </div>
         )}
-        {fotoZoom && (
-          <div onClick={() => setFotoZoom(null)} className="no-print"
-            style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.8)', zIndex: 1100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
-            <img src={fotoZoom.src} alt={fotoZoom.nome} style={{ maxWidth: '95vw', maxHeight: '85vh', objectFit: 'contain', borderRadius: 8, boxShadow: '0 8px 40px rgba(0,0,0,.5)' }} />
-            <div style={{ color: '#fff', fontWeight: 700, marginTop: 14, fontSize: 15 }}>{fotoZoom.nome}</div>
-          </div>
-        )}
+        {maquinaSel && (() => {
+          const src = fotoMaquina(maquinaSel);
+          const rows = (dados?.maquinas || []).filter(m => (m.maquina || '').trim() === maquinaSel);
+          const totPecas = rows.reduce((s, m) => s + Number(m.pecas || 0), 0);
+          const totSeg = rows.reduce((s, m) => s + Number(m.segundos || 0), 0);
+          const totIni = rows.reduce((s, m) => s + Number(m.inicios || 0), 0);
+          const unidade = rows[0]?.unidade || 'un';
+          const setor = rows[0]?.setor;
+          return (
+            <div onClick={() => setMaquinaSel(null)} className="no-print"
+              style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+              <div onClick={e => e.stopPropagation()} className="card" style={{ maxWidth: 620, width: '100%', maxHeight: '88vh', overflow: 'auto', padding: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
+                  <div>
+                    <b style={{ fontSize: 17, color: '#1a3a5c' }}><i className="bi bi-gear-wide-connected" style={{ marginRight: 8 }} />{maquinaSel}</b>
+                    <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>Resumo de produção · {labelPeriodo(de, ate)}{setor ? ` · ${nm(setor)}` : ''}</div>
+                  </div>
+                  <button onClick={() => setMaquinaSel(null)} className="abtn"><i className="bi bi-x-lg" /></button>
+                </div>
+                {src && <img src={src} alt={maquinaSel} style={{ width: '100%', height: 220, objectFit: 'cover', display: 'block' }} />}
+                <div style={{ padding: 18 }}>
+                  {rows.length === 0 ? (
+                    <p style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', margin: '8px 0' }}>Sem apontamento de produção nesta máquina no período selecionado.</p>
+                  ) : (<>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+                      <MiniKpi v={`${fmt(totPecas)} ${unidade}`} l="Peças produzidas" />
+                      <MiniKpi v={fmtHorasMin(totSeg)} l="Tempo total" />
+                      <MiniKpi v={fmt(totIni)} l="Inícios" />
+                    </div>
+                    <div style={cardTitle}>Por operador</div>
+                    <table style={tbl}><thead><tr>{['Operador', 'Inícios', 'Peças', 'Tempo'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                      <tbody>{rows.map((m, i) => (
+                        <tr key={i}>
+                          <td style={{ ...td, fontWeight: 700 }}>{m.operador || '—'}</td>
+                          <td style={tdR}>{fmt(m.inicios)}</td>
+                          <td style={{ ...tdR, fontWeight: 700, color: C.azul }}>{fmt(m.pecas)} {m.unidade || 'un'}</td>
+                          <td style={tdR}>{fmtHorasMin(m.segundos)}</td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                  </>)}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </AuthGuard>
   );
