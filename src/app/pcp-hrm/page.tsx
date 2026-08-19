@@ -207,6 +207,20 @@ export default function PcpHrmPage() {
           </div>
         </div>
 
+        {/* Passo a passo — orienta quem usa essa tela pela primeira vez (perfil
+            restrito: só Identificação + Anexo, sem editar roteiro/materiais). */}
+        <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:10, padding:'14px 18px', marginBottom:16, maxWidth:760 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:'#1e40af', textTransform:'uppercase', letterSpacing:.5, marginBottom:8 }}>
+            <i className="bi bi-info-circle" style={{ marginRight:6 }} />Como preencher
+          </div>
+          <ol style={{ margin:0, paddingLeft:18, display:'flex', flexDirection:'column', gap:5, fontSize:13, color:'#1e3a8a' }}>
+            <li>Escolha a origem (<b>Totvs</b> ou <b>Omie</b>) e o nº do pedido, se já tiver — pode deixar em branco e completar depois.</li>
+            <li>Anexe o PDF da OP (Ordem de Produção) — o sistema lê os materiais e o roteiro sozinho, não precisa digitar nada.</li>
+            <li>Confira a leitura clicando no produto — é só pra você olhar, não precisa corrigir nada, quem confere de verdade é o PCP.</li>
+            <li>Clique em <b>&quot;Enviar para Emissão&quot;</b> no canto superior direito. Pronto — a OP cai pro PCP conferir e liberar pra produção.</li>
+          </ol>
+        </div>
+
         {erro && (
           <div style={{ background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626', borderRadius:8, padding:'10px 14px', fontSize:13, marginBottom:16, maxWidth:760 }}>
             <i className="bi bi-exclamation-circle" style={{ marginRight:6 }} />{erro}
