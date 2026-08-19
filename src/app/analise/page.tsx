@@ -341,13 +341,27 @@ export default function AnalisePage() {
           {/* Apontamento por máquina */}
           <SectionTitle icon="bi-gear-wide-connected" t="Apontamento por máquina" s="Usinagem/Furação — início e peças por máquina/operador, no período selecionado" />
           <div className="card" style={{ padding: 0, overflowX: 'auto', marginBottom: 24 }}>
-            {(dados.maquinas || []).length === 0 ? <div style={{ padding: 16 }}><Vazio /></div> : (
-              <table style={tbl}><thead><tr>{['Máquina', 'Operador', 'Setor', 'Inícios', 'Peças'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
-                <tbody>{dados.maquinas.map((mq, i) => (
-                  <tr key={i}><td style={{ ...td, fontWeight: 700 }}>{mq.maquina || '—'}</td><td style={td}>{mq.operador || '—'}</td><td style={td}>{nm(mq.setor)}</td>
-                    <td style={tdR}>{fmt(mq.inicios)}</td><td style={{ ...tdR, fontWeight: 700, color: C.azul }}>{fmt(mq.pecas)}</td></tr>
-                ))}</tbody></table>
-            )}
+            {(dados.maquinas || []).length === 0 ? <div style={{ padding: 16 }}><Vazio /></div> : (() => {
+              const totalPecas = dados.maquinas.reduce((s, mq) => s + Number(mq.pecas || 0), 0);
+              const totalHoras = dados.maquinas.reduce((s, mq) => s + Number(mq.horas || 0), 0);
+              return (
+                <table style={tbl}><thead><tr>{['Máquina', 'Operador', 'Setor', 'Inícios', 'Peças', 'Tempo total (h)'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {dados.maquinas.map((mq, i) => (
+                      <tr key={i}><td style={{ ...td, fontWeight: 700 }}>{mq.maquina || '—'}</td><td style={td}>{mq.operador || '—'}</td><td style={td}>{nm(mq.setor)}</td>
+                        <td style={tdR}>{fmt(mq.inicios)}</td>
+                        <td style={{ ...tdR, fontWeight: 700, color: C.azul }}>{fmt(mq.pecas)} {mq.unidade || 'un'}</td>
+                        <td style={tdR}>{fmt(mq.horas, 1)} h</td></tr>
+                    ))}
+                    <tr>
+                      <td style={{ ...td, fontWeight: 800, color: C.azul }} colSpan={4}>Total</td>
+                      <td style={{ ...tdR, fontWeight: 800, color: C.azul }}>{fmt(totalPecas)}</td>
+                      <td style={{ ...tdR, fontWeight: 800, color: C.azul }}>{fmt(totalHoras, 1)} h</td>
+                    </tr>
+                  </tbody>
+                </table>
+              );
+            })()}
           </div>
           </>)}
 

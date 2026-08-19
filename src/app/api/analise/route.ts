@@ -215,10 +215,15 @@ export async function GET(req: Request) {
       GROUP BY 1,2,3 ORDER BY total_mov DESC LIMIT 15`;
 
     // ── 10.1 Apontamento por máquina/operador (Usinagem/Furação) ──────────────
+    // Tempo por máquina é corrido (iniciado_em até concluido_em, ou até agora se
+    // ainda em andamento) — mesma simplificação já usada no resto da tela (não
+    // desconta pausa), ver nota "Tempos são corridos" no rodapé da aba Geral.
     const qMaquinas = sql`
       SELECT ip.maquina, ip.operador, ip.setor_atual AS setor,
+             MAX(i.unidade) AS unidade,
              COUNT(*) AS inicios,
-             COALESCE(SUM(ip.quantidade), 0) AS pecas
+             COALESCE(SUM(ip.quantidade), 0) AS pecas,
+             ROUND(SUM(EXTRACT(EPOCH FROM (COALESCE(ip.concluido_em, NOW()) - ip.iniciado_em)) / 3600.0)::numeric, 1) AS horas
       FROM producao_itemparcial ip
       JOIN producao_itempedido i ON i.id = ip.item_pedido_id AND ${FLANGE}
       WHERE ip.maquina IS NOT NULL AND ip.iniciado_em BETWEEN ${de} AND ${ate}
