@@ -22,3 +22,26 @@ export const MAQUINAS_POR_SETOR: Record<string, GrupoMaquinas[]> = {
 export function temMaquinas(setor: string): boolean {
   return setor === 'usinagem' || setor === 'furacao';
 }
+
+/**
+ * Foto de cada máquina (arquivos estáticos em /public/maquinas). A chave é o
+ * nome exato usado em MAQUINAS_POR_SETOR / gravado no apontamento. Máquina sem
+ * foto aqui simplesmente não exibe imagem.
+ */
+export const FOTOS_MAQUINA: Record<string, string> = {
+  'Torno Manual 01': '/maquinas/torno-manual-01.jpg',
+  'Torno Manual 02': '/maquinas/torno-manual-02.jpg',
+  'ECN-40 II': '/maquinas/ecn-40-ii.jpg',
+  'ICN40-ROMI': '/maquinas/icn40-romi.jpg',
+  'GU600-INDEX': '/maquinas/gu600-index.jpg',
+  'COSMOS30U': '/maquinas/cosmos30u.jpg',
+  'TRAUB-TN300': '/maquinas/traub-tn300.jpg',
+  'GU800-INDEX': '/maquinas/gu800-index.jpg',
+  'CNC-GFG250': '/maquinas/cnc-gfg250.jpg',
+  'GFG450-INDEX': '/maquinas/gfg450-index.jpg',
+};
+
+export function fotoMaquina(nome?: string | null): string | undefined {
+  if (!nome) return undefined;
+  return FOTOS_MAQUINA[nome.trim()];
+}
