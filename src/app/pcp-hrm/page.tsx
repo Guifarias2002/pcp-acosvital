@@ -344,6 +344,12 @@ export default function PcpHrmPage() {
                   const multi = leitura.ops.length > 1;
                   const setoresRoteiro = setoresDaOrdem(idx, op);
                   const aberto = componentesAbertos.has(idx);
+                  // Confiança muito baixa = a fonte embaralhada do Totvs não foi
+                  // decifrada; materiais/roteiro/produto saem como lixo. Nesse caso
+                  // não mostramos os dados garbled — só a identificação (PN/PO/NS,
+                  // que vem da anotação do quadro vermelho e NÃO é embaralhada) e
+                  // um aviso. Anexa a OP do mesmo jeito; o PCP lança na Conferência.
+                  const leituraRuim = op.confianca < 0.3;
                   return (
                     <div key={idx}>
                       {/* Linha resumo — só Produto/Descrição, igual uma linha de item do
@@ -355,17 +361,23 @@ export default function PcpHrmPage() {
                         <i className={`bi ${aberto ? 'bi-chevron-down' : 'bi-chevron-right'}`} style={{ color:'#1a3a5c', fontSize:14 }} />
                         <span style={{ flex:1, minWidth:0 }}>
                           {multi && <span style={{ fontSize:10.5, fontWeight:700, color:'#7a8aa0', textTransform:'uppercase', letterSpacing:.5 }}>Ordem {idx + 1} de {leitura.ops.length}</span>}
-                          <span className={labelCls} style={{ display:'block' }}>Produto{op.produto.codigo ? ` — ${op.produto.codigo}` : ''}</span>
-                          <div style={{ fontSize:13.5, fontWeight:700, color:'#1a3a5c', marginTop:2 }}>{op.produto.descricao || '—'}</div>
+                          <span className={labelCls} style={{ display:'block' }}>{leituraRuim ? 'OP anexada' : `Produto${op.produto.codigo ? ` — ${op.produto.codigo}` : ''}`}</span>
+                          <div style={{ fontSize:13.5, fontWeight:700, color:'#1a3a5c', marginTop:2 }}>{leituraRuim ? (op.cabecalho.ns || op.cabecalho.pn || 'Confira no PDF') : (op.produto.descricao || '—')}</div>
                         </span>
-                        {op.confianca < 0.5 && (
+                        {leituraRuim ? (
+                          <span style={{ fontSize:11, fontWeight:700, color:'#b91c1c', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:6, padding:'3px 8px', whiteSpace:'nowrap' }}>
+                            <i className="bi bi-exclamation-triangle" style={{ marginRight:4 }} />não consegui ler
+                          </span>
+                        ) : op.confianca < 0.5 && (
                           <span style={{ fontSize:11, fontWeight:700, color:'#92400e', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:6, padding:'3px 8px', whiteSpace:'nowrap' }}>
                             <i className="bi bi-eye" style={{ marginRight:4 }} />confira
                           </span>
                         )}
+                        {!leituraRuim && (
                         <span style={{ fontSize:11.5, fontWeight:700, color:'#1a3a5c', background:'#eef4fb', border:'1px solid #cfe0f2', borderRadius:20, padding:'3px 10px', whiteSpace:'nowrap' }}>
                           {op.materiais.length} componentes
                         </span>
+                        )}
                       </button>
 
                       {/* Expandido: identificação + Por onde passa + COMPONENTES + roteiro */}
@@ -385,10 +397,16 @@ export default function PcpHrmPage() {
                             </div>
                           )}
 
+                          {leituraRuim && (
+                            <div style={{ fontSize:13, color:'#92400e', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:8, padding:'10px 12px', marginBottom:14 }}>
+                              <i className="bi bi-exclamation-triangle" style={{ marginRight:6 }} />
+                              Não consegui ler os <b>materiais</b> e o <b>roteiro</b> automaticamente nesta OP (a fonte do PDF veio muito embaralhada). A identificação acima (PN/PO/NS) está correta. <b>Anexe a OP mesmo assim</b> — o PCP confere na Conferência. Se der, exporte a OP do Totvs em Excel/TXT pra leitura 100% confiável.
+                            </div>
+                          )}
                           {/* Por onde passa (setores do roteiro) — leitura sugerida, editável aqui só
                               pra conferir na hora (não grava ainda; a Conferência real vem na Fase 3).
                               Clicar numa etapa corrige o texto; "x" remove; "+" adiciona. */}
-                          <div style={{ marginBottom:16 }}>
+                          {!leituraRuim && (<div style={{ marginBottom:16 }}>
                             <span className={labelCls}>Por onde passa (sugestão da leitura — clique pra corrigir)</span>
                             <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6, alignItems:'center' }}>
                               {setoresRoteiro.map((s, i) => {
@@ -418,9 +436,9 @@ export default function PcpHrmPage() {
                                 <i className="bi bi-plus-lg" />Etapa
                               </button>
                             </div>
-                          </div>
+                          </div>)}
 
-                          {op.materiais.length > 0 && (
+                          {!leituraRuim && op.materiais.length > 0 && (
                             <div style={{ overflowX:'auto', marginTop:16 }}>
                               <span className={labelCls}>Componentes</span>
                               <table style={{ width:'100%', borderCollapse:'collapse', marginTop:6, fontSize:12.5, minWidth:520 }}>
