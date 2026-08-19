@@ -15,13 +15,18 @@ const SETORES_FILTRO = ['maçarico', 'plasma', 'laser', 'serra', 'usinagem', 'fu
 const nm = (c: string) => NOMES[c] || c || '—';
 const fmt = (x: number | string | null | undefined, d = 0) =>
   x == null || x === '' ? '—' : Number(x).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
-// Horas+minutos exatos a partir de segundos corridos (sem passar por hora
-// arredondada antes) — soma de segundos inteiros, sem perda de precisão.
+// Tempo exato a partir de segundos corridos (sem arredondamento intermediário),
+// mostrando horas, minutos E segundos. Durações curtas (< 1 min) não somem mais
+// como "0h 00min" — ex.: 8s aparece como "8s", 4h50min23s como "4h 50min 23s".
 function fmtHorasMin(segundos: number | string | null | undefined) {
   const s = Math.max(0, Math.round(Number(segundos || 0)));
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
-  return `${h}h ${String(m).padStart(2, '0')}min`;
+  const seg = s % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  if (h > 0) return `${h}h ${pad(m)}min ${pad(seg)}s`;
+  if (m > 0) return `${m}min ${pad(seg)}s`;
+  return `${seg}s`;
 }
 
 // ── datas (segunda-feira = início da semana, igual date_trunc('week')) ────────
