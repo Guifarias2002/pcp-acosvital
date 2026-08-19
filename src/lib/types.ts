@@ -509,6 +509,8 @@ export interface ItemParcial {
   setor_atual_nome: string;
   status: 'em_aberto' | 'recebido' | 'em_andamento' | 'em_transito' | 'concluida' | 'cancelada' | 'pausado' | 'finalizado_setor';
   observacao: string | null;
+  maquina?: string | null;
+  operador?: string | null;
   /** Status do item (não da parcial) — usado pra detectar reprovado/divergência. */
   item_status?: string;
   numero_op?: string;

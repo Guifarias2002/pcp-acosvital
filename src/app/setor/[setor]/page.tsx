@@ -884,6 +884,11 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           {(isAndamento || isEmTransito) && parcial.atualizado_em && (
             <Cronometro desde={parcial.atualizado_em} />
           )}
+          {parcial.maquina && (
+            <span style={{ fontSize: 11, color: '#475569', fontWeight: 600 }}>
+              🔧 {parcial.maquina}{parcial.operador ? ` · ${parcial.operador}` : ''}
+            </span>
+          )}
           <Link href={`/parcial/${parcial.id}`} title="Ver detalhe" style={{ color: '#0d6efd', fontSize: 14, textDecoration: 'none' }}>
             <i className="bi bi-eye" />
           </Link>
@@ -916,6 +921,11 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             {LABEL_PARCIAL[parcial.status] || parcial.status}
           </span>
           {parcial.retrabalho && <span style={{ fontSize: 11, color: '#b45309', fontWeight: 700 }}>⚠ Retrabalho</span>}
+          {parcial.maquina && (
+            <span style={{ fontSize: 11, color: '#475569', fontWeight: 600 }}>
+              🔧 {parcial.maquina}{parcial.operador ? ` · ${parcial.operador}` : ''}
+            </span>
+          )}
           <Link href={`/parcial/${parcial.id}`} title="Ver detalhe" style={{ color: '#0d6efd', fontSize: 13, textDecoration: 'none', marginLeft: 'auto' }}>
             <i className="bi bi-eye" />
           </Link>

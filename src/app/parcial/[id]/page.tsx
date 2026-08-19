@@ -40,6 +40,8 @@ interface ParcialDetalhe {
   prioridade: string;
   prazo_entrega: string | null;
   item_status: string;
+  maquina: string | null;
+  operador: string | null;
   iniciado_em: string | null;
   concluido_em: string | null;
   criado_em: string;
@@ -401,6 +403,12 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
               <StatusBadgeParcial status={parcial.status} />
             </div>
             <p className="text-xs text-gray-400 mt-2">👤 {parcial.cliente}</p>
+            {parcial.maquina && (
+              <p className="text-xs text-gray-500 mt-1">
+                🔧 <span className="font-semibold text-gray-700">{parcial.maquina}</span>
+                {parcial.operador && <> · Operador: <span className="font-semibold text-gray-700">{parcial.operador}</span></>}
+              </p>
+            )}
             {duracao && isConcluida && (
               <p className="text-xs text-green-600 mt-1 font-medium">⏱ Duração: {duracao}</p>
             )}
