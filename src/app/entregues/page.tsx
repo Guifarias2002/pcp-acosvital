@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getEntregues } from '@/lib/api';
-import { getToken, getUser, podeEditar } from '@/lib/auth';
+import { getToken, getUser, podeEditar, podeAcessarSetor } from '@/lib/auth';
 import { Pedido, PRIORIDADE_COR } from '@/lib/types';
 import Link from 'next/link';
 import AnexarComprovanteModal from '@/components/AnexarComprovanteModal';
@@ -47,7 +47,34 @@ export default function EntreguesPage() {
   const [divergencia, setDivergencia] = useState<{ pedidoId: number; pedidoNumero: string; itens: PedidoEntregue['itens'] } | null>(null);
   const [mensagem, setMensagem] = useState('');
   const [modalExcluir, setModalExcluir] = useState<{ id: number; numero: string; motivo: string; loading: boolean; erro?: string; requerConfirmacao?: boolean } | null>(null);
+  const [modalVoltar, setModalVoltar] = useState<{ id: number; numero: string; loading: boolean; erro?: string } | null>(null);
   const isAdmin = getUser()?.is_staff === true;
+  // Devolver pra Logística: admin/PCP (staff) ou quem acessa a Logística.
+  const podeVoltarLogistica = isAdmin || podeAcessarSetor(getUser(), 'logistica');
+
+  async function confirmarVoltar() {
+    if (!modalVoltar) return;
+    setModalVoltar(m => m ? { ...m, loading: true, erro: undefined } : null);
+    try {
+      const res = await fetch(`/api/pedidos/${modalVoltar.id}/voltar-logistica`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const numero = modalVoltar.numero;
+        setModalVoltar(null);
+        setMensagem(`Pedido ${numero} devolvido para a Logística.`);
+        setTimeout(() => setMensagem(''), 6000);
+        buscar();
+      } else {
+        setModalVoltar(m => m ? { ...m, loading: false, erro: (data.detalhe || data.erro) || 'Erro ao devolver' } : null);
+      }
+    } catch {
+      setModalVoltar(m => m ? { ...m, loading: false, erro: 'Erro de conexão. Tente novamente.' } : null);
+    }
+  }
 
   async function confirmarExcluir(forcar = false) {
     if (!modalExcluir) return;
@@ -218,6 +245,35 @@ export default function EntreguesPage() {
         </div>
       )}
 
+      {/* Modal voltar pra Logística */}
+      {modalVoltar && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: '100%', maxWidth: 440, boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
+            <h5 style={{ margin: '0 0 12px', fontWeight: 700, color: '#b45309' }}>
+              <i className="bi bi-arrow-return-left" style={{ marginRight: 8 }}></i>Voltar para a Logística
+            </h5>
+            <p style={{ fontSize: 14, color: '#374151', margin: '0 0 12px' }}>
+              Devolver o pedido <strong>{modalVoltar.numero}</strong> para a Logística? Ele deixa de ficar como entregue e volta para a fila da Logística, podendo ser entregue de novo.
+            </p>
+            {modalVoltar.erro && (
+              <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 6, fontSize: 12.5, background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca' }}>
+                ⚠ {modalVoltar.erro}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setModalVoltar(null)} disabled={modalVoltar.loading}
+                style={{ background: '#f0f0f0', color: '#333', border: 'none', borderRadius: 6, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={confirmarVoltar} disabled={modalVoltar.loading}
+                style={{ background: modalVoltar.loading ? '#f0c48a' : '#d97706', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', fontSize: 13, fontWeight: 700, cursor: modalVoltar.loading ? 'not-allowed' : 'pointer' }}>
+                {modalVoltar.loading ? 'Devolvendo...' : 'Voltar pra Logística'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {mensagem && (
         <div style={{ marginBottom: 12, padding: '10px 16px', borderRadius: 8, background: '#d1fae5', color: '#065f46', border: '1px solid #a7f3d0', fontSize: 13, fontWeight: 500 }}>
           ✅ {mensagem}
@@ -367,6 +423,13 @@ export default function EntreguesPage() {
                           style={{ border: '1px solid #0d6efd', color: '#0d6efd', borderRadius: 4, padding: '2px 10px', textDecoration: 'none', fontSize: 12 }}>
                           <i className="bi bi-eye"></i>
                         </Link>
+                        {podeEditar() && podeVoltarLogistica && (
+                        <button title="Voltar pedido para a Logística"
+                          onClick={() => setModalVoltar({ id: p.id, numero: p.numero_pedido_venda, loading: false })}
+                          style={{ border: '1px solid #d97706', color: '#d97706', background: 'none', borderRadius: 4, padding: '2px 10px', cursor: 'pointer', fontSize: 12 }}>
+                          <i className="bi bi-arrow-return-left"></i>
+                        </button>
+                        )}
                         {podeEditar() && isAdmin && (
                         <button title="Excluir pedido"
                           onClick={() => setModalExcluir({ id: p.id, numero: p.numero_pedido_venda, motivo: '', loading: false })}
