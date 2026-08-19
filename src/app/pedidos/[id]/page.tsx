@@ -692,7 +692,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
 
                         {/* Rastreabilidade — onde estão as peças */}
                         {(() => {
-                          const parciais = (item as unknown as Record<string, unknown>).parciais_por_setor as { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean; motivo_retrabalho: string | null }[] | undefined;
+                          const parciais = (item as unknown as Record<string, unknown>).parciais_por_setor as { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean; motivo_retrabalho: string | null; maquina: string | null; operador: string | null }[] | undefined;
                           const entregues = Number(item.quantidade_entregue || 0);
                           const hasParciais = parciais && parciais.length > 0;
                           const STATUS_COR: Record<string, { bg: string; txt: string; label: string }> = {
@@ -738,6 +738,9 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                                         </span>
                                         <span style={{ fontSize: 11, color: cor.txt }}>em <strong>{p.setor_nome}</strong></span>
                                         <span style={{ fontSize: 10, background: 'rgba(0,0,0,0.08)', borderRadius: 3, padding: '1px 5px', color: cor.txt }}>{cor.label}</span>
+                                        {p.maquina && (
+                                          <span style={{ fontSize: 11, color: cor.txt }}>🔧 {p.maquina}{p.operador ? ` · ${p.operador}` : ''}</span>
+                                        )}
                                         {p.retrabalho && p.motivo_retrabalho && (
                                           <span style={{ fontSize: 10, color: '#92400e', fontStyle: 'italic' }}>"{p.motivo_retrabalho}"</span>
                                         )}

@@ -262,7 +262,7 @@ export async function getPedidoComItens(id: number, incluirInativos = false) {
   // finalizada num setor mas ainda fisicamente lá, aguardando ir pro próximo) para
   // a rastreabilidade não "perder" a localização de itens já finalizados no setor.
   // Só exclui 'cancelada' (peça sucateada/reprovada, não deve aparecer como ativa).
-  let parciaisPorSetor: Record<number, { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean; motivo_retrabalho: string | null }[]> = {};
+  let parciaisPorSetor: Record<number, { setor: string; setor_nome: string; quantidade: string; unidade: string; status: string; retrabalho: boolean; motivo_retrabalho: string | null; maquina: string | null; operador: string | null }[]> = {};
   if (itemIds.length > 0) {
     const parcialRows = await sql`
       SELECT
@@ -271,13 +271,15 @@ export async function getPedidoComItens(id: number, incluirInativos = false) {
         pa.status,
         pa.retrabalho,
         pa.motivo_retrabalho,
+        pa.maquina,
+        pa.operador,
         SUM(pa.quantidade)::text AS quantidade,
         i2.unidade
       FROM producao_itemparcial pa
       JOIN producao_itempedido i2 ON i2.id = pa.item_pedido_id
       WHERE pa.item_pedido_id = ANY(${itemIds})
         AND pa.status != 'cancelada'
-      GROUP BY pa.item_pedido_id, pa.setor_atual, pa.status, pa.retrabalho, pa.motivo_retrabalho, i2.unidade
+      GROUP BY pa.item_pedido_id, pa.setor_atual, pa.status, pa.retrabalho, pa.motivo_retrabalho, pa.maquina, pa.operador, i2.unidade
       ORDER BY pa.item_pedido_id, pa.setor_atual
     `;
     for (const p of parcialRows) {
@@ -291,6 +293,8 @@ export async function getPedidoComItens(id: number, incluirInativos = false) {
         status: p.status as string,
         retrabalho: Boolean(p.retrabalho),
         motivo_retrabalho: p.motivo_retrabalho as string | null,
+        maquina: (p.maquina as string) || null,
+        operador: (p.operador as string) || null,
       });
     }
   }

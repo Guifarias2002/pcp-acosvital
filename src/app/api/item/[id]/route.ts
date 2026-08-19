@@ -155,6 +155,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       status: p.status,
       status_display: parcialStatusDisplay(p.status as string),
       observacao: p.observacao || null,
+      maquina: p.maquina || null,
+      operador: p.operador || null,
       criado_em: p.criado_em,
       atualizado_em: p.atualizado_em,
     })),

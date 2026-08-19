@@ -344,6 +344,16 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                 </span>
               </div>
               <p className="text-xs text-gray-400 mt-2">👤 {item.pedido_cliente}</p>
+              {(() => {
+                const parcialMaquina = item.parciais?.find(p => p.setor_atual === item.setor_atual && p.maquina);
+                if (!parcialMaquina) return null;
+                return (
+                  <p className="text-xs text-gray-500 mt-1">
+                    🔧 <span className="font-semibold text-gray-700">{parcialMaquina.maquina}</span>
+                    {parcialMaquina.operador && <> · Operador: <span className="font-semibold text-gray-700">{parcialMaquina.operador}</span></>}
+                  </p>
+                );
+              })()}
             </div>
 
             {/* Dados do item */}
