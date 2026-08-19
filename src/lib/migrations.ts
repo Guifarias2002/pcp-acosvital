@@ -253,4 +253,17 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   // quem inicia pode ser diferente de quem efetivamente opera a máquina.
   await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS maquina VARCHAR(60)`).catch(() => {});
   await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS operador VARCHAR(120)`).catch(() => {});
+
+  // M22: tempo de máquina preciso. `iniciado_em`/`concluido_em` já existiam pra
+  // OUTRO propósito (lead time da parcial no setor) e são reaproveitados em
+  // vários lugares — a parcial é a MESMA linha ao longo de vários ciclos
+  // devolver→receber→iniciar (só troca setor_atual, não cria linha nova), então
+  // `iniciado_em` fica "grudado" no primeiro início de sempre (COALESCE nunca
+  // reseta). Usar esses campos pra medir tempo de máquina contava tempo parado
+  // fora da Usinagem/Furação como se fosse produção. Colunas novas, dedicadas,
+  // fecham/abrem sessão em cada ação (ver rotas item/parcial "acao"):
+  // - maquina_sessao_iniciada_em: início da sessão ATUAL na máquina (null = sem sessão aberta)
+  // - maquina_segundos_acumulados: soma das sessões já fechadas (pausar/finalizar/mover/etc.)
+  await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS maquina_sessao_iniciada_em TIMESTAMPTZ`).catch(() => {});
+  await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS maquina_segundos_acumulados NUMERIC(12,0) NOT NULL DEFAULT 0`).catch(() => {});
 }

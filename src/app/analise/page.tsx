@@ -339,8 +339,10 @@ export default function AnalisePage() {
           <div className="card" style={{ padding: 0, overflowX: 'auto', marginBottom: 24 }}>
             <table style={tbl}><thead><tr>{['Líder', 'Setor', 'Etapas', 'Inícios', 'Total'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
               <tbody>{dados.lideres.slice(0, 10).map((l, i) => (
-                <tr key={i}><td style={{ ...td, fontWeight: 700 }}>{l.nome || '—'}</td><td style={td}>{nm(l.setor)}</td>
-                  <td style={tdR}>{fmt(l.finalizacoes)}</td><td style={tdR}>{fmt(l.inicios)}</td><td style={tdR}>{fmt(l.total_mov)}</td></tr>
+                <tr key={i}><td style={{ ...td, fontWeight: 700 }}>{l.nome || '—'}</td><td style={{ ...td, color: '#334155' }}>{nm(l.setor)}</td>
+                  <td style={{ ...tdR, color: '#334155', fontWeight: 400 }}>{fmt(l.finalizacoes)}</td>
+                  <td style={{ ...tdR, color: '#334155', fontWeight: 400 }}>{fmt(l.inicios)}</td>
+                  <td style={{ ...tdR, color: '#334155', fontWeight: 400 }}>{fmt(l.total_mov)}</td></tr>
               ))}</tbody></table>
           </div>
           </>)}
@@ -380,7 +382,7 @@ export default function AnalisePage() {
             <Kpi v={`~${fmt(capSemana)}`} l="peças finalizadas / semana (média)" cor={C.verde} />
             <Kpi v={`~${fmt(capMes)}`} l="projeção de peças / mês (ritmo atual)" cor={C.verde} />
             <Kpi v={`~${fmt(demSemana)}`} l="peças que entram / semana (demanda)" cor={C.azul} />
-            <Kpi v={`${saldoSemana > 0 ? '+' : ''}${fmt(saldoSemana)}`} l={saldoSemana > 0 ? 'entra mais do que sai (fila cresce)' : 'sai mais do que entra (fila cai)'} cor={saldoSemana > 0 ? C.vermelho : C.verde} />
+            <Kpi v={`${saldoSemana > 0 ? '▲' : '▼'} ${fmt(Math.abs(saldoSemana))}`} l={saldoSemana > 0 ? 'entra mais do que sai (fila cresce)' : 'sai mais do que entra (fila cai)'} cor={saldoSemana > 0 ? C.vermelho : C.verde} />
           </div>
           <div style={{ background: '#eff6ff', border: '1px solid #dbeafe', borderLeft: `3px solid ${C.azul}`, borderRadius: 10, padding: '12px 16px', fontSize: 12.5, color: '#334155', marginBottom: 28 }}>
             No ritmo médio do período, a fábrica finaliza <b>~{fmt(capSemana)} peças/semana</b> (~{fmt(capMes)}/mês). {saldoSemana > 0

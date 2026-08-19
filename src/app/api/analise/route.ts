@@ -215,15 +215,23 @@ export async function GET(req: Request) {
       GROUP BY 1,2,3 ORDER BY total_mov DESC LIMIT 15`;
 
     // ── 10.1 Apontamento por máquina/operador (Usinagem/Furação) ──────────────
-    // Tempo por máquina é corrido (iniciado_em até concluido_em, ou até agora se
-    // ainda em andamento) — mesma simplificação já usada no resto da tela (não
-    // desconta pausa), ver nota "Tempos são corridos" no rodapé da aba Geral.
+    // Tempo por máquina soma só sessões reais na máquina: maquina_segundos_acumulados
+    // (sessões já fechadas por pausar/finalizar/mover/etc.) + o trecho da sessão
+    // ainda aberta, se houver. NÃO usa iniciado_em/concluido_em — esses campos são
+    // reaproveitados pela MESMA linha de parcial ao longo de vários ciclos
+    // devolver→receber→iniciar (não geram linha nova), então ficam presos ao
+    // primeiríssimo início e contariam tempo parado fora da máquina como produção.
     const qMaquinas = sql`
       SELECT ip.maquina, ip.operador, ip.setor_atual AS setor,
              MAX(i.unidade) AS unidade,
              COUNT(*) AS inicios,
              COALESCE(SUM(ip.quantidade), 0) AS pecas,
-             SUM(EXTRACT(EPOCH FROM (COALESCE(ip.concluido_em, NOW()) - ip.iniciado_em))) AS segundos
+             SUM(
+               ip.maquina_segundos_acumulados
+               + CASE WHEN ip.maquina_sessao_iniciada_em IS NOT NULL
+                      THEN EXTRACT(EPOCH FROM (NOW() - ip.maquina_sessao_iniciada_em))
+                      ELSE 0 END
+             ) AS segundos
       FROM producao_itemparcial ip
       JOIN producao_itempedido i ON i.id = ip.item_pedido_id AND ${FLANGE}
       WHERE ip.maquina IS NOT NULL AND ip.iniciado_em BETWEEN ${de} AND ${ate}

@@ -103,6 +103,21 @@ async function handlePOST(
 
   const obs = body.observacao || '';
 
+  // Fecha qualquer sessão de máquina em aberto ANTES de rodar a ação — mesma
+  // lógica de /api/item/[id]/acao/[acao]: a parcial é reaproveitada em vários
+  // ciclos, então "iniciado_em" não serve pra medir tempo de máquina. "iniciar"
+  // abre a sessão e "retomar" reabre; qualquer outra ação que tire a parcial de
+  // em_andamento fecha a sessão aberta.
+  if (acao !== 'iniciar' && acao !== 'retomar' && temMaquinas(parcial.setor_atual)) {
+    await sql`
+      UPDATE producao_itemparcial
+      SET maquina_segundos_acumulados = maquina_segundos_acumulados
+            + GREATEST(0, EXTRACT(EPOCH FROM (NOW() - maquina_sessao_iniciada_em))),
+          maquina_sessao_iniciada_em = NULL
+      WHERE id = ${parcialId} AND maquina_sessao_iniciada_em IS NOT NULL
+    `;
+  }
+
   // ── mover ─────────────────────────────────────────────────────────────────
   if (acao === 'mover') {
     // Peso obrigatório ao sair da Embalagem: exige ao menos 1 pallet com peso > 0.
@@ -389,6 +404,7 @@ async function handlePOST(
         SET status = 'em_andamento', iniciado_em = COALESCE(iniciado_em, NOW()),
             maquina = COALESCE(${maquina || null}, maquina),
             operador = COALESCE(${operador || null}, operador),
+            maquina_sessao_iniciada_em = CASE WHEN ${maquina || null}::text IS NOT NULL THEN NOW() ELSE maquina_sessao_iniciada_em END,
             atualizado_em = NOW()
         WHERE id = ${parcialId}
       `;
@@ -683,6 +699,10 @@ async function handlePOST(
         SET status = 'em_andamento',
             concluido_em = NULL,
             iniciado_em = COALESCE(iniciado_em, NOW()),
+            maquina_sessao_iniciada_em = CASE
+              WHEN maquina IS NOT NULL AND maquina_sessao_iniciada_em IS NULL THEN NOW()
+              ELSE maquina_sessao_iniciada_em
+            END,
             atualizado_em = NOW()
         WHERE id = ${parcialId}
       `;

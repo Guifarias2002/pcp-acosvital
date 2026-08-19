@@ -236,6 +236,24 @@ async function handlePOST(
   const novoStatus = NOVO_STATUS[acao];
   const obs = body.observacao || '';
 
+  // Fecha qualquer sessão de máquina em aberto ANTES de rodar a ação — a
+  // parcial é a mesma linha reaproveitada em vários ciclos (devolver→receber→
+  // iniciar não cria linha nova), então "iniciado_em" não serve pra medir
+  // tempo de máquina (fica preso ao primeiríssimo início). "iniciar" abre a
+  // sessão (abaixo) e "retomar" reabre; toda outra ação que tira o item de
+  // em_andamento precisa fechar a sessão aberta, senão o tempo conta até agora
+  // mesmo com a peça parada em outro setor há dias.
+  if (acao !== 'iniciar' && acao !== 'retomar' && temMaquinas(item.setor_atual)) {
+    await sql`
+      UPDATE producao_itemparcial
+      SET maquina_segundos_acumulados = maquina_segundos_acumulados
+            + GREATEST(0, EXTRACT(EPOCH FROM (NOW() - maquina_sessao_iniciada_em))),
+          maquina_sessao_iniciada_em = NULL
+      WHERE item_pedido_id = ${item.id} AND setor_atual = ${item.setor_atual}
+        AND maquina_sessao_iniciada_em IS NOT NULL
+    `;
+  }
+
   // ── liberar ──────────────────────────────────────────────────────────────
   if (acao === 'liberar') {
     if (!proximoSetor)
@@ -844,13 +862,16 @@ async function handlePOST(
       `;
       const rIniciar = await tx`UPDATE producao_itempedido SET status='em_andamento', atualizado_em=NOW() WHERE id=${item.id} AND status=${item.status}`;
       if (rIniciar.count === 0) throw new Error(ERRO_CONCORRENCIA);
-      // Atualiza status da parcial e registra horário de início
+      // Atualiza status da parcial e registra horário de início. maquina_sessao_iniciada_em
+      // sempre reabre do zero (NOW(), não COALESCE) — é a sessão ATUAL na máquina,
+      // diferente de iniciado_em (que é o primeiro início de sempre, não reseta).
       await tx`
         UPDATE producao_itemparcial
         SET status = 'em_andamento',
             iniciado_em = COALESCE(iniciado_em, NOW()),
             maquina = COALESCE(${maquina || null}, maquina),
             operador = COALESCE(${operador || null}, operador),
+            maquina_sessao_iniciada_em = CASE WHEN ${maquina || null}::text IS NOT NULL THEN NOW() ELSE maquina_sessao_iniciada_em END,
             atualizado_em = NOW()
         WHERE item_pedido_id = ${item.id}
           AND setor_atual = ${item.setor_atual}
@@ -913,6 +934,19 @@ async function handlePOST(
           AND status = 'concluida'
           AND parcial_origem_id IS NULL
       `;
+      // Reabre a sessão de máquina (mesma máquina/operador de antes) pra quem
+      // tinha pausado/finalizado e está retomando o trabalho.
+      if (temMaquinas(item.setor_atual)) {
+        await tx`
+          UPDATE producao_itemparcial
+          SET maquina_sessao_iniciada_em = NOW()
+          WHERE item_pedido_id = ${item.id}
+            AND setor_atual = ${item.setor_atual}
+            AND maquina IS NOT NULL
+            AND maquina_sessao_iniciada_em IS NULL
+            AND status = 'em_andamento'
+        `;
+      }
     });
 
   // ── despachar ─────────────────────────────────────────────────────────────
