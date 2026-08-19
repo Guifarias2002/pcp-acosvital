@@ -23,6 +23,10 @@ export interface JWTPayload {
   // completo (que também libera financeiro, gestão de usuários, etc). Ver
   // `podeDesfazerRecebimento` abaixo.
   pode_desfazer_recebimento?: boolean;
+  // Permissão pontual pra VER a Análise PCP (indicadores) sem virar
+  // administrador. Só leitura — gerar fechamento semanal continua só admin.
+  // Ver `podeVerAnalise` abaixo.
+  pode_ver_analise?: boolean;
 }
 
 // Um vendedor "restrito" só pode ver/filtrar os próprios pedidos (por nome).
@@ -99,6 +103,14 @@ export function isAdministrador(u?: JWTPayload | null): boolean {
 export function podeDesfazerRecebimento(u?: JWTPayload | null): boolean {
   const user = u ?? getUser();
   return isAdministrador(user) || user?.pode_desfazer_recebimento === true;
+}
+
+// Pode VER a Análise PCP? Administrador sempre; além dele, usuários com a flag
+// `pode_ver_analise` marcada no cadastro (PCP/logística/líderes específicos),
+// sem precisar virar administrador completo. É só visualização.
+export function podeVerAnalise(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return isAdministrador(user) || user?.pode_ver_analise === true;
 }
 
 // Pode editar/agir no sistema? Falso apenas para usuários somente-leitura.

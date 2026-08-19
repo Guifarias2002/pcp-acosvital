@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
-import { isAdministrador } from '@/lib/auth';
+import { podeVerAnalise } from '@/lib/auth';
 import { withTimeout } from '@/lib/queryTimeout';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +17,7 @@ export async function GET(req: Request) {
   try {
     const user = await autenticar(req);
     if (user instanceof NextResponse) return user;
-    if (!isAdministrador(user)) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+    if (!podeVerAnalise(user)) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
     const url = new URL(req.url);
     const tipo = url.searchParams.get('tipo') || '';

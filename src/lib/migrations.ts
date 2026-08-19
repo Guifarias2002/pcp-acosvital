@@ -266,4 +266,11 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   // - maquina_segundos_acumulados: soma das sessões já fechadas (pausar/finalizar/mover/etc.)
   await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS maquina_sessao_iniciada_em TIMESTAMPTZ`).catch(() => {});
   await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS maquina_segundos_acumulados NUMERIC(12,0) NOT NULL DEFAULT 0`).catch(() => {});
+
+  // M23: permissão individual pra ver a Análise PCP — hoje é só administrador.
+  // PCP/logística/líderes específicos precisam ver os indicadores sem virar
+  // administrador completo. Mesmo padrão do M20 (pode_desfazer_recebimento):
+  // default false, marcado explicitamente por um admin. Gerar fechamento
+  // semanal continua só admin — quem tem essa flag apenas VISUALIZA.
+  await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS pode_ver_analise BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
 }

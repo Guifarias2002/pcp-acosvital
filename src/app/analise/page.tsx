@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import AuthGuard from '@/components/AuthGuard';
-import { getToken, isAdministrador } from '@/lib/auth';
+import { getToken, isAdministrador, podeVerAnalise } from '@/lib/auth';
 import { MAQUINAS_POR_SETOR, fotoMaquina } from '@/lib/maquinas';
 
 const NOMES: Record<string, string> = {
@@ -79,6 +79,7 @@ export default function AnalisePage() {
   const [maquinaSel, setMaquinaSel] = useState<string | null>(null);
   const [maqDet, setMaqDet] = useState<{ loading: boolean; rows: Rec[] } | null>(null);
   const admin = isAdministrador();
+  const podeVer = podeVerAnalise(); // admin OU usuário com a flag pode_ver_analise
 
   async function abrirDetalhe(tipo: string, chave: string, titulo: string) {
     setDetalhe({ titulo, loading: true, itens: [] });
@@ -102,7 +103,8 @@ export default function AnalisePage() {
     } catch (e) { setErro((e as Error).message); } finally { setLoading(false); }
   }, []);
 
-  // Fechamento semanal: backfill automático das semanas fechadas (POST) + lista
+  // Fechamento semanal: backfill automático das semanas fechadas (POST) + lista.
+  // Só admin — quem tem acesso só de leitura não gera, apenas lista (GET).
   const gerarFechamentos = useCallback(async () => {
     setGenLoad(true);
     try {
@@ -112,7 +114,16 @@ export default function AnalisePage() {
     } catch { /* silencioso — histórico é secundário */ } finally { setGenLoad(false); }
   }, []);
 
-  useEffect(() => { if (admin) { carregar(de, ate, setores); gerarFechamentos(); } /* eslint-disable-next-line */ }, [admin]);
+  // Só lista os fechamentos já gravados (GET) — pra quem tem acesso de leitura.
+  const listarFechamentos = useCallback(async () => {
+    try {
+      const res = await fetch('/api/analise/fechamento', { headers: { Authorization: `Bearer ${getToken() || ''}` } });
+      const j = await res.json();
+      if (res.ok) setFechamentos(j.fechamentos || []);
+    } catch { /* silencioso */ }
+  }, []);
+
+  useEffect(() => { if (podeVer) { carregar(de, ate, setores); if (admin) gerarFechamentos(); else listarFechamentos(); } /* eslint-disable-next-line */ }, [podeVer, admin]);
 
   // Detalhe por pedido/peça da máquina selecionada (modal de resumo).
   useEffect(() => {
@@ -142,10 +153,10 @@ export default function AnalisePage() {
     setDe(d); setAte(a); carregar(d, a, setores);
   }
 
-  if (!admin) return (
+  if (!podeVer) return (
     <AuthGuard><div style={{ padding: 40, textAlign: 'center', color: C.cinza }}>
       <i className="bi bi-lock-fill" style={{ fontSize: 32, color: C.vermelho }} />
-      <p style={{ marginTop: 12, fontWeight: 700 }}>Acesso restrito a administradores.</p>
+      <p style={{ marginTop: 12, fontWeight: 700 }}>Acesso restrito.</p>
     </div></AuthGuard>
   );
 
@@ -470,9 +481,9 @@ export default function AnalisePage() {
         {/* Fechamento semanal — histórico automático */}
         {aba === 'geral' && (<><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 8 }}>
           <SectionTitle icon="bi-calendar-week" t="Fechamento semanal (histórico)" s="Cada semana fechada é gravada automaticamente ao abrir esta tela" />
-          <button className="abtn no-print" disabled={genLoad} onClick={gerarFechamentos}>
+          {admin && <button className="abtn no-print" disabled={genLoad} onClick={gerarFechamentos}>
             <i className={`bi ${genLoad ? 'bi-hourglass-split' : 'bi-arrow-repeat'}`} style={{ marginRight: 6 }} />{genLoad ? 'Gerando…' : 'Gerar agora'}
-          </button>
+          </button>}
         </div>
         <div className="card" style={{ padding: 0, overflowX: 'auto', marginBottom: 40 }}>
           {fechamentos.length === 0 ? <Vazio /> : (
