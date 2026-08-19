@@ -44,6 +44,8 @@ import EntregarPedidoModal, { ItemEntrega } from '@/components/EntregarPedidoMod
 import DespacharModal from '@/components/DespacharModal';
 import IniciarEntregaModal from '@/components/IniciarEntregaModal';
 import DivergenciaResolucaoModal from '@/components/DivergenciaResolucaoModal';
+import IniciarProducaoModal from '@/components/IniciarProducaoModal';
+import { temMaquinas } from '@/lib/maquinas';
 import AdicionarItemPedidoModal from '@/components/AdicionarItemPedidoModal';
 import RastreioModal from '@/components/RastreioModal';
 import ObservacaoPedidoModal from '@/components/ObservacaoPedidoModal';
@@ -120,6 +122,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
   const { toast: toastItem, mostrar: mostrarErroItem, fechar: fecharToastItem } = useToast();
   const [loading, setLoading] = useState(false);
   const [showReceber, setShowReceber] = useState(false);
+  const [showIniciarProducao, setShowIniciarProducao] = useState(false);
   const [showParcial, setShowParcial] = useState(false);
   const [qtdParcial, setQtdParcial] = useState('');
   const [showDevolver, setShowDevolver] = useState(false);
@@ -151,7 +154,9 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
         await itemAcao(item.id, 'reprovar', { observacao: obs || 'Divergência reportada' });
       } else {
         await itemAcao(item.id, 'receber', { ...(qtd ? { quantidade: qtd } : {}), ...(obs ? { observacao: obs } : {}) });
-        if (decisao === 'iniciar') {
+        // Usinagem/Furação não iniciam automaticamente no recebimento — precisam
+        // escolher máquina+operador primeiro, via o botão "Iniciar" separado.
+        if (decisao === 'iniciar' && !temMaquinas(item.setor_atual)) {
           await itemAcao(item.id, 'iniciar', {});
         }
       }
@@ -301,7 +306,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
         )}
 
         {item.status === 'recebido' && item.setor_atual !== 'logistica' && (
-          <button onClick={() => acao('iniciar')} disabled={loading}
+          <button onClick={() => temMaquinas(item.setor_atual) ? setShowIniciarProducao(true) : acao('iniciar')} disabled={loading}
             style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
             {loading ? <i className="bi bi-hourglass-split" style={{ marginRight: 5 }}></i> : <i className="bi bi-play-fill" style={{ marginRight: 5 }}></i>}
             {loading ? 'Aguarde...' : 'Iniciar produção'}
@@ -425,13 +430,27 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
             const ant = idx > 0 ? rot[idx - 1] : null;
             return ant ? (NOMES[ant] || ant) : undefined;
           })()}
-          ocultarIniciar={item.setor_atual === 'logistica'}
+          ocultarIniciar={item.setor_atual === 'logistica' || temMaquinas(item.setor_atual)}
+          textoConfirmar={temMaquinas(item.setor_atual) ? { titulo: 'Confirmar recebimento', desc: 'Material recebido, escolha a máquina para iniciar' } : undefined}
           mostrarChecklist={item.setor_atual === 'caldeiraria'}
           loading={loading}
           onCancel={() => setShowReceber(false)}
           onConfirm={(decisao, qtd, obs) => {
             setShowReceber(false);
             receberFluxo(decisao, qtd, obs);
+          }}
+        />
+      )}
+
+      {/* Modal máquina/operador (Usinagem/Furação) */}
+      {item.status === 'recebido' && showIniciarProducao && (
+        <IniciarProducaoModal
+          setor={item.setor_atual}
+          loading={loading}
+          onCancel={() => setShowIniciarProducao(false)}
+          onConfirm={(maquina, operador) => {
+            setShowIniciarProducao(false);
+            acao('iniciar', { maquina, operador });
           }}
         />
       )}
@@ -654,6 +673,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [showNaoEntregue, setShowNaoEntregue] = useState(false);
   const [showDivQualidade, setShowDivQualidade] = useState(false);
   const [showReceberModal, setShowReceberModal] = useState(false);
+  const [showIniciarProducao, setShowIniciarProducao] = useState(false);
   const [qtdEnvio, setQtdEnvio] = useState('');
   const [setorDestino, setSetorDestino] = useState('');
   const [obsEnvio, setObsEnvio] = useState('');
@@ -1116,7 +1136,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
         )}
         {!isLogistica && isRecebido && (
           <>
-            <button onClick={() => acao('iniciar')} disabled={loading} style={btnStyle('#198754')}>
+            <button onClick={() => temMaquinas(parcial.setor_atual) ? setShowIniciarProducao(true) : acao('iniciar')} disabled={loading} style={btnStyle('#198754')}>
               <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Iniciar produção
             </button>
             <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
@@ -1421,12 +1441,14 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           itemDescricao={parcial.item_descricao}
           loading={loading}
           ocultarParcial
+          ocultarIniciar={temMaquinas(parcial.setor_atual)}
+          textoConfirmar={temMaquinas(parcial.setor_atual) ? { titulo: 'Confirmar recebimento', desc: 'Material recebido, escolha a máquina para iniciar' } : undefined}
           mostrarChecklist={parcial.setor_atual === 'caldeiraria'}
           onCancel={() => setShowReceberModal(false)}
           onConfirm={async (decisao, _qtd, obs) => {
             setShowReceberModal(false);
-            if (decisao === 'iniciar') { acao('iniciar', obs ? { observacao: obs } : {}); }
-            else if (decisao === 'preparar') {
+            if (decisao === 'iniciar' && !temMaquinas(parcial.setor_atual)) { acao('iniciar', obs ? { observacao: obs } : {}); }
+            else if (decisao === 'preparar' || decisao === 'iniciar') {
               setLoading(true);
               try {
                 await parcialAcao(parcial.id, 'receber', obs ? { observacao: obs } : {});
@@ -1435,6 +1457,19 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
               } catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
               finally { setLoading(false); }
             } else { acaoItem('reprovar', { observacao: obs || 'Divergência no recebimento' }); }
+          }}
+        />
+      )}
+
+      {/* Modal máquina/operador (Usinagem/Furação) */}
+      {isRecebido && showIniciarProducao && (
+        <IniciarProducaoModal
+          setor={parcial.setor_atual}
+          loading={loading}
+          onCancel={() => setShowIniciarProducao(false)}
+          onConfirm={(maquina, operador) => {
+            setShowIniciarProducao(false);
+            acao('iniciar', { maquina, operador });
           }}
         />
       )}
@@ -2008,9 +2043,15 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
         )}
         {!isLogistica && isRecebido && (
           <>
-            <button onClick={() => acaoTodos('iniciar')} disabled={loading} style={btnStyle('#198754')}>
-              <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Iniciar produção
-            </button>
+            {temMaquinas(p0.setor_atual) ? (
+              <span style={{ fontSize: 11, color: '#92400e', background: '#fef9c3', border: '1px solid #fbbf24', borderRadius: 5, padding: '5px 10px', fontWeight: 600 }}>
+                <i className="bi bi-info-circle" style={{ marginRight: 5 }} />Expanda acima, abra "Ver" e inicie cada parcial (escolhe a máquina)
+              </span>
+            ) : (
+              <button onClick={() => acaoTodos('iniciar')} disabled={loading} style={btnStyle('#198754')}>
+                <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Iniciar produção
+              </button>
+            )}
             <button onClick={() => { setShowEnviar(v => !v); setShowEnviarParcial(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
               <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
             </button>
@@ -2190,12 +2231,14 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
           itemDescricao={p0.item_descricao}
           loading={loading}
           ocultarParcial
+          ocultarIniciar={temMaquinas(p0.setor_atual)}
+          textoConfirmar={temMaquinas(p0.setor_atual) ? { titulo: 'Confirmar recebimento', desc: 'Material recebido — expanda e inicie cada parcial escolhendo a máquina' } : undefined}
           mostrarChecklist={p0.setor_atual === 'caldeiraria'}
           onCancel={() => setShowReceberModal(false)}
           onConfirm={async (decisao, _qtd, obs) => {
             setShowReceberModal(false);
-            if (decisao === 'iniciar') { acaoTodos('iniciar', obs ? { observacao: obs } : {}); }
-            else if (decisao === 'preparar') {
+            if (decisao === 'iniciar' && !temMaquinas(p0.setor_atual)) { acaoTodos('iniciar', obs ? { observacao: obs } : {}); }
+            else if (decisao === 'preparar' || decisao === 'iniciar') {
               setLoading(true);
               try {
                 const r = await parcialAcaoLote(parciais.map(p => p.id), 'receber', obs ? { observacao: obs } : {});

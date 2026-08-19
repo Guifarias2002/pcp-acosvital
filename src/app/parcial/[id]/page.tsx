@@ -16,6 +16,8 @@ import ConfirmModal from '@/components/ConfirmModal';
 import EntregarModal from '@/components/EntregarModal';
 import DespacharModal from '@/components/DespacharModal';
 import ReceberModal from '@/components/ReceberModal';
+import IniciarProducaoModal from '@/components/IniciarProducaoModal';
+import { temMaquinas } from '@/lib/maquinas';
 
 // Shape returned by GET /api/parcial/[id]
 interface ParcialDetalhe {
@@ -99,6 +101,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
   const [showDespachar, setShowDespachar] = useState(false);
   // Receber (em_aberto -> iniciar/recebido/divergencia) — mesmo modal do painel de setor
   const [showReceberModal, setShowReceberModal] = useState(false);
+  const [showIniciarProducao, setShowIniciarProducao] = useState(false);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -282,12 +285,25 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
           itemDescricao={parcial.item_descricao}
           loading={!!atuando}
           ocultarParcial
+          ocultarIniciar={temMaquinas(parcial.setor_atual)}
+          textoConfirmar={temMaquinas(parcial.setor_atual) ? { titulo: 'Confirmar recebimento', desc: 'Material recebido, escolha a máquina para iniciar' } : undefined}
           onCancel={() => setShowReceberModal(false)}
           onConfirm={async (decisao, _qtd, obs) => {
             setShowReceberModal(false);
-            if (decisao === 'iniciar') { executarAcao('iniciar'); }
-            else if (decisao === 'preparar') { executarAcao('receber'); }
+            if (decisao === 'iniciar' && !temMaquinas(parcial.setor_atual)) { executarAcao('iniciar'); }
+            else if (decisao === 'preparar' || decisao === 'iniciar') { executarAcao('receber'); }
             else { executarAcao('pausar', { observacao: obs || 'Divergência no recebimento' }); }
+          }}
+        />
+      )}
+      {isRecebido && showIniciarProducao && (
+        <IniciarProducaoModal
+          setor={parcial.setor_atual}
+          loading={!!atuando}
+          onCancel={() => setShowIniciarProducao(false)}
+          onConfirm={(maquina, operador) => {
+            setShowIniciarProducao(false);
+            executarAcao('iniciar', { maquina, operador });
           }}
         />
       )}
@@ -522,7 +538,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
               {/* RECEBIDO — recebida mas produção ainda não iniciada (via "receber sem iniciar" no painel de setor) */}
               {isRecebido && (
                 <>
-                  <button onClick={() => executarAcao('iniciar')} disabled={!!atuando}
+                  <button onClick={() => temMaquinas(parcial.setor_atual) ? setShowIniciarProducao(true) : executarAcao('iniciar')} disabled={!!atuando}
                     className="w-full bg-green-600 text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:bg-green-700 disabled:opacity-60">
                     {atuando === 'iniciar' ? '⏳ Iniciando...' : '▶ Iniciar produção'}
                   </button>

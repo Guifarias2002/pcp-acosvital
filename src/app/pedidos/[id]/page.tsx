@@ -9,6 +9,8 @@ import Link from 'next/link';
 import ConfirmModal from '@/components/ConfirmModal';
 import ReceberModal from '@/components/ReceberModal';
 import LiberarSetorModal from '@/components/LiberarSetorModal';
+import IniciarProducaoModal from '@/components/IniciarProducaoModal';
+import { temMaquinas } from '@/lib/maquinas';
 
 const NOMES = Object.fromEntries(SETOR_CHOICES);
 
@@ -71,6 +73,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const [erroCarregar, setErroCarregar] = useState<string | null>(null);
   const [liberando, setLiberando] = useState<number | null>(null);
   const [recebendo, setRecebendo] = useState<number | null>(null);
+  const [iniciandoProducao, setIniciandoProducao] = useState<number | null>(null);
   const [fazendo, setFazendo] = useState<{ itemId: number; acao: string } | null>(null);
   const [envParcial, setEnvParcial] = useState<{ itemId: number; qtd: string } | null>(null);
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void; perigo?: boolean } | null>(null);
@@ -338,7 +341,10 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
         await itemAcao(itemId, 'reprovar', { observacao: obs || 'Divergência reportada' });
       } else {
         await itemAcao(itemId, 'receber', qtdParcial ? { quantidade: qtdParcial } : {});
-        if (decisao === 'iniciar') {
+        // Usinagem/Furação não iniciam automaticamente no recebimento — precisam
+        // escolher máquina+operador primeiro, via o botão "Iniciar" separado.
+        const item = pedido?.itens.find(i => i.id === itemId);
+        if (decisao === 'iniciar' && !(item && temMaquinas(item.setor_atual))) {
           await itemAcao(itemId, 'iniciar', {});
         }
       }
@@ -455,11 +461,30 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
               quantidade={item.quantidade_pendente}
               unidade={item.unidade}
               setor={NOMES[item.setor_atual] || item.setor_atual}
+              ocultarIniciar={temMaquinas(item.setor_atual)}
+              textoConfirmar={temMaquinas(item.setor_atual) ? { titulo: 'Confirmar recebimento', desc: 'Material recebido, escolha a máquina para iniciar' } : undefined}
               loading={false}
               onCancel={() => setRecebendo(null)}
               onConfirm={(decisao, qtd, obs) => {
                 setRecebendo(null);
                 receberItem(item.id, decisao, qtd, obs);
+              }}
+            />
+          );
+        })()}
+
+        {/* Modal de máquina/operador (Usinagem/Furação) */}
+        {iniciandoProducao !== null && (() => {
+          const item = pedido.itens.find(i => i.id === iniciandoProducao);
+          if (!item) return null;
+          return (
+            <IniciarProducaoModal
+              setor={item.setor_atual}
+              loading={fazendo?.itemId === item.id}
+              onCancel={() => setIniciandoProducao(null)}
+              onConfirm={async (maquina, operador) => {
+                setIniciandoProducao(null);
+                await acaoSimples(item.id, 'iniciar', { maquina, operador });
               }}
             />
           );
@@ -812,7 +837,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                           <button className="btn btn-sm"
                             style={{ background: '#16a34a', color: '#fff', border: 'none' }}
                             disabled={fazendo?.itemId === item.id}
-                            onClick={() => acaoSimples(item.id, 'iniciar')}>
+                            onClick={() => temMaquinas(item.setor_atual) ? setIniciandoProducao(item.id) : acaoSimples(item.id, 'iniciar')}>
                             <i className="bi bi-play-fill" /> {fazendo?.itemId === item.id ? 'Aguarde...' : 'Iniciar'}
                           </button>
                         )}
