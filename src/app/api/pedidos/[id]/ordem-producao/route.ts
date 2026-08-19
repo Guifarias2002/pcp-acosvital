@@ -2,6 +2,21 @@ import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { b2Upload, b2Download, b2Delete, B2_CONFIGURADO } from '@/lib/b2';
+import { podeAcessarHrm, type JWTPayload } from '@/lib/auth';
+
+// PCP HRM (Anexar OP): usuário com acesso_hrm (sem ser staff) pode anexar/remover
+// a OP só enquanto o pedido ainda não tem nenhum item ativo — ou seja, é um
+// pedido "casca" recém-criado pela tela HRM, antes da Conferência (que é do
+// PCP/staff). Depois que o pedido ganha itens, volta a exigir is_staff, o que
+// protege os anexos do Flange (sempre têm item).
+async function podeMexerNoAnexo(user: JWTPayload, pedidoId: number): Promise<boolean> {
+  if (user.is_staff) return true;
+  if (!podeAcessarHrm(user)) return false;
+  const [{ tem_item }] = await sql`
+    SELECT EXISTS(SELECT 1 FROM producao_itempedido WHERE pedido_id = ${pedidoId} AND inativo = false) AS tem_item
+  `;
+  return !tem_item;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -90,11 +105,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   try {
     const user = await autenticar(req);
     if (user instanceof NextResponse) return user;
-    if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
     const pedidoId = Number(params.id);
     if (!Number.isInteger(pedidoId) || pedidoId <= 0)
       return NextResponse.json({ erro: 'ID inválido' }, { status: 400 });
+
+    if (!(await podeMexerNoAnexo(user, pedidoId)))
+      return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
     if (!B2_CONFIGURADO)
       return NextResponse.json({ erro: 'Armazenamento de anexos não configurado. Avise o TI.' }, { status: 500 });
@@ -138,11 +155,13 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   try {
     const user = await autenticar(req);
     if (user instanceof NextResponse) return user;
-    if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
     const pedidoId = Number(params.id);
     if (!Number.isInteger(pedidoId) || pedidoId <= 0)
       return NextResponse.json({ erro: 'ID inválido' }, { status: 400 });
+
+    if (!(await podeMexerNoAnexo(user, pedidoId)))
+      return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
     const rows = await sql`SELECT ordem_producao_url FROM producao_pedido WHERE id = ${pedidoId}`;
     const storagePath: string | null = rows[0]?.ordem_producao_url ?? null;

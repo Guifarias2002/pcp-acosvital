@@ -4,7 +4,7 @@ import { autenticar, logAcesso } from '@/lib/middleware';
 import { formatPedido } from '@/lib/queries';
 import { SETOR_CHOICES, FABRICAS, TIPOS_PRODUTO_CALDEIRARIA } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
-import { vendedorRestrito } from '@/lib/auth';
+import { vendedorRestrito, podeAcessarHrm } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 // Timeout estendido (lista paginada + agregações). Migrado do vercel.json
@@ -158,7 +158,11 @@ export async function POST(req: Request) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   logAcesso(user, req, 'criar_pedido');
-  if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  // PCP HRM (Anexar OP): usuário com acesso_hrm (sem ser staff) pode criar o
+  // pedido casca, item-less — os itens só nascem na Conferência (fase futura,
+  // ver [[project_pcp_hrm_caldeiraria]]). Validado com detalhe abaixo, depois
+  // de ler o corpo (precisa conferir roteiro_base + itens vazios).
+  if (!user.is_staff && !podeAcessarHrm(user)) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   if (!checkMutationRateLimit(getClientIp(req)))
     return NextResponse.json({ erro: 'Muitas requisições. Aguarde um momento.' }, { status: 429 });
@@ -187,7 +191,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: 'Roteiro base obrigatorio' }, { status: 400 });
     if (roteiro_base.some((s: unknown) => typeof s !== 'string' || !SETORES_VALIDOS.includes(s)))
       return NextResponse.json({ erro: 'Setor invalido no roteiro' }, { status: 400 });
-    if (!Array.isArray(itens) || itens.length === 0)
+
+    // Pedido "casca" do PCP HRM (Anexar OP): sem item, roteiro fixo — é o
+    // único caso em que itens vazio é aceito, e é o único caso em que um
+    // usuário sem is_staff (só acesso_hrm) pode chegar até aqui.
+    const isPedidoHrm = Array.isArray(roteiro_base) && roteiro_base.length === 2 &&
+      roteiro_base[0] === 'emissao' && roteiro_base[1] === 'caldeiraria' &&
+      Array.isArray(itens) && itens.length === 0;
+    if (!user.is_staff && !isPedidoHrm)
+      return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+    if (!Array.isArray(itens) || (itens.length === 0 && !isPedidoHrm))
       return NextResponse.json({ erro: 'Pelo menos um item obrigatorio' }, { status: 400 });
     for (const item of itens) {
       if (!item?.codigo?.toString().trim())
@@ -236,11 +249,15 @@ export async function POST(req: Request) {
       }
 
       // Evento pra alerta de tela cheia (ADM/PCP) — um único aviso por pedido criado.
-      await tx`
-        INSERT INTO producao_movimentacaoitem
-          (item_id, pedido_id, usuario_id, setor_destino, status_novo, observacao, criado_em)
-        VALUES (${primeiroItemId}, ${pedido.id}, ${user.id}, ${roteiro_base[0]}, 'criado', 'Pedido criado', NOW())
-      `;
+      // Pedido HRM item-less não tem item_id pra gravar (a coluna não é opcional);
+      // o aviso volta quando a Conferência der itens de verdade ao pedido.
+      if (primeiroItemId !== null) {
+        await tx`
+          INSERT INTO producao_movimentacaoitem
+            (item_id, pedido_id, usuario_id, setor_destino, status_novo, observacao, criado_em)
+          VALUES (${primeiroItemId}, ${pedido.id}, ${user.id}, ${roteiro_base[0]}, 'criado', 'Pedido criado', NOW())
+        `;
+      }
 
       await tx`
         UPDATE producao_pedido
