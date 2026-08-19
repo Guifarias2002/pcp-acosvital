@@ -78,6 +78,7 @@ export default function AnalisePage() {
   const [detalhe, setDetalhe] = useState<{ titulo: string; loading: boolean; itens: Rec[] } | null>(null);
   const [aba, setAba] = useState<'geral' | 'homem' | 'maquina'>('geral');
   const [maquinaSel, setMaquinaSel] = useState<string | null>(null);
+  const [maqDet, setMaqDet] = useState<{ loading: boolean; rows: Rec[] } | null>(null);
   const admin = isAdministrador();
 
   async function abrirDetalhe(tipo: string, chave: string, titulo: string) {
@@ -113,6 +114,19 @@ export default function AnalisePage() {
   }, []);
 
   useEffect(() => { if (admin) { carregar(de, ate, setores); gerarFechamentos(); } /* eslint-disable-next-line */ }, [admin]);
+
+  // Detalhe por pedido/peça da máquina selecionada (modal de resumo).
+  useEffect(() => {
+    if (!maquinaSel) { setMaqDet(null); return; }
+    let cancel = false;
+    setMaqDet({ loading: true, rows: [] });
+    const q = new URLSearchParams({ tipo: 'maquina', chave: maquinaSel, de, ate });
+    fetch(`/api/analise/detalhe?${q}`, { headers: { Authorization: `Bearer ${getToken() || ''}` } })
+      .then(r => r.json())
+      .then(d => { if (!cancel) setMaqDet({ loading: false, rows: (d.itens as Rec[]) || [] }); })
+      .catch(() => { if (!cancel) setMaqDet({ loading: false, rows: [] }); });
+    return () => { cancel = true; };
+  }, [maquinaSel, de, ate]);
 
   function atalhoSemana(offset: number) {
     const seg = segundaDaSemana(hoje); seg.setDate(seg.getDate() - offset * 7);
@@ -398,7 +412,7 @@ export default function AnalisePage() {
               const totalPecas = dados.maquinas.reduce((s, mq) => s + Number(mq.pecas || 0), 0);
               const totalSegundos = dados.maquinas.reduce((s, mq) => s + Number(mq.segundos || 0), 0);
               return (
-                <table style={tbl}><thead><tr>{['Máquina', 'Operador', 'Setor', 'Inícios', 'Peças', 'Tempo total'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                <table style={tbl}><thead><tr>{['Máquina', 'Operador', 'Setor', 'Inícios', 'Peças', 'Tempo total', 'Tempo médio/peça'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
                   <tbody>
                     {dados.maquinas.map((mq, i) => {
                       const src = fotoMaquina(mq.maquina);
@@ -412,12 +426,14 @@ export default function AnalisePage() {
                       </td><td style={td}>{mq.operador || '—'}</td><td style={td}>{nm(mq.setor)}</td>
                         <td style={tdR}>{fmt(mq.inicios)}</td>
                         <td style={{ ...tdR, fontWeight: 700, color: C.azul }}>{fmt(mq.pecas)} {mq.unidade || 'un'}</td>
-                        <td style={tdR}>{fmtHorasMin(mq.segundos)}</td></tr>
+                        <td style={tdR}>{fmtHorasMin(mq.segundos)}</td>
+                        <td style={tdR}>{Number(mq.pecas) > 0 ? fmtHorasMin(Number(mq.segundos) / Number(mq.pecas)) : '—'}</td></tr>
                     );})}
                     <tr>
                       <td style={{ ...td, fontWeight: 800, color: C.azul }} colSpan={4}>Total</td>
                       <td style={{ ...tdR, fontWeight: 800, color: C.azul }}>{fmt(totalPecas)}</td>
                       <td style={{ ...tdR, fontWeight: 800, color: C.azul }}>{fmtHorasMin(totalSegundos)}</td>
+                      <td style={{ ...tdR, fontWeight: 800, color: C.azul }}>{totalPecas > 0 ? fmtHorasMin(totalSegundos / totalPecas) : '—'}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -533,6 +549,11 @@ export default function AnalisePage() {
           const totIni = rows.reduce((s, m) => s + Number(m.inicios || 0), 0);
           const unidade = rows[0]?.unidade || 'un';
           const setor = rows[0]?.setor;
+          const detRows = maqDet?.rows || [];
+          const detLoading = maqDet?.loading ?? true;
+          const totPedidos = new Set(detRows.map(r => r.pv)).size;
+          const medPeca = totPecas > 0 ? totSeg / totPecas : null;
+          const medPedido = totPedidos > 0 ? totSeg / totPedidos : null;
           return (
             <div onClick={() => setMaquinaSel(null)} className="no-print"
               style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -551,20 +572,46 @@ export default function AnalisePage() {
                   ) : (<>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
                       <MiniKpi v={`${fmt(totPecas)} ${unidade}`} l="Peças produzidas" />
-                      <MiniKpi v={fmtHorasMin(totSeg)} l="Tempo total" />
+                      <MiniKpi v={fmtHorasMin(totSeg)} l="Tempo total (ativo)" />
                       <MiniKpi v={fmt(totIni)} l="Inícios" />
+                      <MiniKpi v={medPeca == null ? '—' : fmtHorasMin(medPeca)} l="Tempo médio/peça" />
+                      <MiniKpi v={detLoading ? '…' : fmt(totPedidos)} l="Pedidos" />
+                      <MiniKpi v={detLoading ? '…' : (medPedido == null ? '—' : fmtHorasMin(medPedido))} l="Tempo médio/pedido" />
                     </div>
                     <div style={cardTitle}>Por operador</div>
-                    <table style={tbl}><thead><tr>{['Operador', 'Inícios', 'Peças', 'Tempo'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                    <table style={tbl}><thead><tr>{['Operador', 'Inícios', 'Peças', 'Tempo', 'Médio/peça'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
                       <tbody>{rows.map((m, i) => (
                         <tr key={i}>
                           <td style={{ ...td, fontWeight: 700 }}>{m.operador || '—'}</td>
                           <td style={tdR}>{fmt(m.inicios)}</td>
                           <td style={{ ...tdR, fontWeight: 700, color: C.azul }}>{fmt(m.pecas)} {m.unidade || 'un'}</td>
                           <td style={tdR}>{fmtHorasMin(m.segundos)}</td>
+                          <td style={tdR}>{Number(m.pecas) > 0 ? fmtHorasMin(Number(m.segundos) / Number(m.pecas)) : '—'}</td>
                         </tr>
                       ))}</tbody>
                     </table>
+                    <div style={{ ...cardTitle, marginTop: 18 }}>Por pedido / peça</div>
+                    {detLoading ? (
+                      <div style={{ padding: 16, textAlign: 'center', color: C.cinza, fontSize: 13 }}><i className="bi bi-hourglass-split" /> Carregando…</div>
+                    ) : detRows.length === 0 ? (
+                      <p style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', margin: '8px 0' }}>Sem peças no período.</p>
+                    ) : (
+                      <table style={tbl}><thead><tr>{['PV', 'Código', 'Qtd', 'Operador', 'Tempo', 'Médio/peça'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                        <tbody>{detRows.map((r, i) => {
+                          const seg = Number(r.segundos || 0); const qt = Number(r.quantidade || 0);
+                          return (
+                            <tr key={i}>
+                              <td style={td}><code>{r.pv}</code>{String(r.em_andamento) === 'true' && <span title="Sessão ainda aberta — tempo contando ao vivo" style={{ marginLeft: 6, color: C.laranja, fontSize: 11, fontWeight: 700 }}>● em andamento</span>}</td>
+                              <td style={td}>{r.codigo}</td>
+                              <td style={tdR}>{fmt(r.quantidade)} {r.unidade || 'un'}</td>
+                              <td style={td}>{r.operador || '—'}</td>
+                              <td style={tdR}>{fmtHorasMin(seg)}</td>
+                              <td style={tdR}>{qt > 0 ? fmtHorasMin(seg / qt) : '—'}</td>
+                            </tr>
+                          );
+                        })}</tbody>
+                      </table>
+                    )}
                   </>)}
                 </div>
               </div>

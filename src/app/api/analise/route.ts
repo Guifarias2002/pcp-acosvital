@@ -225,6 +225,7 @@ export async function GET(req: Request) {
       SELECT ip.maquina, ip.operador, ip.setor_atual AS setor,
              MAX(i.unidade) AS unidade,
              COUNT(*) AS inicios,
+             COUNT(DISTINCT i.pedido_id) AS pedidos,
              COALESCE(SUM(ip.quantidade), 0) AS pecas,
              SUM(
                ip.maquina_segundos_acumulados

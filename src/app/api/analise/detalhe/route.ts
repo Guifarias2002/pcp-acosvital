@@ -69,6 +69,24 @@ export async function GET(req: Request) {
           WHEN i.descricao ILIKE '%FLANGE%' THEN 'Outro flange'
           ELSE 'Não classificado' END) = ${chave}
         ORDER BY i.quantidade DESC`;
+    } else if (tipo === 'maquina') {
+      // Cada peça (parcial) que passou pela máquina `chave` no período, com o
+      // tempo ativo de máquina (mesma conta do apontamento: acumulado + sessão
+      // aberta). Ordenado do mais recente pro mais antigo.
+      q = sql`
+        SELECT p.numero_pedido_venda AS pv, p.cliente, i.codigo, LEFT(i.descricao,44) AS descricao,
+               ip.quantidade, i.unidade, ip.operador, ip.setor_atual AS setor,
+               ip.iniciado_em::text AS iniciado_em,
+               (ip.maquina_segundos_acumulados
+                 + CASE WHEN ip.maquina_sessao_iniciada_em IS NOT NULL
+                        THEN EXTRACT(EPOCH FROM (NOW() - ip.maquina_sessao_iniciada_em))
+                        ELSE 0 END)::int AS segundos,
+               (ip.maquina_sessao_iniciada_em IS NOT NULL) AS em_andamento
+        FROM producao_itemparcial ip
+        JOIN producao_itempedido i ON i.id = ip.item_pedido_id AND ${FLANGE}
+        JOIN producao_pedido p ON p.id = i.pedido_id
+        WHERE ip.maquina = ${chave} AND ip.iniciado_em BETWEEN ${de} AND ${ate}
+        ORDER BY ip.iniciado_em DESC`;
     } else {
       return NextResponse.json({ erro: 'tipo inválido' }, { status: 400 });
     }
