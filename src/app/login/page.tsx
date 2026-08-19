@@ -22,6 +22,10 @@ export default function LoginPage() {
         router.replace('/tela');
       } else if (user?.perfil === 'lider' && user?.setor) {
         router.replace('/tela');
+      } else if (user?.acesso_hrm && !user?.is_staff && !user?.setor) {
+        // Perfil restrito PCP HRM (ex.: Alan, Adilson) — só usa "Anexar OP",
+        // não tem setor nem faz sentido cair no Dashboard geral.
+        router.replace('/pcp-hrm');
       } else {
         router.replace('/');
       }

@@ -46,10 +46,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  let payload: { is_staff?: boolean; perfil?: string; setor?: string; setores?: string[] } = {};
+  let payload: { is_staff?: boolean; perfil?: string; setor?: string; setores?: string[]; acesso_hrm?: boolean } = {};
   try {
     const { payload: p } = await jwtVerify(tokenCookie, secret);
-    payload = p as { is_staff?: boolean; perfil?: string; setor?: string; setores?: string[] };
+    payload = p as { is_staff?: boolean; perfil?: string; setor?: string; setores?: string[]; acesso_hrm?: boolean };
   } catch {
     return NextResponse.redirect(new URL('/login', req.url));
   }
@@ -67,6 +67,12 @@ export async function middleware(req: NextRequest) {
   // Redirecionar operadores da raiz para o painel do próprio setor
   if (!isAdmin && meuSetor && pathname === '/') {
     return NextResponse.redirect(new URL(`/setor/${meuSetor}`, req.url));
+  }
+
+  // Perfil restrito PCP HRM (ex.: Alan, Adilson): sem setor, sem staff, só a
+  // flag acesso_hrm — a raiz (Dashboard) não se aplica a esse perfil.
+  if (!isAdmin && !meuSetor && payload.acesso_hrm && pathname === '/') {
+    return NextResponse.redirect(new URL('/pcp-hrm', req.url));
   }
 
   // Vendedor não tem setor e não deve ver o dashboard geral de produção — vai

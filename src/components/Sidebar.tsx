@@ -141,6 +141,12 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
   }
   const emAcosvital = !isAdmin || workspace === 'acosvital';
   const emHrm = !!isAdmin && workspace === 'hrm';
+  // Perfil restrito do PCP HRM (ex.: Alan, Adilson): não-staff, sem setor
+  // nenhum, só com a flag acesso_hrm — o papel dele é só "Anexar OP", então
+  // "Geral" (Dashboard/Todos os Pedidos, pensados pro sistema Flange) não se
+  // aplica e só gerava tela de erro. Quem também tem setor (operador comum
+  // com a flag) continua vendo tudo normalmente.
+  const restritoHrm = !isAdmin && !!user?.acesso_hrm && meusSetores.length === 0;
 
   const wsBtn = (active: boolean): React.CSSProperties => ({
     flex: 1, padding: '5px 8px', borderRadius: 6, cursor: 'pointer', fontSize: 11.5,
@@ -184,28 +190,30 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
           </div>
         </div>
         <nav>
-          <NavGroup label="Geral">
-            {!isVendedor && <NavItem href="/" label="Dashboard" icon="bi-speedometer2" onNav={fechar} />}
-            <NavItem href="/pedidos" label={vendedorRestrito(user) ? 'Meus Pedidos' : 'Todos os Pedidos'} icon="bi-list-ul" onNav={fechar} />
-            {isAdmin && (
-              <>
-                <NavItem href="/kanban" label="Kanban" icon="bi-kanban" onNav={fechar} />
-                <NavItem href="/por-lider" label="Por Líder" icon="bi-people-fill" onNav={fechar} />
-                {isSuperAdmin && <NavItem href="/analise" label="Análise PCP" icon="bi-graph-up-arrow" onNav={fechar} />}
-                <NavItem href="/emitidos" label="Em Produção" icon="bi-send-fill" onNav={fechar} />
+          {!restritoHrm && (
+            <NavGroup label="Geral">
+              {!isVendedor && <NavItem href="/" label="Dashboard" icon="bi-speedometer2" onNav={fechar} />}
+              <NavItem href="/pedidos" label={vendedorRestrito(user) ? 'Meus Pedidos' : 'Todos os Pedidos'} icon="bi-list-ul" onNav={fechar} />
+              {isAdmin && (
+                <>
+                  <NavItem href="/kanban" label="Kanban" icon="bi-kanban" onNav={fechar} />
+                  <NavItem href="/por-lider" label="Por Líder" icon="bi-people-fill" onNav={fechar} />
+                  {isSuperAdmin && <NavItem href="/analise" label="Análise PCP" icon="bi-graph-up-arrow" onNav={fechar} />}
+                  <NavItem href="/emitidos" label="Em Produção" icon="bi-send-fill" onNav={fechar} />
+                  <NavItem href="/entregues" label="Entregues" icon="bi-check-circle" onNav={fechar} />
+                  <NavItem href="/divergencias" label="Divergências" icon="bi-exclamation-triangle" onNav={fechar} />
+                  <a href="/tv/movimentacoes" target="_blank" rel="noopener noreferrer" className="nav-link" title="Abre em nova aba — pra deixar ligado numa TV/monitor">
+                    <i className="bi bi-tv-fill"></i>
+                    <span>TV Movimentação</span>
+                  </a>
+                </>
+              )}
+              {/* Responsável pela Logística também acessa Entregues, sem o resto das telas admin. */}
+              {!isAdmin && meusSetores.includes('logistica') && (
                 <NavItem href="/entregues" label="Entregues" icon="bi-check-circle" onNav={fechar} />
-                <NavItem href="/divergencias" label="Divergências" icon="bi-exclamation-triangle" onNav={fechar} />
-                <a href="/tv/movimentacoes" target="_blank" rel="noopener noreferrer" className="nav-link" title="Abre em nova aba — pra deixar ligado numa TV/monitor">
-                  <i className="bi bi-tv-fill"></i>
-                  <span>TV Movimentação</span>
-                </a>
-              </>
-            )}
-            {/* Responsável pela Logística também acessa Entregues, sem o resto das telas admin. */}
-            {!isAdmin && meusSetores.includes('logistica') && (
-              <NavItem href="/entregues" label="Entregues" icon="bi-check-circle" onNav={fechar} />
-            )}
-          </NavGroup>
+              )}
+            </NavGroup>
+          )}
 
           {/* PCP HRM — Anexar OP. Admin/PCP vê no workspace HRM; usuário comum
               com a flag acesso_hrm vê sempre (sem seletor de workspace). */}
