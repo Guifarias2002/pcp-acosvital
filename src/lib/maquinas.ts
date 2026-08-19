@@ -39,6 +39,10 @@ export const FOTOS_MAQUINA: Record<string, string> = {
   'GU800-INDEX': '/maquinas/gu800-index.jpg',
   'CNC-GFG250': '/maquinas/cnc-gfg250.jpg',
   'GFG450-INDEX': '/maquinas/gfg450-index.jpg',
+  'DIS560-ROMI': '/maquinas/dis560-romi.jpg',
+  'FAMUP-MCX700': '/maquinas/famup-mcx700.jpg',
+  'RHOTAN-001': '/maquinas/rhotan-001.jpg',
+  'Travis': '/maquinas/travis.jpg',
 };
 
 export function fotoMaquina(nome?: string | null): string | undefined {
