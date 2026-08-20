@@ -345,16 +345,12 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
               <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 4 }}>
                 <span style={{ fontSize: 11, color: '#374151', fontWeight: 700 }}>Depois de cortar, encaminhar todos para:</span>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button onClick={() => !loading && item.proximo_setor && setConfirm({ titulo: 'Enviar para Flanges', mensagem: `Confirma o envio de TODOS os itens para ${NOMES[item.proximo_setor] || item.proximo_setor}?`, acao: () => acao('enviar_tudo', { setor_destino: item.proximo_setor }) })} disabled={loading || !item.proximo_setor}
-                    style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: (loading || !item.proximo_setor) ? 'not-allowed' : 'pointer', opacity: !item.proximo_setor ? 0.5 : 1 }}>
-                    <i className="bi bi-nut" style={{ marginRight: 5 }} />Flanges{item.proximo_setor ? ` → ${NOMES[item.proximo_setor] || item.proximo_setor}` : ''}
-                  </button>
                   <button onClick={() => !loading && setConfirm({ titulo: 'Enviar para Caldeiraria', mensagem: 'Confirma o envio de TODOS os itens para Caldeiraria (Recebimento)?', acao: () => acao('enviar_tudo', { setor_destino: 'caldeiraria' }) })} disabled={loading}
                     style={{ background: '#b45309', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
                     <i className="bi bi-hammer" style={{ marginRight: 5 }} />Caldeiraria → Recebimento
                   </button>
                 </div>
-                <span style={{ fontSize: 10, color: '#9ca3af' }}>ou escolha outro setor manualmente abaixo:</span>
+                <span style={{ fontSize: 10, color: '#9ca3af' }}>ou pro Flange — escolha o setor abaixo (já vem com o próximo do roteiro) e clique em &quot;Enviar tudo&quot;:</span>
               </div>
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1539,19 +1535,13 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
       {/* Painel enviar para setor */}
       {showEnviar && (
         <div style={{ marginTop: 10, background: foraDoRoteiro ? '#fffbeb' : '#f8f9fa', border: foraDoRoteiro ? '1.5px solid #f59e0b' : 'none', borderRadius: 6, padding: '10px 12px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
-          {/* Corte: operador escolhe pra qual fábrica a peça segue */}
+          {/* Corte: operador escolhe pra qual fábrica a peça segue. Caldeiraria =
+              botão direto (destino único). Flanges = seletor de setor abaixo (já
+              vem com o próximo do roteiro pré-selecionado, mas dá pra trocar). */}
           {SETORES_CORTE.includes(parcial.setor_atual) && (
             <div style={{ width: '100%', marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
               <span style={{ fontSize: 11, color: '#374151', fontWeight: 700 }}>Depois de cortar, encaminhar para:</span>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button onClick={() => {
-                  if (!parcial.proximo_setor) { mostrarErroParcial('Este item não tem próximo setor no roteiro do Flange. Use "outro setor" abaixo.'); return; }
-                  acao('mover', { setor_destino: parcial.proximo_setor, quantidade: Number(qtdEnvio) || Number(parcial.quantidade), ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
-                  setShowEnviar(false); setObsEnvio('');
-                }} disabled={loading || !parcial.proximo_setor}
-                  style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: (loading || !parcial.proximo_setor) ? 'not-allowed' : 'pointer', opacity: !parcial.proximo_setor ? 0.5 : 1 }}>
-                  <i className="bi bi-nut" style={{ marginRight: 5 }} />Flanges{parcial.proximo_setor ? ` → ${NOMES[parcial.proximo_setor] || parcial.proximo_setor}` : ''}
-                </button>
                 <button onClick={() => {
                   acao('mover', { setor_destino: 'caldeiraria', quantidade: Number(qtdEnvio) || Number(parcial.quantidade), ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
                   setShowEnviar(false); setObsEnvio('');
@@ -1560,7 +1550,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
                   <i className="bi bi-hammer" style={{ marginRight: 5 }} />Caldeiraria → Recebimento
                 </button>
               </div>
-              <span style={{ fontSize: 10, color: '#9ca3af' }}>ou escolha outro setor manualmente abaixo:</span>
+              <span style={{ fontSize: 10, color: '#9ca3af' }}>ou pro Flange — escolha o setor abaixo (já vem com o próximo do roteiro) e clique em &quot;Confirmar envio&quot;:</span>
             </div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 140 }}>
@@ -2291,19 +2281,13 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
       {/* Painel enviar */}
       {showEnviar && (
         <div style={{ marginTop: 10, background: foraDoRoteiroGrupo ? '#fffbeb' : '#f8f9fa', border: foraDoRoteiroGrupo ? '1.5px solid #f59e0b' : 'none', borderRadius: 6, padding: '10px 12px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
-          {/* Corte: operador escolhe pra qual fábrica a peça segue */}
+          {/* Corte: operador escolhe pra qual fábrica a peça segue. Caldeiraria =
+              botão direto (destino único). Flanges = seletor de setor abaixo (já
+              vem com o próximo do roteiro pré-selecionado, mas dá pra trocar). */}
           {SETORES_CORTE.includes(p0.setor_atual) && (
             <div style={{ width: '100%', marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
               <span style={{ fontSize: 11, color: '#374151', fontWeight: 700 }}>Depois de cortar, encaminhar para:</span>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button onClick={() => {
-                  if (!p0.proximo_setor) { mostrarErroGrupo('Este item não tem próximo setor no roteiro do Flange. Use "outro setor" abaixo.'); return; }
-                  acaoTodos('mover', { setor_destino: p0.proximo_setor, ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
-                  setShowEnviar(false); setObsEnvio('');
-                }} disabled={loading || !p0.proximo_setor}
-                  style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: (loading || !p0.proximo_setor) ? 'not-allowed' : 'pointer', opacity: !p0.proximo_setor ? 0.5 : 1 }}>
-                  <i className="bi bi-nut" style={{ marginRight: 5 }} />Flanges{p0.proximo_setor ? ` → ${NOMES[p0.proximo_setor] || p0.proximo_setor}` : ''}
-                </button>
                 <button onClick={() => {
                   acaoTodos('mover', { setor_destino: 'caldeiraria', ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
                   setShowEnviar(false); setObsEnvio('');
@@ -2312,7 +2296,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
                   <i className="bi bi-hammer" style={{ marginRight: 5 }} />Caldeiraria → Recebimento
                 </button>
               </div>
-              <span style={{ fontSize: 10, color: '#9ca3af' }}>ou escolha outro setor manualmente abaixo:</span>
+              <span style={{ fontSize: 10, color: '#9ca3af' }}>ou pro Flange — escolha o setor abaixo (já vem com o próximo do roteiro) e clique em &quot;Confirmar envio&quot;:</span>
             </div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 140 }}>
