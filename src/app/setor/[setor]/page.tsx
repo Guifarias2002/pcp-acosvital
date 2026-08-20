@@ -3410,8 +3410,32 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                     // fundia os dois num só card (somando quantidade e agindo em lote nos
                     // dois juntos) — errado. Por item, cada linha fica separada.
 
+                    // Resumo de relance pro cabeçalho azul: prioridade, prazo e
+                    // situação das parciais (produzindo / na fila / chegando / pausado / retrabalho).
+                    const p0Ped = parciais[0] as ItemParcial | undefined;
+                    const prioPed = (p0Ped?.prioridade || '').toLowerCase();
+                    const prioUrgente = prioPed === 'urgente';
+                    const cont = { prod: 0, fila: 0, pausado: 0, fin: 0, retr: 0, chegando: 0 };
+                    for (const p of parciais) {
+                      if (p.retrabalho) cont.retr++;
+                      if (p.status === 'em_andamento') cont.prod++;
+                      else if (p.status === 'em_aberto') cont.chegando++;
+                      else if (p.status === 'recebido') cont.fila++;
+                      else if (p.status === 'pausado') cont.pausado++;
+                      else if (p.status === 'finalizado_setor') cont.fin++;
+                    }
+                    const prazoPed = p0Ped?.pedido_prazo;
+                    let prazoInfo: { cor: string; txt: string } | null = null;
+                    if (prazoPed) {
+                      const dias = Math.ceil((new Date(prazoPed + 'T12:00:00').getTime() - Date.now()) / 86400000);
+                      prazoInfo = {
+                        cor: dias < 0 ? '#ef4444' : dias <= 3 ? '#f59e0b' : '#22c55e',
+                        txt: dias < 0 ? `Atrasado ${Math.abs(dias)}d` : dias === 0 ? 'Vence hoje' : `Prazo: ${dias}d`,
+                      };
+                    }
+
                     return (
-                      <div key={pedido_id} className="setor-pedido-grupo" style={{ border: '2px solid #dde3f0', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+                      <div key={pedido_id} className={`setor-pedido-grupo${prioUrgente ? ' pcp-pulse' : ''}`} style={{ border: `2px solid ${prioUrgente ? '#ef4444' : '#dde3f0'}`, borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
                         {/* Cabeçalho do pedido — clicável para colapsar/expandir */}
                         <div
                           className="setor-pedido-header"
@@ -3427,6 +3451,50 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                           <span style={{ fontSize: 11, opacity: 0.65, marginLeft: 4 }}>
                             {parciais.length} {parciais.length > 1 ? 'parciais' : 'parcial'}
                             {grupos.length > 1 ? ` · ${grupos.length} itens` : ''}
+                          </span>
+                          {/* Chips de relance: prioridade · prazo · situação das parciais */}
+                          <span style={{ display: 'inline-flex', gap: 5, flexWrap: 'wrap', alignItems: 'center', marginLeft: 6 }}>
+                            {(prioPed === 'urgente' || prioPed === 'alta') && (
+                              <span className={prioPed === 'urgente' ? 'pcp-blink' : undefined}
+                                style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20, background: prioPed === 'urgente' ? '#ef4444' : '#f59e0b', color: '#fff', textTransform: 'uppercase', letterSpacing: .5, whiteSpace: 'nowrap' }}>
+                                {prioPed === 'urgente' ? '🔴 Urgente' : '⬆ Alta'}
+                              </span>
+                            )}
+                            {prazoInfo && (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: prazoInfo.cor, color: '#fff', whiteSpace: 'nowrap' }}>
+                                ⏰ {prazoInfo.txt}
+                              </span>
+                            )}
+                            {cont.chegando > 0 && (
+                              <span className="pcp-blink" style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#fbbf24', color: '#1a1a1a', whiteSpace: 'nowrap' }}>
+                                📥 {cont.chegando} chegando
+                              </span>
+                            )}
+                            {cont.prod > 0 && (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'rgba(34,197,94,.25)', color: '#bbf7d0', border: '1px solid rgba(34,197,94,.55)', whiteSpace: 'nowrap' }}>
+                                ▶ {cont.prod} produzindo
+                              </span>
+                            )}
+                            {cont.fila > 0 && (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'rgba(255,255,255,.15)', color: '#fff', whiteSpace: 'nowrap' }}>
+                                ⏳ {cont.fila} na fila
+                              </span>
+                            )}
+                            {cont.pausado > 0 && (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'rgba(251,146,60,.25)', color: '#fed7aa', border: '1px solid rgba(251,146,60,.55)', whiteSpace: 'nowrap' }}>
+                                ⏸ {cont.pausado} pausado
+                              </span>
+                            )}
+                            {cont.retr > 0 && (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#f97316', color: '#fff', whiteSpace: 'nowrap' }}>
+                                ⚠ {cont.retr} retrabalho
+                              </span>
+                            )}
+                            {cont.fin > 0 && (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'rgba(34,197,94,.9)', color: '#fff', whiteSpace: 'nowrap' }}>
+                                ✅ {cont.fin} pronto
+                              </span>
+                            )}
                           </span>
                           {/* Resumo da embalagem consolidada na propria barra azul */}
                           {(() => {
