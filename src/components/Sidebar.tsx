@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { logout, getUser, vendedorRestrito } from '@/lib/auth';
+import { logout, getUser, vendedorRestrito, podeVerAnalise } from '@/lib/auth';
 import { SETOR_CHOICES, NOMES, SETORES_CALDEIRARIA_MENU, SETORES_EXCLUSIVOS_CALDEIRARIA } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { JWTPayload } from '@/lib/auth';
@@ -114,6 +114,9 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
 
   const isAdmin = user?.is_staff;
   const isSuperAdmin = user?.perfil === 'administrador' || (user?.is_staff && user?.perfil !== 'pcp' && user?.perfil !== 'lider');
+  // Ver a Análise PCP: admin OU usuário com a flag pode_ver_analise (mesma
+  // regra da página/API). Fora do bloco só-admin pra funcionar pra não-admin.
+  const podeVer = podeVerAnalise(user);
   const isVendedor = !isAdmin && user?.perfil === 'vendedor';
   const meuSetor = user?.setor;
   // Setores que o operador pode acessar (múltiplos). Fallback pro setor único.
@@ -194,11 +197,13 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
             <NavGroup label="Geral">
               {!isVendedor && <NavItem href="/" label="Dashboard" icon="bi-speedometer2" onNav={fechar} />}
               <NavItem href="/pedidos" label={vendedorRestrito(user) ? 'Meus Pedidos' : 'Todos os Pedidos'} icon="bi-list-ul" onNav={fechar} />
+              {/* Análise PCP — liberada por is_staff/admin OU pela flag pode_ver_analise
+                  (fora do bloco só-admin abaixo, pra aparecer também pra não-admin). */}
+              {podeVer && <NavItem href="/analise" label="Análise PCP" icon="bi-graph-up-arrow" onNav={fechar} />}
               {isAdmin && (
                 <>
                   <NavItem href="/kanban" label="Kanban" icon="bi-kanban" onNav={fechar} />
                   <NavItem href="/por-lider" label="Por Líder" icon="bi-people-fill" onNav={fechar} />
-                  {isSuperAdmin && <NavItem href="/analise" label="Análise PCP" icon="bi-graph-up-arrow" onNav={fechar} />}
                   <NavItem href="/emitidos" label="Em Produção" icon="bi-send-fill" onNav={fechar} />
                   <NavItem href="/entregues" label="Entregues" icon="bi-check-circle" onNav={fechar} />
                   <NavItem href="/divergencias" label="Divergências" icon="bi-exclamation-triangle" onNav={fechar} />
