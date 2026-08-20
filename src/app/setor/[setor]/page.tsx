@@ -337,6 +337,26 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
 
         {item.status === 'finalizado_setor' && item.setor_atual !== 'logistica' && (
           <>
+            {/* Corte (maçarico/plasma/laser/serra): mesma escolha de fábrica dos
+                fluxos de parcial — pra enviar o item INTEIRO pra Flanges ou pra
+                Caldeiraria de uma vez, sem precisar dividir. O seletor manual
+                abaixo continua valendo como "outro setor". */}
+            {SETORES_CORTE.includes(item.setor_atual) && (
+              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: '#374151', fontWeight: 700 }}>Depois de cortar, encaminhar todos para:</span>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button onClick={() => !loading && item.proximo_setor && setConfirm({ titulo: 'Enviar para Flanges', mensagem: `Confirma o envio de TODOS os itens para ${NOMES[item.proximo_setor] || item.proximo_setor}?`, acao: () => acao('enviar_tudo', { setor_destino: item.proximo_setor }) })} disabled={loading || !item.proximo_setor}
+                    style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: (loading || !item.proximo_setor) ? 'not-allowed' : 'pointer', opacity: !item.proximo_setor ? 0.5 : 1 }}>
+                    <i className="bi bi-nut" style={{ marginRight: 5 }} />Flanges{item.proximo_setor ? ` → ${NOMES[item.proximo_setor] || item.proximo_setor}` : ''}
+                  </button>
+                  <button onClick={() => !loading && setConfirm({ titulo: 'Enviar para Caldeiraria', mensagem: 'Confirma o envio de TODOS os itens para Caldeiraria (Recebimento)?', acao: () => acao('enviar_tudo', { setor_destino: 'caldeiraria' }) })} disabled={loading}
+                    style={{ background: '#b45309', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
+                    <i className="bi bi-hammer" style={{ marginRight: 5 }} />Caldeiraria → Recebimento
+                  </button>
+                </div>
+                <span style={{ fontSize: 10, color: '#9ca3af' }}>ou escolha outro setor manualmente abaixo:</span>
+              </div>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 12, color: '#666', whiteSpace: 'nowrap' }}>Enviar para:</span>
               <select value={setorDestinoEnvio || item.proximo_setor || ''} onChange={e => setSetorDestinoEnvio(e.target.value)}
