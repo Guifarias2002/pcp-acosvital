@@ -3383,22 +3383,25 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
             const pedidos = Array.from(pedidoMap.values());
 
             // Programação (PCP analítico): ordena os cards pela ordem sugerida de
-            // produção — 1º urgente/alta, depois menor prazo (atrasado primeiro),
-            // e por fim FIFO (quem chegou primeiro ao setor). O nº no cantinho do
-            // card segue essa ordem, então o topo é "faça este agora".
+            // produção. Critério (nesta ordem): 1º PRAZO (atrasado/mais próximo
+            // primeiro — manda mais que a prioridade), 2º prioridade urgente/alta,
+            // 3º MENORES primeiro (menos peças limpa a fila mais rápido), 4º FIFO
+            // (quem chegou primeiro ao setor). O nº no cantinho segue essa ordem.
             const prioRank: Record<string, number> = { urgente: 0, alta: 1, normal: 2, baixa: 3 };
             const chaveProg = (grp: { parciais: ItemParcial[] }) => {
               const p0 = grp.parciais[0];
               const prio = prioRank[(p0?.prioridade || 'normal').toLowerCase()] ?? 2;
               const prazo = p0?.pedido_prazo ? new Date(p0.pedido_prazo + 'T12:00:00').getTime() : Infinity;
+              const pecas = grp.parciais.reduce((s, p) => s + (Number(p.quantidade) || 0), 0);
               const chegada = Math.min(...grp.parciais.map(p => new Date(p.criado_em).getTime()));
-              return { prio, prazo, chegada };
+              return { prio, prazo, pecas, chegada };
             };
             pedidos.sort((a, b) => {
               const sa = chaveProg(a), sb = chaveProg(b);
-              if (sa.prio !== sb.prio) return sa.prio - sb.prio;
-              if (sa.prazo !== sb.prazo) return sa.prazo - sb.prazo;
-              return sa.chegada - sb.chegada;
+              if (sa.prazo !== sb.prazo) return sa.prazo - sb.prazo;   // 1º prazo
+              if (sa.prio !== sb.prio) return sa.prio - sb.prio;       // 2º prioridade
+              if (sa.pecas !== sb.pecas) return sa.pecas - sb.pecas;   // 3º menores primeiro
+              return sa.chegada - sb.chegada;                          // 4º FIFO
             });
 
             const totalPedidos = pedidos.length;
@@ -3410,7 +3413,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                   <i className="bi bi-diagram-3-fill" style={{ marginRight: 6 }} />
                   Itens Parciais ({totalPedidos} {totalPedidos !== totalParciais ? `· ${totalParciais} parciais` : ''})
                   <span style={{ marginLeft: 8, fontWeight: 400, textTransform: 'none', fontSize: 10, color: '#64748b' }}>
-                    peças enviadas parcialmente para este setor · <b>ordem sugerida (nº no card)</b>: urgência → prazo → chegada
+                    peças enviadas parcialmente para este setor · <b>ordem sugerida (nº no card)</b>: prazo → urgência → menores → chegada
                   </span>
                 </div>
 
