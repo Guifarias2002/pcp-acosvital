@@ -3381,6 +3381,26 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
               pedidoMap.get(p.pedido_id)!.parciais.push(p);
             }
             const pedidos = Array.from(pedidoMap.values());
+
+            // Programação (PCP analítico): ordena os cards pela ordem sugerida de
+            // produção — 1º urgente/alta, depois menor prazo (atrasado primeiro),
+            // e por fim FIFO (quem chegou primeiro ao setor). O nº no cantinho do
+            // card segue essa ordem, então o topo é "faça este agora".
+            const prioRank: Record<string, number> = { urgente: 0, alta: 1, normal: 2, baixa: 3 };
+            const chaveProg = (grp: { parciais: ItemParcial[] }) => {
+              const p0 = grp.parciais[0];
+              const prio = prioRank[(p0?.prioridade || 'normal').toLowerCase()] ?? 2;
+              const prazo = p0?.pedido_prazo ? new Date(p0.pedido_prazo + 'T12:00:00').getTime() : Infinity;
+              const chegada = Math.min(...grp.parciais.map(p => new Date(p.criado_em).getTime()));
+              return { prio, prazo, chegada };
+            };
+            pedidos.sort((a, b) => {
+              const sa = chaveProg(a), sb = chaveProg(b);
+              if (sa.prio !== sb.prio) return sa.prio - sb.prio;
+              if (sa.prazo !== sb.prazo) return sa.prazo - sb.prazo;
+              return sa.chegada - sb.chegada;
+            });
+
             const totalPedidos = pedidos.length;
             const totalParciais = todasParciais.length;
 
@@ -3390,12 +3410,12 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                   <i className="bi bi-diagram-3-fill" style={{ marginRight: 6 }} />
                   Itens Parciais ({totalPedidos} {totalPedidos !== totalParciais ? `· ${totalParciais} parciais` : ''})
                   <span style={{ marginLeft: 8, fontWeight: 400, textTransform: 'none', fontSize: 10, color: '#64748b' }}>
-                    peças enviadas parcialmente para este setor
+                    peças enviadas parcialmente para este setor · <b>ordem sugerida (nº no card)</b>: urgência → prazo → chegada
                   </span>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {pedidos.map(({ pedido_id, numero_pedido_venda, parciais }) => {
+                  {pedidos.map(({ pedido_id, numero_pedido_venda, parciais }, ordemIdx) => {
                     // Agrupar parciais do pedido por item_pedido_id
                     const itemMap = new Map<number, ItemParcial[]>();
                     for (const p of parciais) {
@@ -3446,6 +3466,11 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                           })}
                           style={{ background: '#1a3a5c', color: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}
                         >
+                          {/* Nº de sequência da programação (PCP): ordem sugerida de produção */}
+                          <span title="Ordem sugerida de produção (prioridade → prazo → chegada)"
+                            style={{ flexShrink: 0, minWidth: 24, height: 24, padding: '0 6px', borderRadius: 12, background: prioUrgente ? '#ef4444' : '#fff', color: prioUrgente ? '#fff' : '#1a3a5c', fontWeight: 800, fontSize: 13, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,.3)' }}>
+                            {ordemIdx + 1}
+                          </span>
                           <i className="bi bi-folder2-open" style={{ fontSize: 15 }} />
                           <span style={{ fontWeight: 700, fontSize: 15 }}>Pedido de Venda {numero_pedido_venda}</span>
                           <span style={{ fontSize: 11, opacity: 0.65, marginLeft: 4 }}>
