@@ -3112,6 +3112,10 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const [recebendoTudo, setRecebendoTudo] = useState<Set<number>>(new Set());
   const [enviandoTudo, setEnviandoTudo] = useState<Set<number>>(new Set());
   const [desfazendoTudo, setDesfazendoTudo] = useState<Set<number>>(new Set());
+  // "Enviar Tudo" do pedido inteiro: qual pedido está com o seletor de setor
+  // aberto e qual setor foi escolhido (aplicado a TODAS as parciais enviáveis).
+  const [enviarTudoAberto, setEnviarTudoAberto] = useState<number | null>(null);
+  const [enviarTudoSetor, setEnviarTudoSetor] = useState<string>('');
   const podeDesfazer = podeDesfazerRecebimento();
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
   const [modalRastreio, setModalRastreio] = useState<{ pedidoId: number; numero: string } | null>(null);
@@ -3503,26 +3507,15 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             );
                             if (enviaveis.length === 0) return null;
                             const carregando = enviandoTudo.has(pedido_id);
-                            const executarEnvioTudo = async () => {
-                              setEnviandoTudo(prev => new Set(prev).add(pedido_id));
-                              try {
-                                for (const p of enviaveis) {
-                                  await parcialAcao(p.id, 'mover', { setor_destino: p.proximo_setor, quantidade: Number(p.quantidade) });
-                                }
-                                carregar();
-                              } catch { /* carregar mesmo assim */ carregar(); }
-                              finally { setEnviandoTudo(prev => { const s = new Set(prev); s.delete(pedido_id); return s; }); }
-                            };
                             return (
                               <button
                                 disabled={carregando}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setConfirm({
-                                    titulo: 'Enviar tudo',
-                                    mensagem: `Confirma o envio de ${enviaveis.length} ${enviaveis.length > 1 ? 'parciais' : 'parcial'} deste pedido para o próximo setor?`,
-                                    acao: executarEnvioTudo,
-                                  });
+                                  // Abre o seletor de setor (default = próximo do 1º enviável;
+                                  // o usuário/operador escolhe pra onde encaminhar todos).
+                                  setEnviarTudoSetor(enviaveis[0]?.proximo_setor || '');
+                                  setEnviarTudoAberto(prev => prev === pedido_id ? null : pedido_id);
                                 }}
                                 style={{ marginLeft: recebiveisCheck ? 0 : 'auto', background: carregando ? '#4a6fa5' : '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 700, cursor: carregando ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
                               >
@@ -3619,6 +3612,53 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             );
                           })()}
                         </div>
+                        {/* Painel "Enviar Tudo" do pedido — escolher o setor destino
+                            aplicado a TODAS as parciais enviáveis (qualquer setor). */}
+                        {enviarTudoAberto === pedido_id && podeEditar() && (() => {
+                          const enviaveis = parciais.filter(p =>
+                            ['recebido', 'em_andamento', 'pausado', 'finalizado_setor'].includes(p.status)
+                            && p.proximo_setor
+                            && p.setor_atual !== 'logistica'
+                          );
+                          if (enviaveis.length === 0) return null;
+                          const carregando = enviandoTudo.has(pedido_id);
+                          const executarEnvioTudo = async (destino: string) => {
+                            if (!destino) return;
+                            setEnviarTudoAberto(null);
+                            setEnviandoTudo(prev => new Set(prev).add(pedido_id));
+                            try {
+                              for (const p of enviaveis) {
+                                await parcialAcao(p.id, 'mover', { setor_destino: destino, quantidade: Number(p.quantidade) });
+                              }
+                              carregar();
+                            } catch { /* carregar mesmo assim */ carregar(); }
+                            finally { setEnviandoTudo(prev => { const s = new Set(prev); s.delete(pedido_id); return s; }); }
+                          };
+                          return (
+                            <div style={{ background: '#f0f7ff', borderBottom: '1px solid #cfe0f2', padding: '10px 16px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 180 }}>
+                                <label style={{ fontSize: 11, color: '#1a3a5c', fontWeight: 700 }}>
+                                  Encaminhar as {enviaveis.length} {enviaveis.length > 1 ? 'parciais' : 'parcial'} para o setor:
+                                </label>
+                                <select value={enviarTudoSetor} onChange={e => setEnviarTudoSetor(e.target.value)}
+                                  style={{ border: '1px solid #b6d4fe', borderRadius: 5, padding: '6px 8px', fontSize: 12, background: '#fff' }}>
+                                  <option value="">Selecione o setor...</option>
+                                  {destinosEnvio(setor).map(([cod, nome]) => (
+                                    <option key={cod} value={cod}>{nome}{cod === enviaveis[0]?.proximo_setor ? ' (próximo no roteiro)' : ''}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <button disabled={carregando || !enviarTudoSetor} onClick={() => executarEnvioTudo(enviarTudoSetor)}
+                                style={{ background: (carregando || !enviarTudoSetor) ? '#93a7c4' : '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: (carregando || !enviarTudoSetor) ? 'not-allowed' : 'pointer' }}>
+                                <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Confirmar envio
+                              </button>
+                              <button onClick={() => setEnviarTudoAberto(null)}
+                                style={{ background: 'none', border: '1px solid #cfe0f2', borderRadius: 5, padding: '7px 12px', fontSize: 12, color: '#666', cursor: 'pointer' }}>
+                                Cancelar
+                              </button>
+                            </div>
+                          );
+                        })()}
                         {/* Resumo consolidado da Embalagem por pedido — opção adicional,
                             SEMPRE logo abaixo do cabeçalho (independe de expandir o pedido).
                             Não substitui o peso por parcial. */}
