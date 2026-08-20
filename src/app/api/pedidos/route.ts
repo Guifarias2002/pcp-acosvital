@@ -177,14 +177,27 @@ export async function POST(req: Request) {
             prioridade, roteiro_base, observacoes, itens } = body;
     pvSubmetido = numero_pedido_venda?.toString().trim() || '';
 
+    // Pedido "casca" do PCP HRM (Anexar OP): sem item, roteiro fixo
+    // emissao→caldeiraria. É o único caso em que itens vazio é aceito, o único
+    // em que um usuário sem is_staff (só acesso_hrm) chega até aqui — e o único
+    // em que o prazo pode vir em branco ("Sem prazo até o momento" na tela HRM;
+    // o PCP define o prazo real na Conferência).
+    const isPedidoHrm = Array.isArray(roteiro_base) && roteiro_base.length === 2 &&
+      roteiro_base[0] === 'emissao' && roteiro_base[1] === 'caldeiraria' &&
+      Array.isArray(itens) && itens.length === 0;
+
     if (!numero_pedido_venda?.toString().trim())
       return NextResponse.json({ erro: 'Numero do pedido obrigatorio' }, { status: 400 });
     if (!numero_op?.toString().trim())
       return NextResponse.json({ erro: 'Numero da Ordem de Producao (OP) obrigatorio' }, { status: 400 });
     if (!cliente?.toString().trim())
       return NextResponse.json({ erro: 'Cliente obrigatorio' }, { status: 400 });
-    if (!prazo_entrega || !/^\d{4}-\d{2}-\d{2}$/.test(prazo_entrega))
+    // Prazo: quando vem preenchido tem que ser YYYY-MM-DD. Obrigatório no fluxo
+    // normal; opcional no pedido casca HRM (pode ficar em branco).
+    if (prazo_entrega && !/^\d{4}-\d{2}-\d{2}$/.test(prazo_entrega))
       return NextResponse.json({ erro: 'Prazo de entrega invalido (YYYY-MM-DD)' }, { status: 400 });
+    if (!isPedidoHrm && !prazo_entrega)
+      return NextResponse.json({ erro: 'Prazo de entrega obrigatorio (YYYY-MM-DD)' }, { status: 400 });
     if (!PRIORIDADES_VALIDAS.includes(prioridade))
       return NextResponse.json({ erro: 'Prioridade invalida' }, { status: 400 });
     if (!Array.isArray(roteiro_base) || roteiro_base.length === 0)
@@ -192,12 +205,6 @@ export async function POST(req: Request) {
     if (roteiro_base.some((s: unknown) => typeof s !== 'string' || !SETORES_VALIDOS.includes(s)))
       return NextResponse.json({ erro: 'Setor invalido no roteiro' }, { status: 400 });
 
-    // Pedido "casca" do PCP HRM (Anexar OP): sem item, roteiro fixo — é o
-    // único caso em que itens vazio é aceito, e é o único caso em que um
-    // usuário sem is_staff (só acesso_hrm) pode chegar até aqui.
-    const isPedidoHrm = Array.isArray(roteiro_base) && roteiro_base.length === 2 &&
-      roteiro_base[0] === 'emissao' && roteiro_base[1] === 'caldeiraria' &&
-      Array.isArray(itens) && itens.length === 0;
     if (!user.is_staff && !isPedidoHrm)
       return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
     if (!Array.isArray(itens) || (itens.length === 0 && !isPedidoHrm))
@@ -218,7 +225,7 @@ export async function POST(req: Request) {
            data_emissao, criado_por_id, criado_em, atualizado_em)
         VALUES (
           ${numero_pedido_venda}, ${numero_op.toString().trim()}, ${cliente}, ${vendedor || ''},
-          ${prazo_entrega}, ${prioridade}, ${roteiro_base},
+          ${prazo_entrega || null}, ${prioridade}, ${roteiro_base},
           ${observacoes || ''}, 'emitido', ${roteiro_base[0] || ''},
           (NOW() AT TIME ZONE 'America/Sao_Paulo')::date, ${user.id}, NOW(), NOW()
         )
