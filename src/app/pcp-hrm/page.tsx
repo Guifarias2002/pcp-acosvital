@@ -26,6 +26,10 @@ export default function PcpHrmPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
+  // Guarda o id do pedido já criado: se o anexo falhar depois de criar o
+  // pedido, o reenvio reaproveita esse id em vez de criar outro (evita PV
+  // duplicado) e a tela oferece um link pra abrir o pedido.
+  const [criadoId, setCriadoId] = useState<number | null>(null);
 
   const [origem, setOrigem] = useState<Origem>('totvs');
   const [numero, setNumero] = useState('');
@@ -125,28 +129,35 @@ export default function PcpHrmPage() {
     setErro('');
     setLoading(true);
     try {
-      // Número é opcional (pode vir depois). Sem número, gera um provisório
-      // que o PCP troca pelo real na conferência.
-      const num = numero.trim() || `PCP-HRM-${Date.now()}`;
+      // Se o pedido já foi criado numa tentativa anterior (o anexo é que
+      // falhou), reaproveita o mesmo id em vez de criar de novo — senão o PV
+      // repetido cairia em duplicata (409) e travaria o reenvio do anexo.
+      let id = criadoId;
+      if (id == null) {
+        // Número é opcional (pode vir depois). Sem número, gera um provisório
+        // que o PCP troca pelo real na conferência.
+        const num = numero.trim() || `PCP-HRM-${Date.now()}`;
 
-      const linhasObs = [
-        `Origem: ${origemLabel[origem]}`,
-        `Fábrica: ${fabricaLabel[fabrica]}`,
-        obs.trim(),
-      ].filter(Boolean).join('\n');
+        const linhasObs = [
+          `Origem: ${origemLabel[origem]}`,
+          `Fábrica: ${fabricaLabel[fabrica]}`,
+          obs.trim(),
+        ].filter(Boolean).join('\n');
 
-      const res = await criarPedido({
-        numero_pedido_venda: num,
-        numero_op: numero.trim() || num,
-        cliente: cliente.trim() || 'A definir',
-        vendedor: '',
-        prazo_entrega: semPrazo ? '' : prazo,
-        prioridade: 'normal',
-        roteiro_base: ['emissao', 'caldeiraria'],
-        observacoes: linhasObs,
-        itens: [],
-      });
-      const id: number = res.id;
+        const res = await criarPedido({
+          numero_pedido_venda: num,
+          numero_op: numero.trim() || num,
+          cliente: cliente.trim() || 'A definir',
+          vendedor: '',
+          prazo_entrega: semPrazo ? '' : prazo,
+          prioridade: 'normal',
+          roteiro_base: ['emissao', 'caldeiraria'],
+          observacoes: linhasObs,
+          itens: [],
+        });
+        id = res.id as number;
+        setCriadoId(id);
+      }
 
       // Anexa a OP (mesmo mecanismo do Flange: Backblaze via ordem-producao).
       if (arquivo) {
@@ -158,7 +169,11 @@ export default function PcpHrmPage() {
         });
         if (!up.ok) {
           const d = await up.json().catch(() => ({}));
-          setErro(`Ordem criada, mas o anexo falhou: ${d.erro || up.status}. Você pode anexar depois na tela do pedido.`);
+          // NÃO navega: fica na tela pra pessoa VER o aviso. O pedido já existe,
+          // então clicar em "Enviar para Emissão" de novo só repete o anexo
+          // (sem duplicar o pedido), e há o link "Abrir o pedido" no aviso.
+          setErro(`O pedido foi criado, mas o anexo da OP falhou: ${d.erro || up.status}. Clique em "Enviar para Emissão" de novo pra tentar reenviar, ou abra o pedido e anexe por lá.`);
+          return;
         }
       }
 
@@ -224,6 +239,13 @@ export default function PcpHrmPage() {
         {erro && (
           <div style={{ background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626', borderRadius:8, padding:'10px 14px', fontSize:13, marginBottom:16, maxWidth:760 }}>
             <i className="bi bi-exclamation-circle" style={{ marginRight:6 }} />{erro}
+            {criadoId != null && (
+              <div style={{ marginTop:8 }}>
+                <a href={`/pedidos/${criadoId}`} style={{ color:'#1a3a5c', fontWeight:700, textDecoration:'underline' }}>
+                  Abrir o pedido criado →
+                </a>
+              </div>
+            )}
           </div>
         )}
 
