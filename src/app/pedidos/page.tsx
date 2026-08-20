@@ -61,6 +61,18 @@ function PedidosPageInner() {
   function abrirRastreio(pedidoId: number, numero: string) {
     setModalRastreio({ pedidoId, numero });
   }
+
+  // Relatório imprimível de pedidos + materiais por mês de emissão (só admin/PCP).
+  const mesAtual = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; })();
+  const [showImprimir, setShowImprimir] = useState(false);
+  const [impTodos, setImpTodos] = useState(false);
+  const [impDe, setImpDe] = useState(mesAtual);
+  const [impAte, setImpAte] = useState(mesAtual);
+  function abrirRelatorioPedidos() {
+    const qs = impTodos ? 'todos=1' : `de=${impDe}&ate=${impAte}`;
+    window.open(`/relatorio/pedidos?${qs}`, '_blank', 'noopener');
+    setShowImprimir(false);
+  }
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const _u = getUser();
   const editavel = podeEditar(_u);
@@ -215,6 +227,14 @@ function PedidosPageInner() {
           }}>
             <i className="bi bi-file-earmark-excel" style={{ marginRight: 4 }}></i>Excel
           </button>
+          {isAdmin && (
+            <button onClick={() => setShowImprimir(true)} style={{
+              border: '1px solid #1a3a5c', color: '#1a3a5c', background: 'none',
+              borderRadius: 5, padding: '5px 14px', fontSize: 12, cursor: 'pointer', fontWeight: 600,
+            }}>
+              <i className="bi bi-printer" style={{ marginRight: 4 }}></i>Imprimir
+            </button>
+          )}
           {isSuperAdmin && (
             <Link href="/pedidos/novo" style={{
               background: '#1a3a5c', color: '#fff', padding: '6px 16px',
@@ -225,6 +245,51 @@ function PedidosPageInner() {
           )}
         </div>
       </div>
+
+      {/* Modal: imprimir relatório de pedidos + materiais por mês de emissão */}
+      {showImprimir && (
+        <div onClick={() => setShowImprimir(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, padding: 22, width: 420, maxWidth: '100%', boxShadow: '0 10px 40px rgba(0,0,0,.2)' }}>
+            <h5 style={{ margin: '0 0 4px', color: '#1a3a5c', fontWeight: 800 }}>
+              <i className="bi bi-printer" style={{ marginRight: 6 }} />Imprimir Pedidos + Materiais
+            </h5>
+            <div style={{ fontSize: 12.5, color: '#64748b', marginBottom: 16 }}>
+              Gera um relatório com os pedidos e os materiais que os compõem, pela <b>data de emissão</b>. Bom pra salvar em PDF ou imprimir.
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 14, cursor: 'pointer' }}>
+              <input type="checkbox" checked={impTodos} onChange={e => setImpTodos(e.target.checked)} />
+              Todos os períodos (todos os pedidos)
+            </label>
+
+            <div style={{ display: 'flex', gap: 12, marginBottom: 18, opacity: impTodos ? 0.4 : 1, pointerEvents: impTodos ? 'none' : 'auto' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 3 }}>Mês inicial</div>
+                <input type="month" value={impDe} onChange={e => setImpDe(e.target.value)}
+                  style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '7px 10px', fontSize: 13, boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 3 }}>Mês final</div>
+                <input type="month" value={impAte} onChange={e => setImpAte(e.target.value)}
+                  style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '7px 10px', fontSize: 13, boxSizing: 'border-box' }} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => setShowImprimir(false)}
+                style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 13, cursor: 'pointer', color: '#666' }}>
+                Cancelar
+              </button>
+              <button onClick={abrirRelatorioPedidos} disabled={!impTodos && (!impDe || !impAte)}
+                style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', fontSize: 13, fontWeight: 700, cursor: (!impTodos && (!impDe || !impAte)) ? 'not-allowed' : 'pointer', opacity: (!impTodos && (!impDe || !impAte)) ? 0.5 : 1 }}>
+                <i className="bi bi-printer" style={{ marginRight: 5 }} />Gerar relatório
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Seletor de fábrica — filtra pedidos com item de Flanges e/ou Caldeiraria
           (OP mista aparece nos dois) */}
