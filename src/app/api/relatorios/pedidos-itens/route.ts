@@ -47,13 +47,14 @@ export async function GET(req: Request) {
                json_agg(
                  json_build_object(
                    'codigo', i.codigo, 'descricao', i.descricao,
-                   'quantidade', i.quantidade::text, 'unidade', i.unidade
-                 ) ORDER BY i.codigo
+                   'quantidade', i.quantidade::text, 'unidade', i.unidade,
+                   'inativo', i.inativo
+                 ) ORDER BY i.inativo, i.codigo
                ) FILTER (WHERE i.id IS NOT NULL),
                '[]'
              ) AS itens
       FROM producao_pedido p
-      LEFT JOIN producao_itempedido i ON i.pedido_id = p.id AND i.inativo = false
+      LEFT JOIN producao_itempedido i ON i.pedido_id = p.id
       WHERE (${todos} OR (p.data_emissao >= ${inicio}::date AND p.data_emissao < ${fimExcl}::date))
       GROUP BY p.id
       ORDER BY p.data_emissao ASC NULLS LAST, p.numero_pedido_venda ASC

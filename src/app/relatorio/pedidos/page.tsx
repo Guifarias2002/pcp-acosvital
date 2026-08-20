@@ -4,7 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { getToken, getUser } from '@/lib/auth';
 import { STATUS_LABELS } from '@/lib/types';
 
-interface ItemRel { codigo: string; descricao: string; quantidade: string; unidade: string; }
+interface ItemRel { codigo: string; descricao: string; quantidade: string; unidade: string; inativo?: boolean; }
 interface PedidoRel {
   id: number; numero_pedido_venda: string; numero_op: string; cliente: string; vendedor: string;
   data_emissao: string | null; prazo_entrega: string | null; status: string; prioridade: string;
@@ -116,7 +116,7 @@ function RelatorioPedidosInner() {
           </div>
           {/* Materiais */}
           {p.itens.length === 0 ? (
-            <div style={{ padding: '8px 12px', fontSize: 12, color: '#94a3b8' }}>Sem itens ativos neste pedido.</div>
+            <div style={{ padding: '8px 12px', fontSize: 12, color: '#94a3b8' }}>Sem itens neste pedido.</div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
               <thead>
@@ -130,10 +130,12 @@ function RelatorioPedidosInner() {
               </thead>
               <tbody>
                 {p.itens.map((it, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', color: it.inativo ? '#9ca3af' : undefined }}>
                     <td style={{ padding: '5px 12px', color: '#94a3b8' }}>{i + 1}</td>
-                    <td style={{ padding: '5px 12px', fontWeight: 700, color: '#1a3a5c', whiteSpace: 'nowrap' }}>{it.codigo}</td>
-                    <td style={{ padding: '5px 12px' }}>{it.descricao || '—'}</td>
+                    <td style={{ padding: '5px 12px', fontWeight: 700, color: it.inativo ? '#9ca3af' : '#1a3a5c', whiteSpace: 'nowrap' }}>
+                      {it.codigo}{it.inativo && <span style={{ fontWeight: 600, fontStyle: 'italic' }}> (inativo)</span>}
+                    </td>
+                    <td style={{ padding: '5px 12px', textDecoration: it.inativo ? 'line-through' : undefined }}>{it.descricao || '—'}</td>
                     <td style={{ padding: '5px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>{it.quantidade}</td>
                     <td style={{ padding: '5px 12px' }}>{it.unidade}</td>
                   </tr>
