@@ -157,9 +157,18 @@ function RelatorioPedidosInner() {
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          body { margin: 0; }
+          /* Solta a altura/overflow que o CSS global fixa (html,body{height:100%}),
+             senão o navegador imprime só o que cabe numa página e corta o resto. */
+          html, body { height: auto !important; min-height: 0 !important; overflow: visible !important; margin: 0 !important; }
+          #sidebar, #sidebar-overlay { display: none !important; }
           @page { margin: 12mm; size: A4 portrait; }
-          .pedido-bloco { break-inside: avoid; page-break-inside: avoid; }
+          /* Pedidos grandes PODEM quebrar entre páginas (senão o excedente é
+             cortado). Só evitamos cortar uma linha no meio, e repetimos o
+             cabeçalho da tabela em cada página. */
+          .pedido-bloco { break-inside: auto; page-break-inside: auto; }
+          table { break-inside: auto; }
+          thead { display: table-header-group; }
+          tr { break-inside: avoid; page-break-inside: avoid; }
         }
       `}</style>
     </div>
