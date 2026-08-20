@@ -278,4 +278,19 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   // Hoje o workspace HRM só aparece pra is_staff. Certos operadores (ex.: quem
   // anexa OP do Totvs) precisam SÓ dessa tela, sem virar admin. Default false.
   await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS acesso_hrm BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
+
+  // M25: ordem MANUAL de produção por setor ("furar a fila"). Guarda, por setor,
+  // um array ordenado de pedido_id definido pelo PCP ao arrastar os cards. A
+  // ordenação automática (prazo/prioridade/tamanho/FIFO) continua sendo o padrão;
+  // esta ordem manual, quando existe, tem precedência (pedidos fora dela caem
+  // depois, auto-ordenados). Uma linha por setor; array pode conter pedidos que
+  // já saíram do setor — são ignorados na leitura.
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS producao_setor_ordem (
+      setor TEXT PRIMARY KEY,
+      ordem BIGINT[] NOT NULL DEFAULT '{}',
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_por_id BIGINT
+    )
+  `).catch(() => {});
 }

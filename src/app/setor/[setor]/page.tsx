@@ -3116,6 +3116,11 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   // aberto e qual setor foi escolhido (aplicado a TODAS as parciais enviáveis).
   const [enviarTudoAberto, setEnviarTudoAberto] = useState<number | null>(null);
   const [enviarTudoSetor, setEnviarTudoSetor] = useState<string>('');
+  // Ordem MANUAL de produção ("furar a fila"): array de pedido_id definido pelo
+  // PCP arrastando os cards. Tem precedência sobre a auto-ordem; pedidos fora
+  // dela caem depois, auto-ordenados. dragPedidoId = card sendo arrastado agora.
+  const [ordemManual, setOrdemManual] = useState<number[]>([]);
+  const [dragPedidoId, setDragPedidoId] = useState<number | null>(null);
   const podeDesfazer = podeDesfazerRecebimento();
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
   const [modalRastreio, setModalRastreio] = useState<{ pedidoId: number; numero: string } | null>(null);
@@ -3162,6 +3167,24 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
     novos.forEach(id => pedidosVistos.current.add(id));
     setPedidosColapsados(prev => new Set(Array.from(prev).concat(novos)));
   }, [data]);
+
+  // Carrega a ordem manual salva do setor (uma vez por setor).
+  useEffect(() => {
+    fetch(`/api/setor/${encodeURIComponent(setor)}/ordem`, { headers: { Authorization: `Bearer ${getToken() || ''}` } })
+      .then(r => r.json())
+      .then(d => setOrdemManual(Array.isArray(d.ordem) ? d.ordem : []))
+      .catch(() => {});
+  }, [setor]);
+
+  // Salva a nova ordem manual (otimista + POST).
+  const salvarOrdem = useCallback((nova: number[]) => {
+    setOrdemManual(nova);
+    fetch(`/api/setor/${encodeURIComponent(setor)}/ordem`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
+      body: JSON.stringify({ ordem: nova }),
+    }).catch(() => {});
+  }, [setor]);
 
   // Ref sempre aponta para a versão mais recente de carregar — evita closure stale no interval
   const carregarRef = useRef(carregar);
@@ -3404,6 +3427,19 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
               return sa.chegada - sb.chegada;                          // 4º FIFO
             });
 
+            // Ordem MANUAL tem precedência: pedidos presentes em ordemManual vêm
+            // primeiro, na posição salva; os demais seguem a auto-ordem acima
+            // (sort estável preserva). Pedidos da ordem que já saíram do setor
+            // simplesmente não aparecem.
+            if (ordemManual.length) {
+              const pos = new Map(ordemManual.map((id, i) => [id, i]));
+              pedidos.sort((a, b) => {
+                const pa = pos.has(a.pedido_id) ? (pos.get(a.pedido_id) as number) : Infinity;
+                const pb = pos.has(b.pedido_id) ? (pos.get(b.pedido_id) as number) : Infinity;
+                return pa - pb;
+              });
+            }
+
             const totalPedidos = pedidos.length;
             const totalParciais = todasParciais.length;
 
@@ -3415,6 +3451,19 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                   <span style={{ marginLeft: 8, fontWeight: 400, textTransform: 'none', fontSize: 10, color: '#64748b' }}>
                     peças enviadas parcialmente para este setor · <b>ordem sugerida (nº no card)</b>: prazo → urgência → menores → chegada
                   </span>
+                  {podeEditar() && (
+                    ordemManual.length > 0 ? (
+                      <button onClick={() => salvarOrdem([])}
+                        title="Descartar a ordem manual e voltar à programação automática"
+                        style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, color: '#0d6efd', background: 'none', border: '1px solid #b6d4fe', borderRadius: 12, padding: '2px 8px', cursor: 'pointer', textTransform: 'none' }}>
+                        <i className="bi bi-arrow-counterclockwise" style={{ marginRight: 3 }} />ordem automática
+                      </button>
+                    ) : (
+                      <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 400, textTransform: 'none', color: '#94a3b8' }}>
+                        · arraste a alça <i className="bi bi-grip-vertical" /> pra furar a fila
+                      </span>
+                    )
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -3458,7 +3507,18 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                     }
 
                     return (
-                      <div key={pedido_id} className={`setor-pedido-grupo${prioUrgente ? ' pcp-pulse' : ''}`} style={{ border: `2px solid ${prioUrgente ? '#ef4444' : '#dde3f0'}`, borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+                      <div key={pedido_id} className={`setor-pedido-grupo${prioUrgente ? ' pcp-pulse' : ''}`}
+                        onDragOver={dragPedidoId != null ? (e) => e.preventDefault() : undefined}
+                        onDrop={dragPedidoId != null ? (e) => {
+                          e.preventDefault();
+                          if (dragPedidoId === pedido_id) { setDragPedidoId(null); return; }
+                          const ids = pedidos.map(pp => pp.pedido_id).filter(id => id !== dragPedidoId);
+                          const alvo = ids.indexOf(pedido_id);
+                          ids.splice(alvo < 0 ? ids.length : alvo, 0, dragPedidoId);
+                          salvarOrdem(ids);
+                          setDragPedidoId(null);
+                        } : undefined}
+                        style={{ border: `2px solid ${dragPedidoId === pedido_id ? '#0d6efd' : (prioUrgente ? '#ef4444' : '#dde3f0')}`, borderRadius: 12, overflow: 'hidden', background: '#fff', opacity: dragPedidoId === pedido_id ? 0.45 : 1, transition: 'opacity .12s' }}>
                         {/* Cabeçalho do pedido — clicável para colapsar/expandir */}
                         <div
                           className="setor-pedido-header"
@@ -3469,6 +3529,18 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                           })}
                           style={{ background: '#1a3a5c', color: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}
                         >
+                          {/* Alça de arrastar — PCP reordena a fila ("furar a fila") */}
+                          {podeEditar() && (
+                            <span
+                              draggable
+                              onDragStart={(e) => { e.stopPropagation(); setDragPedidoId(pedido_id); e.dataTransfer.effectAllowed = 'move'; }}
+                              onDragEnd={() => setDragPedidoId(null)}
+                              onClick={(e) => e.stopPropagation()}
+                              title="Arraste para reordenar a produção (furar a fila)"
+                              style={{ flexShrink: 0, cursor: 'grab', color: 'rgba(255,255,255,.6)', fontSize: 16, lineHeight: 1, padding: '0 2px' }}>
+                              <i className="bi bi-grip-vertical" />
+                            </span>
+                          )}
                           {/* Nº de sequência da programação (PCP): ordem sugerida de produção */}
                           <span title="Ordem sugerida de produção (prioridade → prazo → chegada)"
                             style={{ flexShrink: 0, minWidth: 24, height: 24, padding: '0 6px', borderRadius: 12, background: prioUrgente ? '#ef4444' : '#fff', color: prioUrgente ? '#fff' : '#1a3a5c', fontWeight: 800, fontSize: 13, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,.3)' }}>
