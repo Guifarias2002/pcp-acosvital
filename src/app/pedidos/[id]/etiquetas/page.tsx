@@ -1,14 +1,14 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { getToken, podeVerCliente } from '@/lib/auth';
+import { getToken } from '@/lib/auth';
 
 // Etiqueta de chão de fábrica — UMA por pedido, 98 x 27 mm (2,7 x 9,8 cm),
 // pensada pra DYMO LabelWriter 450 (térmica preto-e-branco). Ao abrir, o
 // operador escolhe a SITUAÇÃO (a cor da etiqueta segue a escolha) e digita
 // quantas PEÇAS estão no PALLET; então imprime. Status colorido na tela e
-// distinto em P&B (claro / hachurado / preenchido). Esconde o cliente pros
-// líderes (podeVerCliente). Ver memória project_etiqueta_chao_fabrica.
+// distinto em P&B (claro / hachurado / preenchido). Etiqueta enxuta: só
+// SITUAÇÃO · PV · OP · Quantidade · Pallet. Ver memória project_etiqueta_chao_fabrica.
 
 interface Item { status?: string; fabrica?: string; descricao?: string; codigo?: string; quantidade?: string; unidade?: string }
 interface Pedido {
@@ -19,7 +19,7 @@ interface Pedido {
 }
 
 const SITU = [
-  { key: 'aguardar', word: 'AGUARDAR', ico: '⏳' },
+  { key: 'aguardar', word: 'NA FILA', ico: '⏳' },
   { key: 'processo', word: 'EM PROCESSO', ico: '⚙️' },
   { key: 'pronto', word: 'PRONTO', ico: '✅' },
 ] as const;
@@ -36,18 +36,6 @@ function fmtQt(q?: string) {
   const n = Number(q);
   if (isNaN(n)) return q || '';
   return n.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
-}
-
-function resumoMaterial(itens: Item[]): string {
-  if (itens.length === 0) return '—';
-  if (itens.length === 1) {
-    const i = itens[0];
-    return [i.codigo, i.descricao, i.quantidade ? `${fmtQt(i.quantidade)} ${i.unidade || 'pç'}` : '']
-      .filter(Boolean).join(' · ');
-  }
-  const parts = itens.slice(0, 2).map(i => [i.codigo, i.descricao].filter(Boolean).join(' '));
-  const extra = itens.length > 2 ? ` +${itens.length - 2}` : '';
-  return `${itens.length} itens · ${parts.join(' · ')}${extra}`;
 }
 
 const CSS = `
@@ -86,16 +74,9 @@ const CSS = `
   .lp .l1 .pv small { font-size: 2.1mm; font-weight: 800; color: #666; margin-right: .6mm; }
   .lp .l1 .op { font-size: 2.4mm; font-weight: 700; color: #555; }
   .lp .l1 .op b { color: #000; font-weight: 900; }
-  .lp .chip { font-size: 2.1mm; font-weight: 900; color: #fff; padding: .3mm 1.4mm; border-radius: 1mm;
-              text-transform: uppercase; letter-spacing: .03em; margin-left: auto; }
-  .lp .chip.urg { background: #dc2626; } .lp .chip.alt { background: #d97706; }
-  .lp .l2 { font-size: 2.55mm; font-weight: 700; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .lp .l3 { font-size: 2.7mm; font-weight: 800; color: #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .lp .l3 .cod { font-family: monospace; color: #b45309; font-weight: 700; }
-  .lp .l4 { display: flex; align-items: center; gap: 2.5mm; font-size: 2.6mm; font-weight: 700; color: #333; margin-top: .4mm; }
-  .lp .pallet { font-weight: 900; color: #000; border: 1.4px solid #000; border-radius: 1mm; padding: .3mm 1.6mm; font-size: 3mm; }
-  .lp .pallet b { font-size: 3.4mm; }
-  .lp .l4 .atraso { color: #dc2626; font-weight: 900; }
+  .lp .l4 { display: flex; align-items: center; gap: 3mm; font-size: 2.6mm; font-weight: 700; color: #333; margin-top: .4mm; }
+  .lp .pallet, .lp .qt { font-weight: 900; color: #000; border: 1.4px solid #000; border-radius: 1mm; padding: .3mm 1.6mm; font-size: 3mm; }
+  .lp .pallet b, .lp .qt b { font-size: 3.4mm; }
 
   @media print {
     html, body { background: #fff; }
@@ -127,17 +108,12 @@ export default function EtiquetaPedidoPage() {
   }, [id]);
 
   const itens = useMemo(() => pedido?.itens || [], [pedido]);
-  const verCliente = podeVerCliente();
 
   if (erro) return <div style={{ padding: 24, fontFamily: 'Arial, sans-serif' }}>{erro}</div>;
   if (!pedido) return <div style={{ padding: 24, fontFamily: 'Arial, sans-serif' }}>Carregando etiqueta…</div>;
 
   const situ = SITU.find(s => s.key === situacao) || SITU[1];
-  const fabrica = pedido.envolve_caldeiraria ? 'Caldeiraria' : 'Flanges';
-  const prio = (pedido.prioridade || '').toLowerCase();
-  const chip = prio === 'urgente' ? { t: 'Urgente', c: 'urg' } : prio === 'alta' ? { t: 'Alta', c: 'alt' } : null;
-  const prazoTxt = pedido.atrasado ? `Atrasado ${Math.abs(pedido.dias_prazo || 0)}d` : `Prazo ${pedido.prazo_entrega || '—'}`;
-  const clienteFab = [verCliente ? pedido.cliente : null, fabrica].filter(Boolean).join(' · ');
+  const qtdTotal = itens.reduce((s, i) => s + (Number(i.quantidade) || 0), 0);
 
   return (
     <>
@@ -171,13 +147,10 @@ export default function EtiquetaPedidoPage() {
             <div className="l1">
               <span className="pv"><small>PV</small>{pedido.numero_pedido_venda || '—'}</span>
               <span className="op">OP <b>{pedido.numero_op || '—'}</b></span>
-              {chip && <span className={`chip ${chip.c}`}>{chip.t}</span>}
             </div>
-            {clienteFab && <div className="l2">{verCliente && pedido.cliente ? '👤 ' : ''}{clienteFab}</div>}
-            <div className="l3">{resumoMaterial(itens)}</div>
             <div className="l4">
+              <span className="qt">Qtde <b>{qtdTotal ? `${fmtQt(String(qtdTotal))} pç` : '—'}</b></span>
               <span className="pallet">📦 PALLET <b>{pallet ? `${pallet} pç` : '—'}</b></span>
-              <span className={pedido.atrasado ? 'atraso' : ''}>⏰ {prazoTxt}</span>
             </div>
           </div>
         </div>
