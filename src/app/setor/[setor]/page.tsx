@@ -855,6 +855,16 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const badge = BADGE_PARCIAL[parcial.status] || { bg: '#e2e3e5', color: '#333' };
   const foraDoRoteiro = !parcial.proximo_setor && !isLogistica;
 
+  // Sinete registrado — o setor Sinete grava como observação "🔖 SINETE: ...".
+  // Mostra o mais recente ao lado do nome da peça, pra Qualidade receber a peça
+  // já com o sinete à vista (sem abrir a lista de observações).
+  const sineteRegistrado = (() => {
+    const marcadas = (parcial.observacoes || []).filter(o => o.texto && o.texto.includes('SINETE:'));
+    if (!marcadas.length) return '';
+    const ultima = marcadas.reduce((a, b) => (new Date(a.criado_em).getTime() >= new Date(b.criado_em).getTime() ? a : b));
+    return ultima.texto.replace(/^.*?SINETE:\s*/, '').trim();
+  })();
+
   const btnStyle = (bg: string, outline = false): React.CSSProperties => ({
     background: outline ? 'none' : bg,
     color: outline ? bg : '#fff',
@@ -887,6 +897,11 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             {parcial.prioridade && (
               <span className={`badge-${parcial.prioridade}`} style={{ fontSize: 10 }}>
                 {parcial.prioridade.charAt(0).toUpperCase() + parcial.prioridade.slice(1)}
+              </span>
+            )}
+            {sineteRegistrado && (
+              <span title="Sinete registrado no setor Sinete" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                <i className="bi bi-award" />Sinete: {sineteRegistrado}
               </span>
             )}
           </div>
