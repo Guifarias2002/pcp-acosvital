@@ -19,6 +19,7 @@ const SETOR_ICONS: Record<string, string> = {
   beneficiadores: 'bi-gear-wide',
   caldeiraria: 'bi-hammer',
   qualidade: 'bi-patch-check',
+  sinete: 'bi-award',
   furacao: 'bi-circle',
   acabamento: 'bi-brush',
   embalagem: 'bi-box',

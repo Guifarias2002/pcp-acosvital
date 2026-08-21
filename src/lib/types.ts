@@ -8,6 +8,7 @@ export const SETOR_CHOICES: [string, string][] = [
   ['estoque', 'Estoque'],
   ['furacao', 'Furação'],
   ['qualidade', 'Inspecao de Qualidade'],
+  ['sinete', 'Sinete'],
   ['acabamento', 'Acabamento'],
   ['logistica', 'Logistica'],
   ['recebimento', 'Recebimento'],
@@ -241,7 +242,7 @@ export function getChecklistEtapa(setor: string, tipoProduto: string | null | un
 // (sistema e TV), em vez da ordem do SETOR_CHOICES. Setor fora desta lista
 // (ex: emissão, recebimento, compras) vai pro fim, sem sumir. Fonte única:
 // mudou o roteiro, muda aqui e reflete nos dois lugares.
-export const ORDEM_SETORES = ['estoque', 'maçarico', 'plasma', 'laser', 'serra', 'usinagem', 'furacao', 'qualidade', 'acabamento', 'embalagem', 'quarentena', 'logistica'];
+export const ORDEM_SETORES = ['estoque', 'maçarico', 'plasma', 'laser', 'serra', 'usinagem', 'furacao', 'qualidade', 'sinete', 'acabamento', 'embalagem', 'quarentena', 'logistica'];
 
 // Regra de negócio: TODA peça passa pela Quarentena (análise/verificação) antes
 // de ir à Logística (despacho). Injeta 'quarentena' imediatamente antes de
