@@ -705,6 +705,8 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [novaObsTexto, setNovaObsTexto] = useState('');
   const [enviandoObs, setEnviandoObs] = useState(false);
   const [erroObs, setErroObs] = useState<string | null>(null);
+  const [sineteTexto, setSineteTexto] = useState('');
+  const [salvandoSinete, setSalvandoSinete] = useState(false);
   const [showDivModal, setShowDivModal] = useState<'retrabalho' | 'resolver' | 'cancelar_item' | null>(null);
   const [showMontarReceita, setShowMontarReceita] = useState(false);
   const [showChecklistProcesso, setShowChecklistProcesso] = useState(false);
@@ -823,6 +825,25 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
       onRefresh();
     } catch (e: unknown) { setErroObs(erroMsg(e)); }
     finally { setEnviandoObs(false); }
+  }
+
+  // Setor Sinete: o operador escreve o sinete; ele é gravado como observação
+  // marcada (que a Qualidade já enxerga na lista do item) e a parcial volta pra
+  // Qualidade num clique só. Se ainda estiver "chegando" (em aberto), recebe
+  // antes de mover. Escrever o sinete NÃO altera nada além da observação/volta.
+  async function salvarSineteEDevolver() {
+    const txt = sineteTexto.trim();
+    if (!txt || salvandoSinete || loading) return;
+    setSalvandoSinete(true);
+    try {
+      const marcado = `🔖 SINETE: ${txt}`;
+      if (parcial.status === 'em_aberto') await parcialAcao(parcial.id, 'receber');
+      await adicionarObservacaoItem(parcial.item_pedido_id as number, marcado);
+      await parcialAcao(parcial.id, 'mover', { setor_destino: 'qualidade', quantidade: Number(parcial.quantidade), observacao: marcado });
+      setSineteTexto('');
+      onRefresh();
+    } catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
+    finally { setSalvandoSinete(false); }
   }
 
   const isAberto    = parcial.status === 'em_aberto';
@@ -1100,6 +1121,25 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
       {/* Ações — escondidas para usuários somente leitura */}
       {podeEditar() && (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+
+        {/* ── Sinete ──────────────────────────────────────────────────────── */}
+        {/* Só no setor Sinete: escrever o sinete e devolver à Qualidade num clique. */}
+        {parcial.setor_atual === 'sinete' && !isEmTransito && !isConcluida && (
+          <div style={{ width: '100%', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 12px', marginBottom: 4 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#92400e', marginBottom: 6 }}>
+              <i className="bi bi-award" style={{ marginRight: 5 }} />Sinete
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <textarea value={sineteTexto} onChange={e => setSineteTexto(e.target.value)}
+                placeholder="Escreva o sinete..." rows={2}
+                style={{ flex: 1, minWidth: 220, border: '1px solid #fcd34d', borderRadius: 6, padding: '6px 10px', fontSize: 13, resize: 'vertical' }} />
+              <button onClick={salvarSineteEDevolver} disabled={salvandoSinete || loading || !sineteTexto.trim()}
+                style={{ background: (salvandoSinete || loading || !sineteTexto.trim()) ? '#d9b566' : '#d97706', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 14px', fontSize: 12, fontWeight: 700, cursor: (salvandoSinete || loading || !sineteTexto.trim()) ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
+                {salvandoSinete ? '⏳ Enviando…' : '🔖 Salvar sinete e devolver à Qualidade'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── Iniciar ─────────────────────────────────────────────────────── */}
         {isLogistica && isAberto && (
