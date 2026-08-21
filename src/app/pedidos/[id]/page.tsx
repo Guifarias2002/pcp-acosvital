@@ -4,7 +4,7 @@ import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedido, itemAcao, inativarItem } from '@/lib/api';
 import { Pedido, ItemPedido, COR_STATUS, STATUS_LABELS, PRIORIDADE_COR, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR } from '@/lib/types';
-import { getUser, getToken, podeEditar, podeAcessarSetor } from '@/lib/auth';
+import { getUser, getToken, podeEditar, podeAcessarSetor, podeVerCliente } from '@/lib/auth';
 import Link from 'next/link';
 import ConfirmModal from '@/components/ConfirmModal';
 import ReceberModal from '@/components/ReceberModal';
@@ -104,6 +104,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   // independente — o read-only continua enxergando os valores.
   const editavel = podeEditar(user);
   const isAdmin = user?.is_staff && editavel;
+  const verCliente = podeVerCliente(user);
   const verFinanceiro = user?.is_staff && user?.perfil !== 'lider';
   // Documentos da Entrega (nota fiscal/canhoto): admin e PCP já são is_staff;
   // Logística também pode anexar, mesmo sem ser staff.
@@ -517,10 +518,12 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                   <p className="text-base font-semibold text-gray-700 leading-tight">{pedido.numero_op}</p>
                 </div>
               )}
-              <div>
-                <span className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Cliente</span>
-                <p className="text-base font-semibold text-gray-700 leading-tight">{pedido.cliente}</p>
-              </div>
+              {verCliente && (
+                <div>
+                  <span className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Cliente</span>
+                  <p className="text-base font-semibold text-gray-700 leading-tight">{pedido.cliente}</p>
+                </div>
+              )}
               {pedido.vendedor && (
                 <div>
                   <span className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Vendedor</span>
@@ -687,7 +690,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                         <p className="font-semibold text-gray-800">{item.descricao}</p>
                         <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                           <span>🔢 {item.quantidade} {item.unidade} total</span>
-                          <span>👤 {item.pedido_cliente}</span>
+                          {verCliente && <span>👤 {item.pedido_cliente}</span>}
                         </div>
 
                         {/* Rastreabilidade — onde estão as peças */}

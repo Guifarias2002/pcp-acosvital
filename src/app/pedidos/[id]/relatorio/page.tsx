@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { getToken } from '@/lib/auth';
+import { getToken, podeVerCliente } from '@/lib/auth';
 
 const NOMES: Record<string, string> = {
   emissao: 'Emissão de Ordens', usinagem: 'Usinagem', 'maçarico': 'Maçarico',
@@ -273,7 +273,7 @@ export default function RelatorioPage() {
       <h2 style={s.h2}>📋 Dados do Pedido</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 8 }}>
         {[
-          { label: 'Cliente',       value: pedido.cliente },
+          ...(podeVerCliente() ? [{ label: 'Cliente', value: pedido.cliente }] : []),
           { label: 'Vendedor',      value: pedido.vendedor || '—' },
           { label: 'Aberto por',    value: pedido.criado_por_nome || '—' },
           { label: 'Data Emissão',  value: fmtData(pedido.data_emissao) },

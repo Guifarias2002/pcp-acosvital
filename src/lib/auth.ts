@@ -116,6 +116,22 @@ export function podeVerAnalise(u?: JWTPayload | null): boolean {
   return isAdministrador(user) || user?.pode_ver_analise === true;
 }
 
+// Líderes de produção que NÃO podem ver o nome do cliente (decisão do usuário,
+// 21/08/2026). Lista EXPLÍCITA por login — de propósito: o perfil 'lider'
+// sozinho abrangeria também a logística (que precisa do cliente pra entregar) e
+// outros líderes fora do escopo pedido. Pra incluir/remover alguém, edite este
+// conjunto. É ocultação só de EXIBIÇÃO (client-side); a API ainda envia o campo.
+const LIDERES_SEM_CLIENTE = new Set<string>([
+  'diego', 'joao.batalha', 'joao.pedro', 'luan', 'lucas',
+  'nestor', 'rafael', 'reginaldo.negri', 'silson',
+]);
+
+// Pode ver o nome do cliente? Todos podem, exceto os líderes listados acima.
+export function podeVerCliente(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return !(user && LIDERES_SEM_CLIENTE.has(user.username));
+}
+
 // Pode acessar o PCP HRM (tela "Anexar OP")? Staff (admin/PCP) já entra pelo
 // seletor de workspace; além deles, usuários comuns com a flag `acesso_hrm`.
 export function podeAcessarHrm(u?: JWTPayload | null): boolean {

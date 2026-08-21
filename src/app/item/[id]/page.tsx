@@ -4,7 +4,7 @@ import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getItem, itemAcao, parcialAcao, inativarItem } from '@/lib/api';
 import { ItemPedido, SETOR_CHOICES, STATUS_LABELS, PRIORIDADE_COR, NOMES } from '@/lib/types';
-import { getUser, getToken, podeEditar } from '@/lib/auth';
+import { getUser, getToken, podeEditar, podeVerCliente } from '@/lib/auth';
 import { fmtData, fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
@@ -188,6 +188,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   // Usuário somente-leitura: vê tudo (desenho, documentos, histórico), mas sem ações.
   const editavel = podeEditar();
   const isAdmin = getUser()?.is_staff && editavel;
+  const verCliente = podeVerCliente();
   const podeComentar = editavel; // qualquer usuário autenticado pode comentar, exceto somente-leitura
 
   async function adicionarObservacao() {
@@ -343,7 +344,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                   {STATUS_LABELS[item.status]}
                 </span>
               </div>
-              <p className="text-xs text-gray-400 mt-2">👤 {item.pedido_cliente}</p>
+              {verCliente && <p className="text-xs text-gray-400 mt-2">👤 {item.pedido_cliente}</p>}
               {(() => {
                 const parcialMaquina = item.parciais?.find(p => p.setor_atual === item.setor_atual && p.maquina);
                 if (!parcialMaquina) return null;
@@ -379,7 +380,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                     <span className="text-gray-400 text-xs">Pedido</span>
                     <p>
                       <Link href={`/pedidos/${item.pedido_id}`} className="font-semibold text-blue-700 hover:underline">{item.pedido_numero}</Link>
-                      <span className="text-gray-500 ml-1">· {item.pedido_cliente}</span>
+                      {verCliente && <span className="text-gray-500 ml-1">· {item.pedido_cliente}</span>}
                     </p>
                   </div>
                   <div><span className="text-gray-400 text-xs">Prazo</span><p className="font-semibold">{fmtData(item.pedido_prazo)}</p></div>

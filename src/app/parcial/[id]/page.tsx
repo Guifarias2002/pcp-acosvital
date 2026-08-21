@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import AuthGuard from '@/components/AuthGuard';
 import { getParcial, getItem, parcialAcao } from '@/lib/api';
-import { getUser } from '@/lib/auth';
+import { getUser, podeVerCliente } from '@/lib/auth';
 import { SETOR_CHOICES, STATUS_LABELS, NOMES, PARCIAL_STATUS_LABELS, PARCIAL_STATUS_COR, ItemPedido } from '@/lib/types';
 import { fmtData, fmtHora, fmtDuracao, fmtQtd } from '@/lib/format';
 import ProgressoRoteiro, { RoteiroCirculo } from '@/components/workspace/ProgressoRoteiro';
@@ -74,6 +74,7 @@ function StatusBadgeParcial({ status }: { status: string }) {
 
 function ParcialWorkspace({ parcialId }: { parcialId: number }) {
   const isAdmin = getUser()?.is_staff;
+  const verCliente = podeVerCliente();
 
   const [parcial, setParcial] = useState<ParcialDetalhe | null>(null);
   const [item, setItem] = useState<ItemPedido | null>(null);
@@ -402,7 +403,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
             <div className="mt-2">
               <StatusBadgeParcial status={parcial.status} />
             </div>
-            <p className="text-xs text-gray-400 mt-2">👤 {parcial.cliente}</p>
+            {verCliente && <p className="text-xs text-gray-400 mt-2">👤 {parcial.cliente}</p>}
             {parcial.maquina && (
               <p className="text-xs text-gray-500 mt-1">
                 🔧 <span className="font-semibold text-gray-700">{parcial.maquina}</span>
@@ -443,7 +444,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                       className="font-semibold text-blue-700 hover:underline" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
                       {parcial.numero_pedido_venda}
                     </button>
-                    <span className="text-gray-500 ml-1">· {parcial.cliente}</span>
+                    {verCliente && <span className="text-gray-500 ml-1">· {parcial.cliente}</span>}
                   </p>
                 </div>
                 {parcial.prazo_entrega && (

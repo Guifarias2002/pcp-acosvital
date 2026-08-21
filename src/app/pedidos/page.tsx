@@ -6,7 +6,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { getPedidos } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 import { Pedido, STATUS_LABELS, getPedidoEtapa, ETAPA_LABELS, NOMES, SETOR_CHOICES, FABRICAS } from '@/lib/types';
-import { getUser, podeEditar, vendedorRestrito } from '@/lib/auth';
+import { getUser, podeEditar, podeVerCliente, vendedorRestrito } from '@/lib/auth';
 import Link from 'next/link';
 import RastreioModal from '@/components/RastreioModal';
 
@@ -77,6 +77,7 @@ function PedidosPageInner() {
   const _u = getUser();
   const editavel = podeEditar(_u);
   const isAdmin = _u?.is_staff && editavel;
+  const verCliente = podeVerCliente(_u);
   const isSuperAdmin = (_u?.perfil === 'administrador' || (_u?.is_staff && _u?.perfil !== 'pcp' && _u?.perfil !== 'lider')) && editavel;
   const isVendedor = vendedorRestrito(_u);
 
@@ -433,7 +434,7 @@ function PedidosPageInner() {
                   title="Selecionar todos"
                 />
               </th>
-              {['Criado em','Pedido','OP','Cliente','Vendedor','Setor Atual','Status','Prioridade','Prazo','Docs','Ações'].map(h => (
+              {['Criado em','Pedido','OP',...(verCliente ? ['Cliente'] : []),'Vendedor','Setor Atual','Status','Prioridade','Prazo','Docs','Ações'].map(h => (
                 <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 600, fontSize: 12 }}>{h}</th>
               ))}
             </tr>
@@ -481,7 +482,7 @@ function PedidosPageInner() {
                     </div>
                   </td>
                   <td style={{ padding: '8px 12px', color: '#666' }}>{p.numero_op}</td>
-                  <td style={{ padding: '8px 12px', color: '#444' }}>{p.cliente}</td>
+                  {verCliente && <td style={{ padding: '8px 12px', color: '#444' }}>{p.cliente}</td>}
                   <td style={{ padding: '8px 12px', color: '#666' }}>{p.vendedor}</td>
                   <td style={{ padding: '8px 12px' }}>
                     {(() => {
