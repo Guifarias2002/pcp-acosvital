@@ -2,13 +2,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { getToken } from '@/lib/auth';
+import { NOMES, SETOR_CHOICES } from '@/lib/types';
 
 // Etiqueta de chão de fábrica — UMA por pedido, 98 x 27 mm (2,7 x 9,8 cm),
 // pensada pra DYMO LabelWriter 450 (térmica preto-e-branco). Ao abrir, o
-// operador escolhe a SITUAÇÃO (a cor da etiqueta segue a escolha) e digita
-// quantas PEÇAS estão no PALLET; então imprime. Status colorido na tela e
-// distinto em P&B (claro / hachurado / preenchido). Etiqueta enxuta: só
-// SITUAÇÃO · PV · OP · Quantidade · Pallet. Ver memória project_etiqueta_chao_fabrica.
+// operador escolhe a SITUAÇÃO (a cor da etiqueta segue a escolha), digita
+// quantas PEÇAS estão no PALLET e escolhe pra qual setor a peça VAI; então
+// imprime. O setor ATUAL vem pela URL (?setor=), a partir da tela que abriu a
+// etiqueta. Escolher o destino só imprime na etiqueta — NÃO movimenta o pedido
+// no sistema. Status colorido na tela e distinto em P&B. Etiqueta enxuta: só
+// SITUAÇÃO · PV · OP · Quantidade · Pallet · Roteiro (atual → destino).
+// Ver memória project_etiqueta_chao_fabrica.
 
 interface Item { status?: string; fabrica?: string; descricao?: string; codigo?: string; quantidade?: string; unidade?: string }
 interface Pedido {
@@ -54,6 +58,8 @@ const CSS = `
   .toolbar .situ button.on.pronto { border-color: #15803d; background: #dcfce7; color: #14532d; }
   .toolbar input[type=number] { font-family: monospace; font-weight: 700; font-size: 15px; width: 90px;
                                 text-align: center; border: 2px solid #b45309; border-radius: 8px; padding: 6px 8px; }
+  .toolbar select { font-weight: 700; font-size: 14px; border: 2px solid #0d6efd; border-radius: 8px;
+                    padding: 6px 10px; color: #1a3a5c; background: #fff; cursor: pointer; }
   .toolbar .print { background: #0d6efd; color: #fff; border: none; border-radius: 8px; padding: 9px 18px;
                     font-size: 14px; font-weight: 800; cursor: pointer; }
   .stage { display: flex; justify-content: center; padding: 28px 16px; }
@@ -74,6 +80,13 @@ const CSS = `
   .lp .l1 .pv small { font-size: 2.1mm; font-weight: 800; color: #666; margin-right: .6mm; }
   .lp .l1 .op { font-size: 2.4mm; font-weight: 700; color: #555; }
   .lp .l1 .op b { color: #000; font-weight: 900; }
+  .lp .rt { display: flex; align-items: center; gap: 1.4mm; line-height: 1; }
+  .lp .rt .lbl { font-size: 2mm; font-weight: 800; color: #666; }
+  .lp .rt .de { font-size: 3mm; font-weight: 800; color: #333; }
+  .lp .rt .arw { font-size: 3.6mm; font-weight: 900; color: #0d6efd; }
+  .lp .rt .pa { font-size: 3.2mm; font-weight: 900; color: #0d3b7a; border: 1.5px solid #0d6efd;
+                border-radius: 1mm; padding: .3mm 1.8mm; background: #eaf2ff; }
+  .lp .rt .pa.vazio { color: #999; border-color: #bbb; background: #f4f4f4; font-weight: 700; }
   .lp .l4 { display: flex; align-items: center; gap: 3mm; font-size: 2.6mm; font-weight: 700; color: #333; margin-top: .4mm; }
   .lp .pallet, .lp .qt { font-weight: 900; color: #000; border: 1.4px solid #000; border-radius: 1mm; padding: .3mm 1.6mm; font-size: 3mm; }
   .lp .pallet b, .lp .qt b { font-size: 3.4mm; }
@@ -92,6 +105,17 @@ export default function EtiquetaPedidoPage() {
   const [erro, setErro] = useState('');
   const [situacao, setSituacao] = useState<string>('processo');
   const [pallet, setPallet] = useState<string>('');
+  // Setor ATUAL (de onde a peça sai) chega pela URL (?setor=), preenchido pela
+  // tela que abriu a etiqueta. Destino é o operador quem escolhe — só imprime.
+  const [setorAtual, setSetorAtual] = useState<string>('');
+  const [destino, setDestino] = useState<string>('');
+
+  useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search).get('setor') || '';
+      if (p) setSetorAtual(p);
+    } catch { /* sem query param */ }
+  }, []);
 
   useEffect(() => {
     fetch(`/api/pedidos/${id}`, { headers: { Authorization: `Bearer ${getToken() || ''}` } })
@@ -114,6 +138,8 @@ export default function EtiquetaPedidoPage() {
 
   const situ = SITU.find(s => s.key === situacao) || SITU[1];
   const qtdTotal = itens.reduce((s, i) => s + (Number(i.quantidade) || 0), 0);
+  const nomeAtual = setorAtual ? (NOMES[setorAtual] || setorAtual) : '—';
+  const nomeDestino = destino ? (NOMES[destino] || destino) : '';
 
   return (
     <>
@@ -134,6 +160,15 @@ export default function EtiquetaPedidoPage() {
           <label>📦 Peças no pallet:</label>
           <input type="number" min={0} value={pallet} onChange={e => setPallet(e.target.value)} />
         </div>
+        <div className="grp">
+          <label>➡️ Enviar para:</label>
+          <select value={destino} onChange={e => setDestino(e.target.value)}>
+            <option value="">— selecionar setor —</option>
+            {SETOR_CHOICES.map(([cod, nome]) => (
+              <option key={cod} value={cod}>{nome}</option>
+            ))}
+          </select>
+        </div>
         <button className="print" onClick={() => window.print()}>🖨️ Imprimir etiqueta</button>
       </div>
 
@@ -147,6 +182,11 @@ export default function EtiquetaPedidoPage() {
             <div className="l1">
               <span className="pv"><small>PV</small>{pedido.numero_pedido_venda || '—'}</span>
               <span className="op">OP <b>{pedido.numero_op || '—'}</b></span>
+            </div>
+            <div className="rt">
+              <span className="de">📍 {nomeAtual}</span>
+              <span className="arw">→</span>
+              <span className={`pa ${nomeDestino ? '' : 'vazio'}`}>{nomeDestino || 'selecionar'}</span>
             </div>
             <div className="l4">
               <span className="qt">Qtde <b>{qtdTotal ? `${fmtQt(String(qtdTotal))} pç` : '—'}</b></span>

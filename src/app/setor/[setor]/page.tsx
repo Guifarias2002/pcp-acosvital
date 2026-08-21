@@ -2679,8 +2679,8 @@ function getOrdemProducaoUrl(pedidoId: number) {
 // Modal de impressão: usuário escolhe Desenho / OP / PV (um, vários ou todos) e
 // os selecionados são juntados num ÚNICO PDF, aberto em uma só aba (imprime tudo
 // de uma vez, sem bloqueio de pop-up). O relatório do pedido é um botão à parte.
-function ImprimirDocsModal({ pedidoId, numero, temDesenho, temPV, temOP, onClose }: {
-  pedidoId: number; numero: string; temDesenho: boolean; temPV: boolean; temOP: boolean; onClose: () => void;
+function ImprimirDocsModal({ pedidoId, numero, temDesenho, temPV, temOP, setorAtual, onClose }: {
+  pedidoId: number; numero: string; temDesenho: boolean; temPV: boolean; temOP: boolean; setorAtual: string; onClose: () => void;
 }) {
   const [sel, setSel] = useState({ desenho: temDesenho, op: temOP, pv: temPV });
   const toggle = (k: keyof typeof sel) => setSel(s => ({ ...s, [k]: !s[k] }));
@@ -2705,8 +2705,9 @@ function ImprimirDocsModal({ pedidoId, numero, temDesenho, temPV, temOP, onClose
   }
 
   // Etiqueta de chão de fábrica (DYMO 98x27mm): 1 por pedido, já abre imprimindo.
+  // Passa o setor ATUAL pela URL pra etiqueta mostrar o roteiro (atual → destino).
   function abrirEtiqueta() {
-    window.open(`/pedidos/${pedidoId}/etiquetas`, '_blank');
+    window.open(`/pedidos/${pedidoId}/etiquetas?setor=${encodeURIComponent(setorAtual)}`, '_blank');
     onClose();
   }
 
@@ -3250,6 +3251,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
           temDesenho={modalImprimir.temDesenho}
           temPV={modalImprimir.temPV}
           temOP={modalImprimir.temOP}
+          setorAtual={setor}
           onClose={() => setModalImprimir(null)}
         />
       )}
