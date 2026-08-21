@@ -89,14 +89,37 @@ export async function POST(req: Request) {
   const podeDesfazer = perfil === 'lider' && pode_desfazer_recebimento === true;
   const acessoHrm = acesso_hrm === true;
 
+  // A tabela usuarios_usuario veio do Django e as migrations só ACRESCENTAM
+  // colunas — dependendo do banco ela ainda tem colunas NOT NULL herdadas
+  // (first_name/last_name/email/is_superuser) que um INSERT com lista fixa não
+  // preenchia, quebrando a criação (mesmo tipo do bug do is_superuser). Aqui
+  // descobrimos quais colunas realmente existem e preenchemos só as presentes.
+  const registro: Record<string, unknown> = {
+    username, nome, password: hashed, perfil,
+    setor: setorPrincipal, setores: listaSetores,
+    is_staff, is_active: true,
+    somente_leitura: soLeitura,
+    pode_desfazer_recebimento: podeDesfazer,
+    acesso_hrm: acessoHrm,
+    date_joined: new Date(),
+  };
   try {
-    await sql`
-      INSERT INTO usuarios_usuario (username, nome, password, perfil, setor, setores, is_staff, is_active, somente_leitura, pode_desfazer_recebimento, acesso_hrm, date_joined)
-      VALUES (${username}, ${nome}, ${hashed}, ${perfil}, ${setorPrincipal}, ${listaSetores}, ${is_staff}, true, ${soLeitura}, ${podeDesfazer}, ${acessoHrm}, NOW())
+    const cols = await sql`
+      SELECT column_name FROM information_schema.columns WHERE table_name = 'usuarios_usuario'
     `;
+    const existentes = new Set(cols.map(c => c.column_name as string));
+    // Defaults seguros pras NOT NULLs herdadas do Django, só se a coluna existir.
+    if (existentes.has('is_superuser')) registro.is_superuser = false;
+    if (existentes.has('first_name')) registro.first_name = '';
+    if (existentes.has('last_name')) registro.last_name = '';
+    if (existentes.has('email')) registro.email = '';
+    // Mantém só chaves que existem de fato (evita 42703 "coluna não existe").
+    for (const k of Object.keys(registro)) if (!existentes.has(k)) delete registro[k];
+
+    await sql`INSERT INTO usuarios_usuario ${sql(registro)}`;
   } catch (e: unknown) {
     console.error('[POST /api/usuarios]', e);
-    const pgErr = e as { code?: string; message?: string; constraint_name?: string };
+    const pgErr = e as { code?: string; message?: string; constraint_name?: string; column?: string };
     // 23514 = check_violation — provavelmente uma trava antiga no banco limitando
     // os valores aceitos em `perfil` (só existia administrador/pcp/lider/operador).
     if (pgErr?.code === '23514') {
@@ -104,7 +127,10 @@ export async function POST(req: Request) {
         erro: `O banco de dados ainda não aceita o perfil "${perfil}" (trava/constraint antiga na coluna perfil: ${pgErr.constraint_name || 'desconhecida'}). Peça pro time de TI atualizar a constraint.`,
       }, { status: 500 });
     }
-    return NextResponse.json({ erro: 'Erro ao criar usuário no banco de dados.', detalhe: pgErr?.message }, { status: 500 });
+    // Mostra o motivo real (coluna/código) direto na mensagem, pra não ficar genérico.
+    const detalhe = pgErr?.message || 'desconhecido';
+    const extra = [pgErr?.code ? `código ${pgErr.code}` : '', pgErr?.column ? `coluna ${pgErr.column}` : ''].filter(Boolean).join(', ');
+    return NextResponse.json({ erro: `Erro ao criar usuário no banco: ${detalhe}${extra ? ` (${extra})` : ''}`, detalhe }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
