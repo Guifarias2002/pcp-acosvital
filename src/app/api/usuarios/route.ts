@@ -81,7 +81,23 @@ export async function POST(req: Request) {
   const listaSetores: string[] = Array.isArray(setores)
     ? setores.filter((s: unknown): s is string => typeof s === 'string' && !!s)
     : (setor ? [setor] : []);
-  const setorPrincipal = listaSetores[0] || null;
+  // A coluna escalar `setor` tem FK pra producao_setor (setores "oficiais" do
+  // banco). Setores criados só no código (ex.: sinete) existem no SETOR_CHOICES
+  // mas ainda não em producao_setor, então usar um deles como PRINCIPAL quebra a
+  // FK (23503). O acesso do usuário vem do array `setores` (sem FK), então como
+  // principal escolhemos o 1º setor da lista que JÁ EXISTE no banco; o array
+  // segue com todos (inclusive sinete). Se nenhum for oficial, deixa null —
+  // acesso continua pelo array. A lista de oficiais vem dos setores já usados
+  // por outros usuários (garantidamente válidos na FK), sem depender do schema
+  // de producao_setor.
+  let setorPrincipal: string | null = listaSetores[0] || null;
+  if (listaSetores.length > 0) {
+    try {
+      const usados = await sql`SELECT DISTINCT setor FROM usuarios_usuario WHERE setor IS NOT NULL`;
+      const oficiais = new Set(usados.map(r => r.setor as string));
+      setorPrincipal = listaSetores.find(s => oficiais.has(s)) ?? null;
+    } catch { /* mantém o primeiro da lista */ }
+  }
   // Vendedor é sempre somente leitura, independente do que vier no corpo da requisição.
   const soLeitura = perfil === 'vendedor' ? true : somente_leitura === true;
   // Só faz sentido pra líder — administrador já pode, e outros perfis não

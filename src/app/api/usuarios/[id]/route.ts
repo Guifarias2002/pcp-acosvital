@@ -31,11 +31,24 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (typeof body.nome === 'string' && body.nome.trim()) campos.nome = body.nome.trim().slice(0, 150);
   if (typeof body.setor === 'string') campos.setor = body.setor || null;
   // Lista de setores (múltiplos). Quando enviada, o setor principal passa a ser
-  // o primeiro da lista, mantendo `setor` e `setores` coerentes.
+  // o primeiro da lista, mantendo `setor` e `setores` coerentes. A coluna
+  // escalar `setor` tem FK pra producao_setor: setores criados só no código
+  // (ex.: sinete) ainda não existem lá e quebrariam a FK (23503) se virassem
+  // principal. O acesso vem do array `setores` (sem FK), então como principal
+  // usamos o 1º da lista que JÁ é usado por algum usuário (válido na FK); se
+  // nenhum for, null. Ver a mesma lógica no POST /api/usuarios.
   if (Array.isArray(body.setores)) {
     const lista = (body.setores as unknown[]).filter((s): s is string => typeof s === 'string' && !!s);
     campos.setores = lista;
-    campos.setor = lista[0] || null;
+    let principal: string | null = lista[0] || null;
+    if (lista.length > 0) {
+      try {
+        const usados = await sql`SELECT DISTINCT setor FROM usuarios_usuario WHERE setor IS NOT NULL`;
+        const oficiais = new Set(usados.map(r => r.setor as string));
+        principal = lista.find(s => oficiais.has(s)) ?? null;
+      } catch { /* mantém o primeiro da lista */ }
+    }
+    campos.setor = principal;
   }
   if (typeof body.perfil === 'string') campos.perfil = body.perfil || null;
   if (typeof body.is_active === 'boolean') campos.is_active = body.is_active;
