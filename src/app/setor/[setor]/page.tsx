@@ -2704,6 +2704,12 @@ function ImprimirDocsModal({ pedidoId, numero, temDesenho, temPV, temOP, onClose
     onClose();
   }
 
+  // Etiqueta de chão de fábrica (DYMO 98x27mm): 1 por pedido, já abre imprimindo.
+  function abrirEtiqueta() {
+    window.open(`/pedidos/${pedidoId}/etiquetas`, '_blank');
+    onClose();
+  }
+
   const linha = (k: keyof typeof sel, label: string, icon: string, disponivel: boolean) => (
     <label style={{
       display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, marginBottom: 8,
@@ -2735,7 +2741,10 @@ function ImprimirDocsModal({ pedidoId, numero, temDesenho, temPV, temOP, onClose
             <i className="bi bi-printer-fill" style={{ marginRight: 6 }} />Imprimir selecionados
           </button>
         </div>
-        <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 16, paddingTop: 14 }}>
+        <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 16, paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button onClick={abrirEtiqueta} style={{ width: '100%', background: '#fff', color: '#1a3a5c', border: '1px solid #1a3a5c', borderRadius: 6, padding: '8px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <i className="bi bi-tag-fill" />Etiqueta do pedido
+          </button>
           <button onClick={abrirRelatorio} style={{ width: '100%', background: '#fff', color: '#1a3a5c', border: '1px solid #1a3a5c', borderRadius: 6, padding: '8px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <i className="bi bi-clipboard-data" />Relatório completo do pedido
           </button>

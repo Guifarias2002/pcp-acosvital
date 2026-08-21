@@ -90,7 +90,7 @@ export async function middleware(req: NextRequest) {
   // só admin. Sem essa exceção, o middleware bloqueava até líderes/operadores
   // com acesso legítimo, mandando de volta pro próprio setor sem nenhum aviso —
   // parecia que o botão "não fazia nada".
-  const isPedidosLeitura = pathname === '/pedidos' || /^\/pedidos\/\d+(\/historico|\/relatorio)?$/.test(pathname);
+  const isPedidosLeitura = pathname === '/pedidos' || /^\/pedidos\/\d+(\/historico|\/relatorio|\/etiquetas)?$/.test(pathname);
   // Responsável pela Logística também acessa a aba Entregas (mesma exceção
   // de "leitura liberada por setor" usada acima pra Todos os Pedidos).
   const podeVerEntregas = pathname === '/entregues' && meusSetores.includes('logistica');
