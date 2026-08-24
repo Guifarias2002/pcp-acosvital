@@ -375,7 +375,20 @@ export default function PcpHrmPage() {
                   // embaralhada onde as descrições saem mas os códigos não). Anexa
                   // do mesmo jeito; o PCP confere na Conferência.
                   const qual = op.qualidade ?? op.confianca;
-                  const leituraRuim = qual < 0.25;
+                  // Código coerente = numérico com 4+ dígitos (mesma regra do opReader).
+                  const codigoCoerente = (c: string) => /^\d{4,}$/.test((c || '').replace(/\s/g, ''));
+                  const codOk = op.materiais.filter(m => codigoCoerente(m.codigo)).length;
+                  const fracCodOk = op.materiais.length ? codOk / op.materiais.length : 1;
+                  // "Não auditável": PDF nativamente ilegível (cifra de substituição
+                  // TOTAL, confianca~0) E a decodificação não recuperou os CÓDIGOS dos
+                  // materiais. Mostrar isso como "leitura parcial" induziria o PCP a
+                  // confiar num código inventado pela decodificação (ex.: OP-013466:
+                  // confianca=0, qual=0.333, 12/12 componentes sem código coerente ->
+                  // códigos saíam como "03S2??"). Melhor admitir que não leu.
+                  // OPs de fonte quase-identidade (ex.: 013169, confianca≈0.86) nunca
+                  // caem aqui — não quebra o que já funciona.
+                  const naoAuditavel = op.confianca < 0.05 && op.materiais.length > 0 && fracCodOk < 0.5;
+                  const leituraRuim = qual < 0.25 || naoAuditavel;
                   const conferir = qual < 0.7;
                   const avisos = op.validacao?.avisos || [];
                   return (
@@ -496,7 +509,12 @@ export default function PcpHrmPage() {
                                 <tbody>
                                   {op.materiais.map((m, i) => (
                                     <tr key={i} style={{ borderBottom:'1px solid #f1f3f5' }}>
-                                      <td style={{ padding:'5px 8px', fontWeight:700, color:'#1a3a5c', whiteSpace:'nowrap' }}>{m.codigo}</td>
+                                      {/* Código só quando numericamente coerente; senão "—"
+                                          (a decodificação não recuperou este código — não
+                                          mostrar glifo corrompido como se fosse código real). */}
+                                      {codigoCoerente(m.codigo)
+                                        ? <td style={{ padding:'5px 8px', fontWeight:700, color:'#1a3a5c', whiteSpace:'nowrap' }}>{m.codigo}</td>
+                                        : <td style={{ padding:'5px 8px', color:'#b91c1c', whiteSpace:'nowrap' }} title="Código não pôde ser lido com segurança — confira no PDF">—</td>}
                                       <td style={{ padding:'5px 8px' }}>{m.descricao}</td>
                                       <td style={{ padding:'5px 8px', whiteSpace:'nowrap' }}>{m.quantidade}</td>
                                       <td style={{ padding:'5px 8px' }}>{m.unidade}</td>
