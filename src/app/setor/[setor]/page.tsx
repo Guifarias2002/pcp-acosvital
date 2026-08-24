@@ -36,7 +36,6 @@ import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIO
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
-import NotificacoesLive from '@/components/NotificacoesLive';
 import { useRealtime } from '@/hooks/useRealtime';
 import ConfirmModal from '@/components/ConfirmModal';
 import EntregarModal from '@/components/EntregarModal';
@@ -3310,7 +3309,6 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
           onClose={() => setModalImprimir(null)}
         />
       )}
-      <NotificacoesLive filtroSetor={setor} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: setor === 'logistica' ? 12 : 18, flexWrap: 'wrap', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Link href="/" style={{ fontSize: 12, color: '#6b7280', textDecoration: 'none', border: '1px solid #d1d5db', borderRadius: 5, padding: '4px 10px', background: '#f9fafb', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
