@@ -25,6 +25,12 @@ export async function POST(req: Request) {
 
     const buf = Buffer.from(await arquivo.arrayBuffer());
     const leitura = await lerOP(buf);
+    // Log de validação (instrução 7): registra CLARAMENTE o que não foi
+    // interpretado, pra diagnóstico sem depender da tela. Não altera a resposta.
+    if (leitura.avisos.length) {
+      console.warn(`[pcp-hrm/ler-op] "${arquivo.name}" — ${leitura.ops.length} ordem(ns), ${leitura.totalPaginas} pág. Avisos:`);
+      for (const a of leitura.avisos) console.warn(`  · ${a}`);
+    }
     return NextResponse.json({ ok: true, ...leitura });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

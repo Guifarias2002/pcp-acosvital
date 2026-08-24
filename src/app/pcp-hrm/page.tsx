@@ -42,14 +42,15 @@ export default function PcpHrmPage() {
 
   // Leitura automática da OP (materiais + roteiro) assim que anexa o PDF. Um
   // mesmo PDF pode trazer mais de uma ordem (cada quadro vermelho abre uma).
-  interface OPMat { codigo: string; descricao: string; quantidade: string; unidade: string; }
+  interface OPMat { codigo: string; descricao: string; quantidade: string; unidade: string; materiaPrima?: string | null; dimensao?: string | null; norma?: string | null; }
   interface OPOp { seq: string; setor: string; setorNome: string; etapa: string; tc: string; tf: string; }
+  interface OPValid { temProduto: boolean; temComponentes: boolean; temRoteiro: boolean; componentesSemCodigo: number; avisos: string[] }
   interface OPItem {
     cabecalho: { pn: string; po: string; ns: string };
     produto: { codigo: string; descricao: string };
-    materiais: OPMat[]; roteiro: OPOp[]; confianca: number; paginas: number;
+    materiais: OPMat[]; roteiro: OPOp[]; confianca: number; qualidade?: number; validacao?: OPValid; paginas: number;
   }
-  interface OPLeitura { ops: OPItem[]; totalPaginas: number; }
+  interface OPLeitura { ops: OPItem[]; totalPaginas: number; avisos?: string[] }
   const [lendo, setLendo] = useState(false);
   const [leitura, setLeitura] = useState<OPLeitura | null>(null);
   const [erroLeitura, setErroLeitura] = useState('');
@@ -366,12 +367,17 @@ export default function PcpHrmPage() {
                   const multi = leitura.ops.length > 1;
                   const setoresRoteiro = setoresDaOrdem(idx, op);
                   const aberto = componentesAbertos.has(idx);
-                  // Confiança muito baixa = a fonte embaralhada do Totvs não foi
-                  // decifrada; materiais/roteiro/produto saem como lixo. Nesse caso
-                  // não mostramos os dados garbled — só a identificação (PN/PO/NS,
-                  // que vem da anotação do quadro vermelho e NÃO é embaralhada) e
-                  // um aviso. Anexa a OP do mesmo jeito; o PCP lança na Conferência.
-                  const leituraRuim = op.confianca < 0.3;
+                  // Gate pela QUALIDADE pós-decodificação (plausibilidade do que
+                  // saiu), não pela legibilidade nativa (confianca). Só esconde os
+                  // dados quando nem isso foi recuperado — aí mostra só a
+                  // identificação (PN/PO/NS, da anotação, NÃO embaralhada). Entre
+                  // 0.25 e 0.7 mostra os dados COM aviso de conferir (ex.: OP muito
+                  // embaralhada onde as descrições saem mas os códigos não). Anexa
+                  // do mesmo jeito; o PCP confere na Conferência.
+                  const qual = op.qualidade ?? op.confianca;
+                  const leituraRuim = qual < 0.25;
+                  const conferir = qual < 0.7;
+                  const avisos = op.validacao?.avisos || [];
                   return (
                     <div key={idx}>
                       {/* Linha resumo — só Produto/Descrição, igual uma linha de item do
@@ -390,7 +396,7 @@ export default function PcpHrmPage() {
                           <span style={{ fontSize:11, fontWeight:700, color:'#b91c1c', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:6, padding:'3px 8px', whiteSpace:'nowrap' }}>
                             <i className="bi bi-exclamation-triangle" style={{ marginRight:4 }} />não consegui ler
                           </span>
-                        ) : op.confianca < 0.5 && (
+                        ) : conferir && (
                           <span style={{ fontSize:11, fontWeight:700, color:'#92400e', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:6, padding:'3px 8px', whiteSpace:'nowrap' }}>
                             <i className="bi bi-eye" style={{ marginRight:4 }} />confira
                           </span>
@@ -423,6 +429,23 @@ export default function PcpHrmPage() {
                             <div style={{ fontSize:13, color:'#92400e', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:8, padding:'10px 12px', marginBottom:14 }}>
                               <i className="bi bi-exclamation-triangle" style={{ marginRight:6 }} />
                               Não consegui ler os <b>materiais</b> e o <b>roteiro</b> automaticamente nesta OP (a fonte do PDF veio muito embaralhada). A identificação acima (PN/PO/NS) está correta. <b>Anexe a OP mesmo assim</b> — o PCP confere na Conferência. Se der, exporte a OP do Totvs em Excel/TXT pra leitura 100% confiável.
+                            </div>
+                          )}
+
+                          {/* Leitura PARCIAL: mostra os dados que saíram (produto,
+                              descrições, roteiro) COM aviso claro do que ficou
+                              incerto (ex.: códigos numéricos numa OP muito
+                              embaralhada). Nada é inventado — o que não decodificou
+                              vem sinalizado, pro PCP conferir no PDF. */}
+                          {!leituraRuim && conferir && avisos.length > 0 && (
+                            <div style={{ fontSize:12.5, color:'#92400e', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:8, padding:'10px 12px', marginBottom:14 }}>
+                              <div style={{ fontWeight:700, marginBottom:4 }}>
+                                <i className="bi bi-exclamation-triangle" style={{ marginRight:6 }} />
+                                Leitura parcial — confira no PDF antes de usar
+                              </div>
+                              <ul style={{ margin:'4px 0 0', paddingLeft:18 }}>
+                                {avisos.map((a, i) => <li key={i}>{a}</li>)}
+                              </ul>
                             </div>
                           )}
                           {/* Por onde passa (setores do roteiro) — leitura sugerida, editável aqui só

@@ -1,31 +1,71 @@
 // ── Leitor de OP do Protheus/Totvs (PCP HRM) ────────────────────────────────
 // Extrai, de uma OP em PDF, uma ou mais ORDENS (cada uma com quadro vermelho
 // PN/PO/NS próprio), e por ordem: Produto/Descrição, COMPONENTES e ROTEIRO
-// (por onde passa). O Totvs gera o PDF com fonte de encoding próprio que
-// EMBARALHA o texto e re-embaralha por documento — a tabela de decodificação é
-// AUTO-DERIVADA por ordem (títulos soletrados + cabeçalho da tabela + dígitos
-// pela coluna SEQ). Algumas OPs vêm legíveis (leitura perfeita), outras
-// embaralhadas (~75%, `confianca<0.5` sinaliza conferir). Ver
-// [[project_pcp_hrm_caldeiraria]]. Roda em Node (pdfjs-dist legacy) — deploya na
-// Vercel. O quadro vermelho é uma ANOTAÇÃO FreeText (texto em contentsObj.str).
+// (por onde passa).
+//
+// O Totvs gera o PDF com uma FONTE de encoding próprio que EMBARALHA o texto e
+// re-embaralha a cada documento — não existe tabela fixa de substituição. A
+// tabela de decodificação é AUTO-DERIVADA a partir das próprias âncoras do
+// documento (títulos soletrados "C O M P O N E N T E S" / "R O T E I R O", o
+// cabeçalho da tabela e os dígitos da coluna SEQ).
+//
+// ⚠️ IMPORTANTE (corrigido 24/08): algumas OPs usam UMA FONTE EMBUTIDA DIFERENTE
+// POR PÁGINA (ex.: OP-013466 tem g_d0_f1…g_d0_f13, uma cifra por página). Um
+// mapa único global misturava as cifras de páginas diferentes e corrompia tudo
+// (confiança caía a 0 → "não consegui ler"). Agora a cifra é derivada e aplicada
+// POR FONTE (`fontName` de cada trecho), então cada página decodifica com a sua
+// própria cifra. OPs que usam a mesma fonte no documento inteiro (ex.: OP-013169)
+// seguem idênticas ao comportamento anterior. Ver [[project_pcp_hrm_caldeiraria]].
+//
+// Roda em Node (pdfjs-dist legacy) — deploya na Vercel. O quadro vermelho é uma
+// ANOTAÇÃO FreeText (texto legível em contentsObj.str, NÃO embaralhado).
 
-export interface OPMaterial { codigo: string; descricao: string; quantidade: string; unidade: string; }
-export interface OPOperacao { seq: string; setor: string; setorNome: string; etapa: string; tc: string; tf: string; }
+export interface OPMaterial {
+  codigo: string; descricao: string; quantidade: string; unidade: string;
+  // Colunas extras da tabela de COMPONENTES do Totvs (preservadas mesmo sem uso
+  // atual no fluxo). `null`/'' quando a coluna não existe naquela OP.
+  al?: string | null;              // coluna AL (alternativo)
+  rastreabilidade?: string | null; // coluna RASTREAB
+  // Campos best-effort extraídos da própria descrição (matéria-prima, dimensão,
+  // norma…). Só preenchidos quando reconhecidos com segurança — senão `null`
+  // (regra: NÃO inventar). A descrição original fica sempre intacta em `descricao`.
+  materiaPrima?: string | null;
+  dimensao?: string | null;
+  espessura?: string | null;
+  norma?: string | null;
+  raw?: string;                    // linha decodificada verbatim (auditoria)
+}
+export interface OPOperacao {
+  seq: string; setor: string; setorNome: string; etapa: string; tc: string; tf: string;
+  raw?: string;                    // linha decodificada verbatim (auditoria)
+}
 export interface OPCabecalho { pn: string; po: string; ns: string; }
 export interface OPProduto { codigo: string; descricao: string; }
+export interface OPValidacao {
+  temProduto: boolean;
+  temComponentes: boolean;
+  temRoteiro: boolean;
+  componentesSemCodigo: number;    // materiais sem código numérico coerente
+  avisos: string[];                // o que NÃO foi identificado/classificado (instrução 7)
+}
 export interface OPItem {
   cabecalho: OPCabecalho;   // quadro vermelho: PN / PO / NS
   produto: OPProduto;       // Produto: <cod> Descricao: <desc>
   materiais: OPMaterial[];  // COMPONENTES
   roteiro: OPOperacao[];    // por onde passa
-  confianca: number;
+  confianca: number;        // legibilidade nativa do PDF (0=embaralhado, 1=legível)
+  qualidade: number;        // plausibilidade PÓS-decodificação (0..1) — gate da UI
+  validacao: OPValidacao;
   paginas: number;
 }
-export interface OPLeitura { ops: OPItem[]; totalPaginas: number; }
+export interface OPLeitura { ops: OPItem[]; totalPaginas: number; avisos: string[] }
 
-interface Item { s: string; x: number; }
-interface Line { items: Item[]; raw: string; }
-interface Pagina { lines: Line[]; redbox: string | null; nro: string | null; }
+interface Item { s: string; x: number; f: string }   // f = fontName (pdfjs)
+interface Line { items: Item[]; raw: string; dec?: string }
+interface Pagina { lines: Line[]; redbox: string | null; nro: string | null }
+
+// Mapa de decodificação por FONTE: fontName -> (glifo-cifra -> caractere-claro).
+type FontMaps = Record<string, Record<string, string>>;
 
 const isCtrl = (s: string) => { for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) < 32) return true; return false; };
 
@@ -34,7 +74,33 @@ function addMap(map: Record<string, string>, cipher: string, plain: string) {
   if (cc.length !== plain.length) return;
   for (let i = 0; i < plain.length; i++) { const c = cc[i], p = plain[i]; if (c === ' ' || c === '-' || isCtrl(c)) continue; if (!(c in map)) map[c] = p; }
 }
-const spacedTitle = (ln: Line) => ln.items.map(i => i.s).filter(s => s.replace(/[\s-]/g, '').length === 1).map(s => s.replace(/[\s-]/g, '')).join('');
+// Título soletrado ("C O M P O N E N T E S"). O separador entre as letras pode
+// ser espaço/hífen (sumem no filtro) OU um GLIFO VISÍVEL da fonte (ex.: '/' na
+// OP-013466: `O/M/b/2/M/P/3/P/N/3/I`, com '//' nos espaços entre palavras — e o
+// mesmo glifo separa os campos nos dados, ou seja, é o "espaço" daquela fonte).
+// Quando o char mais frequente é um símbolo (não-alfanumérico) ou ocupa ≳40% das
+// posições, ele é o separador: removido do título e devolvido em `sep` pra ser
+// mapeado como espaço na cifra da fonte.
+function spacedTitleInfo(ln: Line): { title: string; sep: string } {
+  const singles = ln.items.map(i => i.s).filter(s => typeof s === 'string' && s.replace(/[\s-]/g, '').length === 1).map(s => s.replace(/[\s-]/g, ''));
+  if (singles.length === 0) return { title: '', sep: '' };
+  const freq: Record<string, number> = {};
+  for (const c of singles) freq[c] = (freq[c] || 0) + 1;
+  const [sep, n] = Object.entries(freq).sort((a, b) => b[1] - a[1])[0];
+  const ehSeparador = (/[^A-Za-z0-9]/.test(sep) || n / singles.length >= 0.4) && n >= 2;
+  return ehSeparador ? { title: singles.filter(c => c !== sep).join(''), sep } : { title: singles.join(''), sep: '' };
+}
+const spacedTitle = (ln: Line) => spacedTitleInfo(ln).title;
+
+// Fonte dominante de uma linha = a fonte da maior parte dos caracteres com
+// conteúdo. Usada pra agrupar as linhas por fonte na derivação da cifra.
+function lineFont(ln: Line): string {
+  const cont: Record<string, number> = {};
+  for (const it of ln.items) { if (typeof it.s !== 'string') continue; const n = it.s.replace(/\s/g, '').length; if (n) cont[it.f] = (cont[it.f] || 0) + n; }
+  let best = '', bestN = -1;
+  for (const [f, n] of Object.entries(cont)) if (n > bestN) { best = f; bestN = n; }
+  return best;
+}
 
 async function extractDoc(buf: Buffer): Promise<Pagina[]> {
   const pdfjsMod: any = await import('pdfjs-dist/legacy/build/pdf.js');
@@ -57,7 +123,7 @@ async function extractDoc(buf: Buffer): Promise<Pagina[]> {
     for (const it of tc.items as any[]) {
       if (typeof it.str !== 'string') continue;
       const y = Math.round(it.transform[5]);
-      (byY[y] = byY[y] || []).push({ s: it.str, x: it.transform[4] });
+      (byY[y] = byY[y] || []).push({ s: it.str, x: it.transform[4], f: it.fontName || '' });
     }
     const lines = Object.keys(byY).map(Number).sort((a, b) => b - a).map(y => {
       const items = byY[y].sort((a, b) => a.x - b.x);
@@ -154,11 +220,18 @@ function parseCabecalho(redbox: string | null): OPCabecalho {
   return cab;
 }
 
-function deriveMap(lines: Line[]): Record<string, string> {
+// ── Derivação da cifra POR FONTE ─────────────────────────────────────────────
+// Deriva o mapa de UMA fonte a partir das linhas em que ela é dominante. É a
+// lógica de âncoras original (títulos soletrados + cabeçalho da tabela + dígitos
+// da coluna SEQ), agora escopada a uma fonte só. Retorna glifo->caractere.
+function deriveMapaFonte(lines: Line[]): Record<string, string> {
   const map: Record<string, string> = {};
+  // O separador dos títulos soletrados é o glifo de ESPAÇO da fonte — mapeia pra
+  // ' ' (vale nos títulos e nos dados, onde o mesmo glifo separa os campos).
+  const mapSep = (sep: string) => { if (sep && !(sep in map)) map[sep] = ' '; };
   let compIdx = -1;
-  for (let i = 0; i < lines.length; i++) { const t = spacedTitle(lines[i]); if (t.length === 11) { addMap(map, t, 'COMPONENTES'); compIdx = i; break; } }
-  for (const ln of lines) { const t = spacedTitle(ln); if (t.length === 18) { addMap(map, t, 'ROTEIRODEOPERACOES'); break; } }
+  for (let i = 0; i < lines.length; i++) { const { title, sep } = spacedTitleInfo(lines[i]); if (title.length === 11) { addMap(map, title, 'COMPONENTES'); mapSep(sep); compIdx = i; break; } }
+  for (const ln of lines) { const { title, sep } = spacedTitleInfo(ln); if (title.length === 18) { addMap(map, title, 'ROTEIRODEOPERACOES'); mapSep(sep); break; } }
   const dec = (s: string) => s.split('').map(c => (c in map ? map[c] : c)).join('');
 
   const HDR = ['CODIGO', 'DESCRICAO', 'QUANTIDADE', 'UM', 'AL', 'RASTREAB', 'SEQ'];
@@ -184,9 +257,98 @@ function deriveMap(lines: Line[]): Record<string, string> {
   return map;
 }
 
-function parseProduto(lines: Line[], map: Record<string, string>): OPProduto {
-  const dec = (s: string) => s.split('').map(c => (c in map ? map[c] : c)).join('');
-  const norm = (s: string) => dec(s).replace(/[-\s]/g, '').toUpperCase();
+// Deriva UM mapa por fonte: agrupa as linhas do documento pela fonte dominante
+// e roda deriveMapaFonte em cada grupo. Cada página embaralhada (que usa a sua
+// própria fonte) ganha assim a sua própria cifra.
+function deriveFontMaps(paginas: Pagina[]): FontMaps {
+  const porFonte: Record<string, Line[]> = {};
+  for (const pg of paginas) for (const ln of pg.lines) { const f = lineFont(ln); if (!f) continue; (porFonte[f] = porFonte[f] || []).push(ln); }
+  const maps: FontMaps = {};
+  for (const [f, lns] of Object.entries(porFonte)) maps[f] = deriveMapaFonte(lns);
+  return maps;
+}
+
+// Propaga a cifra pras fontes SEM âncora (páginas de continuação do roteiro que
+// usam uma fonte própria e não têm título COMPONENTES/ROTEIRO). Estratégia: uma
+// fonte JÁ mapeada me dá o cabeçalho do roteiro decodificado ("SEQ SETOR MAQUINA
+// OPERACAO ETAPA…") com a posição X de cada caractere. O cabeçalho fica na MESMA
+// posição X em toda página (template fixo do Totvs), então nas fontes fracas eu
+// acho a linha de mesma assinatura X e alinho glifo→letra pelo texto conhecido.
+// Nunca sobrescreve mapeamento já existente e só age em fonte comprovadamente
+// sem âncora — não afeta OPs de fonte única (013169).
+function propagarCabecalhoRoteiro(paginas: Pagina[], maps: FontMaps) {
+  const decWith = (m: Record<string, string> | undefined) => (it: Item) => (m ? it.s.split('').map(c => (c in m ? m[c] : c)).join('') : it.s);
+
+  // Referência: numa fonte já mapeada, a linha que decodifica pra cabeçalho do
+  // roteiro (tem SETOR e ETAPA). Guarda cada caractere decodificado com seu X.
+  let ref: { plain: string; x: number }[] | null = null;
+  for (const [f, m] of Object.entries(maps)) {
+    const dec = decWith(m);
+    for (const pg of paginas) for (const ln of pg.lines) {
+      if (lineFont(ln) !== f) continue;
+      const d = ln.items.map(dec).join('').toUpperCase();
+      if (/SET.?OR/.test(d) && /ETAP/.test(d) && /SEQ/.test(d)) {
+        const chars: { plain: string; x: number }[] = [];
+        for (const it of ln.items) { const p = dec(it); for (const ch of p) chars.push({ plain: ch, x: it.x }); }
+        ref = chars; break;
+      }
+    }
+    if (ref) break;
+  }
+  if (!ref) return;
+  const refLetras = ref.filter(c => /[A-Z]/i.test(c.plain));
+  const refXmin = Math.min(...ref.map(c => c.x)), refXmax = Math.max(...ref.map(c => c.x));
+
+  // Fonte fraca = nenhuma linha dela tem título nem decodifica pra cabeçalho.
+  for (const [f, m] of Object.entries(maps)) {
+    const dec = decWith(m);
+    const linhasF: Line[] = [];
+    for (const pg of paginas) for (const ln of pg.lines) if (lineFont(ln) === f) linhasF.push(ln);
+    const jaTem = linhasF.some(ln => { const d = ln.items.map(dec).join('').toUpperCase(); return (/SET.?OR/.test(d) && /ETAP/.test(d)) || /COMPONENTES/.test(d.replace(/\s/g, '')); });
+    if (jaTem) continue;
+
+    // Acha a linha-cabeçalho de F: mesma faixa X, contagem de itens parecida.
+    let melhor: Line | null = null, melhorScore = Infinity;
+    for (const ln of linhasF) {
+      const xs = ln.items.map(i => i.x);
+      const xmin = Math.min(...xs), xmax = Math.max(...xs);
+      if (xmax < refXmin || xmin > refXmax) continue;
+      const cobre = Math.min(xmax, refXmax) - Math.max(xmin, refXmin);
+      const score = Math.abs(ln.items.length - ref.length) + Math.max(0, (refXmax - refXmin) - cobre) / 20;
+      if (cobre > (refXmax - refXmin) * 0.7 && score < melhorScore) { melhorScore = score; melhor = ln; }
+    }
+    if (!melhor) continue;
+
+    // Alinha os caracteres de F (por X) às letras da referência (por X) e mapeia
+    // glifo→letra. Só letras; nunca sobrescreve. Exige X próximo (mesmo campo).
+    const alvo: { g: string; x: number }[] = [];
+    for (const it of melhor.items) for (const ch of it.s) alvo.push({ g: ch, x: it.x });
+    const alvoLetras = alvo.filter(c => c.g.replace(/[\s-]/g, '').length === 1 && /[^\s-]/.test(c.g));
+    if (Math.abs(alvoLetras.length - refLetras.length) > 3) continue;
+    const n = Math.min(alvoLetras.length, refLetras.length);
+    const novo: Record<string, string> = {};
+    for (let i = 0; i < n; i++) {
+      const g = alvoLetras[i].g, p = refLetras[i].plain;
+      if (!/[A-Z]/i.test(p)) continue;
+      if (g === ' ' || g === '-' || isCtrl(g)) continue;
+      if (!(g in m) && !(g in novo)) novo[g] = p;
+    }
+    Object.assign(m, novo);
+  }
+}
+
+// Decodifica UM trecho usando o mapa da fonte dele (identidade se a fonte não
+// tem mapa — nunca corrompe com a cifra de outra fonte).
+function makeDecItem(maps: FontMaps) {
+  return (it: Item): string => {
+    const m = maps[it.f];
+    if (!m) return it.s;
+    return it.s.split('').map(c => (c in m ? m[c] : c)).join('');
+  };
+}
+
+function parseProduto(lines: Line[]): OPProduto {
+  const norm = (s: string) => s.replace(/[-\s]/g, '').toUpperCase();
   // Ordem com sub-item ("***** ORDEM DE PRODUCAO - PAI ******"): vem o
   // Produto PAI (a peça maior) e, depois de uma linha de traços, o Produto
   // FILHO — que é o que ESSA ordem de verdade fabrica/roteia (o PN/PO/NS do
@@ -194,28 +356,47 @@ function parseProduto(lines: Line[], map: Record<string, string>): OPProduto {
   // ÚLTIMO "Produto:" encontrado antes de COMPONENTES: quando só tem um
   // (ordem sem sub-item, marcador "V I A P E Ç A"), é ele mesmo; quando tem
   // dois, é o filho.
-  const fimBusca = (() => { const i = lines.findIndex(ln => norm(ln.raw).includes('COMPONENTES')); return i >= 0 ? i : lines.length; })();
+  const fimBusca = (() => { const i = lines.findIndex(ln => norm(ln.dec || '').includes('COMPONENTES')); return i >= 0 ? i : lines.length; })();
   const candidatos: OPProduto[] = [];
   for (let i = 0; i < fimBusca; i++) {
-    const d = dec(lines[i].raw).replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+    const d = (lines[i].dec || '').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
     const m = d.match(/Produto:?\s*(\S+)\s+Descric[a-z]*:?\s*(.+)/i);
     if (m) candidatos.push({ codigo: m[1], descricao: m[2].trim() });
   }
   if (candidatos.length > 0) return candidatos[candidatos.length - 1];
 
   // Fallback pra OP embaralhada sem "Produto:" legível.
-  const viaIdx = lines.findIndex(ln => norm(ln.raw).includes('VIAPECA'));
+  const viaIdx = lines.findIndex(ln => norm(ln.dec || '').includes('VIAPECA'));
   const cand = viaIdx >= 0 ? lines.slice(viaIdx + 1, viaIdx + 3) : lines.slice(4, 8);
   let melhor = '';
-  for (const ln of cand) { const d = dec(ln.raw).replace(/-/g, ' ').replace(/\s+/g, ' ').trim(); if ((d.match(/[A-Za-z]/g) || []).length > (melhor.match(/[A-Za-z]/g) || []).length) melhor = d; }
+  for (const ln of cand) { const d = (ln.dec || '').replace(/-/g, ' ').replace(/\s+/g, ' ').trim(); if ((d.match(/[A-Za-z]/g) || []).length > (melhor.match(/[A-Za-z]/g) || []).length) melhor = d; }
   const toks = melhor.split(' ');
   return { codigo: '', descricao: toks.length > 6 ? toks.slice(4).join(' ') : melhor };
 }
 
-function parseBlocos(lines: Line[], map: Record<string, string>): { materiais: OPMaterial[]; roteiro: OPOperacao[] } {
-  const dec = (s: string) => s.split('').map(c => (c in map ? map[c] : c)).join('');
+// Best-effort: extrai matéria-prima / dimensão / norma da descrição, SÓ quando
+// reconhecidos com segurança. Nunca inventa: sem match confiável → null. A
+// descrição original nunca é alterada.
+const MP_KEYWORDS = /\b(CHAPA|BARRA|BR\b|CANT(?:ONEIRA)?|TUBO|PERFIL|VERGALH[AÃ]O|VERG\b|BOBINA|PINO|PARAFUSO|PORCA|ARRUELA|SCREW|BOLT|NUT|WASHER|FLANGE|CHAP)\b/i;
+const NORMA_RE = /\b(A\s?36|ASTM\s?A?\d+[A-Z]?|SAE\s?\d+|GR\.?\s?B?\d+[A-Z]?|API\s?\w+|MS\s?\d[\d\s]*|ANSI|DIN\s?\d+|NBR\s?\d+)\b/i;
+const DIM_RE = /Ø?\s*\d+(?:[.,/]\d+)?\s*["¨']?\s*[xX]\s*\d+(?:[.,/]\d+)?(?:\s*[xX]\s*\d+(?:[.,/]\d+)?)?/;
+const ESP_RE = /#\s*\d+(?:[.,/]\d+)?\s*["¨']?/;
+function extrairCamposDescricao(desc: string): Pick<OPMaterial, 'materiaPrima' | 'dimensao' | 'espessura' | 'norma'> {
+  const mp = desc.match(MP_KEYWORDS);
+  const norma = desc.match(NORMA_RE);
+  const dim = desc.match(DIM_RE);
+  const esp = desc.match(ESP_RE);
+  return {
+    materiaPrima: mp ? mp[0].toUpperCase().replace(/\bBR\b/, 'BARRA REDONDA') : null,
+    dimensao: dim ? dim[0].replace(/\s+/g, ' ').trim() : null,
+    espessura: esp ? esp[0].replace(/\s+/g, '').trim() : null,
+    norma: norma ? norma[0].toUpperCase().replace(/\s+/g, ' ').trim() : null,
+  };
+}
+
+function parseBlocos(lines: Line[], decItem: (it: Item) => string): { materiais: OPMaterial[]; roteiro: OPOperacao[] } {
   const clean = (s: string) => s.replace(/\|/g, ' ').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
-  const norm = (s: string) => dec(s).replace(/[-\s]/g, '').toUpperCase();
+  const norm = (s: string) => (s || '').replace(/[-\s]/g, '').toUpperCase();
   const skip = (d: string) => !d || isCtrl(d)
     || /^(FOLHA|HORA|SIGA|GRUPODEEMPRESA|ORDEMDEPRODUCAO|NRO|DTREF|VIAPECA)/i.test(d.replace(/[-\s.]/g, ''))
     || /^(INICIO|TERMINO)REAL/i.test(d.replace(/[-\s]/g, '')) || /PROIBIDA|IMPRESSO/i.test(d)
@@ -228,19 +409,28 @@ function parseBlocos(lines: Line[], map: Record<string, string>): { materiais: O
     || /INSPE[CÇ][AÃ]O\s*CQ\s*DE\s*PRODU[CÇ][AÃ]O/i.test(d)
     || (d.match(/:/g) || []).length >= 3;
 
-  const compIdx = lines.findIndex(ln => norm(ln.raw).includes('COMPONENTES'));
-  const rotIdx = lines.findIndex(ln => norm(ln.raw).includes('ROTEIRODEOPERA'));
+  const compIdx = lines.findIndex(ln => norm(ln.dec || '').includes('COMPONENTES'));
+  const rotIdx = lines.findIndex(ln => norm(ln.dec || '').includes('ROTEIRODEOPERA'));
 
   // MATERIAIS (COMPONENTES)
   const materiais: OPMaterial[] = [];
   const end = rotIdx > compIdx ? rotIdx : lines.length;
   for (let i = compIdx + 1; i < end && compIdx >= 0; i++) {
-    const d = dec(lines[i].raw);
+    const d = lines[i].dec || '';
     const n = d.replace(/[-\s]/g, '').toUpperCase();
     if (n.includes('CODIGO') && n.includes('DESCRICAO')) continue;
     const cols = d.split('|').map(c => c.replace(/^[-\s]+|[-\s]+$/g, '').replace(/-/g, ' ').trim());
     if (cols.length >= 4 && /\d/.test(cols[0]) && cols[0].length >= 4) {
-      materiais.push({ codigo: cols[0].replace(/\s/g, ''), descricao: cols[1] || '', quantidade: (cols[2] || '').replace(/\s/g, ''), unidade: (cols[3] || '').replace(/\s/g, '') });
+      const descricao = cols[1] || '';
+      const extra = extrairCamposDescricao(descricao);
+      materiais.push({
+        codigo: cols[0].replace(/\s/g, ''), descricao,
+        quantidade: (cols[2] || '').replace(/\s/g, ''), unidade: (cols[3] || '').replace(/\s/g, ''),
+        al: cols[4] ? cols[4].replace(/\s/g, '') : null,
+        rastreabilidade: cols[5] ? cols[5].replace(/\s/g, '') : null,
+        ...extra,
+        raw: clean(d),
+      });
     } else if (materiais.length && clean(d) && !/^\d/.test(n) && !skip(d)) {
       // Continuação da descrição do material anterior (quebra de linha). Guardas
       // pra NÃO engolir o roteiro/rodapé inteiro quando o título "ROTEIRO DE
@@ -249,17 +439,20 @@ function parseBlocos(lines: Line[], map: Record<string, string>): { materiais: O
       // roteiro todo dentro. Só concatena trecho curto e limita o tamanho total.
       const last = materiais[materiais.length - 1];
       const add = clean(d);
-      if (add.length <= 60 && last.descricao.length < 120) last.descricao += ' ' + add;
+      if (add.length <= 60 && last.descricao.length < 120) {
+        last.descricao += ' ' + add;
+        Object.assign(last, extrairCamposDescricao(last.descricao));
+      }
     }
   }
 
   // ROTEIRO — colunas por POSIÇÃO X (do cabeçalho SEQ/SETOR/MAQ/ETAPA/TP/TF).
   const colX: Record<string, number> = {};
   for (const ln of lines) {
-    const d = dec(ln.raw).toUpperCase();
+    const d = (ln.dec || '').toUpperCase();
     if (/SET.R/.test(d) && /ETAP/.test(d)) {
       for (const it of ln.items) {
-        const t = dec(it.s).toUpperCase().replace(/[^A-Z]/g, '');
+        const t = decItem(it).toUpperCase().replace(/[^A-Z]/g, '');
         if (!t) continue;
         if (colX.seq == null && t.startsWith('SEQ')) colX.seq = it.x;
         else if (colX.setor == null && t.startsWith('SET')) colX.setor = it.x;
@@ -286,7 +479,7 @@ function parseBlocos(lines: Line[], map: Record<string, string>): { materiais: O
   function bucket(ln: Line): OPOperacao {
     const o: OPOperacao = { seq: '', setor: '', setorNome: '', etapa: '', tc: '', tf: '' };
     for (const it of ln.items) {
-      const t = dec(it.s); const x = it.x;
+      const t = decItem(it); const x = it.x;
       if (x < bSetor) o.seq += t;
       else if (x < bMaq) o.setor += t;
       else if (x < bEtapa) o.setorNome += t;
@@ -300,13 +493,14 @@ function parseBlocos(lines: Line[], map: Record<string, string>): { materiais: O
     o.etapa = clean(o.etapa);
     o.tc = o.tc.replace(/[^\d]/g, '');
     o.tf = o.tf.replace(/[^\d]/g, '');
+    o.raw = clean(ln.dec || '');
     return o;
   }
 
   const roteiro: OPOperacao[] = [];
   for (let i = rotIdx + 1; i < lines.length && rotIdx >= 0; i++) {
     const ln = lines[i];
-    const d = clean(dec(ln.raw));
+    const d = clean(ln.dec || '');
     if (skip(d)) continue;
     if (/SETOR/i.test(d) && /ETAPA/i.test(d)) continue;
     if (temCol) {
@@ -315,30 +509,94 @@ function parseBlocos(lines: Line[], map: Record<string, string>): { materiais: O
       else if (roteiro.length) { const last = roteiro[roteiro.length - 1]; if (o.setorNome) last.setorNome += ' ' + o.setorNome; if (o.etapa) last.etapa += ' ' + o.etapa; }
     } else {
       const m = d.match(/^(\d{3})\s+(\d{4,6})\s+(.+?)\s*(\d{1,4})\s+(\d{1,4})\s*$/) || d.match(/^(\d{3})\s+(\d{4,6})\s+(.+)$/);
-      if (m) roteiro.push({ seq: m[1], setor: m[2], setorNome: '', etapa: m[3].trim(), tc: m[4] || '', tf: m[5] || '' });
+      if (m) roteiro.push({ seq: m[1], setor: m[2], setorNome: '', etapa: m[3].trim(), tc: m[4] || '', tf: m[5] || '', raw: d });
       else if (roteiro.length && !/^\d{3}\s/.test(d)) roteiro[roteiro.length - 1].etapa += ' ' + d;
     }
   }
   return { materiais, roteiro };
 }
 
+// ── Qualidade e validação (pós-decodificação) ────────────────────────────────
+// Vocabulário de setores/operações típicos do roteiro do Totvs (independente do
+// código interno do sistema) — usado só pra MEDIR plausibilidade, nunca pra
+// completar/inventar dado.
+const VOCAB_ROTEIRO = ['CORTE', 'SERRA', 'CNC', 'PLASMA', 'LASER', 'MACARICO', 'INSPECAO', 'INSPE', 'CQ', 'QUALIDADE', 'TORNO', 'FURAD', 'FURACAO', 'USINAGEM', 'ACABAMENTO', 'CALD', 'CALDEIRARIA', 'SOLDA', 'MONTAGEM', 'JATEAMENTO', 'JATO', 'PINTURA', 'EXPEDICAO', 'EMBALAGEM', 'DOBRA', 'PRENSA', 'CALANDRA', 'CHANFR', 'TRACAGEM', 'ESTUFA', 'GALVAN', 'ZINCAGEM', 'ROSCA', 'PATIO'];
+const codigoNumerico = (c: string) => /^\d{4,}$/.test((c || '').replace(/\s/g, ''));
+
+function avaliar(op: Omit<OPItem, 'qualidade' | 'validacao'>): { qualidade: number; validacao: OPValidacao } {
+  const avisos: string[] = [];
+  const temProduto = !!(op.produto.codigo || op.produto.descricao);
+  const temComponentes = op.materiais.length > 0;
+  const temRoteiro = op.roteiro.length > 0;
+
+  const comCodigo = op.materiais.filter(m => codigoNumerico(m.codigo)).length;
+  const componentesSemCodigo = op.materiais.length - comCodigo;
+  const fracCodigo = op.materiais.length ? comCodigo / op.materiais.length : 0;
+
+  const setores = op.roteiro.map(o => (o.setorNome || o.setor || '').toUpperCase());
+  const setoresOk = setores.filter(s => VOCAB_ROTEIRO.some(v => s.includes(v))).length;
+  const fracSetor = setores.length ? setoresOk / setores.length : 0;
+
+  // Descrição plausível = tem letras de verdade (não é só glifo/símbolo).
+  const descOk = op.materiais.filter(m => (m.descricao.match(/[A-Za-z]/g) || []).length >= 3).length;
+  const fracDesc = op.materiais.length ? descOk / op.materiais.length : 0;
+
+  // Qualidade = média ponderada dos sinais disponíveis. Só conta o que existe:
+  // uma OP legítima pode não ter componentes (ex.: ordem de sub-item) — nesse
+  // caso o peso vai pro roteiro/produto e não pune injustamente.
+  const sinais: [number, number][] = []; // [valor, peso]
+  sinais.push([temProduto ? 1 : 0, 1]);
+  if (op.materiais.length) { sinais.push([fracCodigo, 2]); sinais.push([fracDesc, 1]); }
+  if (op.roteiro.length) sinais.push([fracSetor, 2]);
+  const somaPeso = sinais.reduce((a, [, w]) => a + w, 0);
+  const qualidade = somaPeso ? sinais.reduce((a, [v, w]) => a + v * w, 0) / somaPeso : 0;
+
+  // Avisos (instrução 7): registrar CLARAMENTE o que não foi identificado.
+  if (!temProduto) avisos.push('Produto não identificado.');
+  if (!temComponentes) avisos.push('Nenhum componente (material) identificado.');
+  if (!temRoteiro) avisos.push('Roteiro (operações) não identificado.');
+  if (temComponentes && componentesSemCodigo > 0) avisos.push(`${componentesSemCodigo} de ${op.materiais.length} componentes sem código numérico coerente.`);
+  if (temComponentes && fracDesc < 0.6) avisos.push('Descrições dos componentes parecem embaralhadas/ilegíveis.');
+  if (temRoteiro && fracSetor < 0.5) avisos.push('Setores do roteiro não batem com operações conhecidas (possível decodificação incompleta).');
+
+  return { qualidade, validacao: { temProduto, temComponentes, temRoteiro, componentesSemCodigo, avisos } };
+}
+
 export async function lerOP(buf: Buffer): Promise<OPLeitura> {
   const paginas = await extractDoc(buf);
-  // O embaralhamento da fonte é o MESMO em todo o documento — deriva o mapa UMA
-  // vez de todas as linhas (pega os títulos-âncora onde quer que estejam) e usa
-  // em todas as seções. Sem isso, seções sem os títulos (ex.: continuação do
-  // roteiro numa OP embaralhada) ficariam sem mapa.
-  const todasLinhas = paginas.flatMap(p => p.lines);
-  const map = deriveMap(todasLinhas);
-  const keys = Object.keys(map);
-  const confianca = keys.length ? keys.filter(k => map[k] === k).length / keys.length : 0;
+
+  // Cifra POR FONTE (fontName). Cada página embaralhada usa a sua própria fonte;
+  // derivar/aplicar por fonte evita a corrupção que um mapa global causava ao
+  // misturar cifras de páginas diferentes.
+  const maps = deriveFontMaps(paginas);
+  // Fontes sem âncora (páginas de continuação do roteiro) herdam a cifra via o
+  // cabeçalho do roteiro, alinhado por posição X a uma fonte já mapeada.
+  propagarCabecalhoRoteiro(paginas, maps);
+  const decItem = makeDecItem(maps);
+
+  // Decodifica cada linha uma vez, trecho a trecho, com o mapa da fonte de cada
+  // trecho — todo o parsing downstream trabalha em cima de `line.dec`.
+  for (const pg of paginas) for (const ln of pg.lines) ln.dec = ln.items.map(decItem).join('');
+
+  // Confiança = legibilidade nativa do PDF (quantos glifos das âncoras já eram o
+  // próprio caractere). Mantida por compatibilidade/telemetria; o gate da UI usa
+  // `qualidade` (plausibilidade pós-decodificação).
+  const todasEntradas = Object.values(maps).flatMap(m => Object.keys(m).map(k => m[k] === k));
+  const confianca = todasEntradas.length ? todasEntradas.filter(Boolean).length / todasEntradas.length : 0;
 
   const grupos = agruparOrdens(paginas);
+  const avisosGerais: string[] = [];
   const ops: OPItem[] = grupos.map(g => {
     const cabecalho = parseCabecalho(g.redbox);
-    const produto = parseProduto(g.lines, map);
-    const { materiais, roteiro } = parseBlocos(g.lines, map);
-    return { cabecalho, produto, materiais, roteiro, confianca, paginas: 0 };
+    const produto = parseProduto(g.lines);
+    const { materiais, roteiro } = parseBlocos(g.lines, decItem);
+    const base = { cabecalho, produto, materiais, roteiro, confianca, paginas: 0 };
+    const { qualidade, validacao } = avaliar(base);
+    return { ...base, qualidade, validacao };
   }).filter(op => op.materiais.length || op.roteiro.length || op.cabecalho.pn);
-  return { ops, totalPaginas: paginas.length };
+
+  if (ops.length === 0) avisosGerais.push('Nenhuma ordem identificada no PDF (confira se é uma OP do Totvs).');
+  for (const op of ops) for (const a of op.validacao.avisos) avisosGerais.push(`${op.cabecalho.ns || op.produto.codigo || 'ordem'}: ${a}`);
+
+  return { ops, totalPaginas: paginas.length, avisos: avisosGerais };
 }
