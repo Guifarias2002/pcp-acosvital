@@ -621,6 +621,20 @@ async function handlePOST(
     if (setor_destino === parcial.setor_atual)
       return NextResponse.json({ erro: 'Setor de devolução deve ser diferente do setor atual' }, { status: 400 });
 
+    // Quantidade a devolver: ausente = devolve a parcial inteira (comportamento
+    // original). Se for menor que o total da parcial, divide — a parte devolvida
+    // vira uma parcial NOVA no destino e o restante fica no setor atual. A soma
+    // das parciais não muda (nada é criado do nada), então não há como furar o
+    // total do item.
+    const qtdDevolver = body.quantidade != null ? Number(body.quantidade) : parcial.qtd;
+    if (!qtdDevolver || qtdDevolver <= 0)
+      return NextResponse.json({ erro: 'Quantidade inválida: deve ser maior que zero' }, { status: 400 });
+    if (qtdDevolver > parcial.qtd + 0.001)
+      return NextResponse.json({
+        erro: `Quantidade informada (${qtdDevolver} ${parcial.unidade}) é maior do que o disponível nesta parcial (${parcial.qtd} ${parcial.unidade})`
+      }, { status: 400 });
+    const ehParcial = qtdDevolver < parcial.qtd - 0.001;
+
     // tipo 'correcao' = devolução por engano / recebimento errado (NÃO é retrabalho).
     // Qualquer outro valor (ou ausência) mantém o comportamento de retrabalho,
     // preservando o fluxo de divergência da Inspeção de Qualidade. O sinal de
@@ -628,23 +642,66 @@ async function handlePOST(
     const ehCorrecao = body.tipo === 'correcao';
 
     await sql.begin(async (tx) => {
-      await tx`
-        UPDATE producao_itemparcial
-        SET setor_atual = ${setor_destino}, status = 'em_aberto',
-            concluido_em = NULL, atualizado_em = NOW(),
-            retrabalho = ${!ehCorrecao},
-            motivo_retrabalho = ${obs || null},
-            devolvido_de = ${parcial.setor_atual}
-        WHERE id = ${parcialId}
+      // Trava por item — evita duas requisições concorrentes (duplo clique, dois
+      // usuários) dividindo a mesma parcial ao mesmo tempo (mesma proteção de
+      // mover/enviar_parcial).
+      await (tx as unknown as typeof sql)`SELECT pg_advisory_xact_lock(778899, ${parcial.item_id})`;
+
+      // Revalida a própria parcial sob o lock — a leitura inicial (fora da tx) pode
+      // estar desatualizada se outra requisição concorrente já a alterou enquanto
+      // esta esperava o lock.
+      const [parcialAtual] = await (tx as unknown as typeof sql)`
+        SELECT quantidade::float AS quantidade, status
+        FROM producao_itemparcial WHERE id = ${parcialId} FOR UPDATE
       `;
+      if (!parcialAtual || parcialAtual.status !== parcial.status)
+        throw new Error('CONCORRENCIA_QTD_INDISPONIVEL: Esta parcial foi alterada por outra operação enquanto você aguardava. Recarregue a tela e tente novamente.');
+      const qtdAtual = parcialAtual.quantidade as number;
+      if (qtdDevolver > qtdAtual + 0.001)
+        throw new Error(`CONCORRENCIA_QTD_INDISPONIVEL: Quantidade não está mais disponível (outra operação concorrente alterou o saldo). Disponível agora: ${qtdAtual} ${parcial.unidade}. Tente novamente.`);
+
+      if (ehParcial) {
+        // Divisão: reduz a parcial origem (fica no setor atual) e cria uma parcial
+        // filha devolvida no destino, com os marcadores de devolução.
+        await tx`
+          UPDATE producao_itemparcial
+          SET quantidade = ${qtdAtual - qtdDevolver}, atualizado_em = NOW()
+          WHERE id = ${parcialId}
+        `;
+        await tx`
+          INSERT INTO producao_itemparcial
+            (item_pedido_id, pedido_id, parcial_origem_id, quantidade, setor_atual, status,
+             observacao, fotos, retrabalho, motivo_retrabalho, devolvido_de,
+             criado_por_id, criado_em, atualizado_em)
+          VALUES
+            (${parcial.item_id}, ${parcial.pedido_id}, ${parcialId}, ${qtdDevolver}, ${setor_destino},
+             'em_aberto', ${obs || null}, ${(parcial.fotos as string[]) || []}, ${!ehCorrecao}, ${obs || null}, ${parcial.setor_atual},
+             ${user.id}, NOW(), NOW())
+        `;
+      } else {
+        // Devolve a parcial inteira (comportamento original).
+        await tx`
+          UPDATE producao_itemparcial
+          SET setor_atual = ${setor_destino}, status = 'em_aberto',
+              concluido_em = NULL, atualizado_em = NOW(),
+              retrabalho = ${!ehCorrecao},
+              motivo_retrabalho = ${obs || null},
+              devolvido_de = ${parcial.setor_atual}
+          WHERE id = ${parcialId}
+        `;
+      }
+
       await tx`
         INSERT INTO producao_loteitem
           (item_pedido_id, setor_origem, setor_destino, quantidade, status, observacao,
            criado_por_id, criado_em, atualizado_em)
         VALUES
-          (${parcial.item_id}, ${parcial.setor_atual}, ${setor_destino}, ${parcial.qtd},
+          (${parcial.item_id}, ${parcial.setor_atual}, ${setor_destino}, ${qtdDevolver},
            'em_producao', ${obs || null}, ${user.id}, NOW(), NOW())
       `;
+      const obsMov = obs
+        || `Parcial #${parcialId} devolvida${ehParcial ? ` (${qtdDevolver} ${parcial.unidade})` : ''} de ${nomeSector(parcial.setor_atual)} → ${nomeSector(setor_destino)}`
+        + (ehParcial ? `. Saldo em ${nomeSector(parcial.setor_atual)}: ${qtdAtual - qtdDevolver} ${parcial.unidade}.` : '');
       await tx`
         INSERT INTO producao_movimentacaoitem
           (item_id, pedido_id, usuario_id, setor_origem, setor_destino,
@@ -652,35 +709,42 @@ async function handlePOST(
         VALUES (${parcial.item_id}, ${parcial.pedido_id}, ${user.id},
                 ${parcial.setor_atual}, ${setor_destino},
                 ${parcial.item_status}, 'aguardando',
-                ${obs || `Parcial #${parcialId} devolvida de ${nomeSector(parcial.setor_atual)} → ${nomeSector(setor_destino)}`}, NOW())
+                ${obsMov}, NOW())
       `;
 
-      // Se o item ficou sem parciais ativas no setor de origem, atualiza setor_atual do item
-      const [{ restantes }] = await tx`
-        SELECT COUNT(*)::int AS restantes
-        FROM producao_itemparcial
-        WHERE item_pedido_id = ${parcial.item_id}
-          AND setor_atual = ${parcial.setor_atual}
-          AND status NOT IN ('cancelada', 'concluida')
-          AND id != ${parcialId}
-      `;
-      if (Number(restantes) === 0) {
-        const [{ total_destino }] = await tx`
-          SELECT COALESCE(SUM(quantidade)::float, 0) AS total_destino
+      // Só quando a parcial inteira foi devolvida: se o item ficou sem parciais
+      // ativas no setor de origem, atualiza o setor_atual do item. Na divisão a
+      // origem continua com material, então o item permanece onde está.
+      if (!ehParcial) {
+        const [{ restantes }] = await tx`
+          SELECT COUNT(*)::int AS restantes
           FROM producao_itemparcial
           WHERE item_pedido_id = ${parcial.item_id}
-            AND setor_atual = ${setor_destino}
+            AND setor_atual = ${parcial.setor_atual}
             AND status NOT IN ('cancelada', 'concluida')
+            AND id != ${parcialId}
         `;
-        await tx`
-          UPDATE producao_itempedido
-          SET setor_atual = ${setor_destino}, status = 'aguardando',
-              quantidade_pendente = ${total_destino}, atualizado_em = NOW()
-          WHERE id = ${parcial.item_id}
-        `;
+        if (Number(restantes) === 0) {
+          const [{ total_destino }] = await tx`
+            SELECT COALESCE(SUM(quantidade)::float, 0) AS total_destino
+            FROM producao_itemparcial
+            WHERE item_pedido_id = ${parcial.item_id}
+              AND setor_atual = ${setor_destino}
+              AND status NOT IN ('cancelada', 'concluida')
+          `;
+          await tx`
+            UPDATE producao_itempedido
+            SET setor_atual = ${setor_destino}, status = 'aguardando',
+                quantidade_pendente = ${total_destino}, atualizado_em = NOW()
+            WHERE id = ${parcial.item_id}
+          `;
+        }
       }
     });
-    return NextResponse.json({ ok: true, status: 'em_aberto', mensagem: `Devolvida para ${nomeSector(setor_destino)}` });
+    return NextResponse.json({
+      ok: true, status: 'em_aberto',
+      mensagem: `${ehParcial ? `${qtdDevolver} ${parcial.unidade} devolvidos` : 'Devolvida'} para ${nomeSector(setor_destino)}`,
+    });
 
   // ── retomar ───────────────────────────────────────────────────────────────
   } else if (acao === 'retomar') {

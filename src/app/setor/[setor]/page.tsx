@@ -696,6 +696,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [setorRetrabalho, setSetorRetrabalho] = useState('');
   const [motivoDiv, setMotivoDiv] = useState('');
   const [motivoDevolucao, setMotivoDevolucao] = useState('');
+  const [qtdDevolver, setQtdDevolver] = useState('');
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void; perigo?: boolean } | null>(null);
   const [showDespacharParcial, setShowDespacharParcial] = useState(false);
   const [showEntregarParcial, setShowEntregarParcial] = useState(false);
@@ -1731,6 +1732,19 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             ))}
           </select>
           <label style={{ fontSize: 11, fontWeight: 600, color: '#842029', display: 'block', marginBottom: 4 }}>
+            Quantidade a devolver:
+          </label>
+          <input type="number" value={qtdDevolver}
+            onChange={e => {
+              const v = e.target.value;
+              const max = Number(parcial.quantidade);
+              if (v === '' || Number(v) <= max) setQtdDevolver(v);
+              else setQtdDevolver(String(max));
+            }}
+            min={1} max={Number(parcial.quantidade)}
+            placeholder={`Total: ${fmtQtd(parcial.quantidade)} ${parcial.unidade} (deixe em branco = tudo)`}
+            style={{ width: '100%', border: '1px solid #f5c2c7', borderRadius: 5, padding: '6px 8px', fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }} />
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#842029', display: 'block', marginBottom: 4 }}>
             Motivo do retorno: <span style={{ color: '#dc2626' }}>*</span>
           </label>
           <textarea value={motivoDevolucao} onChange={e => setMotivoDevolucao(e.target.value)}
@@ -1740,13 +1754,17 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <button onClick={() => {
               if (!setorDev) { mostrarErroParcial('Selecione o setor destino'); return; }
               if (!motivoDevolucao.trim()) { mostrarErroParcial('Informe o motivo do retorno'); return; }
-              acao('devolver', { setor_destino: setorDev, tipo: 'correcao', observacao: motivoDevolucao.trim() });
-              setShowDevolver(false); setMotivoDevolucao('');
+              const qtd = Number(qtdDevolver);
+              acao('devolver', {
+                setor_destino: setorDev, tipo: 'correcao', observacao: motivoDevolucao.trim(),
+                ...(qtd > 0 && qtd < Number(parcial.quantidade) ? { quantidade: qtd } : {}),
+              });
+              setShowDevolver(false); setMotivoDevolucao(''); setQtdDevolver('');
             }} disabled={loading || !setorDev || !motivoDevolucao.trim()}
               style={{ flex: 1, background: '#dc3545', color: '#fff', border: 'none', borderRadius: 5, padding: '7px 0', fontSize: 13, fontWeight: 700, cursor: (!setorDev || !motivoDevolucao.trim()) ? 'not-allowed' : 'pointer', opacity: (!setorDev || !motivoDevolucao.trim()) ? 0.5 : 1 }}>
               Confirmar devolução
             </button>
-            <button onClick={() => { setShowDevolver(false); setMotivoDevolucao(''); }}
+            <button onClick={() => { setShowDevolver(false); setMotivoDevolucao(''); setQtdDevolver(''); }}
               style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 5, padding: '7px 14px', fontSize: 13, color: '#666', cursor: 'pointer' }}>
               Cancelar
             </button>
