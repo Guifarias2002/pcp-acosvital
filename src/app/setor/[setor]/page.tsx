@@ -707,6 +707,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [enviandoObs, setEnviandoObs] = useState(false);
   const [erroObs, setErroObs] = useState<string | null>(null);
   const [sineteTexto, setSineteTexto] = useState('');
+  const [sineteAcabamento, setSineteAcabamento] = useState(false);
   const [salvandoSinete, setSalvandoSinete] = useState(false);
   const [showDivModal, setShowDivModal] = useState<'retrabalho' | 'resolver' | 'cancelar_item' | null>(null);
   const [showMontarReceita, setShowMontarReceita] = useState(false);
@@ -828,19 +829,21 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
     finally { setEnviandoObs(false); }
   }
 
-  // Setor Sinete: o operador escreve o sinete; ele é gravado como observação
-  // marcada (que a Qualidade já enxerga na lista do item) e a parcial volta pra
-  // Qualidade num clique só. Se ainda estiver "chegando" (em aberto), recebe
-  // antes de mover. Escrever o sinete NÃO altera nada além da observação/volta.
-  async function salvarSineteEDevolver() {
+  // Setor Sinete: o operador escreve o sinete (ou marca "sem sinete"); ele é
+  // gravado como observação marcada (que a Qualidade já enxerga na lista do
+  // item) e a parcial volta pra Qualidade (padrão) ou pro Acabamento, num clique.
+  // Se ainda estiver "chegando" (em aberto), recebe antes de mover. Escrever o
+  // sinete NÃO altera nada além da observação/volta.
+  async function salvarSineteEDevolver(destino: 'qualidade' | 'acabamento', semSinete = false) {
     const txt = sineteTexto.trim();
-    if (!txt || salvandoSinete || loading) return;
+    if (salvandoSinete || loading) return;
+    if (!semSinete && !txt) return;
     setSalvandoSinete(true);
     try {
-      const marcado = `🔖 SINETE: ${txt}`;
+      const marcado = semSinete ? '🔖 SINETE: sem sinete' : `🔖 SINETE: ${txt}`;
       if (parcial.status === 'em_aberto') await parcialAcao(parcial.id, 'receber');
       await adicionarObservacaoItem(parcial.item_pedido_id as number, marcado);
-      await parcialAcao(parcial.id, 'mover', { setor_destino: 'qualidade', quantidade: Number(parcial.quantidade), observacao: marcado });
+      await parcialAcao(parcial.id, 'mover', { setor_destino: destino, quantidade: Number(parcial.quantidade), observacao: marcado });
       setSineteTexto('');
       onRefresh();
     } catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
@@ -900,11 +903,6 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
                 {parcial.prioridade.charAt(0).toUpperCase() + parcial.prioridade.slice(1)}
               </span>
             )}
-            {sineteRegistrado && (
-              <span title="Sinete registrado no setor Sinete" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap' }}>
-                <i className="bi bi-award" />Sinete: {sineteRegistrado}
-              </span>
-            )}
           </div>
           {parcial.pedido_prazo && (
             <span style={{ fontSize: 10, color: '#94a3b8' }}>
@@ -928,6 +926,11 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <span style={{ fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', fontSize: 9, letterSpacing: 0.5, marginRight: 4 }}>Cód</span>
             <span style={{ fontWeight: 800, color: '#475569', fontSize: 15 }}>{parcial.item_codigo}</span>
           </span>
+          {sineteRegistrado && (
+            <span title="Sinete registrado no setor Sinete" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap' }}>
+              <i className="bi bi-award" />Sinete: {sineteRegistrado}
+            </span>
+          )}
         </div>
         {/* Linha 3: status + cronômetro + link */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
@@ -1145,13 +1148,23 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <div style={{ fontSize: 12, fontWeight: 800, color: '#92400e', marginBottom: 6 }}>
               <i className="bi bi-award" style={{ marginRight: 5 }} />Sinete
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              <textarea value={sineteTexto} onChange={e => setSineteTexto(e.target.value)}
-                placeholder="Escreva o sinete..." rows={2}
-                style={{ flex: 1, minWidth: 220, border: '1px solid #fcd34d', borderRadius: 6, padding: '6px 10px', fontSize: 13, resize: 'vertical' }} />
-              <button onClick={salvarSineteEDevolver} disabled={salvandoSinete || loading || !sineteTexto.trim()}
-                style={{ background: (salvandoSinete || loading || !sineteTexto.trim()) ? '#d9b566' : '#d97706', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 14px', fontSize: 12, fontWeight: 700, cursor: (salvandoSinete || loading || !sineteTexto.trim()) ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
-                {salvandoSinete ? '⏳ Enviando…' : '🔖 Salvar sinete e devolver à Qualidade'}
+            <textarea value={sineteTexto} onChange={e => setSineteTexto(e.target.value)}
+              placeholder="Escreva o sinete..." rows={2}
+              style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #fcd34d', borderRadius: 6, padding: '6px 10px', fontSize: 13, resize: 'vertical', marginBottom: 8 }} />
+            {/* Destino: Qualidade é o padrão; Acabamento é opcional. */}
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#92400e', fontWeight: 600, marginBottom: 8, cursor: 'pointer' }}>
+              <input type="checkbox" checked={sineteAcabamento} onChange={e => setSineteAcabamento(e.target.checked)} />
+              Enviar ao Acabamento (em vez da Qualidade)
+            </label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={() => salvarSineteEDevolver(sineteAcabamento ? 'acabamento' : 'qualidade', false)} disabled={salvandoSinete || loading || !sineteTexto.trim()}
+                style={{ flex: 1, minWidth: 200, background: (salvandoSinete || loading || !sineteTexto.trim()) ? '#d9b566' : '#d97706', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 14px', fontSize: 12, fontWeight: 700, cursor: (salvandoSinete || loading || !sineteTexto.trim()) ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
+                {salvandoSinete ? '⏳ Enviando…' : `🔖 Salvar sinete e enviar ${sineteAcabamento ? 'ao Acabamento' : 'à Qualidade'}`}
+              </button>
+              <button onClick={() => salvarSineteEDevolver(sineteAcabamento ? 'acabamento' : 'qualidade', true)} disabled={salvandoSinete || loading}
+                title="Registrar que esta peça não tem sinete"
+                style={{ background: 'none', border: '1px solid #d97706', color: '#b45309', borderRadius: 6, padding: '9px 14px', fontSize: 12, fontWeight: 700, cursor: (salvandoSinete || loading) ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', opacity: (salvandoSinete || loading) ? 0.6 : 1 }}>
+                Sem sinete
               </button>
             </div>
           </div>
