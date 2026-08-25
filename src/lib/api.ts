@@ -116,6 +116,11 @@ export const itemAcao = (id: number, acao: string, body?: Record<string, unknown
 export const adicionarObservacaoItem = (id: number, texto: string) =>
   api.post(`/api/item/${id}/observacao`, { texto }).then(r => r.data);
 
+// Registra o sinete em TODOS os itens do pedido que estão no Sinete e devolve
+// todos pro destino (qualidade/acabamento) de uma vez.
+export const registrarSinetePedido = (pedidoId: number, body: { texto?: string; destino: string; semSinete?: boolean }) =>
+  postIdempotente(`/api/pedidos/${pedidoId}/sinete`, body);
+
 // Inativa/reativa um item (admin only). Item inativo some das telas do operador
 // e aparece cinza para o admin. `motivo` é opcional.
 export const inativarItem = (id: number, inativo: boolean, motivo?: string) =>

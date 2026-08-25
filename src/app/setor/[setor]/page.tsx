@@ -30,7 +30,7 @@ function Cronometro({ desde }: { desde: string }) {
     </span>
   );
 }
-import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, setPesosPallets, setEmbalagemResumo, inativarItem, editarPedido } from '@/lib/api';
+import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, registrarSinetePedido, setPesosPallets, setEmbalagemResumo, inativarItem, editarPedido } from '@/lib/api';
 import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento } from '@/lib/auth';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
@@ -840,11 +840,11 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
     if (!semSinete && !txt) return;
     setSalvandoSinete(true);
     try {
-      const marcado = semSinete ? '🔖 SINETE: sem sinete' : `🔖 SINETE: ${txt}`;
-      if (parcial.status === 'em_aberto') await parcialAcao(parcial.id, 'receber');
-      await adicionarObservacaoItem(parcial.item_pedido_id as number, marcado);
-      await parcialAcao(parcial.id, 'mover', { setor_destino: destino, quantidade: Number(parcial.quantidade), observacao: marcado });
+      // Nível do PEDIDO: grava o mesmo sinete em TODOS os itens que estão no
+      // Sinete e devolve todos de uma vez (antes ia só no item desta parcial).
+      const r = await registrarSinetePedido(parcial.pedido_id, { texto: txt, destino, semSinete }) as { mensagem?: string };
       setSineteTexto('');
+      if (r?.mensagem) mostrarErroParcial(r.mensagem, 'ok');
       onRefresh();
     } catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
     finally { setSalvandoSinete(false); }
