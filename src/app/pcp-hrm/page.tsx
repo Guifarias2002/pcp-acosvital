@@ -1,6 +1,5 @@
 'use client';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { criarPedido } from '@/lib/api';
 import { getToken } from '@/lib/auth';
@@ -23,13 +22,16 @@ const inputCls = 'mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-s
 const labelCls = 'text-xs font-semibold text-gray-500 uppercase tracking-wide';
 
 export default function PcpHrmPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
   // Guarda o id do pedido já criado: se o anexo falhar depois de criar o
   // pedido, o reenvio reaproveita esse id em vez de criar outro (evita PV
   // duplicado) e a tela oferece um link pra abrir o pedido.
   const [criadoId, setCriadoId] = useState<number | null>(null);
+  // OPs anexadas NESTA sessão — a tela não sai mais ao enviar; cada OP entra
+  // numa lista numerada (1,2,3,4) e o formulário reseta pra próxima.
+  const [anexadas, setAnexadas] = useState<{ id: number; numero: string; cliente: string; fabrica: string; pn: string; produto: string }[]>([]);
+  const [fileKey, setFileKey] = useState(0);
 
   const [origem, setOrigem] = useState<Origem>('totvs');
   const [numero, setNumero] = useState('');
@@ -178,7 +180,22 @@ export default function PcpHrmPage() {
         }
       }
 
-      router.push(`/pedidos/${id}`);
+      // Sucesso: NÃO navega. Acumula a OP na lista numerada e reseta o
+      // formulário pra próxima — o operador vê 1,2,3,4 aparecendo um abaixo do
+      // outro conforme anexa.
+      setAnexadas(prev => [...prev, {
+        id,
+        numero: numero.trim() || 'provisório',
+        cliente: cliente.trim() || 'A definir',
+        fabrica: fabricaLabel[fabrica],
+        pn: leitura?.ops[0]?.cabecalho?.pn || '',
+        produto: leitura?.ops[0]?.produto?.descricao || '',
+      }]);
+      // reset pra próxima OP
+      setNumero(''); setCliente(''); setPrazo(''); setSemPrazo(false); setObs('');
+      setFabrica('depois'); setOrigem('totvs'); setArquivo(null);
+      setLeitura(null); setErroLeitura(''); setCriadoId(null); setComponentesAbertos(new Set());
+      setFileKey(k => k + 1);
     } catch (e: unknown) {
       const data = (e as { response?: { data?: { erro?: string } } }).response?.data;
       setErro(data?.erro || 'Erro ao registrar a OP. Tente novamente.');
@@ -236,6 +253,32 @@ export default function PcpHrmPage() {
             <li>Clique em <b>&quot;Enviar para Emissão&quot;</b> no canto superior direito. Pronto — a OP cai pro PCP conferir e liberar pra produção.</li>
           </ol>
         </div>
+
+        {/* OPs enviadas nesta sessão — numeradas 1,2,3,4 uma abaixo da outra */}
+        {anexadas.length > 0 && (
+          <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:10, padding:'14px 18px', marginBottom:16, maxWidth:760 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:'#166534', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>
+              <i className="bi bi-check2-circle" style={{ marginRight:6 }} />Enviadas para Emissão ({anexadas.length})
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              {anexadas.map((op, i) => (
+                <a key={op.id} href={`/pedidos/${op.id}`}
+                  style={{ display:'flex', alignItems:'center', gap:10, textDecoration:'none', color:'inherit', background:'#fff', border:'1px solid #d1fae5', borderRadius:8, padding:'8px 12px' }}>
+                  <span style={{ flexShrink:0, minWidth:24, height:24, borderRadius:12, background:'#16a34a', color:'#fff', fontWeight:800, fontSize:13, display:'inline-flex', alignItems:'center', justifyContent:'center' }}>{i + 1}</span>
+                  <div style={{ display:'flex', flexDirection:'column', minWidth:0 }}>
+                    <span style={{ fontSize:13, fontWeight:700, color:'#166534' }}>
+                      {op.numero}{op.pn ? ` · PN ${op.pn}` : ''}
+                    </span>
+                    <span style={{ fontSize:11, color:'#4b5563', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                      {[op.cliente, op.produto, op.fabrica].filter(Boolean).join(' · ')}
+                    </span>
+                  </div>
+                  <i className="bi bi-box-arrow-up-right" style={{ marginLeft:'auto', color:'#16a34a', fontSize:13 }} />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
         {erro && (
           <div style={{ background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626', borderRadius:8, padding:'10px 14px', fontSize:13, marginBottom:16, maxWidth:760 }}>
@@ -323,7 +366,7 @@ export default function PcpHrmPage() {
                 </>
               )}
             </label>
-            <input id="hrm-file" type="file" accept="application/pdf,image/png,image/jpeg" style={{ display:'none' }}
+            <input key={fileKey} id="hrm-file" type="file" accept="application/pdf,image/png,image/jpeg" style={{ display:'none' }}
               onChange={e => selecionarArquivo(e.target.files?.[0] || null)} />
             {arquivo && (
               <div style={{ marginTop:10, textAlign:'center' }}>

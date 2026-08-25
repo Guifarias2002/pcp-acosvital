@@ -2645,7 +2645,7 @@ function PedidoGrupos({ grupos, onRefresh, onVerPedido, setor }: { grupos: [stri
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {grupos.map(([numeroPedido, itens]) => {
+      {grupos.map(([numeroPedido, itens], idx) => {
         const rep = itens[0];
         const atrasado = !!rep.atrasado;
         const aberto = abertos.has(numeroPedido);
@@ -2687,6 +2687,10 @@ function PedidoGrupos({ grupos, onRefresh, onVerPedido, setor }: { grupos: [stri
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                {/* Nº de sequência da fila (ordem em que os pedidos aparecem) */}
+                <span title="Ordem na fila" style={{ flexShrink: 0, minWidth: 24, height: 24, padding: '0 6px', borderRadius: 12, background: modoEmissao ? '#fff' : '#1a3a5c', color: modoEmissao ? '#1a3a5c' : '#fff', fontWeight: 800, fontSize: 13, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,.25)' }}>
+                  {idx + 1}
+                </span>
                 {modoEmissao && <i className="bi bi-folder2-open" style={{ fontSize: 15, color: '#fff' }} />}
                 <span style={{ fontWeight: 700, fontSize: 15, color: modoEmissao ? '#fff' : '#1a3a5c' }}>
                   {modoEmissao ? `Pedido de Venda ${numeroPedido}` : numeroPedido}
