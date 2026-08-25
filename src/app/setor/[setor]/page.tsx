@@ -689,6 +689,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [showDivQualidade, setShowDivQualidade] = useState(false);
   const [showReceberModal, setShowReceberModal] = useState(false);
   const [showIniciarProducao, setShowIniciarProducao] = useState(false);
+  const [showRetomarProducao, setShowRetomarProducao] = useState(false);
   const [qtdEnvio, setQtdEnvio] = useState('');
   const [setorDestino, setSetorDestino] = useState('');
   const [obsEnvio, setObsEnvio] = useState('');
@@ -1272,7 +1273,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
         {/* ── Pausado ──────────────────────────────────────────────────────── */}
         {isPausado && (
           <>
-            <button onClick={() => acao('retomar')} disabled={loading} style={btnStyle('#198754')}>
+            <button onClick={() => temMaquinas(parcial.setor_atual) ? setShowRetomarProducao(true) : acao('retomar')} disabled={loading} style={btnStyle('#198754')}>
               <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Retomar
             </button>
             {!isLogistica && (
@@ -1551,6 +1552,31 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           onConfirm={(maquina, operador) => {
             setShowIniciarProducao(false);
             acao('iniciar', { maquina, operador });
+          }}
+        />
+      )}
+
+      {/* Modal retomar produção (Usinagem/Furação): mesma máquina ou outra + quantidade */}
+      {isPausado && showRetomarProducao && (
+        <IniciarProducaoModal
+          setor={parcial.setor_atual}
+          loading={loading}
+          titulo="Retomar Produção"
+          pergunta="Continuar em qual máquina?"
+          textoBotao="Retomar produção"
+          maquinaInicial={parcial.maquina}
+          operadorInicial={parcial.operador}
+          mostrarQuantidade
+          quantidadeMax={Number(parcial.quantidade)}
+          unidade={parcial.unidade || 'un'}
+          onCancel={() => setShowRetomarProducao(false)}
+          onConfirm={(maquina, operador, quantidade) => {
+            setShowRetomarProducao(false);
+            const qtdTotal = Number(parcial.quantidade);
+            acao('retomar', {
+              maquina, operador,
+              ...(quantidade != null && quantidade > 0 && quantidade < qtdTotal ? { quantidade } : {}),
+            });
           }}
         />
       )}

@@ -757,14 +757,64 @@ async function handlePOST(
     if (!podeRetomar)
       return NextResponse.json({ erro: 'Apenas parciais pausadas (ou concluídas para admins) podem ser retomadas' }, { status: 403 });
 
+    // Máquina/operador opcionais (Usinagem/Furação): permitem retomar na mesma
+    // máquina ou trocar de máquina ao dar continuidade. Ausentes = mantém o que
+    // já estava na parcial (COALESCE abaixo).
+    const maquinaNova = typeof body.maquina === 'string' && body.maquina.trim() ? body.maquina.trim() : null;
+    const operadorNovo = typeof body.operador === 'string' && body.operador.trim() ? body.operador.trim() : null;
+
+    // Quantidade a dar continuidade: ausente = retoma tudo. Menor que o total da
+    // parcial = divide (o restante fica pausado no mesmo setor). A soma não muda.
+    const qtdCont = body.quantidade != null ? Number(body.quantidade) : parcial.qtd;
+    if (!qtdCont || qtdCont <= 0)
+      return NextResponse.json({ erro: 'Quantidade inválida: deve ser maior que zero' }, { status: 400 });
+    if (qtdCont > parcial.qtd + 0.001)
+      return NextResponse.json({
+        erro: `Quantidade informada (${qtdCont} ${parcial.unidade}) é maior do que o disponível nesta parcial (${parcial.qtd} ${parcial.unidade})`
+      }, { status: 400 });
+    const ehParcial = qtdCont < parcial.qtd - 0.001;
+
     await sql.begin(async (tx) => {
+      // Trava por item — evita duas requisições concorrentes dividirem a mesma
+      // parcial ao retomar (mesma proteção de mover/enviar_parcial/devolver).
+      await (tx as unknown as typeof sql)`SELECT pg_advisory_xact_lock(778899, ${parcial.item_id})`;
+      const [parcialAtual] = await (tx as unknown as typeof sql)`
+        SELECT quantidade::float AS quantidade, status
+        FROM producao_itemparcial WHERE id = ${parcialId} FOR UPDATE
+      `;
+      if (!parcialAtual || parcialAtual.status !== parcial.status)
+        throw new Error('CONCORRENCIA_QTD_INDISPONIVEL: Esta parcial foi alterada por outra operação enquanto você aguardava. Recarregue a tela e tente novamente.');
+      const qtdAtual = parcialAtual.quantidade as number;
+      if (qtdCont > qtdAtual + 0.001)
+        throw new Error(`CONCORRENCIA_QTD_INDISPONIVEL: Quantidade não está mais disponível (outra operação concorrente alterou o saldo). Disponível agora: ${qtdAtual} ${parcial.unidade}. Tente novamente.`);
+
+      if (ehParcial) {
+        // Restante fica pausado no mesmo setor, como parcial separada (herda a
+        // máquina/operador de antes — pode ser retomado depois em outra máquina).
+        await tx`
+          INSERT INTO producao_itemparcial
+            (item_pedido_id, pedido_id, parcial_origem_id, quantidade, setor_atual, status,
+             observacao, fotos, maquina, operador, criado_por_id, criado_em, atualizado_em)
+          VALUES
+            (${parcial.item_id}, ${parcial.pedido_id}, ${parcialId}, ${qtdAtual - qtdCont}, ${parcial.setor_atual},
+             'pausado', ${`Saldo pausado (${qtdAtual - qtdCont} ${parcial.unidade})`}, ${(parcial.fotos as string[]) || []},
+             ${parcial.maquina || null}, ${parcial.operador || null}, ${user.id}, NOW(), NOW())
+        `;
+      }
+
+      // Parcial (ou parte dela) volta a em_andamento na máquina escolhida, reabrindo
+      // a sessão de tempo. maquina_sessao_iniciada_em considera a máquina RESULTANTE
+      // (nova, se informada; senão a atual) — assim trocar de máquina abre sessão nova.
       await tx`
         UPDATE producao_itemparcial
         SET status = 'em_andamento',
+            quantidade = ${ehParcial ? qtdCont : qtdAtual},
             concluido_em = NULL,
             iniciado_em = COALESCE(iniciado_em, NOW()),
+            maquina = COALESCE(${maquinaNova}, maquina),
+            operador = COALESCE(${operadorNovo}, operador),
             maquina_sessao_iniciada_em = CASE
-              WHEN maquina IS NOT NULL AND maquina_sessao_iniciada_em IS NULL THEN NOW()
+              WHEN COALESCE(${maquinaNova}, maquina) IS NOT NULL AND maquina_sessao_iniciada_em IS NULL THEN NOW()
               ELSE maquina_sessao_iniciada_em
             END,
             atualizado_em = NOW()
@@ -780,6 +830,11 @@ async function handlePOST(
             AND status = 'finalizado_setor'
         `;
       }
+      const maquinaFinal = maquinaNova || parcial.maquina;
+      const obsMov = obs
+        || `Parcial #${parcialId} retomada${ehParcial ? ` (${qtdCont} ${parcial.unidade})` : ''} em ${nomeSector(parcial.setor_atual)}`
+           + (maquinaFinal ? ` — máquina ${maquinaFinal}` : '')
+           + (ehParcial ? `. Saldo pausado: ${qtdAtual - qtdCont} ${parcial.unidade}.` : '');
       await tx`
         INSERT INTO producao_movimentacaoitem
           (item_id, pedido_id, usuario_id, setor_origem, setor_destino,
@@ -787,7 +842,7 @@ async function handlePOST(
         VALUES (${parcial.item_id}, ${parcial.pedido_id}, ${user.id},
                 ${parcial.setor_atual}, ${parcial.setor_atual},
                 ${parcial.status}, 'em_andamento',
-                ${obs || `Parcial #${parcialId} retomada em ${nomeSector(parcial.setor_atual)}`}, NOW())
+                ${obsMov}, NOW())
       `;
     });
     return NextResponse.json({ ok: true, status: 'em_andamento' });
