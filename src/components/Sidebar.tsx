@@ -226,6 +226,9 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
           {(emHrm || (!isAdmin && !!user?.acesso_hrm)) && (
             <NavGroup label="🏭 PCP HRM" defaultOpen={true}>
               <NavItem href="/pcp-hrm" label="Anexar OP" icon="bi-file-earmark-arrow-up" onNav={fechar} />
+              {/* Conferência: só PCP/admin (no workspace HRM). O perfil restrito
+                  (acesso_hrm puro) só anexa OP — não confere/lança. */}
+              {emHrm && <NavItem href="/pcp-hrm/conferencia" label="Conferência" icon="bi-clipboard-check" onNav={fechar} />}
             </NavGroup>
           )}
 

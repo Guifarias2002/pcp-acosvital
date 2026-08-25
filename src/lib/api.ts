@@ -97,6 +97,15 @@ export const editarPedido = (id: number, data: unknown) =>
 export const getUltimoRoteiro = () =>
   api.get('/api/pedidos/ultimo-roteiro').then(r => r.data);
 
+// ── PCP HRM / Conferência ───────────────────────────────────────────────────
+// Lista as OPs (pedidos "casca") aguardando conferência.
+export const listarConferenciaHrm = () =>
+  api.get('/api/pcp-hrm/conferencia').then(r => r.data);
+
+// Re-lê a OP já anexada a um pedido (materiais + roteiro + identificação).
+export const lerOpDoPedido = (id: number) =>
+  api.get(`/api/pcp-hrm/pedidos/${id}/ler-op`).then(r => r.data);
+
 // ── Itens ─────────────────────────────────────────────────────────────────────
 export const getItem = (id: number) =>
   api.get(`/api/item/${id}`).then(r => r.data);
