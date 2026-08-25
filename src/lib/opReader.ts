@@ -60,12 +60,92 @@ export interface OPItem {
 }
 export interface OPLeitura { ops: OPItem[]; totalPaginas: number; avisos: string[] }
 
-interface Item { s: string; x: number; f: string }   // f = fontName (pdfjs)
+interface Item { s: string; x: number; f: string; p: number }   // f = fontName (pdfjs), p = índice da página (0-based)
 interface Line { items: Item[]; raw: string; dec?: string }
 interface Pagina { lines: Line[]; redbox: string | null; nro: string | null }
 
 // Mapa de decodificação por FONTE: fontName -> (glifo-cifra -> caractere-claro).
 type FontMaps = Record<string, Record<string, string>>;
+
+// ── Decode por FORMA do glifo (fontes Type3) ─────────────────────────────────
+// Algumas OPs (ex.: 013466) usam fontes Type3 com UMA CIFRA POR PÁGINA e sem
+// ToUnicode: cada caractere é um DESENHO (CharProc). O código→desenho é
+// re-embaralhado por página, mas o DESENHO da letra é ESTÁVEL no documento
+// inteiro — só muda o código que aponta pra ele. Então indexamos pela FORMA
+// (hash do CharProc): aprendemos "forma → letra" das âncoras de TODAS as páginas
+// (títulos soletrados, cabeçalhos, dígitos da coluna SEQ) e o mapa vale pro
+// documento todo. `pageShapes[p]` = lista de tabelas (charcode -> hash da forma)
+// das fontes Type3 da página p. OPs sem Type3 (ex.: 013169) têm pageShapes vazio
+// e essa camada NÃO liga — decode segue idêntico ao anterior. Ver
+// [[project_pcp_hrm_caldeiraria]].
+type ShapeTables = Record<number, string>[][];       // [pagina][fonteType3] -> (charcode -> hash)
+type ShapeMap = Record<string, string>;              // hash da forma -> caractere claro
+
+function shapeOfChar(tables: ShapeTables, ch: string, p: number): string | null {
+  const tbls = tables[p];
+  if (!tbls || !tbls.length) return null;
+  const code = ch.charCodeAt(0);
+  for (const t of tbls) { const h = t[code]; if (h != null) return h; }
+  return null;
+}
+
+// Extrai, por página, as tabelas charcode->hash-da-forma das fontes Type3.
+// Usa pdf-lib (já dependência do projeto) + md5 do CharProc. Retorna tabelas
+// vazias por página quando a OP não usa Type3 — nesse caso a camada por forma
+// fica inerte.
+async function extractType3Tables(buf: Buffer): Promise<ShapeTables> {
+  try {
+    const { PDFDocument, PDFName, PDFDict, PDFRawStream, PDFArray, PDFNumber, decodePDFRawStream } = await import('pdf-lib');
+    const { createHash } = await import('crypto');
+    const hash = (b: Uint8Array) => createHash('md5').update(b).digest('hex').slice(0, 12);
+    const pdf = await PDFDocument.load(buf, { updateMetadata: false });
+    const ctx: any = (pdf as any).context;
+    const lookup = (r: any) => ctx.lookup(r);
+
+    const type3Table = (fontDict: any): Record<number, string> | null => {
+      if (fontDict.get(PDFName.of('Subtype'))?.toString() !== '/Type3') return null;
+      const enc = lookup(fontDict.get(PDFName.of('Encoding')));
+      const charProcs = lookup(fontDict.get(PDFName.of('CharProcs')));
+      const nameToHash: Record<string, string> = {};
+      if (charProcs instanceof PDFDict)
+        for (const [k, vRef] of charProcs.entries()) {
+          const st = lookup(vRef);
+          if (st instanceof PDFRawStream) nameToHash[k.toString().replace(/^\//, '')] = hash(new Uint8Array(decodePDFRawStream(st).decode()));
+        }
+      const codeToHash: Record<number, string> = {};
+      if (enc instanceof PDFDict) {
+        const diff = lookup(enc.get(PDFName.of('Differences')));
+        if (diff instanceof PDFArray) {
+          let cur = 0;
+          for (let i = 0; i < diff.size(); i++) {
+            const el = diff.get(i);
+            if (el instanceof PDFNumber) cur = el.asNumber();
+            else { const nm = el.toString().replace(/^\//, ''); if (nameToHash[nm]) codeToHash[cur] = nameToHash[nm]; cur++; }
+          }
+        }
+      }
+      return Object.keys(codeToHash).length ? codeToHash : null;
+    };
+
+    const tables: ShapeTables = [];
+    for (const page of pdf.getPages()) {
+      const perPage: Record<number, string>[] = [];
+      const res: any = page.node.Resources();
+      if (res) {
+        const fontDict = lookup(res.get(PDFName.of('Font')));
+        if (fontDict instanceof PDFDict)
+          for (const [, fRef] of fontDict.entries()) {
+            const fd = lookup(fRef);
+            if (fd instanceof PDFDict) { const t = type3Table(fd); if (t) perPage.push(t); }
+          }
+      }
+      tables.push(perPage);
+    }
+    return tables;
+  } catch {
+    return [];   // qualquer erro na extração de fontes → camada por forma desligada
+  }
+}
 
 const isCtrl = (s: string) => { for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) < 32) return true; return false; };
 
@@ -123,7 +203,7 @@ async function extractDoc(buf: Buffer): Promise<Pagina[]> {
     for (const it of tc.items as any[]) {
       if (typeof it.str !== 'string') continue;
       const y = Math.round(it.transform[5]);
-      (byY[y] = byY[y] || []).push({ s: it.str, x: it.transform[4], f: it.fontName || '' });
+      (byY[y] = byY[y] || []).push({ s: it.str, x: it.transform[4], f: it.fontName || '', p: p - 1 });
     }
     const lines = Object.keys(byY).map(Number).sort((a, b) => b - a).map(y => {
       const items = byY[y].sort((a, b) => a.x - b.x);
@@ -337,14 +417,58 @@ function propagarCabecalhoRoteiro(paginas: Pagina[], maps: FontMaps) {
   }
 }
 
-// Decodifica UM trecho usando o mapa da fonte dele (identidade se a fonte não
-// tem mapa — nunca corrompe com a cifra de outra fonte).
-function makeDecItem(maps: FontMaps) {
+// Decodifica UM trecho. Prioridade: (1) mapa por FORMA do glifo (Type3), que é
+// global e cobre o documento inteiro; (2) mapa por FONTE (cifra por âncora);
+// (3) identidade. Quando não há Type3 (shapeMap/tables vazios) a camada por
+// forma nunca dispara e o resultado é idêntico ao anterior.
+function makeDecItem(maps: FontMaps, shapeMap: ShapeMap = {}, tables: ShapeTables = []) {
+  const usaForma = tables.length > 0 && Object.keys(shapeMap).length > 0;
   return (it: Item): string => {
     const m = maps[it.f];
-    if (!m) return it.s;
-    return it.s.split('').map(c => (c in m ? m[c] : c)).join('');
+    if (!usaForma && !m) return it.s;
+    return it.s.split('').map(c => {
+      // Prioridade: mapa por FONTE (âncora da própria página — nunca corrompe o
+      // que já funciona). A camada por FORMA só PREENCHE LACUNAS: caracteres que
+      // a fonte desta página não aprendeu, usando o conhecimento global das
+      // outras páginas. Assim o decode nunca piora, só ganha cobertura.
+      if (m && c in m) return m[c];
+      if (usaForma) { const h = shapeOfChar(tables, c, it.p); if (h && shapeMap[h] != null) return shapeMap[h]; }
+      return c;
+    }).join('');
   };
+}
+
+// Constrói o mapa GLOBAL forma→caractere AGRUPANDO os mapas por-fonte na
+// dimensão da FORMA. Cada mapa por-fonte (deriveMapaFonte) já achou as âncoras
+// da SUA página (títulos, cabeçalho, dígitos SEQ); aqui só reindexamos cada
+// entrada glifo-cifra→letra pela FORMA daquele glifo, e juntamos as 13 páginas
+// por voto majoritário. Efeito: uma letra que a página 3 aprendeu vale pra
+// página 7 (mesma forma), mesmo que a página 7 não tenha âncora pra ela.
+//
+// Por que o voto é confiável: a MESMA forma decodifica pra MESMA letra em toda
+// página onde foi aprendida (sinais concordam e se acumulam), enquanto entradas
+// não-aprendidas (identidade glifo→ele-mesmo) espalham caracteres diferentes por
+// página (o charcode muda a cada página) e nunca formam maioria. Só contamos
+// entradas EXPLÍCITAS do mapa por-fonte (não a identidade), então o ruído nem
+// entra. Nunca inventa: forma sem nenhuma âncora em nenhuma página fica de fora.
+function buildShapeMap(paginas: Pagina[], maps: FontMaps, tables: ShapeTables): ShapeMap {
+  if (!tables.some(t => t.length)) return {};
+  const votos: Record<string, Record<string, number>> = {};
+  for (const pg of paginas) for (const ln of pg.lines) for (const it of ln.items) {
+    const m = maps[it.f];
+    if (!m) continue;
+    for (const c of it.s) {
+      if (!(c in m)) continue;                 // só entradas aprendidas por âncora
+      const sh = shapeOfChar(tables, c, it.p);
+      if (!sh) continue;
+      const ch = m[c];
+      if (ch == null || ch === '' || ch.charCodeAt(0) < 32) continue;
+      (votos[sh] = votos[sh] || {})[ch] = (votos[sh][ch] || 0) + 1;
+    }
+  }
+  const final: ShapeMap = {};
+  for (const [sh, v] of Object.entries(votos)) final[sh] = Object.entries(v).sort((a, b) => b[1] - a[1])[0][0];
+  return final;
 }
 
 function parseProduto(lines: Line[]): OPProduto {
@@ -572,7 +696,17 @@ export async function lerOP(buf: Buffer): Promise<OPLeitura> {
   // Fontes sem âncora (páginas de continuação do roteiro) herdam a cifra via o
   // cabeçalho do roteiro, alinhado por posição X a uma fonte já mapeada.
   propagarCabecalhoRoteiro(paginas, maps);
-  const decItem = makeDecItem(maps);
+
+  // Camada por FORMA do glifo (fontes Type3, cifra por página). Reindexa os mapas
+  // por-fonte pela forma do glifo e junta as páginas — assim uma letra aprendida
+  // numa página vale pro documento inteiro. Inerte (vazia) quando não há Type3
+  // (ex.: 013169), caso em que o decode é idêntico ao anterior.
+  const tables = await extractType3Tables(buf);
+  const shapeMap = buildShapeMap(paginas, maps, tables);
+
+  // Decode: forma (Type3, global) tem prioridade; cai pra cifra por fonte; senão
+  // identidade.
+  const decItem = makeDecItem(maps, shapeMap, tables);
 
   // Decodifica cada linha uma vez, trecho a trecho, com o mapa da fonte de cada
   // trecho — todo o parsing downstream trabalha em cima de `line.dec`.

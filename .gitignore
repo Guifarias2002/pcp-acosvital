@@ -44,3 +44,6 @@ next-env.d.ts
 .vercel
 
 dev-server*.log
+
+# Scratch de debug do leitor de OP (não versionar)
+tmp_op/
