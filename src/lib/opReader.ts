@@ -41,6 +41,15 @@ export interface OPOperacao {
 }
 export interface OPCabecalho { pn: string; po: string; ns: string; }
 export interface OPProduto { codigo: string; descricao: string; }
+// Campos de identificação do cabeçalho da OP (rótulos Cliente/Nome/Quantidade/
+// Emissao/Entrega/Situacao). Extraídos best-effort: em OP legível saem certos;
+// em OP muito embaralhada, os que não casaram o rótulo ficam ''. NÃO inventa.
+export interface OPIdentificacao {
+  clienteNome: string; clienteCodigo: string;
+  quantidade: string; unidade: string;
+  emissao: string; entrega: string;      // ISO (yyyy-mm-dd) quando reconhecível, senão ''
+  situacao: string;
+}
 export interface OPValidacao {
   temProduto: boolean;
   temComponentes: boolean;
@@ -51,6 +60,7 @@ export interface OPValidacao {
 export interface OPItem {
   cabecalho: OPCabecalho;   // quadro vermelho: PN / PO / NS
   produto: OPProduto;       // Produto: <cod> Descricao: <desc>
+  identificacao: OPIdentificacao; // Cliente/Quantidade/Emissao/Entrega/Situacao
   materiais: OPMaterial[];  // COMPONENTES
   roteiro: OPOperacao[];    // por onde passa
   confianca: number;        // legibilidade nativa do PDF (0=embaralhado, 1=legível)
@@ -498,6 +508,54 @@ function parseProduto(lines: Line[]): OPProduto {
   return { codigo: '', descricao: toks.length > 6 ? toks.slice(4).join(' ') : melhor };
 }
 
+// Data BR (dd/mm/aaaa) -> ISO (aaaa-mm-dd). Sem match -> ''.
+function dataIso(br: string): string {
+  const m = br.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : '';
+}
+
+// Cabeçalho de identificação do Totvs (fixo, mesma página do "Produto:"):
+//   "Emissao: dd/mm/aaaa Previsao Ini: dd/mm/aaaa Entrega: dd/mm/aaaa"
+//   "Quantidade: n,nn Unidade: UM Real Ini .: __/__/__"
+//   "Cliente: codigo Loja: nn Nome: NOME DO CLIENTE"
+//   "Centro Custo: ... Situacao: Normal"
+// Cada rótulo é buscado isolado (não a linha toda) porque o Totvs quebra vários
+// campos na mesma linha física. "Emissao:" exige "Previsao" logo depois pra não
+// casar com a OUTRA "Emissão:" do rodapé fixo ("Hora: hh:mm:ss Emissão: data",
+// data de impressão do documento — não é a emissão da ordem).
+//
+// Ordem com sub-item (ver parseProduto): o bloco de identificação aparece
+// DUAS vezes — uma pro Produto PAI, outra pro FILHO (o que essa ordem de
+// verdade fabrica) — e só o bloco do FILHO tem Quantidade/Situacao corretos
+// pra ELE (o do pai é outro valor). Cliente/Nome só saem uma vez no documento
+// inteiro (mesmo cliente pro pedido todo) e no bloco do filho o Totvs não
+// repete ("Cliente: Loja: Nome:" vazio) — por isso Cliente busca em toda a
+// área de identificação (podendo pegar do pai), e os demais campos buscam só
+// a partir do ÚLTIMO "Produto:" (bloco do filho). NÃO inventa: rótulo que não
+// casou, ou só apareceu vazio no escopo, fica ''.
+function parseIdentificacao(lines: Line[]): OPIdentificacao {
+  const ident: OPIdentificacao = { clienteNome: '', clienteCodigo: '', quantidade: '', unidade: '', emissao: '', entrega: '', situacao: '' };
+  const norm = (s: string) => s.replace(/[-\s]/g, '').toUpperCase();
+  const fimBusca = (() => { const i = lines.findIndex(ln => norm(ln.dec || '').includes('COMPONENTES')); return i >= 0 ? i : lines.length; })();
+
+  for (let i = 0; i < fimBusca; i++) {
+    const m = (lines[i].dec || '').match(/Cliente:?\s*(\S+).*?Nome:?\s*(.+)/i);
+    if (m && !/:$/.test(m[1])) { ident.clienteCodigo = m[1]; ident.clienteNome = m[2].trim(); break; }
+  }
+
+  let produtoIdx = -1;
+  for (let i = 0; i < fimBusca; i++) if (/Produto:?\s*\S+\s+Descric/i.test(lines[i].dec || '')) produtoIdx = i;
+  for (let i = Math.max(produtoIdx, 0); i < fimBusca; i++) {
+    const d = lines[i].dec || '';
+    let m;
+    if (!ident.emissao && (m = d.match(/Emissao:?\s*(\d{2}\/\d{2}\/\d{4})\s*Previsao/i))) ident.emissao = dataIso(m[1]);
+    if (!ident.entrega && (m = d.match(/Entrega:?\s*(\d{2}\/\d{2}\/\d{4})/i))) ident.entrega = dataIso(m[1]);
+    if (!ident.quantidade && (m = d.match(/Quantidade:?\s*([\d.,]+)\s*Unidade:?\s*(\S+)/i))) { ident.quantidade = m[1]; ident.unidade = m[2]; }
+    if (!ident.situacao && (m = d.match(/Situacao:?\s*(\S.*)$/i))) ident.situacao = m[1].trim();
+  }
+  return ident;
+}
+
 // Best-effort: extrai matéria-prima / dimensão / norma da descrição, SÓ quando
 // reconhecidos com segurança. Nunca inventa: sem match confiável → null. A
 // descrição original nunca é alterada.
@@ -723,8 +781,9 @@ export async function lerOP(buf: Buffer): Promise<OPLeitura> {
   const ops: OPItem[] = grupos.map(g => {
     const cabecalho = parseCabecalho(g.redbox);
     const produto = parseProduto(g.lines);
+    const identificacao = parseIdentificacao(g.lines);
     const { materiais, roteiro } = parseBlocos(g.lines, decItem);
-    const base = { cabecalho, produto, materiais, roteiro, confianca, paginas: 0 };
+    const base = { cabecalho, produto, identificacao, materiais, roteiro, confianca, paginas: 0 };
     const { qualidade, validacao } = avaliar(base);
     return { ...base, qualidade, validacao };
   }).filter(op => op.materiais.length || op.roteiro.length || op.cabecalho.pn);

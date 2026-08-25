@@ -47,9 +47,11 @@ export default function PcpHrmPage() {
   interface OPMat { codigo: string; descricao: string; quantidade: string; unidade: string; materiaPrima?: string | null; dimensao?: string | null; norma?: string | null; }
   interface OPOp { seq: string; setor: string; setorNome: string; etapa: string; tc: string; tf: string; }
   interface OPValid { temProduto: boolean; temComponentes: boolean; temRoteiro: boolean; componentesSemCodigo: number; avisos: string[] }
+  interface OPIdent { clienteNome: string; clienteCodigo: string; quantidade: string; unidade: string; emissao: string; entrega: string; situacao: string; }
   interface OPItem {
     cabecalho: { pn: string; po: string; ns: string };
     produto: { codigo: string; descricao: string };
+    identificacao?: OPIdent;
     materiais: OPMat[]; roteiro: OPOp[]; confianca: number; qualidade?: number; validacao?: OPValid; paginas: number;
   }
   interface OPLeitura { ops: OPItem[]; totalPaginas: number; avisos?: string[] }
@@ -107,7 +109,17 @@ export default function PcpHrmPage() {
       fd.append('arquivo', f);
       const res = await fetch('/api/pcp-hrm/ler-op', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
       const data = await res.json();
-      if (data.ok) setLeitura({ ops: data.ops || [], totalPaginas: data.totalPaginas ?? 0 });
+      if (data.ok) {
+        const ops: OPItem[] = data.ops || [];
+        setLeitura({ ops, totalPaginas: data.totalPaginas ?? 0 });
+        // Pré-preenche Cliente/Prazo com o que a OP leu — só quando a pessoa
+        // ainda não digitou nada (nunca sobrescreve o que já foi preenchido
+        // à mão). "Situacao"/"Quantidade" ficam só na Identificação pra
+        // conferir, não têm campo próprio nesta tela.
+        const ident = ops[0]?.identificacao;
+        if (ident?.clienteNome) setCliente(c => c.trim() ? c : ident.clienteNome);
+        if (ident?.entrega) setPrazo(p => (p || semPrazo) ? p : ident.entrega);
+      }
       else setErroLeitura(data.erro || 'Não consegui ler a OP.');
     } catch {
       setErroLeitura('Falha ao ler a OP. O arquivo foi anexado, mas não consegui extrair os itens.');
@@ -478,6 +490,18 @@ export default function PcpHrmPage() {
                                 {op.cabecalho.po && <div><span style={{ opacity:.6 }}>PO</span> {op.cabecalho.po}</div>}
                                 {op.cabecalho.ns && <div><span style={{ opacity:.6 }}>NS</span> {op.cabecalho.ns}</div>}
                               </div>
+                              {/* Cabeçalho Cliente/Quantidade/Emissão/Entrega/Situação — best-
+                                  effort (ver opReader.parseIdentificacao); campo que não casou
+                                  no PDF fica de fora aqui em vez de mostrar vazio. */}
+                              {op.identificacao && (op.identificacao.clienteNome || op.identificacao.quantidade || op.identificacao.emissao || op.identificacao.entrega || op.identificacao.situacao) && (
+                                <div style={{ display:'flex', flexWrap:'wrap', gap:'4px 16px', fontSize:12, fontWeight:600, color:'#991b1b', marginTop:8, paddingTop:8, borderTop:'1px dashed #f3b8b8' }}>
+                                  {op.identificacao.clienteNome && <span><span style={{ opacity:.6 }}>Cliente</span> {op.identificacao.clienteNome}</span>}
+                                  {op.identificacao.quantidade && <span><span style={{ opacity:.6 }}>Qtde</span> {op.identificacao.quantidade} {op.identificacao.unidade}</span>}
+                                  {op.identificacao.emissao && <span><span style={{ opacity:.6 }}>Emissão</span> {op.identificacao.emissao.split('-').reverse().join('/')}</span>}
+                                  {op.identificacao.entrega && <span><span style={{ opacity:.6 }}>Entrega</span> {op.identificacao.entrega.split('-').reverse().join('/')}</span>}
+                                  {op.identificacao.situacao && <span><span style={{ opacity:.6 }}>Situação</span> {op.identificacao.situacao}</span>}
+                                </div>
+                              )}
                             </div>
                           )}
 
