@@ -702,7 +702,7 @@ function parseBlocos(lines: Line[], decItem: (it: Item) => string): { materiais:
 // Vocabulário de setores/operações típicos do roteiro do Totvs (independente do
 // código interno do sistema) — usado só pra MEDIR plausibilidade, nunca pra
 // completar/inventar dado.
-const VOCAB_ROTEIRO = ['CORTE', 'SERRA', 'CNC', 'PLASMA', 'LASER', 'MACARICO', 'INSPECAO', 'INSPE', 'CQ', 'QUALIDADE', 'TORNO', 'FURAD', 'FURACAO', 'USINAGEM', 'ACABAMENTO', 'CALD', 'CALDEIRARIA', 'SOLDA', 'MONTAGEM', 'JATEAMENTO', 'JATO', 'PINTURA', 'EXPEDICAO', 'EMBALAGEM', 'DOBRA', 'PRENSA', 'CALANDRA', 'CHANFR', 'TRACAGEM', 'ESTUFA', 'GALVAN', 'ZINCAGEM', 'ROSCA', 'PATIO'];
+const VOCAB_ROTEIRO = ['CORTE', 'SERRA', 'CNC', 'PLASMA', 'LASER', 'MACARICO', 'INSPECAO', 'INSPE', 'CQ', 'QUALIDADE', 'TORNO', 'FURAD', 'FURACAO', 'USINAGEM', 'ACABAMENTO', 'CALD', 'CALDEIRARIA', 'SOLDA', 'MONTAGEM', 'JATEAMENTO', 'JATO', 'PINTURA', 'EXPEDICAO', 'EMBALAGEM', 'DOBRA', 'PRENSA', 'CALANDRA', 'CHANFR', 'TRACAGEM', 'ESTUFA', 'GALVAN', 'ZINCAGEM', 'ROSCA', 'PATIO', 'OBSERVACOES'];
 const codigoNumerico = (c: string) => /^\d{4,}$/.test((c || '').replace(/\s/g, ''));
 
 function avaliar(op: Omit<OPItem, 'qualidade' | 'validacao'>): { qualidade: number; validacao: OPValidacao } {
@@ -759,24 +759,39 @@ function avaliar(op: Omit<OPItem, 'qualidade' | 'validacao'>): { qualidade: numb
 // com o usuário foi materiais/quantidades, não o roteiro inteiro. Limite de 2
 // páginas por ordem e 6 no total pro documento, pra nunca estourar o tempo
 // mesmo numa OP com várias ordens ruins.
-const OCR_MAX_PAGINAS_POR_ORDEM = 2;
-const OCR_MAX_PAGINAS_TOTAL = 6;
+const OCR_MAX_PAGINAS_MATERIAIS_POR_ORDEM = 2;
+const OCR_MAX_PAGINAS_ROTEIRO_POR_ORDEM = 4;
+const OCR_MAX_PAGINAS_TOTAL = 5;
 
-// Página (0-based) onde está o título soletrado "COMPONENTES" DESTA ordem —
-// mesma checagem por FORMA (spacedTitleInfo) que as âncoras de decodificação
-// usam, então funciona mesmo numa página 100% embaralhada (não depende de
-// `ln.dec` estar certo). `null` se a ordem não tem essa tabela (ex.: ordem só
-// de sub-item, "V I A P E Ç A", sem COMPONENTES).
-function paginaComponentes(lines: Line[]): number | null {
+// Página (0-based) onde está o título soletrado "COMPONENTES"/"ROTEIRO DE
+// OPERAÇÕES" DESTA ordem — mesma checagem por FORMA (spacedTitleInfo) que as
+// âncoras de decodificação usam (`tituloLen` 11 ou 18), então funciona numa
+// página 100% embaralhada (não depende de `ln.dec` estar certo). `null` se a
+// ordem não tem essa seção (ex.: ordem só de sub-item, sem COMPONENTES).
+function paginaDoTitulo(lines: Line[], tituloLen: number): number | null {
   for (const ln of lines) {
-    if (spacedTitleInfo(ln).title.length === 11) return ln.items[0]?.p ?? null;
+    if (spacedTitleInfo(ln).title.length === tituloLen) return ln.items[0]?.p ?? null;
   }
   return null;
 }
+function paginaComponentes(lines: Line[]): number | null { return paginaDoTitulo(lines, 11); }
+function paginaRoteiro(lines: Line[]): number | null { return paginaDoTitulo(lines, 18); }
+// Última página (0-based) que pertence a este grupo de linhas — não vale a
+// pena OCR além dela mesmo se o orçamento permitir (não tem mais nada da
+// ordem ali).
+function ultimaPagina(lines: Line[]): number {
+  let max = 0;
+  for (const ln of lines) { const p = ln.items[0]?.p; if (p != null && p > max) max = p; }
+  return max;
+}
 
-// Renderiza UMA página do PDF pra PNG (pdfjs + @napi-rs/canvas — sem
-// depender de Ghostscript/poppler, que não existem no runtime da Vercel).
-async function renderPaginaPng(buf: Buffer, pageIndex0: number): Promise<Buffer> {
+// Documento pdfjs carregado UMA VEZ e reaproveitado pra renderizar várias
+// páginas (pdfjs + @napi-rs/canvas — sem depender de Ghostscript/poppler, que
+// não existem no runtime da Vercel). Recarregar o PDF inteiro por página (era
+// o código original) desperdiçava tempo à toa — numa OP de várias páginas
+// ruins isso sozinho quase estourou os 30s da função.
+interface RenderCtx { doc: { getPage(n: number): Promise<any> }; createCanvas: (w: number, h: number) => any; NapiCanvasFactory: new () => any }
+async function carregarDocParaRender(buf: Buffer): Promise<RenderCtx> {
   const { createCanvas } = await import('@napi-rs/canvas');
   const pdfjsMod: any = await import('pdfjs-dist/legacy/build/pdf.js');
   const pdfjs = pdfjsMod.getDocument ? pdfjsMod : (pdfjsMod.default || pdfjsMod);
@@ -786,11 +801,14 @@ async function renderPaginaPng(buf: Buffer, pageIndex0: number): Promise<Buffer>
     destroy(cc: any) { cc.canvas.width = 0; cc.canvas.height = 0; cc.canvas = null; cc.context = null; }
   }
   const doc = await pdfjs.getDocument({ data: new Uint8Array(buf), useSystemFonts: true, isEvalSupported: false, canvasFactory: new NapiCanvasFactory() }).promise;
-  const page = await doc.getPage(pageIndex0 + 1);
+  return { doc, createCanvas, NapiCanvasFactory };
+}
+async function renderPaginaPng(ctx: RenderCtx, pageIndex0: number): Promise<Buffer> {
+  const page = await ctx.doc.getPage(pageIndex0 + 1);
   const viewport = page.getViewport({ scale: 2.5 });
-  const canvas = createCanvas(viewport.width, viewport.height);
-  const ctx = canvas.getContext('2d');
-  await page.render({ canvasContext: ctx, viewport, canvasFactory: new NapiCanvasFactory() }).promise;
+  const canvas = ctx.createCanvas(viewport.width, viewport.height);
+  const c2d = canvas.getContext('2d');
+  await page.render({ canvasContext: c2d, viewport, canvasFactory: new ctx.NapiCanvasFactory() }).promise;
   return canvas.toBuffer('image/png');
 }
 
@@ -836,13 +854,13 @@ function parseMateriaisOcr(texto: string): OPMaterial[] {
 // chamada — inicializar custa ~0,5s). Retorna `null` sem alterar nada quando
 // não achar a página, ou quando o OCR não render nenhum material com código
 // numérico coerente (não troca uma leitura ruim por outra pior).
-async function tentarOcrMateriais(buf: Buffer, lines: Line[], worker: { recognize: (b: Buffer) => Promise<{ data: { text: string } }> }, orcamento: { restante: number }): Promise<OPMaterial[] | null> {
+async function tentarOcrMateriais(renderCtx: RenderCtx, lines: Line[], worker: { recognize: (b: Buffer) => Promise<{ data: { text: string } }> }, orcamento: { restante: number }): Promise<OPMaterial[] | null> {
   const pagInicial = paginaComponentes(lines);
   if (pagInicial == null) return null;
   const materiaisTodos: OPMaterial[] = [];
-  for (let i = 0; i < OCR_MAX_PAGINAS_POR_ORDEM && orcamento.restante > 0; i++) {
+  for (let i = 0; i < OCR_MAX_PAGINAS_MATERIAIS_POR_ORDEM && orcamento.restante > 0; i++) {
     let png: Buffer;
-    try { png = await renderPaginaPng(buf, pagInicial + i); } catch { break; }
+    try { png = await renderPaginaPng(renderCtx, pagInicial + i); } catch { break; }
     orcamento.restante--;
     let texto = '';
     try { const r = await worker.recognize(png); texto = r.data.text; } catch { break; }
@@ -852,6 +870,99 @@ async function tentarOcrMateriais(buf: Buffer, lines: Line[], worker: { recogniz
     if (!/\|/.test(texto)) break;
   }
   return materiaisTodos.length ? materiaisTodos : null;
+}
+
+// Rótulos de MAQ./OPER. (nome do setor) vistos em OPs reais do HRM/Caldeiraria
+// — mais específico que VOCAB_ROTEIRO (que é fragmento pra PONTUAR qualidade,
+// não pra DELIMITAR onde a etapa começa). Ordem do mais longo pro mais curto:
+// tenta o rótulo composto mais específico antes de aceitar um genérico (ex.:
+// "CALD PESADA" antes de qualquer coisa que só bata em "CALD").
+const MAQOPER_LABELS = [
+  'INSPECAO CQ', 'CALD PESADA', 'CALD MEDIA', 'CALD LEVE', 'CORTE SERRA',
+  'CORTE PLASMA', 'CORTE CNC', 'OBSERVACOES', 'ACABAMENTO', 'FURADEIRA',
+  'JATEAMENTO', 'EXPEDICAO', 'MONTAGEM', 'EMBALAGEM', 'USINAGEM', 'QUALIDADE',
+  'GALVANIZACAO', 'CALANDRA', 'TRACAGEM', 'CHANFRO', 'ESTUFA', 'PINTURA',
+  'PRENSA', 'PATIO', 'ROSCA', 'DOBRA', 'TORNO', 'SOLDA',
+];
+
+// Compara os primeiros `alvo.length` caracteres de `texto` (maiúsculo) contra
+// `alvo`, tolerando erro de OCR (ex.: "INSPECAO CO" vs "INSPECAO CQ" — 1
+// letra errada não invalida o rótulo).
+function bateAproximado(texto: string, alvo: string): boolean {
+  if (texto.length < alvo.length) return false;
+  let dif = 0;
+  for (let i = 0; i < alvo.length; i++) if (texto[i] !== alvo[i]) dif++;
+  return dif <= Math.max(1, Math.floor(alvo.length * 0.2));
+}
+
+// Separa MAQ./OPER. (nome do setor) da ETAPA (descrição) dentro do trecho que
+// sobra depois de SEQ+SETOR numa linha de roteiro OCR — não tem "|" separando
+// essas colunas no PDF real (só espaço), então a única âncora confiável é
+// reconhecer o RÓTULO em si contra a lista conhecida. `null` quando nenhum
+// rótulo bate — melhor não separar do que separar errado.
+function acharMaqOper(resto: string): { setorNome: string; etapa: string } | null {
+  const upper = resto.toUpperCase();
+  for (const label of MAQOPER_LABELS) {
+    if (bateAproximado(upper, label)) return { setorNome: label, etapa: resto.slice(label.length).trim() };
+  }
+  return null;
+}
+
+// Parseia o Roteiro de Operações a partir do texto OCR. Formato real:
+// "SEQ SETOR MAQ./OPER. ETAPA... TP TF" numa linha só (ETAPA às vezes quebra
+// pra linha seguinte antes de "INICIO REAL:"), com o cabeçalho da tabela
+// repetido várias vezes na mesma página (a cada novo grupo de passos) — só
+// pula essas linhas de "moldura", não usa como fronteira de parada (roteiro
+// legítimo tem VÁRIOS desses ao longo do documento). TC/TF: OCR às vezes lê
+// "0" como a letra solta "o" — normaliza pro dígito.
+function parseRoteiroOcr(texto: string): OPOperacao[] {
+  const roteiro: OPOperacao[] = [];
+  const linhaOperacao = /^(\d{3})\D{0,4}(\d{4,6})\s+(.+)$/;
+  for (const linhaRaw of texto.split(/\r\n?|\n/)) {
+    const linha = linhaRaw.trim();
+    if (!linha) continue;
+    if (/^SEQ\.?\s*SETOR/i.test(linha) || /^INICIO\s+REAL/i.test(linha)) continue;
+    const m = linha.match(linhaOperacao);
+    if (m) {
+      const [, seq, setor, restoOriginal] = m;
+      let corpo = restoOriginal;
+      let tc = '', tf = '';
+      const mNum = restoOriginal.match(/^(.*?)\s+(\d{1,4}|[oO])\s+(\d{1,4}|[oO])\s*$/);
+      if (mNum) { corpo = mNum[1].trim(); tc = mNum[2].replace(/[oO]/, '0'); tf = mNum[3].replace(/[oO]/, '0'); }
+      const achado = acharMaqOper(corpo);
+      roteiro.push({
+        seq, setor,
+        setorNome: achado?.setorNome || '',
+        etapa: (achado?.etapa ?? corpo).trim(),
+        tc, tf, raw: linha,
+      });
+    } else if (roteiro.length && linha.length <= 60 && !/^\d{3}\D{0,4}\d{4,6}/.test(linha)) {
+      // Continuação da etapa (quebra de linha), ex.: "ESTRUTURA" sozinha.
+      roteiro[roteiro.length - 1].etapa += ' ' + linha;
+    }
+  }
+  return roteiro;
+}
+
+// Igual a `tentarOcrMateriais`, mas pro Roteiro — começa na página do título
+// "ROTEIRO DE OPERAÇÕES" e segue até o fim das páginas desta ordem (ou até o
+// orçamento/limite por ordem acabar, o que vier primeiro). Documentos muito
+// longos podem não caber no orçamento total — melhor um roteiro PARCIAL
+// correto do que nenhum, e nunca estourar o tempo da função.
+async function tentarOcrRoteiro(renderCtx: RenderCtx, lines: Line[], worker: { recognize: (b: Buffer) => Promise<{ data: { text: string } }> }, orcamento: { restante: number }): Promise<OPOperacao[] | null> {
+  const pagInicial = paginaRoteiro(lines);
+  if (pagInicial == null) return null;
+  const pagFinal = Math.min(pagInicial + OCR_MAX_PAGINAS_ROTEIRO_POR_ORDEM - 1, ultimaPagina(lines));
+  const roteiroTodo: OPOperacao[] = [];
+  for (let p = pagInicial; p <= pagFinal && orcamento.restante > 0; p++) {
+    let png: Buffer;
+    try { png = await renderPaginaPng(renderCtx, p); } catch { break; }
+    orcamento.restante--;
+    let texto = '';
+    try { const r = await worker.recognize(png); texto = r.data.text; } catch { break; }
+    roteiroTodo.push(...parseRoteiroOcr(texto));
+  }
+  return roteiroTodo.length ? roteiroTodo : null;
 }
 
 export async function lerOP(buf: Buffer): Promise<OPLeitura> {
@@ -894,6 +1005,7 @@ export async function lerOP(buf: Buffer): Promise<OPLeitura> {
   // nesta chamada, pra nunca estourar o tempo da função mesmo numa OP com
   // várias ordens ruins.
   let worker: Awaited<ReturnType<typeof import('tesseract.js').createWorker>> | null = null;
+  let renderCtx: RenderCtx | null = null;
   const orcamentoOcr = { restante: OCR_MAX_PAGINAS_TOTAL };
   const ops: OPItem[] = [];
   for (const g of grupos) {
@@ -911,7 +1023,15 @@ export async function lerOP(buf: Buffer): Promise<OPLeitura> {
     // porque avaliar() não pune falta de componente (pode ser legítimo, ex.
     // ordem de sub-item) — sem isso, uma ordem que TEM componentes mas não
     // achou (compIdx=-1 por decode ruim) passaria despercebida.
-    if ((qualidade < 0.7 || materiais.length === 0) && orcamentoOcr.restante > 0) {
+    const precisaMateriais = qualidade < 0.7 || materiais.length === 0;
+    // Roteiro ruim = poucos setores batendo com o vocabulário conhecido (não
+    // "roteiro.length===0" — uma ordem sem roteiro pode ser legítima, tipo um
+    // sub-item; aqui o sinal é "tem roteiro mas ele não faz sentido").
+    const setoresRoteiro = roteiro.map(o => (o.setorNome || o.setor || '').toUpperCase());
+    const fracSetorOk = setoresRoteiro.length ? setoresRoteiro.filter(s => VOCAB_ROTEIRO.some(v => s.includes(v))).length / setoresRoteiro.length : 1;
+    const precisaRoteiro = roteiro.length > 0 && fracSetorOk < 0.5;
+    if ((precisaMateriais || precisaRoteiro) && orcamentoOcr.restante > 0) {
+      const avisosOcr: string[] = [];
       try {
         if (!worker) {
           const { createWorker, OEM } = await import('tesseract.js');
@@ -922,14 +1042,27 @@ export async function lerOP(buf: Buffer): Promise<OPLeitura> {
           const langPath = path.join(process.cwd(), 'node_modules', '@tesseract.js-data', 'por', '4.0.0_best_int');
           worker = await createWorker('por', OEM.LSTM_ONLY, { langPath, cachePath: '/tmp' });
         }
-        const ocr = await tentarOcrMateriais(buf, g.lines, worker, orcamentoOcr);
-        if (ocr) {
-          base.materiais = ocr;
-          const reavaliado = avaliar(base);
-          qualidade = reavaliado.qualidade; validacao = reavaliado.validacao;
-          validacao.avisos.push('Materiais lidos por OCR (imagem da página) — a decodificação normal não veio confiável nesta ordem.');
+        if (!renderCtx) renderCtx = await carregarDocParaRender(buf);
+        if (precisaMateriais) {
+          const ocrMat = await tentarOcrMateriais(renderCtx, g.lines, worker, orcamentoOcr);
+          if (ocrMat) {
+            base.materiais = ocrMat;
+            avisosOcr.push('Materiais lidos por OCR (imagem da página) — a decodificação normal não veio confiável nesta ordem.');
+          }
+        }
+        if (precisaRoteiro && orcamentoOcr.restante > 0) {
+          const ocrRot = await tentarOcrRoteiro(renderCtx, g.lines, worker, orcamentoOcr);
+          if (ocrRot) {
+            base.roteiro = ocrRot;
+            avisosOcr.push('Roteiro lido por OCR (imagem da página) — a decodificação normal não veio confiável nesta ordem.');
+          }
         }
       } catch { /* OCR indisponível ou falhou — mantém a leitura por cifra */ }
+      if (avisosOcr.length) {
+        const reavaliado = avaliar(base);
+        qualidade = reavaliado.qualidade;
+        validacao = { ...reavaliado.validacao, avisos: [...avisosOcr, ...reavaliado.validacao.avisos] };
+      }
     }
     ops.push({ ...base, qualidade, validacao });
   }

@@ -445,7 +445,8 @@ export default function PcpHrmPage() {
                   const naoAuditavel = op.confianca < 0.05 && op.materiais.length > 0 && fracCodOk < 0.5;
                   const leituraRuim = qual < 0.25 || naoAuditavel;
                   const conferir = qual < 0.7;
-                  const avisos = op.validacao?.avisos || [];
+                  const avisos = (op.validacao?.avisos || []).filter(a => !a.includes('lidos por OCR'));
+                  const avisosOcr = (op.validacao?.avisos || []).filter(a => a.includes('lidos por OCR'));
                   return (
                     <div key={idx}>
                       {/* Linha resumo — só Produto/Descrição, igual uma linha de item do
@@ -509,6 +510,16 @@ export default function PcpHrmPage() {
                             <div style={{ fontSize:13, color:'#92400e', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:8, padding:'10px 12px', marginBottom:14 }}>
                               <i className="bi bi-exclamation-triangle" style={{ marginRight:6 }} />
                               Não consegui ler os <b>materiais</b> e o <b>roteiro</b> automaticamente nesta OP (a fonte do PDF veio muito embaralhada). A identificação acima (PN/PO/NS) está correta. <b>Anexe a OP mesmo assim</b> — o PCP confere na Conferência. Se der, exporte a OP do Totvs em Excel/TXT pra leitura 100% confiável.
+                            </div>
+                          )}
+
+                          {/* Nota de método (não é alerta de qualidade — a leitura por
+                              OCR pode ter dado certo, então mostra sempre que foi
+                              usada, mesmo quando a qualidade final ficou boa). */}
+                          {!leituraRuim && avisosOcr.length > 0 && (
+                            <div style={{ fontSize:12.5, color:'#1e40af', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:8, padding:'8px 12px', marginBottom:14 }}>
+                              <i className="bi bi-camera" style={{ marginRight:6 }} />
+                              {avisosOcr.join(' ')}
                             </div>
                           )}
 
