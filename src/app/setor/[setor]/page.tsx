@@ -3234,6 +3234,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const [filtroLog, setFiltroLog] = useState<FiltroLogistica>('todos');
   const [ultimaAtt, setUltimaAtt] = useState<Date | null>(null);
   const [pedidosColapsados, setPedidosColapsados] = useState<Set<number>>(new Set());
+  // Filtro de pedido — só na Usinagem (a pedido do líder). Busca por PV/código/
+  // descrição, client-side; vazio = mostra tudo. Não toca em API/banco.
+  const [filtroUsinagem, setFiltroUsinagem] = useState('');
   const [recebendoTudo, setRecebendoTudo] = useState<Set<number>>(new Set());
   const [enviandoTudo, setEnviandoTudo] = useState<Set<number>>(new Set());
   const [desfazendoTudo, setDesfazendoTudo] = useState<Set<number>>(new Set());
@@ -3338,6 +3341,12 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
     return () => clearInterval(id);
   }, []); // [] = inicia uma vez, usa sempre a ref mais recente
 
+  // Termo de busca da Usinagem, normalizado. Fora da Usinagem fica vazio (sem
+  // efeito). Casa um pedido por número (PV), código ou descrição de qualquer
+  // item/parcial dele.
+  const termoUsinagem = setor === 'usinagem' ? filtroUsinagem.trim().toLowerCase() : '';
+  const casaTermoUsinagem = (texto?: string | null) => !!texto && texto.toLowerCase().includes(termoUsinagem);
+
   return (
     <AuthGuard>
       {confirm && (
@@ -3431,6 +3440,31 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
           </button>
         </div>
       </div>
+
+      {/* Filtro de pedido — Usinagem (busca por PV/código/descrição) */}
+      {setor === 'usinagem' && data && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: '1 1 260px', maxWidth: 380 }}>
+            <i className="bi bi-search" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 13 }} />
+            <input
+              type="text"
+              value={filtroUsinagem}
+              onChange={e => setFiltroUsinagem(e.target.value)}
+              placeholder="Filtrar pedido (nº PV, código ou descrição)…"
+              style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 8, padding: '7px 30px 7px 30px', fontSize: 13, boxSizing: 'border-box' }}
+            />
+            {filtroUsinagem && (
+              <button onClick={() => setFiltroUsinagem('')} title="Limpar filtro"
+                style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 14, lineHeight: 1, padding: 2 }}>
+                <i className="bi bi-x-lg" />
+              </button>
+            )}
+          </div>
+          {termoUsinagem && (
+            <span style={{ fontSize: 12, color: '#6b7280' }}>filtrando por &ldquo;{filtroUsinagem.trim()}&rdquo;</span>
+          )}
+        </div>
+      )}
 
       {/* Filtros da Logística */}
       {setor === 'logistica' && data && (
@@ -3565,8 +3599,14 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
               });
             }
 
-            const totalPedidos = pedidos.length;
-            const totalParciais = todasParciais.length;
+            // Filtro da Usinagem (client-side): esconde os pedidos que não batem
+            // com a busca. Vazio/fora da Usinagem => mostra todos.
+            const pedidosVis = termoUsinagem
+              ? pedidos.filter(pd => casaTermoUsinagem(pd.numero_pedido_venda)
+                  || pd.parciais.some(p => casaTermoUsinagem(p.item_codigo) || casaTermoUsinagem(p.item_descricao)))
+              : pedidos;
+            const totalPedidos = pedidosVis.length;
+            const totalParciais = pedidosVis.reduce((s, pd) => s + pd.parciais.length, 0);
 
             return (
               <section>
@@ -3592,7 +3632,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {pedidos.map(({ pedido_id, numero_pedido_venda, parciais }, ordemIdx) => {
+                  {pedidosVis.map(({ pedido_id, numero_pedido_venda, parciais }, ordemIdx) => {
                     // Agrupar parciais do pedido por item_pedido_id
                     const itemMap = new Map<number, ItemParcial[]>();
                     for (const p of parciais) {
@@ -4001,9 +4041,13 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
             const itemIdsComParciais = new Set((data.parciais || []).map(p => p.item_pedido_id));
             const itensSemParciais = data.itens.filter(i => !itemIdsComParciais.has(i.id) && !pedidoIdsComParciais.has(i.pedido_id));
 
-            const itensFiltrados = setor === 'logistica' && filtroLog !== 'todos'
+            const itensFiltradosBase = setor === 'logistica' && filtroLog !== 'todos'
               ? itensSemParciais.filter(i => i.status === filtroLog)
               : itensSemParciais;
+            // Filtro de pedido da Usinagem (client-side).
+            const itensFiltrados = termoUsinagem
+              ? itensFiltradosBase.filter(i => casaTermoUsinagem(i.pedido_numero) || casaTermoUsinagem(i.codigo) || casaTermoUsinagem(i.descricao))
+              : itensFiltradosBase;
 
             // Agrupar por pedido
             const pedidoMap = new Map<string, ItemPedido[]>();
