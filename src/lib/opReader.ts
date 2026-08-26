@@ -744,6 +744,116 @@ function avaliar(op: Omit<OPItem, 'qualidade' | 'validacao'>): { qualidade: numb
   return { qualidade, validacao: { temProduto, temComponentes, temRoteiro, componentesSemCodigo, avisos } };
 }
 
+// ── Fallback por OCR (só materiais) ──────────────────────────────────────────
+// Algumas OPs (ex.: OP-013466, fonte Type3 embaralhada na página inteira) não
+// dão pra decifrar com confiança — a cifra muda por página e as âncoras
+// automáticas não bastam pra recuperar tudo (tentado, ver [[project_pcp_hrm_caldeiraria]]).
+// Só que a página, quando RENDERIZADA como imagem, sai perfeitamente legível
+// (o glifo desenha certo, só o código por trás do texto embaralha) — então dá
+// pra ignorar a cifra inteiramente e ler a imagem com OCR.
+//
+// Custo: OCR demora ~3s por página. Ler o documento inteiro assim (uma OP real
+// tem 13-18 páginas) estoura o tempo de uma função da Vercel. Por isso o OCR
+// roda SÓ na(s) página(s) da tabela de COMPONENTES de cada ordem cujos
+// materiais saíram ruins pela decodificação normal — a prioridade combinada
+// com o usuário foi materiais/quantidades, não o roteiro inteiro. Limite de 2
+// páginas por ordem e 6 no total pro documento, pra nunca estourar o tempo
+// mesmo numa OP com várias ordens ruins.
+const OCR_MAX_PAGINAS_POR_ORDEM = 2;
+const OCR_MAX_PAGINAS_TOTAL = 6;
+
+// Página (0-based) onde está o título soletrado "COMPONENTES" DESTA ordem —
+// mesma checagem por FORMA (spacedTitleInfo) que as âncoras de decodificação
+// usam, então funciona mesmo numa página 100% embaralhada (não depende de
+// `ln.dec` estar certo). `null` se a ordem não tem essa tabela (ex.: ordem só
+// de sub-item, "V I A P E Ç A", sem COMPONENTES).
+function paginaComponentes(lines: Line[]): number | null {
+  for (const ln of lines) {
+    if (spacedTitleInfo(ln).title.length === 11) return ln.items[0]?.p ?? null;
+  }
+  return null;
+}
+
+// Renderiza UMA página do PDF pra PNG (pdfjs + @napi-rs/canvas — sem
+// depender de Ghostscript/poppler, que não existem no runtime da Vercel).
+async function renderPaginaPng(buf: Buffer, pageIndex0: number): Promise<Buffer> {
+  const { createCanvas } = await import('@napi-rs/canvas');
+  const pdfjsMod: any = await import('pdfjs-dist/legacy/build/pdf.js');
+  const pdfjs = pdfjsMod.getDocument ? pdfjsMod : (pdfjsMod.default || pdfjsMod);
+  class NapiCanvasFactory {
+    create(width: number, height: number) { const canvas = createCanvas(width, height); return { canvas, context: canvas.getContext('2d') }; }
+    reset(cc: any, width: number, height: number) { cc.canvas.width = width; cc.canvas.height = height; }
+    destroy(cc: any) { cc.canvas.width = 0; cc.canvas.height = 0; cc.canvas = null; cc.context = null; }
+  }
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(buf), useSystemFonts: true, isEvalSupported: false, canvasFactory: new NapiCanvasFactory() }).promise;
+  const page = await doc.getPage(pageIndex0 + 1);
+  const viewport = page.getViewport({ scale: 2.5 });
+  const canvas = createCanvas(viewport.width, viewport.height);
+  const ctx = canvas.getContext('2d');
+  await page.render({ canvasContext: ctx, viewport, canvasFactory: new NapiCanvasFactory() }).promise;
+  return canvas.toBuffer('image/png');
+}
+
+// Parseia a tabela de COMPONENTES a partir do texto OCR (não da cifra). O "|"
+// que separa as colunas é impresso de verdade no PDF (não artefato da
+// decodificação) — só que o OCR não lê essa barra fina com confiança: vira
+// "1", "I", "l", "[", "]" ou "/" dependendo da linha. Por isso a âncora
+// confiável não é o separador (varia demais), e sim o formato da QUANTIDADE
+// ("N,NN" — vírgula decimal não aparece em medida/rosca, que usa ponto:
+// "2.25\""), com a UNIDADE (2 letras) logo depois. Descrição que quebra em
+// duas linhas (ex.: "NAMEPLATE" na linha seguinte) é colada na anterior, igual
+// o caminho normal (`parseBlocos`) já faz.
+function parseMateriaisOcr(texto: string): OPMaterial[] {
+  const materiais: OPMaterial[] = [];
+  const linhaMaterial = /^(\d{4,6})\s+(.+?)\s+(\d{1,4},\d{2})\s*[|/[\]Il]*\s*([A-Z]{2})\b(.*)$/;
+  for (const linhaRaw of texto.split(/\r\n?|\n/)) {
+    const linha = linhaRaw.trim();
+    if (!linha) continue;
+    if (/ROTEIRO\s*DE\s*OPERA/i.test(linha) || /^SEQ\.?\s+SETOR/i.test(linha)) break;
+    const m = linha.match(linhaMaterial);
+    if (m) {
+      const [, codigo, descricaoRaw, quantidade, unidade, resto] = m;
+      const descricao = descricaoRaw.replace(/^[|/[\]Il](?=\d)/, '').replace(/[|/[\]]+$/, '').trim();
+      materiais.push({
+        codigo, descricao, quantidade, unidade,
+        al: null, rastreabilidade: resto.replace(/[|/[\]!]/g, ' ').trim() || null,
+        ...extrairCamposDescricao(descricao),
+        raw: linha,
+      });
+    } else if (materiais.length && linha.length <= 60) {
+      const last = materiais[materiais.length - 1];
+      if (last.descricao.length < 120) {
+        last.descricao += ' ' + linha;
+        Object.assign(last, extrairCamposDescricao(last.descricao));
+      }
+    }
+  }
+  return materiais;
+}
+
+// Roda o fallback de OCR pra UMA ordem: acha a página de COMPONENTES, renderiza
+// e lê. Reaproveita o `worker` do Tesseract entre ordens (não recria a cada
+// chamada — inicializar custa ~0,5s). Retorna `null` sem alterar nada quando
+// não achar a página, ou quando o OCR não render nenhum material com código
+// numérico coerente (não troca uma leitura ruim por outra pior).
+async function tentarOcrMateriais(buf: Buffer, lines: Line[], worker: { recognize: (b: Buffer) => Promise<{ data: { text: string } }> }, orcamento: { restante: number }): Promise<OPMaterial[] | null> {
+  const pagInicial = paginaComponentes(lines);
+  if (pagInicial == null) return null;
+  const materiaisTodos: OPMaterial[] = [];
+  for (let i = 0; i < OCR_MAX_PAGINAS_POR_ORDEM && orcamento.restante > 0; i++) {
+    let png: Buffer;
+    try { png = await renderPaginaPng(buf, pagInicial + i); } catch { break; }
+    orcamento.restante--;
+    let texto = '';
+    try { const r = await worker.recognize(png); texto = r.data.text; } catch { break; }
+    materiaisTodos.push(...parseMateriaisOcr(texto));
+    // Página seguinte só ajuda se a tabela realmente continuar nela — sem
+    // achar nenhuma linha de material aqui, não vale gastar mais orçamento.
+    if (!/\|/.test(texto)) break;
+  }
+  return materiaisTodos.length ? materiaisTodos : null;
+}
+
 export async function lerOP(buf: Buffer): Promise<OPLeitura> {
   const paginas = await extractDoc(buf);
 
@@ -778,18 +888,56 @@ export async function lerOP(buf: Buffer): Promise<OPLeitura> {
 
   const grupos = agruparOrdens(paginas);
   const avisosGerais: string[] = [];
-  const ops: OPItem[] = grupos.map(g => {
+  // Worker de OCR: criado só na primeira ordem que precisar (a maioria das OPs
+  // decodifica bem e nunca chega a usar isso) e reaproveitado entre ordens do
+  // mesmo documento. `orcamento` limita o total de páginas renderizadas+OCR
+  // nesta chamada, pra nunca estourar o tempo da função mesmo numa OP com
+  // várias ordens ruins.
+  let worker: Awaited<ReturnType<typeof import('tesseract.js').createWorker>> | null = null;
+  const orcamentoOcr = { restante: OCR_MAX_PAGINAS_TOTAL };
+  const ops: OPItem[] = [];
+  for (const g of grupos) {
     const cabecalho = parseCabecalho(g.redbox);
     const produto = parseProduto(g.lines);
     const identificacao = parseIdentificacao(g.lines);
     const { materiais, roteiro } = parseBlocos(g.lines, decItem);
     const base = { cabecalho, produto, identificacao, materiais, roteiro, confianca, paginas: 0 };
-    const { qualidade, validacao } = avaliar(base);
-    return { ...base, qualidade, validacao };
-  }).filter(op => op.materiais.length || op.roteiro.length || op.cabecalho.pn);
+    let { qualidade, validacao } = avaliar(base);
+    // Gate: qualidade geral < 0.7 (igual ao "confira" que a tela já usa) —
+    // mais confiável que checar só o código, porque uma OP embaralhada pode
+    // ter código com CARA de número (dígitos, só que ERRADOS) e passar reto
+    // num check que olhasse só isso; a nota combinada (código+descrição+
+    // roteiro) pega esse caso. `materiais.length===0` entra sempre também,
+    // porque avaliar() não pune falta de componente (pode ser legítimo, ex.
+    // ordem de sub-item) — sem isso, uma ordem que TEM componentes mas não
+    // achou (compIdx=-1 por decode ruim) passaria despercebida.
+    if ((qualidade < 0.7 || materiais.length === 0) && orcamentoOcr.restante > 0) {
+      try {
+        if (!worker) {
+          const { createWorker, OEM } = await import('tesseract.js');
+          const path = await import('path');
+          // Idioma local (não baixa da CDN a cada OP lida — ver next.config.js
+          // pro tracing desses arquivos no deploy da Vercel). Pasta
+          // "4.0.0_best_int" é a que casa com o modo LSTM_ONLY (padrão).
+          const langPath = path.join(process.cwd(), 'node_modules', '@tesseract.js-data', 'por', '4.0.0_best_int');
+          worker = await createWorker('por', OEM.LSTM_ONLY, { langPath, cachePath: '/tmp' });
+        }
+        const ocr = await tentarOcrMateriais(buf, g.lines, worker, orcamentoOcr);
+        if (ocr) {
+          base.materiais = ocr;
+          const reavaliado = avaliar(base);
+          qualidade = reavaliado.qualidade; validacao = reavaliado.validacao;
+          validacao.avisos.push('Materiais lidos por OCR (imagem da página) — a decodificação normal não veio confiável nesta ordem.');
+        }
+      } catch { /* OCR indisponível ou falhou — mantém a leitura por cifra */ }
+    }
+    ops.push({ ...base, qualidade, validacao });
+  }
+  if (worker) await worker.terminate();
+  const opsFiltrados = ops.filter(op => op.materiais.length || op.roteiro.length || op.cabecalho.pn);
 
-  if (ops.length === 0) avisosGerais.push('Nenhuma ordem identificada no PDF (confira se é uma OP do Totvs).');
-  for (const op of ops) for (const a of op.validacao.avisos) avisosGerais.push(`${op.cabecalho.ns || op.produto.codigo || 'ordem'}: ${a}`);
+  if (opsFiltrados.length === 0) avisosGerais.push('Nenhuma ordem identificada no PDF (confira se é uma OP do Totvs).');
+  for (const op of opsFiltrados) for (const a of op.validacao.avisos) avisosGerais.push(`${op.cabecalho.ns || op.produto.codigo || 'ordem'}: ${a}`);
 
-  return { ops, totalPaginas: paginas.length, avisos: avisosGerais };
+  return { ops: opsFiltrados, totalPaginas: paginas.length, avisos: avisosGerais };
 }
