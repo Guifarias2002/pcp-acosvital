@@ -400,41 +400,6 @@ export default function AnalisePage() {
               </div>
             ))}
           </div>
-          {/* Apontamento por máquina */}
-          <SectionTitle icon="bi-gear-wide-connected" t="Apontamento por máquina" s="Usinagem/Furação — início e peças por máquina/operador, no período selecionado" />
-          <div className="card" style={{ padding: 0, overflowX: 'auto', marginBottom: 24 }}>
-            {(dados.maquinas || []).length === 0 ? <div style={{ padding: 16 }}><Vazio /></div> : (() => {
-              const totalPecas = dados.maquinas.reduce((s, mq) => s + Number(mq.pecas || 0), 0);
-              const totalSegundos = dados.maquinas.reduce((s, mq) => s + Number(mq.segundos || 0), 0);
-              return (
-                <table style={tbl}><thead><tr>{['Máquina', 'Operador', 'Setor', 'Inícios', 'Peças', 'Tempo total', 'Tempo médio/peça'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
-                  <tbody>
-                    {dados.maquinas.map((mq, i) => {
-                      const src = fotoMaquina(mq.maquina);
-                      return (
-                      <tr key={i}><td style={{ ...td, fontWeight: 700 }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                          {src && <img src={src} alt={mq.maquina} loading="lazy" onClick={() => setMaquinaSel(mq.maquina)}
-                            style={{ width: 40, height: 30, objectFit: 'cover', borderRadius: 5, cursor: 'pointer', flexShrink: 0 }} />}
-                          {mq.maquina || '—'}
-                        </span>
-                      </td><td style={td}>{mq.operador || '—'}</td><td style={td}>{nm(mq.setor)}</td>
-                        <td style={tdR}>{fmt(mq.inicios)}</td>
-                        <td style={{ ...tdR, fontWeight: 700, color: C.azul }}>{fmt(mq.pecas)} {mq.unidade || 'un'}</td>
-                        <td style={tdR}>{fmtHorasMin(mq.segundos)}</td>
-                        <td style={tdR}>{Number(mq.pecas) > 0 ? fmtHorasMin(Number(mq.segundos) / Number(mq.pecas)) : '—'}</td></tr>
-                    );})}
-                    <tr>
-                      <td style={{ ...td, fontWeight: 800, color: C.azul }} colSpan={4}>Total</td>
-                      <td style={{ ...tdR, fontWeight: 800, color: C.azul }}>{fmt(totalPecas)}</td>
-                      <td style={{ ...tdR, fontWeight: 800, color: C.azul }}>{fmtHorasMin(totalSegundos)}</td>
-                      <td style={{ ...tdR, fontWeight: 800, color: C.azul }}>{totalPecas > 0 ? fmtHorasMin(totalSegundos / totalPecas) : '—'}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              );
-            })()}
-          </div>
           </>)}
 
           {aba === 'geral' && (<>
