@@ -258,10 +258,32 @@ export async function GET(req: Request) {
       FROM producao_itempedido i WHERE ${FLANGE}
       GROUP BY i.codigo ORDER BY pecas DESC LIMIT 100`;
 
+    // ── 13. Catálogo de Flanges (TODO o histórico) — nº de pedidos, peças e
+    // TEMPO DE PRODUÇÃO acumulado por código (das sessões de máquina), pra a
+    // gerência ver qual flange dá mais trabalho e priorizar produção. O tempo
+    // vem das parciais (maquina_segundos_acumulados + sessão aberta), somado por
+    // código via subquery correlacionada (codigo é a chave do GROUP).
+    const qCatalogoFlanges = sql`
+      SELECT i.codigo, MAX(i.descricao) AS descricao,
+             COUNT(DISTINCT i.pedido_id) AS pedidos,
+             COALESCE(SUM(i.quantidade), 0) AS pecas,
+             COUNT(*) AS itens,
+             COALESCE((
+               SELECT SUM(ip.maquina_segundos_acumulados
+                 + CASE WHEN ip.maquina_sessao_iniciada_em IS NOT NULL
+                        THEN EXTRACT(EPOCH FROM (NOW() - ip.maquina_sessao_iniciada_em)) ELSE 0 END)
+               FROM producao_itemparcial ip
+               JOIN producao_itempedido i2 ON i2.id = ip.item_pedido_id
+               WHERE i2.codigo = i.codigo AND COALESCE(i2.fabrica,'flange') = 'flange'
+                 AND i2.inativo IS NOT TRUE AND ip.maquina IS NOT NULL
+             ), 0) AS segundos_producao
+      FROM producao_itempedido i WHERE ${FLANGE}
+      GROUP BY i.codigo ORDER BY pecas DESC LIMIT 200`;
+
     const queries = [qEtapas, qVolume, qThroughput, qSemCriados, qSemFinal, qSemEntregas,
-      qTempoEtapa, qLead, qWip, qTopParadas, qMixTipo, qLideres, qMaquinas, qAtrasoSetor, qProdutos];
+      qTempoEtapa, qLead, qWip, qTopParadas, qMixTipo, qLideres, qMaquinas, qAtrasoSetor, qProdutos, qCatalogoFlanges];
     const [etapas, volume, throughput, semCriados, semFinal, semEntregas,
-      tempoEtapa, lead, wip, topParadas, mixTipo, lideres, maquinas, atrasoSetor, produtos] =
+      tempoEtapa, lead, wip, topParadas, mixTipo, lideres, maquinas, atrasoSetor, produtos, catalogoFlanges] =
       await runChunked(queries as never[], 4, 20000) as Record<string, unknown>[][];
 
     const num = (v: unknown) => Number(v || 0);
@@ -280,6 +302,16 @@ export async function GET(req: Request) {
       maquinas,
       atraso_setor: atrasoSetor,
       produtos,
+      catalogo_flanges: catalogoFlanges.map((r: Record<string, unknown>) => ({
+        codigo: r.codigo,
+        descricao: r.descricao,
+        pedidos: num(r.pedidos),
+        pecas: num(r.pecas),
+        itens: num(r.itens),
+        segundos_producao: num(r.segundos_producao),
+        // tempo médio por peça (só faz sentido quando houve produção medida)
+        seg_por_peca: num(r.pecas) > 0 ? num(r.segundos_producao) / num(r.pecas) : 0,
+      })),
     });
   } catch (e) {
     console.error('[analise]', e);
