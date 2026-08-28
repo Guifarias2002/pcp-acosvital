@@ -64,9 +64,13 @@ export async function GET(req: Request) {
         COUNT(*) FILTER (WHERE status = 'entregue')                                                  AS entregue,
         COUNT(*) FILTER (WHERE status != 'entregue' AND setor_atual = 'emissao')                     AS a_produzir,
         COUNT(*) FILTER (WHERE status != 'entregue' AND setor_atual IS DISTINCT FROM 'emissao')      AS produzindo,
-        COUNT(*) FILTER (WHERE prazo_entrega < NOW()::date AND status != 'entregue')                 AS atrasados,
+        COUNT(*) FILTER (WHERE p.status != 'entregue' AND EXISTS (
+          SELECT 1 FROM producao_itempedido i2
+          WHERE i2.pedido_id = p.id AND i2.inativo = false AND i2.status <> 'entregue'
+            AND COALESCE(i2.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE
+        ))                                                                                           AS atrasados,
         COUNT(*)                                                                                     AS total
-      FROM producao_pedido`;
+      FROM producao_pedido p`;
 
     // ── 2. Volume no período (itens criados) ─────────────────────────────────
     const qVolume = sql`
@@ -242,7 +246,7 @@ export async function GET(req: Request) {
     const qAtrasoSetor = sql`
       SELECT i.setor_atual AS setor, COUNT(DISTINCT p.id) AS pedidos, COUNT(*) AS itens
       FROM producao_pedido p JOIN producao_itempedido i ON i.pedido_id = p.id
-      WHERE p.prazo_entrega < NOW()::date AND p.status <> 'entregue'
+      WHERE COALESCE(i.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE AND p.status <> 'entregue'
         AND ${FLANGE} AND i.status <> 'entregue' ${fAtual}
       GROUP BY 1 ORDER BY 2 DESC`;
 

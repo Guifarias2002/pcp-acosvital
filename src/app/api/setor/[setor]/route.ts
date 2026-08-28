@@ -49,6 +49,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     sql`
       SELECT i.*, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
              p.prazo_entrega::text AS pedido_prazo, p.prioridade AS pedido_prioridade, p.roteiro_base,
+             COALESCE(i.previsao_conclusao, p.previsao_conclusao)::text AS previsao_efetiva,
              p.numero_op,
              (p.desenho_url IS NOT NULL OR COALESCE(array_length(p.desenhos,1),0) > 0) AS tem_desenho, p.desenho_url AS desenho_url,
              (p.pedido_venda_url IS NOT NULL) AS tem_pedido_venda,
@@ -175,6 +176,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     !buscarEmCaldeiraria ? Promise.resolve([] as Record<string, unknown>[]) : sql`
       SELECT i.*, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
              p.prazo_entrega::text AS pedido_prazo, p.prioridade AS pedido_prioridade, p.roteiro_base,
+             COALESCE(i.previsao_conclusao, p.previsao_conclusao)::text AS previsao_efetiva,
              p.numero_op,
              (p.desenho_url IS NOT NULL OR COALESCE(array_length(p.desenhos,1),0) > 0) AS tem_desenho, p.desenho_url AS desenho_url,
              (p.pedido_venda_url IS NOT NULL) AS tem_pedido_venda,
@@ -341,6 +343,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         : 0,
       fotos: Array.isArray(p.fotos) ? (p.fotos as string[]) : [],
       pedido_prazo: p.pedido_prazo ?? null,
+      previsao_efetiva: p.previsao_efetiva ?? null,
       cliente: p.cliente,
       prioridade: p.prioridade,
       proximo_setor,

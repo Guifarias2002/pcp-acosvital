@@ -49,11 +49,11 @@ export async function GET(req: Request) {
     } else if (tipo === 'atraso') {
       q = sql`
         SELECT p.numero_pedido_venda AS pv, p.cliente, i.codigo, i.descricao, i.quantidade, i.unidade,
-               p.prazo_entrega::text AS prazo
+               COALESCE(i.previsao_conclusao, p.previsao_conclusao)::text AS prazo
         FROM producao_pedido p JOIN producao_itempedido i ON i.pedido_id = p.id
-        WHERE p.prazo_entrega < NOW()::date AND p.status <> 'entregue'
+        WHERE COALESCE(i.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE AND p.status <> 'entregue'
           AND ${FLANGE} AND i.status <> 'entregue' AND i.setor_atual = ${chave}
-        ORDER BY p.prazo_entrega ASC`;
+        ORDER BY COALESCE(i.previsao_conclusao, p.previsao_conclusao) ASC`;
     } else if (tipo === 'mix') {
       q = sql`
         SELECT p.numero_pedido_venda AS pv, p.cliente, i.codigo, i.descricao, i.quantidade, i.unidade

@@ -3661,13 +3661,15 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                       else if (p.status === 'pausado') cont.pausado++;
                       else if (p.status === 'finalizado_setor') cont.fin++;
                     }
-                    const prazoPed = p0Ped?.pedido_prazo;
+                    // Chip de relance pela PREVISÃO DE CONCLUSÃO (não pelo faturamento
+                    // Omie). Sem previsão definida = sem chip (nada de falso atraso).
+                    const previsaoPed = (p0Ped as { previsao_efetiva?: string | null })?.previsao_efetiva;
                     let prazoInfo: { cor: string; txt: string } | null = null;
-                    if (prazoPed) {
-                      const dias = Math.ceil((new Date(prazoPed + 'T12:00:00').getTime() - Date.now()) / 86400000);
+                    if (previsaoPed) {
+                      const dias = Math.ceil((new Date(previsaoPed + 'T12:00:00').getTime() - Date.now()) / 86400000);
                       prazoInfo = {
                         cor: dias < 0 ? '#ef4444' : dias <= 3 ? '#f59e0b' : '#22c55e',
-                        txt: dias < 0 ? `Atrasado ${Math.abs(dias)}d` : dias === 0 ? 'Vence hoje' : `Prazo: ${dias}d`,
+                        txt: dias < 0 ? `Atrasado ${Math.abs(dias)}d` : dias === 0 ? 'Conclui hoje' : `Conclusão: ${dias}d`,
                       };
                     }
 

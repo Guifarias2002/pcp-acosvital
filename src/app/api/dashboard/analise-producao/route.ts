@@ -22,12 +22,19 @@ export async function GET(req: Request) {
     const cached = getFresh(CACHE_KEY, FRESH_MS);
     if (cached) return NextResponse.json(cached);
 
+    // Atraso pela PREVISÃO DE CONCLUSÃO (menor previsão efetiva entre as peças
+    // ativas), não pelo faturamento Omie. prev.d = data que define o atraso.
     const qAtrasados = sql`
-      SELECT id, numero_pedido_venda, cliente, prazo_entrega::text, prioridade,
-             (CURRENT_DATE - prazo_entrega)::int AS dias_atraso
-      FROM producao_pedido
-      WHERE prazo_entrega < CURRENT_DATE AND status != 'entregue'
-      ORDER BY prazo_entrega ASC
+      SELECT p.id, p.numero_pedido_venda, p.cliente, p.prazo_entrega::text, p.prioridade,
+             (CURRENT_DATE - prev.d)::int AS dias_atraso
+      FROM producao_pedido p
+      JOIN LATERAL (
+        SELECT MIN(COALESCE(i2.previsao_conclusao, p.previsao_conclusao)) AS d
+        FROM producao_itempedido i2
+        WHERE i2.pedido_id = p.id AND i2.inativo = false AND i2.status <> 'entregue'
+      ) prev ON TRUE
+      WHERE p.status != 'entregue' AND prev.d < CURRENT_DATE
+      ORDER BY prev.d ASC
       LIMIT 8
     `;
 

@@ -576,8 +576,8 @@ export async function POST(req: Request) {
         100.0 * COUNT(i.id) FILTER (WHERE i.status = 'entregue')
         / NULLIF(COUNT(i.id), 0), 1
       )                                                  AS pct_concluido,
-      p.prazo_entrega < CURRENT_DATE AND p.status != 'entregue' AS atrasado,
-      CURRENT_DATE - p.prazo_entrega AS dias_atraso
+      BOOL_OR(i.status <> 'entregue' AND COALESCE(i.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE) AS atrasado,
+      (CURRENT_DATE - MIN(COALESCE(i.previsao_conclusao, p.previsao_conclusao)) FILTER (WHERE i.status <> 'entregue'))::int AS dias_atraso
     FROM producao_pedido p
     LEFT JOIN producao_itempedido i ON i.pedido_id = p.id
     GROUP BY p.id;
@@ -606,7 +606,7 @@ export async function POST(req: Request) {
       i.setor_atual,
       i.roteiro_proprio,
       p.roteiro_base,
-      p.prazo_entrega < CURRENT_DATE AND i.status != 'entregue' AS atrasado
+      COALESCE(i.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE AND i.status != 'entregue' AS atrasado
     FROM producao_itempedido i
     JOIN producao_pedido p ON p.id = i.pedido_id
     WHERE i.status != 'entregue';

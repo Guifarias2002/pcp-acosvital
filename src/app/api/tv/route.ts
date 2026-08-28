@@ -16,9 +16,13 @@ export async function GET(req: Request) {
         COUNT(*) FILTER (WHERE status != 'entregue')                                   AS total,
         COUNT(*) FILTER (WHERE status = 'emitido')                                     AS a_produzir,
         COUNT(*) FILTER (WHERE status = 'em_producao' AND setor_atual != 'logistica')  AS produzindo,
-        COUNT(*) FILTER (WHERE prazo_entrega < NOW()::date AND status != 'entregue')   AS atrasados,
+        COUNT(*) FILTER (WHERE p.status != 'entregue' AND EXISTS (
+          SELECT 1 FROM producao_itempedido i2
+          WHERE i2.pedido_id = p.id AND i2.inativo = false AND i2.status <> 'entregue'
+            AND COALESCE(i2.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE
+        ))                                                                             AS atrasados,
         COUNT(*) FILTER (WHERE prioridade = 'urgente' AND status != 'entregue')        AS urgentes
-      FROM producao_pedido
+      FROM producao_pedido p
     `;
   const qPorSetor = sql`
       SELECT setor_atual, COUNT(*) AS qtd

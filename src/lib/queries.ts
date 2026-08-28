@@ -109,10 +109,14 @@ export function formatItem(row: any) {
     pedido_id: row.pedido_id,
     pedido_numero: row.pedido_numero,
     pedido_cliente: row.pedido_cliente,
-    // atrasado precisa comparar a data crua (ISO) - pedido_prazo abaixo ja vira
-    // string formatada (DD/MM/AAAA) so para exibicao, comparar ela com "hoje" em
-    // ISO dava sempre errado (comparacao de texto, nao de data real).
-    atrasado: row.pedido_prazo ? diasPrazo(row.pedido_prazo) < 0 : false,
+    // ATRASO agora é pela PREVISÃO DE CONCLUSÃO (própria da peça ou herdada do
+    // pedido), NÃO pelo prazo_entrega (que é a previsão de faturamento do Omie).
+    // Sem previsão definida = NÃO atrasado (neutro) — evita marcar tudo como
+    // atrasado por causa da data de faturamento.
+    atrasado: (() => {
+      const prev = isoDate(row.previsao_conclusao) || isoDate(row.pedido_previsao);
+      return !!prev && diasPrazo(prev) < 0 && row.status !== 'entregue';
+    })(),
     pedido_prazo: fmtData(row.pedido_prazo),
     pedido_prazo_iso: row.pedido_prazo || null,
     pedido_prioridade: row.pedido_prioridade,
@@ -187,9 +191,11 @@ export function formatPedido(row: any, itens: unknown[] = []) {
     previsao_conclusao: isoDate(row.previsao_conclusao),
     previsao_conclusao_efetiva: previsaoEfetiva,
     previsao_conclusao_fmt: fmtData(previsaoEfetiva || ''),
-    atrasado: diasPrazo(row.prazo_entrega) < 0 && row.status !== 'entregue',
-    dias_prazo: diasPrazo(row.prazo_entrega),
-    cor_prazo: corPrazo(row.prazo_entrega, row.status),
+    // ATRASO pela PREVISÃO DE CONCLUSÃO efetiva do pedido (não pelo faturamento
+    // Omie). Sem previsão = não atrasado, dias_prazo 0, cor neutra.
+    atrasado: !!previsaoEfetiva && diasPrazo(previsaoEfetiva) < 0 && row.status !== 'entregue',
+    dias_prazo: previsaoEfetiva ? diasPrazo(previsaoEfetiva) : 0,
+    cor_prazo: previsaoEfetiva ? corPrazo(previsaoEfetiva, row.status) : 'secondary',
     criado_por_nome: row.criado_por_nome || '',
     data_emissao: row.data_emissao,
     criado_em: row.criado_em,

@@ -69,7 +69,14 @@ export async function GET(req: Request) {
       SELECT p.prazo_entrega, p.prioridade, p.status,
              COALESCE(ia.ativos, 0)       AS ativos,
              COALESCE(ia.em_emissao, 0)   AS em_emissao,
-             COALESCE(ia.em_logistica, 0) AS em_logistica
+             COALESCE(ia.em_logistica, 0) AS em_logistica,
+             -- ATRASO = existe peça ativa cuja previsão de conclusão (própria ou
+             -- herdada do pedido) já passou. Sem previsão = não conta como atraso.
+             EXISTS (
+               SELECT 1 FROM producao_itempedido i2
+               WHERE i2.pedido_id = p.id AND i2.inativo = false AND i2.status <> 'entregue'
+                 AND COALESCE(i2.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE
+             ) AS atrasado
       FROM producao_pedido p
       LEFT JOIN itens_por_pedido ia ON ia.pedido_id = p.id
       WHERE p.status != 'entregue'
@@ -81,7 +88,7 @@ export async function GET(req: Request) {
       COUNT(*) FILTER (WHERE ativos > 0 AND em_logistica = ativos)                              AS mat_concluido,
       COUNT(*) FILTER (WHERE NOT (ativos > 0 AND em_emissao = ativos)
                          AND NOT (ativos > 0 AND em_logistica = ativos))                        AS produzindo,
-      COUNT(*) FILTER (WHERE prazo_entrega < NOW()::date)                                       AS atrasados,
+      COUNT(*) FILTER (WHERE atrasado)                                                          AS atrasados,
       COUNT(*) FILTER (WHERE prioridade = 'urgente')                                            AS urgentes,
       COUNT(*) FILTER (WHERE status = 'bloqueado')                                              AS bloqueados
     FROM pedidos_abertos
@@ -107,10 +114,18 @@ export async function GET(req: Request) {
   `;
 
   const qAtrasados = sql`
-    SELECT id, numero_pedido_venda, cliente, prazo_entrega::text, prioridade, status
-    FROM producao_pedido
-    WHERE prazo_entrega < NOW()::date AND status != 'entregue'
-    ORDER BY prazo_entrega ASC
+    SELECT p.id, p.numero_pedido_venda, p.cliente, p.prazo_entrega::text, p.prioridade, p.status,
+           (SELECT MIN(COALESCE(i2.previsao_conclusao, p.previsao_conclusao))
+              FROM producao_itempedido i2
+              WHERE i2.pedido_id = p.id AND i2.inativo = false AND i2.status <> 'entregue')::text AS previsao_conclusao
+    FROM producao_pedido p
+    WHERE p.status != 'entregue'
+      AND EXISTS (
+        SELECT 1 FROM producao_itempedido i2
+        WHERE i2.pedido_id = p.id AND i2.inativo = false AND i2.status <> 'entregue'
+          AND COALESCE(i2.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE
+      )
+    ORDER BY previsao_conclusao ASC NULLS LAST
     LIMIT 10
   `;
 
