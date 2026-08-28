@@ -4,7 +4,7 @@ import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedido, itemAcao, inativarItem } from '@/lib/api';
 import { Pedido, ItemPedido, COR_STATUS, STATUS_LABELS, PRIORIDADE_COR, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR } from '@/lib/types';
-import { getUser, getToken, podeEditar, podeAcessarSetor, podeVerCliente } from '@/lib/auth';
+import { getUser, getToken, podeEditar, podeAcessarSetor, podeVerCliente, podeDefinirPrevisao } from '@/lib/auth';
 import Link from 'next/link';
 import ConfirmModal from '@/components/ConfirmModal';
 import ReceberModal from '@/components/ReceberModal';
@@ -71,6 +71,11 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [loading, setLoading] = useState(true);
   const [erroCarregar, setErroCarregar] = useState<string | null>(null);
+  const [editandoPrevisaoPed, setEditandoPrevisaoPed] = useState(false);
+  const [previsaoPedInput, setPrevisaoPedInput] = useState('');
+  const [aplicarPecas, setAplicarPecas] = useState(false);
+  const [salvandoPrevisaoPed, setSalvandoPrevisaoPed] = useState(false);
+  const [erroPrevisaoPed, setErroPrevisaoPed] = useState('');
   const [liberando, setLiberando] = useState<number | null>(null);
   const [recebendo, setRecebendo] = useState<number | null>(null);
   const [iniciandoProducao, setIniciandoProducao] = useState<number | null>(null);
@@ -109,6 +114,24 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   // Documentos da Entrega (nota fiscal/canhoto): admin e PCP já são is_staff;
   // Logística também pode anexar, mesmo sem ser staff.
   const podeAnexarEntrega = editavel && (!!user?.is_staff || podeAcessarSetor(user, 'logistica'));
+  const podePrevisao = podeDefinirPrevisao(user) && editavel; // Gilmar + PCP definem a previsão
+
+  async function salvarPrevisaoPedido(valor: string, aplicarNasPecas: boolean) {
+    setSalvandoPrevisaoPed(true);
+    setErroPrevisaoPed('');
+    try {
+      const token = getToken() || '';
+      const res = await fetch(`/api/pedidos/${id}/previsao`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ previsao: valor, aplicar_nas_pecas: aplicarNasPecas }),
+      });
+      const data = await res.json();
+      if (data.ok) { setEditandoPrevisaoPed(false); carregar(); }
+      else setErroPrevisaoPed(data.erro || 'Erro ao salvar previsão');
+    } catch { setErroPrevisaoPed('Erro ao salvar previsão'); }
+    finally { setSalvandoPrevisaoPed(false); }
+  }
 
   async function uploadAnexo(tipo: 'nota' | 'canhoto' | 'pendente', arquivo?: File) {
     setUploadingAnexo(tipo === 'pendente' ? null : tipo);
@@ -1247,7 +1270,48 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
               <div className="mt-3 space-y-1 text-xs text-gray-600">
                 <div className="flex items-center gap-1">
                   <span>📅</span>
-                  <span>Prazo: <strong>{pedido.prazo_entrega}</strong>{pedido.atrasado && <span className="text-red-600 font-bold ml-1">({Math.abs(pedido.dias_prazo)} dias atrasado)</span>}</span>
+                  <span>Prev. faturamento (Omie): <strong>{pedido.prazo_entrega}</strong></span>
+                </div>
+                {/* Previsão de conclusão do PEDIDO (Gilmar/PCP) — base do atraso real. */}
+                <div className="flex items-start gap-1">
+                  <span>🏁</span>
+                  {editandoPrevisaoPed ? (
+                    <div className="flex-1">
+                      <input type="date" value={previsaoPedInput} onChange={e => setPrevisaoPedInput(e.target.value)}
+                        className="border rounded px-2 py-1 text-xs w-full" />
+                      <label className="flex items-center gap-1 mt-1 text-[11px] text-gray-500">
+                        <input type="checkbox" checked={aplicarPecas} onChange={e => setAplicarPecas(e.target.checked)} />
+                        aplicar a mesma data em todas as peças
+                      </label>
+                      <div className="flex gap-2 mt-1">
+                        <button onClick={() => salvarPrevisaoPedido(previsaoPedInput, aplicarPecas)} disabled={salvandoPrevisaoPed}
+                          className="text-[11px] bg-emerald-600 text-white px-2 py-0.5 rounded font-medium disabled:opacity-60">
+                          {salvandoPrevisaoPed ? 'Salvando…' : 'Salvar'}
+                        </button>
+                        {pedido.previsao_conclusao && (
+                          <button onClick={() => salvarPrevisaoPedido('', false)} disabled={salvandoPrevisaoPed}
+                            className="text-[11px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Limpar</button>
+                        )}
+                        <button onClick={() => setEditandoPrevisaoPed(false)} disabled={salvandoPrevisaoPed}
+                          className="text-[11px] text-gray-500 px-1">Cancelar</button>
+                      </div>
+                      {erroPrevisaoPed && <p className="text-[11px] text-red-600 mt-0.5">{erroPrevisaoPed}</p>}
+                    </div>
+                  ) : (
+                    <span>
+                      Previsão de conclusão: <strong>{pedido.previsao_conclusao_fmt || '—'}</strong>
+                      {!pedido.previsao_conclusao && pedido.previsao_conclusao_efetiva && (
+                        <span className="text-gray-400 ml-1">(das peças)</span>
+                      )}
+                      {podePrevisao && (
+                        <button
+                          onClick={() => { setPrevisaoPedInput(pedido.previsao_conclusao || pedido.previsao_conclusao_efetiva || ''); setAplicarPecas(false); setErroPrevisaoPed(''); setEditandoPrevisaoPed(true); }}
+                          className="text-emerald-700 hover:underline ml-2 text-[11px]">
+                          <i className="bi bi-pencil" /> {pedido.previsao_conclusao_efetiva ? 'alterar' : 'definir'}
+                        </button>
+                      )}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <span>📦</span>

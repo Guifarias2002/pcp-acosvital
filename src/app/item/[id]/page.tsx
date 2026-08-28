@@ -4,7 +4,7 @@ import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getItem, itemAcao, parcialAcao, inativarItem } from '@/lib/api';
 import { ItemPedido, SETOR_CHOICES, STATUS_LABELS, PRIORIDADE_COR, NOMES } from '@/lib/types';
-import { getUser, getToken, podeEditar, podeVerCliente } from '@/lib/auth';
+import { getUser, getToken, podeEditar, podeVerCliente, podeDefinirPrevisao } from '@/lib/auth';
 import { fmtData, fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
@@ -33,6 +33,10 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   const [item, setItem] = useState<ItemPedido | null>(null);
   const [loading, setLoading] = useState(false);
   const [atuando, setAtuando] = useState(false);
+  const [editandoPrevisao, setEditandoPrevisao] = useState(false);
+  const [previsaoInput, setPrevisaoInput] = useState('');
+  const [salvandoPrevisao, setSalvandoPrevisao] = useState(false);
+  const [erroPrevisao, setErroPrevisao] = useState('');
   const [qtdParcial, setQtdParcial] = useState('');
   const [showParcial, setShowParcial] = useState(false);
   const [showReceber, setShowReceber] = useState(false);
@@ -190,6 +194,24 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   const isAdmin = getUser()?.is_staff && editavel;
   const verCliente = podeVerCliente();
   const podeComentar = editavel; // qualquer usuário autenticado pode comentar, exceto somente-leitura
+  const podePrevisao = podeDefinirPrevisao() && editavel; // Gilmar + PCP definem a previsão
+
+  async function salvarPrevisao(valor: string) {
+    setSalvandoPrevisao(true);
+    setErroPrevisao('');
+    try {
+      const token = getToken() || '';
+      const res = await fetch(`/api/item/${id}/previsao`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ previsao: valor }),
+      });
+      const data = await res.json();
+      if (data.ok) { setEditandoPrevisao(false); carregar(); }
+      else setErroPrevisao(data.erro || 'Erro ao salvar previsão');
+    } catch { setErroPrevisao('Erro ao salvar previsão'); }
+    finally { setSalvandoPrevisao(false); }
+  }
 
   async function adicionarObservacao() {
     if (!novaObservacao.trim()) return;
@@ -383,7 +405,50 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                       {verCliente && <span className="text-gray-500 ml-1">· {item.pedido_cliente}</span>}
                     </p>
                   </div>
-                  <div><span className="text-gray-400 text-xs">Prazo</span><p className="font-semibold">{fmtData(item.pedido_prazo)}</p></div>
+                  <div><span className="text-gray-400 text-xs">Previsão de faturamento (Omie)</span><p className="font-semibold">{fmtData(item.pedido_prazo)}</p></div>
+                  {/* Previsão de conclusão da PEÇA (Gilmar/PCP). Herda a do pedido quando não tem própria. */}
+                  <div>
+                    <span className="text-gray-400 text-xs">Previsão de conclusão</span>
+                    {editandoPrevisao ? (
+                      <div className="mt-1">
+                        <input
+                          type="date"
+                          value={previsaoInput}
+                          onChange={e => setPrevisaoInput(e.target.value)}
+                          className="border rounded px-2 py-1 text-sm w-full"
+                        />
+                        <div className="flex gap-2 mt-2">
+                          <button onClick={() => salvarPrevisao(previsaoInput)} disabled={salvandoPrevisao}
+                            className="text-xs bg-emerald-600 text-white px-3 py-1 rounded font-medium disabled:opacity-60">
+                            {salvandoPrevisao ? 'Salvando…' : 'Salvar'}
+                          </button>
+                          {item.previsao_conclusao && (
+                            <button onClick={() => salvarPrevisao('')} disabled={salvandoPrevisao}
+                              className="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded">Limpar</button>
+                          )}
+                          <button onClick={() => setEditandoPrevisao(false)} disabled={salvandoPrevisao}
+                            className="text-xs text-gray-500 px-2 py-1">Cancelar</button>
+                        </div>
+                        {erroPrevisao && <p className="text-xs text-red-600 mt-1">{erroPrevisao}</p>}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold">
+                          {item.previsao_efetiva_fmt || <span className="text-gray-400 font-normal">— não definida</span>}
+                          {item.previsao_efetiva && !item.previsao_conclusao && (
+                            <span className="text-xs text-gray-400 font-normal ml-1">(do pedido)</span>
+                          )}
+                        </p>
+                        {podePrevisao && (
+                          <button
+                            onClick={() => { setPrevisaoInput(item.previsao_conclusao || item.previsao_efetiva || ''); setErroPrevisao(''); setEditandoPrevisao(true); }}
+                            className="text-xs text-emerald-700 hover:underline">
+                            <i className="bi bi-pencil" /> {item.previsao_efetiva ? 'alterar' : 'definir'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <div>
                     <span className="text-gray-400 text-xs">Prioridade</span>
                     <span className={`text-xs px-2 py-0.5 rounded font-medium ${PRIORIDADE_COR[item.pedido_prioridade]}`}>

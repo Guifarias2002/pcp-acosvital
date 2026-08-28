@@ -387,6 +387,12 @@ export interface ItemPedido {
   pedido_cliente: string;
   pedido_prazo: string;
   pedido_prioridade: string;
+  // Previsão de conclusão (Gilmar/PCP). `previsao_conclusao` = a da própria peça
+  // (ISO ou null); `previsao_efetiva` = a que vale (peça ou herdada do pedido).
+  previsao_conclusao?: string | null;
+  pedido_previsao?: string | null;
+  previsao_efetiva?: string | null;
+  previsao_efetiva_fmt?: string;
   codigo: string;
   descricao: string;
   quantidade: string;
@@ -449,6 +455,11 @@ export interface Pedido {
   atrasado: boolean;
   dias_prazo: number;
   cor_prazo: string;
+  // Previsão de conclusão do pedido: `previsao_conclusao` = a própria (ou null);
+  // `previsao_conclusao_efetiva` = a própria ou a maior das peças; `_fmt` exibível.
+  previsao_conclusao?: string | null;
+  previsao_conclusao_efetiva?: string | null;
+  previsao_conclusao_fmt?: string;
   criado_por_nome: string;
   data_emissao: string;
   criado_em: string;

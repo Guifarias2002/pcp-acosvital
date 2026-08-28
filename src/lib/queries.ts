@@ -34,6 +34,16 @@ function fmtData(s: string): string {
   return d.toLocaleDateString('pt-BR');
 }
 
+// Normaliza uma data (Date do driver OU string) para ISO 'AAAA-MM-DD' ou null.
+// Colunas DATE às vezes chegam como Date (SELECT i.*), às vezes como texto
+// (SELECT ...::text); esta função aceita os dois e sempre devolve 'AAAA-MM-DD'.
+function isoDate(v: unknown): string | null {
+  if (!v) return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v.toISOString().slice(0, 10);
+  const s = String(v).trim();
+  return s ? s.slice(0, 10) : null;
+}
+
 function diasPrazo(prazo: string): number {
   const diff = new Date(prazo).getTime() - Date.now();
   return Math.ceil(diff / 86400000);
@@ -59,10 +69,12 @@ export async function queryItens(pedidoId: number, incluirInativos = false) {
       i.quantidade_entregue::text,
       i.valor_unitario::text,
       i.inativo, i.inativado_em::text AS inativado_em, i.inativado_por, i.motivo_inativacao,
+      i.previsao_conclusao::text AS previsao_conclusao,
       COALESCE(i.desenhos, '{}') AS desenhos,
       p.numero_pedido_venda AS pedido_numero,
       p.cliente AS pedido_cliente,
       p.prazo_entrega::text AS pedido_prazo,
+      p.previsao_conclusao::text AS pedido_previsao,
       p.prioridade AS pedido_prioridade,
       p.roteiro_base
     FROM producao_itempedido i
@@ -112,6 +124,13 @@ export function formatItem(row: any) {
     fabrica: row.fabrica || 'flange',
     item_pai_id: row.item_pai_id || null,
     tipo_produto: row.tipo_produto || null,
+    // Previsão de conclusão: a da PEÇA quando existe; senão herda a do PEDIDO.
+    // `previsao_efetiva` é a que vale para atraso/conclusão. ISO cru (AAAA-MM-DD)
+    // para a UI editar; `_fmt` já formatado para exibir.
+    previsao_conclusao: isoDate(row.previsao_conclusao),
+    pedido_previsao: isoDate(row.pedido_previsao),
+    previsao_efetiva: isoDate(row.previsao_conclusao) || isoDate(row.pedido_previsao),
+    previsao_efetiva_fmt: fmtData(isoDate(row.previsao_conclusao) || isoDate(row.pedido_previsao) || ''),
     roteiro_efetivo: roteiro,
     setor_atual: row.setor_atual,
     nome_setor_atual: nomeSector(row.setor_atual),
@@ -139,6 +158,13 @@ export function formatItem(row: any) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function formatPedido(row: any, itens: unknown[] = []) {
+  // Previsão de conclusão do PEDIDO: a própria (definida pelo PCP) quando existe;
+  // senão, a MAIOR previsão efetiva entre as peças (o pedido fica pronto quando a
+  // última peça fica pronta). Datas ISO (AAAA-MM-DD) comparam bem como texto.
+  const previsoesPecas = (itens as Array<{ previsao_efetiva?: string | null }>)
+    .map(i => i?.previsao_efetiva).filter((d): d is string => !!d);
+  const maxPecas = previsoesPecas.length > 0 ? previsoesPecas.reduce((a, b) => (a > b ? a : b)) : null;
+  const previsaoEfetiva = isoDate(row.previsao_conclusao) || maxPecas || null;
   return {
     id: row.id,
     numero_pedido_venda: row.numero_pedido_venda,
@@ -157,6 +183,10 @@ export function formatPedido(row: any, itens: unknown[] = []) {
     // um pedido de Flanges). Usado só pra exibir o tipo na lista de pedidos.
     envolve_caldeiraria: !!(row.roteiro_base || []).includes('caldeiraria') || !!row.tem_item_caldeiraria,
     observacoes: row.observacoes || '',
+    // Previsão de conclusão (base do atraso "real"; prazo_entrega é só faturamento).
+    previsao_conclusao: isoDate(row.previsao_conclusao),
+    previsao_conclusao_efetiva: previsaoEfetiva,
+    previsao_conclusao_fmt: fmtData(previsaoEfetiva || ''),
     atrasado: diasPrazo(row.prazo_entrega) < 0 && row.status !== 'entregue',
     dias_prazo: diasPrazo(row.prazo_entrega),
     cor_prazo: corPrazo(row.prazo_entrega, row.status),
