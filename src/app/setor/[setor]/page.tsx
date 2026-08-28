@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, type CSSProperties } from 'react';
 import AuthGuard from '@/components/AuthGuard';
 
 // Ticker global compartilhado: um único setInterval de 1s para TODOS os
@@ -117,6 +117,64 @@ const BADGE_STATUS: Record<string, { bg: string; color: string }> = {
   entregue:         { bg: '#198754', color: '#fff' },
 };
 
+// Badge da previsão de conclusão POR MATERIAL (item). Para quem tem
+// pode_definir_previsao (Gilmar/PCP) vira botão editável — define a data direto
+// aqui, gravando no ITEM (peça). Para os demais, só mostra a data (se houver).
+function PrevisaoItemBtn({ itemId, previsaoEfetiva, previsaoEfetivaFmt, atrasado, onRefresh }: {
+  itemId: number; previsaoEfetiva?: string | null; previsaoEfetivaFmt?: string | null; atrasado?: boolean; onRefresh: () => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const podeEditarPrev = podeDefinirPrevisao() && podeEditar();
+  const label = previsaoEfetivaFmt || (previsaoEfetiva ? previsaoEfetiva.slice(0, 10).split('-').reverse().join('/') : '');
+
+  async function salvar(v: string) {
+    setSalvando(true);
+    try {
+      const token = getToken() || '';
+      const res = await fetch(`/api/item/${itemId}/previsao`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ previsao: v }),
+      });
+      const d = await res.json();
+      if (d.ok) { setEditando(false); onRefresh(); }
+    } catch { /* recarrega no próximo ciclo */ } finally { setSalvando(false); }
+  }
+
+  const badgeSt: CSSProperties = {
+    fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 5, fontWeight: 600,
+    background: atrasado ? '#fee2e2' : label ? '#f0fdf4' : '#f1f5f9', color: atrasado ? '#991b1b' : label ? '#166534' : '#475569',
+    border: `1px solid ${atrasado ? '#fca5a5' : label ? '#bbf7d0' : '#cbd5e1'}`,
+  };
+
+  if (!podeEditarPrev) {
+    if (!label) return null;
+    return <span style={badgeSt}><i className="bi bi-flag-fill" style={{ fontSize: 10 }} />Prazo: {label}</span>;
+  }
+  if (editando) {
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={e => e.stopPropagation()}>
+        <input type="date" value={valor} onChange={e => setValor(e.target.value)}
+          style={{ fontSize: 11, padding: '2px 5px', borderRadius: 5, border: '1px solid #cbd5e1' }} />
+        <button disabled={salvando} onClick={() => salvar(valor)}
+          style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 20, background: '#10b981', color: '#fff', border: 'none', cursor: 'pointer' }}>{salvando ? '…' : 'OK'}</button>
+        {label && <button disabled={salvando} onClick={() => salvar('')}
+          style={{ fontSize: 10, padding: '3px 8px', borderRadius: 20, background: '#f1f5f9', color: '#475569', border: 'none', cursor: 'pointer' }}>limpar</button>}
+        <button disabled={salvando} onClick={() => setEditando(false)}
+          style={{ fontSize: 11, padding: '3px 7px', borderRadius: 20, background: '#f1f5f9', color: '#475569', border: 'none', cursor: 'pointer' }}>✕</button>
+      </span>
+    );
+  }
+  return (
+    <button onClick={e => { e.stopPropagation(); setValor(previsaoEfetiva ? previsaoEfetiva.slice(0, 10) : ''); setEditando(true); }}
+      title="Definir a previsão de conclusão desta peça" style={{ ...badgeSt, cursor: 'pointer' }}>
+      <i className="bi bi-flag-fill" style={{ fontSize: 10 }} /> {label ? `Prazo: ${label}` : 'definir conclusão'}
+      <i className="bi bi-pencil" style={{ fontSize: 9, opacity: .7 }} />
+    </button>
+  );
+}
+
 function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedido; onRefresh: () => void; ocultarCabecalhoPedido?: boolean }) {
   const { toast: toastItem, mostrar: mostrarErroItem, fechar: fecharToastItem } = useToast();
   const [loading, setLoading] = useState(false);
@@ -223,13 +281,9 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
         )}
       </div>
 
-      {/* Prazo do material */}
+      {/* Prazo do material — editável por Gilmar/PCP */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-        {item.previsao_efetiva_fmt && (
-          <span style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 5, fontWeight: 600, background: item.atrasado ? '#fee2e2' : '#f0fdf4', color: item.atrasado ? '#991b1b' : '#166534', border: `1px solid ${item.atrasado ? '#fca5a5' : '#bbf7d0'}` }}>
-            <i className="bi bi-flag-fill" style={{ fontSize: 10 }} />Prazo: {item.previsao_efetiva_fmt}
-          </span>
-        )}
+        <PrevisaoItemBtn itemId={item.id} previsaoEfetiva={item.previsao_efetiva} previsaoEfetivaFmt={item.previsao_efetiva_fmt} atrasado={item.atrasado} onRefresh={onRefresh} />
         {item.pedido_prazo && (
           <span style={{ fontSize: 10, color: '#94a3b8', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
             <i className="bi bi-calendar3" style={{ fontSize: 9 }} />Fat.: {item.pedido_prazo}
@@ -922,15 +976,12 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             {parcial.atrasado && (
               <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, fontWeight: 700, background: '#fee2e2', color: '#991b1b' }}>ATRASADO</span>
             )}
-            {parcial.previsao_efetiva_fmt ? (
-              <span style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 4, fontWeight: 600, background: parcial.atrasado ? '#fee2e2' : '#f0fdf4', color: parcial.atrasado ? '#991b1b' : '#166534', border: `1px solid ${parcial.atrasado ? '#fca5a5' : '#bbf7d0'}` }}>
-                <i className="bi bi-flag-fill" style={{ fontSize: 9 }} />Prazo: {parcial.previsao_efetiva_fmt}
-              </span>
-            ) : (parcial.pedido_prazo_fmt || parcial.pedido_prazo) ? (
+            <PrevisaoItemBtn itemId={parcial.item_pedido_id} previsaoEfetiva={parcial.previsao_efetiva} previsaoEfetivaFmt={parcial.previsao_efetiva_fmt} atrasado={parcial.atrasado} onRefresh={onRefresh} />
+            {!parcial.previsao_efetiva && (parcial.pedido_prazo_fmt || parcial.pedido_prazo) && (
               <span style={{ fontSize: 10, color: '#94a3b8' }}>
                 <i className="bi bi-calendar3" style={{ marginRight: 3 }} />{parcial.pedido_prazo_fmt || parcial.pedido_prazo}
               </span>
-            ) : null}
+            )}
           </div>
         </div>
         {/* Linha 2: PV e OP com labels */}
@@ -1989,7 +2040,8 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             {p0.item_descricao && <span style={{ color: '#999', marginLeft: 6 }}>{p0.item_descricao}</span>}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <PrevisaoItemBtn itemId={p0.item_pedido_id} previsaoEfetiva={p0.previsao_efetiva} previsaoEfetivaFmt={p0.previsao_efetiva_fmt} atrasado={p0.atrasado} onRefresh={onRefresh} />
           <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: badge.bg, color: badge.color }}>
             {LABEL_PARCIAL[p0.status] || p0.status}
           </span>
