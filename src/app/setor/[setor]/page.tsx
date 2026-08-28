@@ -31,7 +31,7 @@ function Cronometro({ desde }: { desde: string }) {
   );
 }
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, registrarSinetePedido, setPesosPallets, setEmbalagemResumo, inativarItem, editarPedido } from '@/lib/api';
-import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento } from '@/lib/auth';
+import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento, podeDefinirPrevisao } from '@/lib/auth';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
@@ -3238,6 +3238,11 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   // pedido do líder, e foi estendido para todos). Busca por PV/código/
   // descrição, client-side; vazio = mostra tudo. Não toca em API/banco.
   const [filtroUsinagem, setFiltroUsinagem] = useState('');
+  // Previsão de conclusão editável no card (Gilmar/PCP). Guarda qual pedido está
+  // em edição, o valor do input e o estado de salvamento.
+  const [editPrevPedido, setEditPrevPedido] = useState<number | null>(null);
+  const [prevInput, setPrevInput] = useState('');
+  const [savingPrev, setSavingPrev] = useState(false);
   const [recebendoTudo, setRecebendoTudo] = useState<Set<number>>(new Set());
   const [enviandoTudo, setEnviandoTudo] = useState<Set<number>>(new Set());
   const [desfazendoTudo, setDesfazendoTudo] = useState<Set<number>>(new Set());
@@ -3346,6 +3351,23 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   // número (PV), código ou descrição de qualquer item/parcial dele.
   const termoUsinagem = filtroUsinagem.trim().toLowerCase();
   const casaTermoUsinagem = (texto?: string | null) => !!texto && texto.toLowerCase().includes(termoUsinagem);
+
+  // Gilmar/PCP podem definir a previsão de conclusão direto no card do setor.
+  const podePrevisao = podeDefinirPrevisao() && podeEditar();
+  async function salvarPrevisaoSetor(pedidoId: number, valor: string) {
+    setSavingPrev(true);
+    try {
+      const token = getToken() || '';
+      const res = await fetch(`/api/pedidos/${pedidoId}/previsao`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ previsao: valor }),
+      });
+      const data = await res.json();
+      if (data.ok) { setEditPrevPedido(null); carregarRef.current(); }
+    } catch { /* silencioso — recarrega no próximo ciclo */ }
+    finally { setSavingPrev(false); }
+  }
 
   return (
     <AuthGuard>
@@ -3731,6 +3753,33 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                               <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: prazoInfo.cor, color: '#fff', whiteSpace: 'nowrap' }}>
                                 ⏰ {prazoInfo.txt}
                               </span>
+                            )}
+                            {/* Definir/alterar a data de conclusão direto no card (Gilmar/PCP) */}
+                            {podePrevisao && (
+                              editPrevPedido === pedido_id ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={e => e.stopPropagation()}>
+                                  <input type="date" value={prevInput} onChange={e => setPrevInput(e.target.value)}
+                                    style={{ fontSize: 11, padding: '2px 5px', borderRadius: 5, border: '1px solid #cbd5e1' }} />
+                                  <button disabled={savingPrev} onClick={() => salvarPrevisaoSetor(pedido_id, prevInput)}
+                                    style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 20, background: '#10b981', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                                    {savingPrev ? '…' : 'OK'}
+                                  </button>
+                                  {previsaoPed && (
+                                    <button disabled={savingPrev} onClick={() => salvarPrevisaoSetor(pedido_id, '')}
+                                      style={{ fontSize: 10, padding: '3px 8px', borderRadius: 20, background: 'rgba(255,255,255,.15)', color: '#e2e8f0', border: 'none', cursor: 'pointer' }}>limpar</button>
+                                  )}
+                                  <button disabled={savingPrev} onClick={() => setEditPrevPedido(null)}
+                                    style={{ fontSize: 11, padding: '3px 7px', borderRadius: 20, background: 'rgba(255,255,255,.15)', color: '#e2e8f0', border: 'none', cursor: 'pointer' }}>✕</button>
+                                </span>
+                              ) : (
+                                <button onClick={e => { e.stopPropagation(); setPrevInput(previsaoPed || ''); setEditPrevPedido(pedido_id); }}
+                                  style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, whiteSpace: 'nowrap', cursor: 'pointer',
+                                    background: previsaoPed ? 'rgba(16,185,129,.25)' : 'rgba(255,255,255,.12)',
+                                    color: previsaoPed ? '#a7f3d0' : '#cbd5e1',
+                                    border: previsaoPed ? '1px solid rgba(16,185,129,.5)' : '1px solid rgba(255,255,255,.25)' }}>
+                                  🏁 {previsaoPed ? 'alterar conclusão' : 'definir conclusão'}
+                                </button>
+                              )
                             )}
                             {cont.chegando > 0 && (
                               <span className="pcp-blink" style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#fbbf24', color: '#1a1a1a', whiteSpace: 'nowrap' }}>
