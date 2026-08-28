@@ -493,9 +493,15 @@ function parseProduto(lines: Line[]): OPProduto {
   const fimBusca = (() => { const i = lines.findIndex(ln => norm(ln.dec || '').includes('COMPONENTES')); return i >= 0 ? i : lines.length; })();
   const candidatos: OPProduto[] = [];
   for (let i = 0; i < fimBusca; i++) {
-    const d = (lines[i].dec || '').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+    // PRESERVA hífens: em OP legível a descrição do "Produto:" traz um part
+    // number cujos hífens são conteúdo real (ex.: "2184323-81-01 ASSY, ...").
+    // Trocá-los por espaço descaracterizava o PN ("2184323 81 01"). Aqui só
+    // colapsamos espaços. Se a linha estivesse embaralhada a ponto de os hífens
+    // serem lixo da cifra, "Produto"/"Descricao" também não sairiam legíveis, o
+    // regex não casaria e cairia no fallback abaixo (que segue limpando `-`).
+    const d = (lines[i].dec || '').replace(/\s+/g, ' ').trim();
     const m = d.match(/Produto:?\s*(\S+)\s+Descric[a-z]*:?\s*(.+)/i);
-    if (m) candidatos.push({ codigo: m[1], descricao: m[2].trim() });
+    if (m) candidatos.push({ codigo: m[1].replace(/-+$/, ''), descricao: m[2].trim() });
   }
   if (candidatos.length > 0) return candidatos[candidatos.length - 1];
 
