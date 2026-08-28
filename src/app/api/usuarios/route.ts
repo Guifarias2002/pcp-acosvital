@@ -27,7 +27,7 @@ export async function GET(req: Request) {
   if (user.somente_leitura === true) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   const users = await sql`
-    SELECT id, username, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, pode_desfazer_recebimento, acesso_hrm
+    SELECT id, username, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, pode_desfazer_recebimento, acesso_hrm, pode_definir_previsao
     FROM usuarios_usuario
     ORDER BY is_active DESC, nome
   `;
@@ -51,6 +51,7 @@ export async function GET(req: Request) {
       somente_leitura: u.somente_leitura === true,
       pode_desfazer_recebimento: u.pode_desfazer_recebimento === true,
       acesso_hrm: u.acesso_hrm === true,
+      pode_definir_previsao: u.pode_definir_previsao === true,
     };
   }));
 }
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
   if (!checkMutationRateLimit(getClientIp(req)))
     return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
-  const { username, nome, senha, perfil, setor, setores, somente_leitura, pode_desfazer_recebimento, acesso_hrm } = await req.json();
+  const { username, nome, senha, perfil, setor, setores, somente_leitura, pode_desfazer_recebimento, acesso_hrm, pode_definir_previsao } = await req.json();
 
   if (!username || !nome || !senha || !perfil)
     return NextResponse.json({ erro: 'Preencha todos os campos obrigatórios.' }, { status: 400 });
@@ -104,6 +105,7 @@ export async function POST(req: Request) {
   // acessam ação de setor pra usar isso de qualquer forma.
   const podeDesfazer = perfil === 'lider' && pode_desfazer_recebimento === true;
   const acessoHrm = acesso_hrm === true;
+  const podeDefinirPrevisao = pode_definir_previsao === true;
 
   // A tabela usuarios_usuario veio do Django e as migrations só ACRESCENTAM
   // colunas — dependendo do banco ela ainda tem colunas NOT NULL herdadas
@@ -117,6 +119,7 @@ export async function POST(req: Request) {
     somente_leitura: soLeitura,
     pode_desfazer_recebimento: podeDesfazer,
     acesso_hrm: acessoHrm,
+    pode_definir_previsao: podeDefinirPrevisao,
     date_joined: new Date(),
   };
   try {

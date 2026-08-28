@@ -30,6 +30,9 @@ export interface JWTPayload {
   // Acesso ao workspace PCP HRM (hoje só a tela "Anexar OP") sem ser staff.
   // Ver `podeAcessarHrm` abaixo.
   acesso_hrm?: boolean;
+  // Permissão pontual pra DEFINIR a previsão de conclusão das peças/pedidos
+  // (Gilmar + equipe PCP). Ver `podeDefinirPrevisao` abaixo.
+  pode_definir_previsao?: boolean;
 }
 
 // Um vendedor "restrito" só pode ver/filtrar os próprios pedidos (por nome).
@@ -130,6 +133,14 @@ const LIDERES_SEM_CLIENTE = new Set<string>([
 export function podeVerCliente(u?: JWTPayload | null): boolean {
   const user = u ?? getUser();
   return !(user && LIDERES_SEM_CLIENTE.has(user.username));
+}
+
+// Pode DEFINIR a previsão de conclusão das peças/pedidos? Administrador e staff
+// (PCP) sempre; além deles, usuários com a flag `pode_definir_previsao` marcada
+// no cadastro (ex.: Gilmar). Demais líderes/operadores só visualizam.
+export function podeDefinirPrevisao(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return isAdministrador(user) || !!user?.is_staff || user?.pode_definir_previsao === true;
 }
 
 // Pode acessar o PCP HRM (tela "Anexar OP")? Staff (admin/PCP) já entra pelo

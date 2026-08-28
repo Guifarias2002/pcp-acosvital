@@ -293,4 +293,18 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
       atualizado_por_id BIGINT
     )
   `).catch(() => {});
+
+  // M26: previsão de conclusão da produção, definida pelo PCP/líder responsável
+  // (ex.: Gilmar). É a data REALISTA em que a peça/pedido fica pronto — separada
+  // do prazo_entrega (que na verdade é a "Previsão de faturamento (Omie)" e NÃO
+  // deve mais definir atraso). Pode ser preenchida por PEÇA (item) OU pelo
+  // PEDIDO inteiro: a peça usa a própria previsão; se não tiver, herda a do
+  // pedido. O atraso e a conclusão do pedido passam a derivar destas datas.
+  await sql.unsafe(`ALTER TABLE producao_itempedido ADD COLUMN IF NOT EXISTS previsao_conclusao DATE`).catch(() => {});
+  await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS previsao_conclusao DATE`).catch(() => {});
+
+  // M27: permissão pra DEFINIR a previsão de conclusão. Mesmo padrão do M23:
+  // default false, marcado por um admin. Dada ao Gilmar e à equipe PCP; staff
+  // (is_staff) já pode por ser PCP. Demais líderes/operadores só visualizam.
+  await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS pode_definir_previsao BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
 }

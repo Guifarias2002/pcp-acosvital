@@ -18,6 +18,7 @@ interface Usuario {
   somente_leitura: boolean;
   pode_desfazer_recebimento: boolean;
   acesso_hrm: boolean;
+  pode_definir_previsao: boolean;
 }
 
 const PERFIL_BADGE: Record<string, { bg: string; cor: string }> = {
@@ -88,12 +89,12 @@ export default function UsuariosPage() {
   const [copiadoId, setCopiadoId] = useState<number | null>(null);
   const [copiadoLogin, setCopiadoLogin] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] as string[], somente_leitura: false, pode_desfazer_recebimento: false, acesso_hrm: false });
+  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] as string[], somente_leitura: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false });
   const [salvando, setSalvando] = useState(false);
   const [formMsg, setFormMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   // Edição de usuário existente
   const [editUser, setEditUser] = useState<Usuario | null>(null);
-  const [editForm, setEditForm] = useState({ nome: '', perfil: 'operador', setores: [] as string[], is_active: true, senha: '', somente_leitura: false, pode_desfazer_recebimento: false, acesso_hrm: false });
+  const [editForm, setEditForm] = useState({ nome: '', perfil: 'operador', setores: [] as string[], is_active: true, senha: '', somente_leitura: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false });
   const [editMsg, setEditMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [editSalvando, setEditSalvando] = useState(false);
   const isAdmin = getUser()?.is_staff;
@@ -142,7 +143,7 @@ export default function UsuariosPage() {
         setFormMsg({ tipo: 'erro', texto: data.erro || 'Erro ao criar usuário.' });
       } else {
         setFormMsg({ tipo: 'ok', texto: 'Usuário criado com sucesso!' });
-        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setores: [], somente_leitura: false, pode_desfazer_recebimento: false, acesso_hrm: false });
+        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setores: [], somente_leitura: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false });
         setShowForm(false);
         carregarUsuarios();
       }
@@ -164,6 +165,7 @@ export default function UsuariosPage() {
       somente_leitura: u.somente_leitura || false,
       pode_desfazer_recebimento: u.pode_desfazer_recebimento || false,
       acesso_hrm: u.acesso_hrm || false,
+      pode_definir_previsao: u.pode_definir_previsao || false,
     });
     setEditMsg(null);
   }
@@ -182,6 +184,7 @@ export default function UsuariosPage() {
         somente_leitura: editForm.somente_leitura,
         pode_desfazer_recebimento: editForm.pode_desfazer_recebimento,
         acesso_hrm: editForm.acesso_hrm,
+        pode_definir_previsao: editForm.pode_definir_previsao,
       };
       if (editForm.senha) body.senha = editForm.senha;
       const res = await fetch(`/api/usuarios/${editUser.id}`, {
@@ -347,6 +350,16 @@ export default function UsuariosPage() {
                 </div>
               </div>
 
+              <div style={{ marginBottom: 20, background: '#ecfdf5', border: '1px solid #86efac', borderRadius: 6, padding: '10px 12px' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#047857', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={form.pode_definir_previsao} onChange={e => setForm(f => ({ ...f, pode_definir_previsao: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                  <span><i className="bi bi-calendar-check" style={{ marginRight: 6 }}></i>Definir previsão de conclusão</span>
+                </label>
+                <div style={{ fontSize: 12, color: '#059669', marginTop: 4, paddingLeft: 24 }}>
+                  Pode preencher a previsão de conclusão das peças/pedidos (Gilmar + PCP). Demais só visualizam.
+                </div>
+              </div>
+
               {formMsg && (
                 <div style={{
                   marginBottom: 14, padding: '8px 12px', borderRadius: 6, fontSize: 13,
@@ -487,6 +500,16 @@ export default function UsuariosPage() {
                 </label>
                 <div style={{ fontSize: 12, color: '#7c3aed', marginTop: 4, paddingLeft: 24 }}>
                   Libera só a tela &quot;Anexar OP&quot; do PCP HRM, sem virar administrador.
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 20, background: '#ecfdf5', border: '1px solid #86efac', borderRadius: 6, padding: '10px 12px' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#047857', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={editForm.pode_definir_previsao} onChange={e => setEditForm(f => ({ ...f, pode_definir_previsao: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                  <span><i className="bi bi-calendar-check" style={{ marginRight: 6 }}></i>Definir previsão de conclusão</span>
+                </label>
+                <div style={{ fontSize: 12, color: '#059669', marginTop: 4, paddingLeft: 24 }}>
+                  Pode preencher a previsão de conclusão das peças/pedidos (Gilmar + PCP). Demais só visualizam.
                 </div>
               </div>
 
