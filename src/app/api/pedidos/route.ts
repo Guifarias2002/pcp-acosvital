@@ -195,9 +195,16 @@ export async function POST(req: Request) {
     // Prazo: quando vem preenchido tem que ser YYYY-MM-DD. Obrigatório no fluxo
     // normal; opcional no pedido casca HRM (pode ficar em branco).
     if (prazo_entrega && !/^\d{4}-\d{2}-\d{2}$/.test(prazo_entrega))
-      return NextResponse.json({ erro: 'Prazo de entrega invalido (YYYY-MM-DD)' }, { status: 400 });
+      return NextResponse.json({ erro: 'Previsao de faturamento invalida (YYYY-MM-DD)' }, { status: 400 });
     if (!isPedidoHrm && !prazo_entrega)
-      return NextResponse.json({ erro: 'Prazo de entrega obrigatorio (YYYY-MM-DD)' }, { status: 400 });
+      return NextResponse.json({ erro: 'Previsao de faturamento obrigatoria (YYYY-MM-DD)' }, { status: 400 });
+    // Guard: previsao de faturamento nao pode ser ANTERIOR a emissao (= hoje na
+    // criacao). Evita as "ordens erradas" (prazo antes da emissao) que existiam.
+    if (prazo_entrega) {
+      const hojeBRT = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+      if (prazo_entrega < hojeBRT)
+        return NextResponse.json({ erro: 'A previsao de faturamento nao pode ser anterior a data de emissao (hoje).' }, { status: 400 });
+    }
     if (!PRIORIDADES_VALIDAS.includes(prioridade))
       return NextResponse.json({ erro: 'Prioridade invalida' }, { status: 400 });
     if (!Array.isArray(roteiro_base) || roteiro_base.length === 0)

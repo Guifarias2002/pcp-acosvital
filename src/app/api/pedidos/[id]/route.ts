@@ -90,8 +90,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!Number.isInteger(pedidoId) || pedidoId <= 0)
     return NextResponse.json({ erro: 'ID invalido' }, { status: 400 });
 
-  const [pedido] = await sql`SELECT id FROM producao_pedido WHERE id = ${pedidoId}`;
+  const [pedido] = await sql`SELECT id, data_emissao::text AS data_emissao FROM producao_pedido WHERE id = ${pedidoId}`;
   if (!pedido) return NextResponse.json({ erro: 'Pedido nao encontrado' }, { status: 404 });
+
+  // Guard: previsao de faturamento (prazo_entrega) nao pode ser ANTERIOR a
+  // emissao do pedido. Evita reintroduzir as "ordens erradas".
+  if (body.prazo_entrega !== undefined) {
+    const novoPrazo = normalizarDataISO(body.prazo_entrega);
+    if (novoPrazo && pedido.data_emissao && novoPrazo < pedido.data_emissao)
+      return NextResponse.json({ erro: 'A previsao de faturamento nao pode ser anterior a data de emissao do pedido.' }, { status: 400 });
+  }
 
   try { await sql.begin(async (tx) => {
     // Atualiza campos do pedido
