@@ -3234,7 +3234,8 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const [filtroLog, setFiltroLog] = useState<FiltroLogistica>('todos');
   const [ultimaAtt, setUltimaAtt] = useState<Date | null>(null);
   const [pedidosColapsados, setPedidosColapsados] = useState<Set<number>>(new Set());
-  // Filtro de pedido — só na Usinagem (a pedido do líder). Busca por PV/código/
+  // Filtro de pedido — disponível em TODOS os setores (nasceu na Usinagem, a
+  // pedido do líder, e foi estendido para todos). Busca por PV/código/
   // descrição, client-side; vazio = mostra tudo. Não toca em API/banco.
   const [filtroUsinagem, setFiltroUsinagem] = useState('');
   const [recebendoTudo, setRecebendoTudo] = useState<Set<number>>(new Set());
@@ -3341,10 +3342,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
     return () => clearInterval(id);
   }, []); // [] = inicia uma vez, usa sempre a ref mais recente
 
-  // Termo de busca da Usinagem, normalizado. Fora da Usinagem fica vazio (sem
-  // efeito). Casa um pedido por número (PV), código ou descrição de qualquer
-  // item/parcial dele.
-  const termoUsinagem = setor === 'usinagem' ? filtroUsinagem.trim().toLowerCase() : '';
+  // Termo de busca, normalizado (vale para todos os setores). Casa um pedido por
+  // número (PV), código ou descrição de qualquer item/parcial dele.
+  const termoUsinagem = filtroUsinagem.trim().toLowerCase();
   const casaTermoUsinagem = (texto?: string | null) => !!texto && texto.toLowerCase().includes(termoUsinagem);
 
   return (
@@ -3441,8 +3441,8 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
         </div>
       </div>
 
-      {/* Filtro de pedido — Usinagem (busca por PV/código/descrição) */}
-      {setor === 'usinagem' && data && (
+      {/* Filtro de pedido — todos os setores (busca por PV/código/descrição) */}
+      {data && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
           <div style={{ position: 'relative', flex: '1 1 260px', maxWidth: 380 }}>
             <i className="bi bi-search" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 13 }} />
@@ -3599,7 +3599,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
               });
             }
 
-            // Filtro da Usinagem (client-side): esconde os pedidos que não batem
+            // Filtro de busca (client-side): esconde os pedidos que não batem
             // com a busca. Vazio/fora da Usinagem => mostra todos.
             const pedidosVis = termoUsinagem
               ? pedidos.filter(pd => casaTermoUsinagem(pd.numero_pedido_venda)
@@ -4044,7 +4044,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
             const itensFiltradosBase = setor === 'logistica' && filtroLog !== 'todos'
               ? itensSemParciais.filter(i => i.status === filtroLog)
               : itensSemParciais;
-            // Filtro de pedido da Usinagem (client-side).
+            // Filtro de pedido por busca (client-side).
             const itensFiltrados = termoUsinagem
               ? itensFiltradosBase.filter(i => casaTermoUsinagem(i.pedido_numero) || casaTermoUsinagem(i.codigo) || casaTermoUsinagem(i.descricao))
               : itensFiltradosBase;
