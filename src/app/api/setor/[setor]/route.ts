@@ -11,6 +11,18 @@ export const maxDuration = 30;
 
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
 
+function fmtDataLocal(s: string): string {
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s;
+  return d.toLocaleDateString('pt-BR');
+}
+
+function diasPrazoLocal(prazo: string): number {
+  const diff = new Date(prazo).getTime() - Date.now();
+  return Math.ceil(diff / 86400000);
+}
+
 export async function GET(req: Request, { params }: { params: { setor: string } }) {
   try {
   const user = await autenticar(req);
@@ -49,6 +61,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     sql`
       SELECT i.*, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
              p.prazo_entrega::text AS pedido_prazo, p.prioridade AS pedido_prioridade, p.roteiro_base,
+             p.previsao_conclusao::text AS pedido_previsao,
              COALESCE(i.previsao_conclusao, p.previsao_conclusao)::text AS previsao_efetiva,
              p.numero_op,
              (p.desenho_url IS NOT NULL OR COALESCE(array_length(p.desenhos,1),0) > 0) AS tem_desenho, p.desenho_url AS desenho_url,
@@ -103,6 +116,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         i.id AS item_pedido_id, i.codigo AS item_codigo, i.unidade, i.descricao AS item_descricao,
         i.quantidade::text AS quantidade_total_item, i.roteiro_proprio, i.status AS item_status, i.item_pai_id, i.tipo_produto,
         p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade, p.roteiro_base, p.prazo_entrega::text AS pedido_prazo,
+        COALESCE(i.previsao_conclusao, p.previsao_conclusao)::text AS previsao_efetiva,
         p.embalagem_identificacao, p.embalagem_qtd_pallets, p.embalagem_peso_total, p.embalagem_total_unidades,
         (p.desenho_url IS NOT NULL OR COALESCE(array_length(p.desenhos,1),0) > 0) AS pedido_tem_desenho,
         (COALESCE(array_length(i.desenhos,1),0) > 0) AS item_tem_desenho,
@@ -176,6 +190,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     !buscarEmCaldeiraria ? Promise.resolve([] as Record<string, unknown>[]) : sql`
       SELECT i.*, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
              p.prazo_entrega::text AS pedido_prazo, p.prioridade AS pedido_prioridade, p.roteiro_base,
+             p.previsao_conclusao::text AS pedido_previsao,
              COALESCE(i.previsao_conclusao, p.previsao_conclusao)::text AS previsao_efetiva,
              p.numero_op,
              (p.desenho_url IS NOT NULL OR COALESCE(array_length(p.desenhos,1),0) > 0) AS tem_desenho, p.desenho_url AS desenho_url,
@@ -201,6 +216,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         i.id AS item_pedido_id, i.codigo AS item_codigo, i.unidade, i.descricao AS item_descricao,
         i.quantidade::text AS quantidade_total_item, i.roteiro_proprio, i.status AS item_status, i.item_pai_id, i.tipo_produto,
         p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade, p.roteiro_base, p.prazo_entrega::text AS pedido_prazo,
+        COALESCE(i.previsao_conclusao, p.previsao_conclusao)::text AS previsao_efetiva,
         p.embalagem_identificacao, p.embalagem_qtd_pallets, p.embalagem_peso_total, p.embalagem_total_unidades,
         (p.pedido_venda_url IS NOT NULL) AS tem_pedido_venda,
         (p.ordem_producao_url IS NOT NULL) AS tem_ordem_producao
@@ -343,7 +359,10 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         : 0,
       fotos: Array.isArray(p.fotos) ? (p.fotos as string[]) : [],
       pedido_prazo: p.pedido_prazo ?? null,
-      previsao_efetiva: p.previsao_efetiva ?? null,
+      pedido_prazo_fmt: p.pedido_prazo ? fmtDataLocal(String(p.pedido_prazo)) : null,
+      previsao_efetiva: p.previsao_efetiva ? String(p.previsao_efetiva).slice(0, 10) : null,
+      previsao_efetiva_fmt: p.previsao_efetiva ? fmtDataLocal(String(p.previsao_efetiva)) : null,
+      atrasado: !!p.previsao_efetiva && diasPrazoLocal(String(p.previsao_efetiva)) < 0 && p.status !== 'concluida' && (p.item_status as string) !== 'entregue',
       cliente: p.cliente,
       prioridade: p.prioridade,
       proximo_setor,

@@ -532,6 +532,10 @@ export interface ItemParcial {
   cliente?: string;
   prioridade?: string;
   pedido_prazo?: string;
+  pedido_prazo_fmt?: string;
+  previsao_efetiva?: string | null;
+  previsao_efetiva_fmt?: string | null;
+  atrasado?: boolean;
   quantidade_total_item?: string;
   proximo_setor?: string | null;
   iniciado_em?: string | null;

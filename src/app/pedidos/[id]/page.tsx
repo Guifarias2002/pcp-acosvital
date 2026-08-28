@@ -711,9 +711,17 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                           )}
                         </div>
                         <p className="font-semibold text-gray-800">{item.descricao}</p>
-                        <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                        <div className="flex items-center gap-3 text-xs text-gray-500 mt-1 flex-wrap">
                           <span>🔢 {item.quantidade} {item.unidade} total</span>
                           {verCliente && <span>👤 {item.pedido_cliente}</span>}
+                          {item.previsao_efetiva_fmt && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 4, fontWeight: 600, background: item.atrasado ? '#fee2e2' : '#f0fdf4', color: item.atrasado ? '#991b1b' : '#166534', border: `1px solid ${item.atrasado ? '#fca5a5' : '#bbf7d0'}` }}>
+                              <i className="bi bi-flag-fill" style={{ fontSize: 9 }} />Prazo: {item.previsao_efetiva_fmt}
+                            </span>
+                          )}
+                          {item.atrasado && (
+                            <span style={{ padding: '2px 7px', borderRadius: 4, fontWeight: 700, background: '#fee2e2', color: '#991b1b' }}>ATRASADO</span>
+                          )}
                         </div>
 
                         {/* Rastreabilidade — onde estão as peças */}

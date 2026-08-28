@@ -218,8 +218,22 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
         <span className={`badge-${item.pedido_prioridade || 'normal'}`}>
           {item.pedido_prioridade?.charAt(0).toUpperCase() + item.pedido_prioridade?.slice(1)}
         </span>
+        {item.atrasado && (
+          <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, fontWeight: 700, background: '#fee2e2', color: '#991b1b' }}>ATRASADO</span>
+        )}
+      </div>
+
+      {/* Prazo do material */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+        {item.previsao_efetiva_fmt && (
+          <span style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 5, fontWeight: 600, background: item.atrasado ? '#fee2e2' : '#f0fdf4', color: item.atrasado ? '#991b1b' : '#166534', border: `1px solid ${item.atrasado ? '#fca5a5' : '#bbf7d0'}` }}>
+            <i className="bi bi-flag-fill" style={{ fontSize: 10 }} />Prazo: {item.previsao_efetiva_fmt}
+          </span>
+        )}
         {item.pedido_prazo && (
-          <span style={{ fontSize: 11, color: '#888' }}>{item.pedido_prazo}</span>
+          <span style={{ fontSize: 10, color: '#94a3b8', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+            <i className="bi bi-calendar3" style={{ fontSize: 9 }} />Fat.: {item.pedido_prazo}
+          </span>
         )}
       </div>
 
@@ -904,11 +918,20 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
               </span>
             )}
           </div>
-          {parcial.pedido_prazo && (
-            <span style={{ fontSize: 10, color: '#94a3b8' }}>
-              <i className="bi bi-calendar3" style={{ marginRight: 3 }} />{parcial.pedido_prazo}
-            </span>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {parcial.atrasado && (
+              <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, fontWeight: 700, background: '#fee2e2', color: '#991b1b' }}>ATRASADO</span>
+            )}
+            {parcial.previsao_efetiva_fmt ? (
+              <span style={{ fontSize: 10, display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 4, fontWeight: 600, background: parcial.atrasado ? '#fee2e2' : '#f0fdf4', color: parcial.atrasado ? '#991b1b' : '#166534', border: `1px solid ${parcial.atrasado ? '#fca5a5' : '#bbf7d0'}` }}>
+                <i className="bi bi-flag-fill" style={{ fontSize: 9 }} />Prazo: {parcial.previsao_efetiva_fmt}
+              </span>
+            ) : (parcial.pedido_prazo_fmt || parcial.pedido_prazo) ? (
+              <span style={{ fontSize: 10, color: '#94a3b8' }}>
+                <i className="bi bi-calendar3" style={{ marginRight: 3 }} />{parcial.pedido_prazo_fmt || parcial.pedido_prazo}
+              </span>
+            ) : null}
+          </div>
         </div>
         {/* Linha 2: PV e OP com labels */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
@@ -3595,7 +3618,8 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
             const chaveProg = (grp: { parciais: ItemParcial[] }) => {
               const p0 = grp.parciais[0];
               const prio = prioRank[(p0?.prioridade || 'normal').toLowerCase()] ?? 2;
-              const prazo = p0?.pedido_prazo ? new Date(p0.pedido_prazo + 'T12:00:00').getTime() : Infinity;
+              const prazoStr = p0?.previsao_efetiva || p0?.pedido_prazo;
+              const prazo = prazoStr ? new Date(prazoStr + 'T12:00:00').getTime() : Infinity;
               const pecas = grp.parciais.reduce((s, p) => s + (Number(p.quantidade) || 0), 0);
               const chegada = Math.min(...grp.parciais.map(p => new Date(p.criado_em).getTime()));
               return { prio, prazo, pecas, chegada };
