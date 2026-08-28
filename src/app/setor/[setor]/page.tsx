@@ -3694,9 +3694,14 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                         txt: dias < 0 ? `Atrasado ${Math.abs(dias)}d` : dias === 0 ? 'Conclui hoje' : `Conclusão: ${dias}d`,
                       };
                     }
+                    // Atrasado = passou da previsão de conclusão. Faz o card piscar/
+                    // ficar vermelho (igual ao urgente), agora pela previsão do Gilmar.
+                    const atrasadoPed = !!previsaoPed &&
+                      Math.ceil((new Date(previsaoPed + 'T12:00:00').getTime() - Date.now()) / 86400000) < 0;
+                    const destaqueVermelho = prioUrgente || atrasadoPed;
 
                     return (
-                      <div key={pedido_id} className={`setor-pedido-grupo${prioUrgente ? ' pcp-pulse' : ''}`}
+                      <div key={pedido_id} className={`setor-pedido-grupo${destaqueVermelho ? ' pcp-pulse' : ''}`}
                         onDragOver={dragPedidoId != null ? (e) => e.preventDefault() : undefined}
                         onDrop={dragPedidoId != null ? (e) => {
                           e.preventDefault();
@@ -3707,7 +3712,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                           salvarOrdem(ids);
                           setDragPedidoId(null);
                         } : undefined}
-                        style={{ border: `2px solid ${dragPedidoId === pedido_id ? '#0d6efd' : (prioUrgente ? '#ef4444' : '#dde3f0')}`, borderRadius: 12, overflow: 'hidden', background: '#fff', opacity: dragPedidoId === pedido_id ? 0.45 : 1, transition: 'opacity .12s' }}>
+                        style={{ border: `2px solid ${dragPedidoId === pedido_id ? '#0d6efd' : (destaqueVermelho ? '#ef4444' : '#dde3f0')}`, borderRadius: 12, overflow: 'hidden', background: '#fff', opacity: dragPedidoId === pedido_id ? 0.45 : 1, transition: 'opacity .12s' }}>
                         {/* Cabeçalho do pedido — clicável para colapsar/expandir */}
                         <div
                           className="setor-pedido-header"
