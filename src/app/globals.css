@@ -122,6 +122,11 @@ body {
 }
 #sidebar nav {
   flex: 1;
+  /* min-height:0 é obrigatório: sem ele um filho flex não encolhe abaixo do
+     tamanho do conteúdo, então com menu longo (ex.: líder com muitos setores)
+     o nav cresce além da tela e o overflow-y:auto nunca ativa — os últimos
+     itens (ex.: Sinete) ficam cortados/inacessíveis embaixo. */
+  min-height: 0;
   overflow-y: auto;
   padding: 8px 0;
 }
