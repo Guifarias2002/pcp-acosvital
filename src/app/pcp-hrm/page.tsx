@@ -343,7 +343,7 @@ export default function PcpHrmPage() {
               <div style={toggleBtn(fabrica==='pesada')} onClick={() => setFabrica('pesada')}>Caldeiraria Pesada</div>
               <div style={toggleBtn(fabrica==='depois')} onClick={() => setFabrica('depois')}>Definir depois</div>
             </div>
-            <label className={labelCls}>Prazo de entrega</label>
+            <label className={labelCls}>Previsão de faturamento (Omie)</label>
             <div style={{ display:'flex', alignItems:'center', gap:14, marginTop:6, flexWrap:'wrap' }}>
               <input type="date" value={prazo} disabled={semPrazo}
                 onChange={e => setPrazo(e.target.value)}
@@ -351,7 +351,7 @@ export default function PcpHrmPage() {
                 className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white" />
               <label style={{ display:'flex', alignItems:'center', gap:7, fontSize:13, color:'#495057', cursor:'pointer', fontWeight:600 }}>
                 <input type="checkbox" checked={semPrazo} onChange={e => setSemPrazo(e.target.checked)} />
-                Sem prazo até o momento
+                Sem previsão até o momento
               </label>
             </div>
           </div>

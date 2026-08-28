@@ -448,7 +448,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                   </p>
                 </div>
                 {parcial.prazo_entrega && (
-                  <div><span className="text-gray-400 text-xs">Prazo</span><p className="font-semibold">{fmtData(parcial.prazo_entrega)}</p></div>
+                  <div><span className="text-gray-400 text-xs">Prev. faturamento (Omie)</span><p className="font-semibold">{fmtData(parcial.prazo_entrega)}</p></div>
                 )}
                 {parcial.prioridade && (
                   <div>

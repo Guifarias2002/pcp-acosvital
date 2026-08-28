@@ -641,7 +641,7 @@ export default function DashboardPage() {
                 <table className="table-app">
                   <thead>
                     <tr>
-                      {['Pedido','Cliente','Setor','Prazo'].map(h => (
+                      {['Pedido','Cliente','Setor','Faturamento'].map(h => (
                         <th key={h}>{h}</th>
                       ))}
                     </tr>
@@ -809,13 +809,13 @@ export default function DashboardPage() {
                 {['baixa','normal','alta','urgente'].map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</option>)}
               </select>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 12, color: '#888' }}>Prazo:</span>
+                <span style={{ fontSize: 12, color: '#888' }}>Faturamento:</span>
                 <input type="date" value={fPrazoDe} onChange={e => setFPrazoDe(e.target.value)}
-                  title="Prazo de entrega — de"
+                  title="Previsão de faturamento (Omie) — de"
                   style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13 }} />
                 <span style={{ fontSize: 12, color: '#888' }}>até</span>
                 <input type="date" value={fPrazoAte} onChange={e => setFPrazoAte(e.target.value)}
-                  title="Prazo de entrega — até"
+                  title="Previsão de faturamento (Omie) — até"
                   style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13 }} />
               </div>
               <button onClick={() => { setBusca(''); setFPrioridade(''); setFPrazoDe(''); setFPrazoAte(''); setFiltroEtapa(null); }}
@@ -828,7 +828,7 @@ export default function DashboardPage() {
               <table className="table-app">
                 <thead>
                   <tr>
-                    {['','Pedido','Cliente','Setor Atual','Status','Prioridade','Prazo','Itens'].map(h => (
+                    {['','Pedido','Cliente','Setor Atual','Status','Prioridade','Faturamento','Itens'].map(h => (
                       <th key={h}>{h}</th>
                     ))}
                   </tr>

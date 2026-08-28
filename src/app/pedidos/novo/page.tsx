@@ -554,7 +554,7 @@ export default function NovoPedidoPage() {
                   <input value={vendedor} onChange={e => setVendedor(e.target.value)} className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>Prazo de Entrega *</label>
+                  <label className={labelCls}>Previsão de faturamento (Omie) *</label>
                   <input type="date" value={prazo} onChange={e => setPrazo(e.target.value)} required className={inputCls} />
                 </div>
                 <div>

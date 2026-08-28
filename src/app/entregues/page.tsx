@@ -346,7 +346,7 @@ export default function EntreguesPage() {
               <th style={{ padding: '9px 12px', width: 32 }}></th>
               <th style={{ padding: '9px 12px', textAlign: 'left' }}>Pedido</th>
               <th style={{ padding: '9px 12px', textAlign: 'left' }}>Cliente</th>
-              <th style={{ padding: '9px 12px', textAlign: 'left' }}>Prazo</th>
+              <th style={{ padding: '9px 12px', textAlign: 'left' }}>Faturamento</th>
               <th style={{ padding: '9px 12px', textAlign: 'left' }}>Prioridade</th>
               <th style={{ padding: '9px 12px', textAlign: 'left' }}>Valor</th>
               <th style={{ padding: '9px 12px', textAlign: 'left' }}>Comprovantes</th>

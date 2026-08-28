@@ -71,7 +71,7 @@ export default function ExportarPage() {
     setExportado(null);
     try {
       const pedidos = await buscarPedidos();
-      const cabecalho = ['Nº Pedido', 'OP', 'Cliente', 'Vendedor', 'Status', 'Prioridade', 'Prazo', 'Setor Atual', 'Valor (R$)', 'Criado em'];
+      const cabecalho = ['Nº Pedido', 'OP', 'Cliente', 'Vendedor', 'Status', 'Prioridade', 'Prev. Faturamento (Omie)', 'Setor Atual', 'Valor (R$)', 'Criado em'];
       const linhas: string[][] = [cabecalho];
       for (const p of pedidos) {
         linhas.push([
@@ -103,7 +103,7 @@ export default function ExportarPage() {
     setExportado(null);
     try {
       const pedidos = await buscarPedidos();
-      const cabecalho = ['Nº Pedido', 'OP', 'Cliente', 'Prioridade', 'Prazo', 'Status Pedido', 'Cód. Item', 'Descrição', 'Qtd', 'Unid', 'Status Item', 'Setor Atual', 'Qtd Entregue'];
+      const cabecalho = ['Nº Pedido', 'OP', 'Cliente', 'Prioridade', 'Prev. Faturamento (Omie)', 'Status Pedido', 'Cód. Item', 'Descrição', 'Qtd', 'Unid', 'Status Item', 'Setor Atual', 'Qtd Entregue'];
       const linhas: string[][] = [cabecalho];
       let totalItens = 0;
       for (const p of pedidos) {
@@ -156,12 +156,12 @@ export default function ExportarPage() {
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <div>
-              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Prazo de — </label>
+              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Faturamento de — </label>
               <input type="date" value={de} onChange={e => setDe(e.target.value)}
                 style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 5, padding: '7px 10px', fontSize: 13 }} />
             </div>
             <div>
-              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Prazo até</label>
+              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Faturamento até</label>
               <input type="date" value={ate} onChange={e => setAte(e.target.value)}
                 style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 5, padding: '7px 10px', fontSize: 13 }} />
             </div>

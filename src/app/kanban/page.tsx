@@ -164,13 +164,13 @@ export default function KanbanPage() {
 
       {/* Filtro de prazo */}
       <div className="card" style={{ padding: '10px 14px', marginBottom: 14, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12, color: '#888' }}>Prazo:</span>
+        <span style={{ fontSize: 12, color: '#888' }}>Faturamento:</span>
         <input type="date" value={fPrazoDe} onChange={e => setFPrazoDe(e.target.value)}
-          title="Prazo de entrega — de"
+          title="Previsão de faturamento (Omie) — de"
           style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13 }} />
         <span style={{ fontSize: 12, color: '#888' }}>até</span>
         <input type="date" value={fPrazoAte} onChange={e => setFPrazoAte(e.target.value)}
-          title="Prazo de entrega — até"
+          title="Previsão de faturamento (Omie) — até"
           style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13 }} />
         {(fPrazoDe || fPrazoAte) && (
           <button onClick={() => { setFPrazoDe(''); setFPrazoAte(''); }}

@@ -788,7 +788,7 @@ export default function TVMovimentacoesPage() {
                       <th style={{ padding: '6px 8px' }}>Cliente</th>
                       <th style={{ padding: '6px 8px' }}>Setor Atual</th>
                       <th style={{ padding: '6px 8px' }}>Prioridade</th>
-                      <th style={{ padding: '6px 8px' }}>Prazo</th>
+                      <th style={{ padding: '6px 8px' }}>Faturamento</th>
                     </tr>
                   </thead>
                   <tbody>

@@ -181,7 +181,7 @@ export default function TVKanbanPage() {
             <table className="table-app">
               <thead>
                 <tr>
-                  {['Pedido','Cliente','Setor Atual','Prioridade','Prazo','Itens'].map(h => <th key={h}>{h}</th>)}
+                  {['Pedido','Cliente','Setor Atual','Prioridade','Faturamento','Itens'].map(h => <th key={h}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>

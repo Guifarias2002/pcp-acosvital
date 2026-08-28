@@ -352,13 +352,13 @@ function PedidosPageInner() {
           {SETOR_CHOICES.map(([cod, nome]) => <option key={cod} value={cod}>{nome}</option>)}
         </select>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontSize: 12, color: '#888' }}>Prazo:</span>
+          <span style={{ fontSize: 12, color: '#888' }}>Faturamento:</span>
           <input type="date" value={fPrazoDe} onChange={e => setFPrazoDe(e.target.value)}
-            title="Prazo de entrega — de"
+            title="Previsão de faturamento (Omie) — de"
             style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13 }} />
           <span style={{ fontSize: 12, color: '#888' }}>até</span>
           <input type="date" value={fPrazoAte} onChange={e => setFPrazoAte(e.target.value)}
-            title="Prazo de entrega — até"
+            title="Previsão de faturamento (Omie) — até"
             style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13 }} />
         </div>
         <select value={fOrdenar} onChange={e => setFOrdenar(e.target.value)}
@@ -434,7 +434,7 @@ function PedidosPageInner() {
                   title="Selecionar todos"
                 />
               </th>
-              {['Criado em','Pedido','OP',...(verCliente ? ['Cliente'] : []),'Vendedor','Setor Atual','Status','Prioridade','Prazo','Docs','Ações'].map(h => (
+              {['Criado em','Pedido','OP',...(verCliente ? ['Cliente'] : []),'Vendedor','Setor Atual','Status','Prioridade','Faturamento','Docs','Ações'].map(h => (
                 <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 600, fontSize: 12 }}>{h}</th>
               ))}
             </tr>

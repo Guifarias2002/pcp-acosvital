@@ -163,7 +163,8 @@ export default function RelatorioPage() {
                 {PRIO_LABEL[pedido.prioridade] || pedido.prioridade}
               </span>
               <span style={{ marginLeft: 'auto', fontSize: 11, color: '#64748b' }}>
-                Prazo: <strong style={{ color: pedido.atrasado ? '#dc2626' : '#1a3a5c' }}>{fmtData(pedido.prazo_entrega)}</strong>
+                Prev. faturamento (Omie): <strong style={{ color: '#1a3a5c' }}>{fmtData(pedido.prazo_entrega)}</strong>
+                {pedido.previsao_conclusao_fmt && <span style={{ marginLeft: 10, color: '#475569' }}>· Conclusão: <strong style={{ color: pedido.atrasado ? '#dc2626' : '#1a3a5c' }}>{pedido.previsao_conclusao_fmt}</strong></span>}
                 {pedido.atrasado && <span style={{ color: '#dc2626', marginLeft: 6, fontWeight: 700 }}>⚠ ATRASADO</span>}
               </span>
             </div>
@@ -277,7 +278,8 @@ export default function RelatorioPage() {
           { label: 'Vendedor',      value: pedido.vendedor || '—' },
           { label: 'Aberto por',    value: pedido.criado_por_nome || '—' },
           { label: 'Data Emissão',  value: fmtData(pedido.data_emissao) },
-          { label: 'Prazo Entrega', value: fmtData(pedido.prazo_entrega) },
+          { label: 'Prev. Faturamento (Omie)', value: fmtData(pedido.prazo_entrega) },
+          { label: 'Previsão de Conclusão',    value: pedido.previsao_conclusao_fmt || '—' },
           { label: 'Setor Atual',   value: NOMES[pedido.setor_atual] || pedido.setor_atual },
           { label: 'Roteiro Base',  value: (pedido.roteiro_base as unknown as string[] || []).map((s: string) => NOMES[s] || s).join(' → ') },
           { label: 'Observações',   value: pedido.observacoes || '—' },

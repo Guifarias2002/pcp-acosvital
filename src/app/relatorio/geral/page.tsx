@@ -302,7 +302,7 @@ export default function RelatorioGeralPage() {
                   <th style={s.th}>Cliente</th>
                   <th style={{ ...s.th, textAlign: 'center' }}>Itens</th>
                   <th style={{ ...s.th, textAlign: 'center' }}>Entregue</th>
-                  <th style={{ ...s.th, textAlign: 'center' }}>Prazo</th>
+                  <th style={{ ...s.th, textAlign: 'center' }}>Faturamento</th>
                   <th style={{ ...s.th, textAlign: 'right' }}>Valor</th>
                   <th style={{ ...s.th, textAlign: 'center' }}>Status</th>
                 </tr>

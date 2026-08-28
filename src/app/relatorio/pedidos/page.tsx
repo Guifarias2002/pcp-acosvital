@@ -110,7 +110,7 @@ function RelatorioPedidosInner() {
               <span><b>Cliente:</b> {p.cliente || '—'}</span>
               <span><b>OP:</b> {p.numero_op || '—'}</span>
               <span><b>Emissão:</b> {fmtData(p.data_emissao)}</span>
-              <span><b>Prazo:</b> {fmtData(p.prazo_entrega)}</span>
+              <span><b>Faturamento:</b> {fmtData(p.prazo_entrega)}</span>
               {p.vendedor && <span><b>Vendedor:</b> {p.vendedor}</span>}
             </div>
           </div>
