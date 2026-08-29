@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
+import { useKioskReload } from '@/hooks/useKioskReload';
 import { getToken } from '@/lib/auth';
 import { posSetorRoteiro, getPedidoEtapa, Etapa, NOMES, FABRICAS, SETORES_CALDEIRARIA_KANBAN } from '@/lib/types';
 import NotificacoesLive from '@/components/NotificacoesLive';
@@ -294,6 +295,11 @@ export default function TVMovimentacoesPage() {
   }, [carregar]);
 
   useRealtime(['producao_movimentacaoitem', 'producao_itemparcial', 'producao_itempedido', 'producao_pedido'], carregar);
+
+  // Higiene de quiosque: o telão fica ligado 24/7. Recarrega sozinho depois de
+  // horas aberto pra liberar memória acumulada. Ninguém interage com a TV, então
+  // o gatilho de "ocioso" dispara o reload assim que passa das 6h de uptime.
+  useKioskReload();
 
   // TV em modo "só kanban" (12/08) — rodízio DESATIVADO pra manter a tela no
   // kanban e cortar carga do banco (Free/saturado). Se algo mudar a view, ela

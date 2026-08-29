@@ -112,8 +112,16 @@ export default function NotificacoesLive({ filtroSetor, modo = 'toast' }: { filt
           }
           if (modo === 'tv') {
             // TV dedicada: mostra CADA movimentação (agrupada), uma vez, em fila -
-            // nada se perde, só espera a vez em vez de ser substituída.
-            setFila(prev => [...prev, ...grupos.map(m => ({ ...m, key: keyRef.current++ }))]);
+            // espera a vez em vez de ser substituída. CAP: em dia de produção cheio
+            // entram mais movimentações do que a fila mostra (1 a cada 5s), então
+            // sem limite ela cresceria pra sempre e travava o telão (fica ligado o
+            // dia todo). Mantém só as mais recentes — melhor a TV estar atual do que
+            // horas atrasada tentando mostrar um backlog gigante.
+            const MAX_FILA = 24;
+            setFila(prev => {
+              const merged = [...prev, ...grupos.map(m => ({ ...m, key: keyRef.current++ }))];
+              return merged.length > MAX_FILA ? merged.slice(-MAX_FILA) : merged;
+            });
           } else {
             // Tela cheia no sistema normal (Adm/PCP): sem fila, mostra só a mais
             // recente, substituindo a anterior — em dia de produção corrida,
