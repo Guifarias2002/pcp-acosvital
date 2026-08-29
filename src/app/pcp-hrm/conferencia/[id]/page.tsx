@@ -66,7 +66,6 @@ function Conteudo() {
   const [quantidade, setQuantidade] = useState('1');
   const [unidade, setUnidade] = useState('PC');
   const [roteiroSel, setRoteiroSel] = useState<string[]>([]);
-  const [fabricaEtiqueta, setFabricaEtiqueta] = useState<'leve' | 'pesada' | 'depois'>('depois');
   const [lancando, setLancando] = useState(false);
   const [token, setToken] = useState('');
 
@@ -79,10 +78,6 @@ function Conteudo() {
         const ped = await getPedido(pedidoId);
         if (!vivo) return;
         setPedido(ped);
-        // Etiqueta Leve/Pesada vinda das observações (Anexar OP grava "Fábrica: ...")
-        const obs = String(ped.observacoes || '');
-        if (/pesada/i.test(obs)) setFabricaEtiqueta('pesada');
-        else if (/leve/i.test(obs)) setFabricaEtiqueta('leve');
         // Re-lê a OP anexada
         try {
           const leit = await lerOpDoPedido(pedidoId);
@@ -138,14 +133,13 @@ function Conteudo() {
     if (!qtd || qtd <= 0) { setErro('Quantidade inválida.'); return; }
     setLancando(true); setErro('');
     try {
-      // Etiqueta Leve/Pesada nas observações do pedido (fábrica real = 'caldeiraria').
-      const fabLabel = fabricaEtiqueta === 'leve' ? 'Caldeiraria Leve' : fabricaEtiqueta === 'pesada' ? 'Caldeiraria Pesada' : 'Caldeiraria (definir)';
-      const obsAtual = String(pedido?.observacoes || '').split('\n').filter(l => !/^Fábrica:/i.test(l.trim()));
-      const novasObs = [`Fábrica: ${fabLabel}`, ...obsAtual].join('\n');
+      // Fábrica única (Caldeiraria) — remove a etiqueta Leve/Pesada obsoleta das
+      // observações se ela existir de pedidos antigos; nada de novo é gravado.
+      const obsLimpa = String(pedido?.observacoes || '').split('\n').filter(l => !/^Fábrica:/i.test(l.trim())).join('\n');
 
       // Cria o item com roteiro próprio ['emissao', ...setores escolhidos].
       await editarPedido(pedidoId, {
-        observacoes: novasObs,
+        observacoes: obsLimpa,
         itens: [{
           codigo: codigo.trim() || 'S/COD',
           descricao: descricao.trim(),
@@ -235,16 +229,6 @@ function Conteudo() {
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <div><label style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Quantidade</label><input type="number" value={quantidade} onChange={e => setQuantidade(e.target.value)} style={{ width: 110 }} className={inputCls} /></div>
               <div><label style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Unidade</label><input value={unidade} onChange={e => setUnidade(e.target.value)} style={{ width: 90 }} className={inputCls} /></div>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block' }}>Fábrica (etiqueta)</label>
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  {(['leve', 'pesada', 'depois'] as const).map(f => (
-                    <button key={f} onClick={() => setFabricaEtiqueta(f)} style={{ padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: fabricaEtiqueta === f ? '2px solid #1a3a5c' : '1px solid #dee2e6', background: fabricaEtiqueta === f ? '#eef4fb' : '#fff', color: fabricaEtiqueta === f ? '#1a3a5c' : '#6c757d' }}>
-                      {f === 'leve' ? 'Leve' : f === 'pesada' ? 'Pesada' : 'Definir'}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
 

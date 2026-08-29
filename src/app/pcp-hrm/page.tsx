@@ -573,9 +573,11 @@ export default function PcpHrmPage() {
             </div>
           )}
 
-          {/* Por onde a peça vai passar — o operador monta o roteiro da
-              Caldeiraria (seleção livre da lista REAL de setores). Persiste no
-              pedido (roteiro_base). Inspeção CQ pode entrar mais de uma vez. */}
+          {/* Por onde a peça vai passar — aparece APÓS anexar a OP. O operador
+              monta o roteiro da Caldeiraria (seleção livre da lista REAL de
+              setores). Persiste no pedido (roteiro_base). Inspeção CQ pode
+              entrar mais de uma vez. */}
+          {arquivo && (
           <div className="card" style={{ padding:20 }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, flexWrap:'wrap', marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
               <span style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1 }}>
@@ -633,6 +635,7 @@ export default function PcpHrmPage() {
               ))}
             </div>
           </div>
+          )}
 
           {/* Observações */}
           <div className="card" style={{ padding:20 }}>
