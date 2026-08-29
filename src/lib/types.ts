@@ -42,6 +42,32 @@ export const SETOR_CHOICES: [string, string][] = [
   ['conjuntos', 'Montagem de Conjuntos'],
   ['jateamento', 'Jateamento'],
   ['pintura_cald', 'Pintura (Caldeiraria)'],
+  // ── Caldeiraria — PROCESSO REAL (fábrica única, lista "Principais processos"
+  // passada pela área em 28/08) ─────────────────────────────────────────────
+  // Setores EXCLUSIVOS da Caldeiraria (não vazam pro Flange — ver
+  // SETORES_EXCLUSIVOS_CALDEIRARIA). Na ABERTURA da OP o operador escolhe, por
+  // item, por onde a peça passa (seleção livre) — a Inspeção CQ ('qualidade')
+  // pode repetir em vários pontos do roteiro. Os passos que JÁ existiam acima
+  // (compras, caldeiraria=Recebimento, corte_perfis, solda, jateamento,
+  // conjuntos, qualidade=Inspeção CQ, logistica=Coleta/Entrega) são
+  // reaproveitados no roteiro e NÃO recriados aqui. Só entram aqui os passos
+  // novos. Ver PROCESSO_CALDEIRARIA (ordem do roteiro).
+  ['cald_corte_oxi', 'Corte Oxicorte/Plasma/Laser'],
+  ['cald_identificacao', 'Identificação dos Materiais'],
+  ['cald_transp_externo', 'Transporte p/ Serviço Externo'],
+  ['cald_conformacao_int', 'Conformação Interna'],
+  ['cald_conformacao_ext', 'Conformação Externa'],
+  ['cald_pre_usinagem', 'Pré-Usinagem'],
+  ['cald_prep_chapas', 'Prep. Chapas e Perfis (Pré-Montagem)'],
+  ['cald_revestimento', 'Serviço Externo — Revestimento'],
+  ['cald_pint_primer', 'Pintura Primer'],
+  ['cald_pint_interm', 'Pintura Intermediária'],
+  ['cald_pint_acab', 'Pintura Acabamento'],
+  ['cald_pint_antiderr', 'Pintura Antiderrapante'],
+  ['cald_pint_retoques', 'Pintura de Retoques (Insp. Final)'],
+  ['cald_book', 'Book (Preparação / Aprovação)'],
+  ['cald_emissao_nf', 'Emissão de NF'],
+  ['cald_outros', 'Outros (identificar manual)'],
 ];
 
 export const NOMES: Record<string, string> = Object.fromEntries(SETOR_CHOICES);
@@ -58,6 +84,47 @@ export const NOMES: Record<string, string> = Object.fromEntries(SETOR_CHOICES);
 // Aditivas — fonte única reaproveitada nas listas de menu/kanban/roteiro abaixo.
 export const SETORES_CALDEIRARIA_NOVOS = ['corte_chapas', 'corte_perfis', 'suporte', 'recortes', 'tracagem', 'chanfros', 'montagem_solda', 'usinagem_final', 'acabamento_geral', 'conjuntos', 'jateamento', 'pintura_cald'];
 
+// ── Caldeiraria — PROCESSO REAL (fábrica única, 28/08) ──────────────────────
+// Roteiro-modelo na ordem da lista "Principais processos" passada pela área. É
+// a SUGESTÃO padrão; na abertura da OP o operador escolhe (seleção livre) por
+// onde cada item passa. Reaproveita passos que já existem (Recebimento=
+// 'caldeiraria', Compras, Corte de Perfis, Inspeção CQ='qualidade', Solda,
+// Jateamento, Montagem de Conjuntos, Coleta/Entrega='logistica') e usa os
+// passos novos ('cald_*'). Inspeção CQ aparece em vários pontos de propósito.
+export const PROCESSO_CALDEIRARIA = [
+  'caldeiraria',          // Recebimento
+  'cald_corte_oxi',       // Corte Oxicorte/Plasma/Laser
+  'corte_perfis',         // Corte de Perfis
+  'cald_identificacao',   // Identificação dos Materiais
+  'cald_transp_externo',  // Solicitação transporte p/ Serviço Externo
+  'cald_conformacao_int', // Conformação Interna
+  'cald_conformacao_ext', // Conformação Externa
+  'cald_pre_usinagem',    // Pré-Usinagem
+  'cald_prep_chapas',     // Prep. Chapas e Perfis (Pré-Montagem)
+  'qualidade',            // Inspeção CQ
+  'solda',                // Solda
+  'qualidade',            // Inspeção CQ
+  'cald_revestimento',    // Serviço Externo — Revestimento
+  'qualidade',            // Inspeção CQ
+  'jateamento',           // Jateamento
+  'cald_pint_primer',     // Pintura Primer
+  'cald_pint_interm',     // Pintura Intermediária
+  'cald_pint_acab',       // Pintura Acabamento
+  'qualidade',            // Inspeção CQ
+  'conjuntos',            // Montagem de Conjuntos
+  'cald_pint_antiderr',   // Pintura Antiderrapante
+  'cald_pint_retoques',   // Pintura de Retoques (Inspeção Final)
+  'qualidade',            // Inspeção CQ
+  'cald_book',            // Book (Preparação / Aprovação)
+  'cald_emissao_nf',      // Emissão de NF
+  'logistica',            // Solicitação de Coleta / Entrega
+  'cald_outros',          // Outros (identificar manual)
+];
+
+// Só os passos NOVOS do processo (os 'cald_*' criados agora). Usado pra marcar
+// exclusividade (não vazam pro Flange) e alimentar menu/kanban da Caldeiraria.
+export const SETORES_CALDEIRARIA_PROCESSO_NOVOS = ['cald_corte_oxi', 'cald_identificacao', 'cald_transp_externo', 'cald_conformacao_int', 'cald_conformacao_ext', 'cald_pre_usinagem', 'cald_prep_chapas', 'cald_revestimento', 'cald_pint_primer', 'cald_pint_interm', 'cald_pint_acab', 'cald_pint_antiderr', 'cald_pint_retoques', 'cald_book', 'cald_emissao_nf', 'cald_outros'];
+
 // Setores ANTIGOS da Caldeiraria — já esvaziados (12/08, confirmado com o
 // usuário) e REMOVIDOS do menu/kanban. Continuam em SETOR_CHOICES e em
 // SETORES_EXCLUSIVOS_CALDEIRARIA só pra resolver o nome em dados históricos
@@ -68,7 +135,7 @@ export const SETORES_CALDEIRARIA_LEGADO = ['chanfradeira', 'calandra', 'montagem
 // Flange, mesmo estando na lista geral SETOR_CHOICES. Inclui os ANTIGOS
 // (legado) de propósito: eles saíram do menu da Caldeiraria mas continuam
 // sendo exclusivos dela, então NÃO podem vazar pro grupo Flanges no Sidebar.
-export const SETORES_EXCLUSIVOS_CALDEIRARIA = ['desenho', 'liberado', ...SETORES_CALDEIRARIA_LEGADO, ...SETORES_CALDEIRARIA_NOVOS];
+export const SETORES_EXCLUSIVOS_CALDEIRARIA = ['desenho', 'liberado', ...SETORES_CALDEIRARIA_LEGADO, ...SETORES_CALDEIRARIA_NOVOS, ...SETORES_CALDEIRARIA_PROCESSO_NOVOS];
 
 export const FABRICAS: { cod: string; nome: string; icon: string; setores: string[] }[] = [
   {
@@ -83,14 +150,14 @@ export const FABRICAS: { cod: string; nome: string; icon: string; setores: strin
     cod: 'caldeiraria',
     nome: 'Caldeiraria',
     icon: 'bi-hammer',
-    // Roteiro NOVO (12/08) — modelo detalhado passado pela área, do intake ao
-    // despacho: Desenho/Compras (intake) → Recebimento (setor "caldeiraria") →
-    // etapas novas do chão de fábrica (SETORES_CALDEIRARIA_NOVOS) → Liberado →
-    // Qualidade. Só afeta PEDIDO NOVO — pedido já criado guarda o próprio
-    // roteiro_efetivo, então os que estão em produção não mudam. Os setores
-    // antigos saíram do picker mas continuam em SETOR_CHOICES pra não orfanar.
-    // Todas opcionais por item — PCP escolhe quais usar e em que ordem.
-    setores: ['desenho', 'compras', 'caldeiraria', ...SETORES_CALDEIRARIA_NOVOS, 'liberado', 'qualidade'],
+    // Roteiro NOVO (28/08) — fábrica ÚNICA, lista "Principais processos" passada
+    // pela área. É a lista que a ABERTURA da OP oferece pro operador escolher
+    // (seleção livre por item) por onde a peça passa. Fonte única:
+    // PROCESSO_CALDEIRARIA (ordem do roteiro); aqui vai deduplicado (a Inspeção
+    // CQ aparece uma vez no picker mas pode ser adicionada em vários pontos do
+    // roteiro do item). Só afeta PEDIDO NOVO — pedido já criado guarda o próprio
+    // roteiro_efetivo, então os que estão em produção não mudam.
+    setores: PROCESSO_CALDEIRARIA.filter((s, i) => PROCESSO_CALDEIRARIA.indexOf(s) === i),
   },
 ];
 
@@ -105,9 +172,14 @@ export const FABRICAS: { cod: string; nome: string; icon: string; setores: strin
 // SETORES_EXCLUSIVOS_CALDEIRARIA só pra resolver nome em dados históricos e não
 // vazarem pro grupo Flanges. Passo 2 (aguardando lista de setores): criar
 // Leve/Pesada em FABRICAS e redefinir estas listas.
-export const SETORES_CALDEIRARIA_MENU = ['caldeiraria', 'usinagem_final'];
+// Recebimento ('caldeiraria') + os passos NOVOS exclusivos do processo (28/08) +
+// 'usinagem_final' (legado com item ainda em produção). Passos compartilhados do
+// roteiro (Inspeção CQ='qualidade', Solda, Jateamento, Montagem de Conjuntos,
+// Compras, Coleta/Entrega='logistica') NÃO entram aqui de propósito: têm tela
+// própria e não devem misturar itens do Flange no menu/kanban da Caldeiraria.
+export const SETORES_CALDEIRARIA_MENU = ['caldeiraria', ...SETORES_CALDEIRARIA_PROCESSO_NOVOS, 'usinagem_final'];
 
-export const SETORES_CALDEIRARIA_KANBAN = ['caldeiraria', 'usinagem_final'];
+export const SETORES_CALDEIRARIA_KANBAN = ['caldeiraria', ...SETORES_CALDEIRARIA_PROCESSO_NOVOS, 'usinagem_final'];
 
 // Setores de CORTE — depois de cortada, a peça é direcionada pela mão do
 // operador do corte pra linha do Flange (segue o próximo do roteiro) ou pra
@@ -242,7 +314,11 @@ export function getChecklistEtapa(setor: string, tipoProduto: string | null | un
 // (sistema e TV), em vez da ordem do SETOR_CHOICES. Setor fora desta lista
 // (ex: emissão, recebimento, compras) vai pro fim, sem sumir. Fonte única:
 // mudou o roteiro, muda aqui e reflete nos dois lugares.
-export const ORDEM_SETORES = ['estoque', 'maçarico', 'plasma', 'laser', 'serra', 'usinagem', 'furacao', 'qualidade', 'sinete', 'acabamento', 'embalagem', 'quarentena', 'logistica'];
+export const ORDEM_SETORES = ['estoque', 'maçarico', 'plasma', 'laser', 'serra', 'usinagem', 'furacao', 'qualidade', 'sinete', 'acabamento', 'embalagem', 'quarentena', 'logistica',
+  // Caldeiraria — processo real (28/08), na ordem do roteiro. Só os setores
+  // EXCLUSIVOS da Caldeiraria; os compartilhados (qualidade/logistica) já estão
+  // acima e valem pros dois kanbans. Fonte: PROCESSO_CALDEIRARIA.
+  'caldeiraria', 'cald_corte_oxi', 'corte_perfis', 'cald_identificacao', 'cald_transp_externo', 'cald_conformacao_int', 'cald_conformacao_ext', 'cald_pre_usinagem', 'cald_prep_chapas', 'solda', 'cald_revestimento', 'jateamento', 'cald_pint_primer', 'cald_pint_interm', 'cald_pint_acab', 'conjuntos', 'cald_pint_antiderr', 'cald_pint_retoques', 'cald_book', 'cald_emissao_nf', 'usinagem_final', 'cald_outros'];
 
 // Regra de negócio: TODA peça passa pela Quarentena (análise/verificação) antes
 // de ir à Logística (despacho). Injeta 'quarentena' imediatamente antes de
@@ -250,6 +326,10 @@ export const ORDEM_SETORES = ['estoque', 'maçarico', 'plasma', 'laser', 'serra'
 // antigos e novos, sem precisar migrar os roteiros salvos.
 export function injetarQuarentena(roteiro: string[]): string[] {
   if (!Array.isArray(roteiro)) return roteiro;
+  // Quarentena é regra do FLANGE — a Caldeiraria NÃO tem Quarentena. Se o
+  // roteiro passa pela Caldeiraria (setor 'caldeiraria' = Recebimento, ou
+  // qualquer setor exclusivo dela), não injeta nada.
+  if (roteiro.includes('caldeiraria') || roteiro.some(s => SETORES_EXCLUSIVOS_CALDEIRARIA.includes(s))) return roteiro;
   const idxLog = roteiro.indexOf('logistica');
   if (idxLog === -1 || roteiro.includes('quarentena')) return roteiro;
   const novo = [...roteiro];

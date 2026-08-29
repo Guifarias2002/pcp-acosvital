@@ -3,6 +3,12 @@ import { useState } from 'react';
 import AuthGuard from '@/components/AuthGuard';
 import { criarPedido } from '@/lib/api';
 import { getToken } from '@/lib/auth';
+import { FABRICAS, NOMES, PROCESSO_CALDEIRARIA } from '@/lib/types';
+
+// Setores selecionáveis da Caldeiraria (fábrica única) — é a lista real do
+// processo. O operador monta com eles o "por onde a peça vai passar" na
+// abertura. Inspeção CQ ('qualidade') pode entrar mais de uma vez.
+const SETORES_CALD = FABRICAS.find(f => f.cod === 'caldeiraria')?.setores || [];
 
 // ── PCP HRM ─────────────────────────────────────────────────────────────────
 // Porta de entrada da Caldeiraria (modelo novo, empresa que roda o PCP no
@@ -16,7 +22,6 @@ import { getToken } from '@/lib/auth';
 // separação real Leve/Pesada em fábricas vêm nos próximos passos.
 
 type Origem = 'totvs' | 'omie';
-type FabricaEscolha = 'leve' | 'pesada' | 'depois';
 
 const inputCls = 'mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 bg-white';
 const labelCls = 'text-xs font-semibold text-gray-500 uppercase tracking-wide';
@@ -30,12 +35,11 @@ export default function PcpHrmPage() {
   const [criadoId, setCriadoId] = useState<number | null>(null);
   // OPs anexadas NESTA sessão — a tela não sai mais ao enviar; cada OP entra
   // numa lista numerada (1,2,3,4) e o formulário reseta pra próxima.
-  const [anexadas, setAnexadas] = useState<{ id: number; numero: string; cliente: string; fabrica: string; pn: string; produto: string }[]>([]);
+  const [anexadas, setAnexadas] = useState<{ id: number; numero: string; cliente: string; pn: string; produto: string }[]>([]);
   const [fileKey, setFileKey] = useState(0);
 
   const [origem, setOrigem] = useState<Origem>('totvs');
   const [numero, setNumero] = useState('');
-  const [fabrica, setFabrica] = useState<FabricaEscolha>('depois');
   const [cliente, setCliente] = useState('');
   const [semPrazo, setSemPrazo] = useState(false);
   const [prazo, setPrazo] = useState('');
@@ -60,46 +64,22 @@ export default function PcpHrmPage() {
   const [erroLeitura, setErroLeitura] = useState('');
   const [componentesAbertos, setComponentesAbertos] = useState<Set<number>>(new Set());
 
-  // "Por onde passa" é editável (clicar numa etapa corrige o texto, dá pra
-  // add/remover) — só pra CONFERIR a leitura na hora, não grava em lugar
-  // nenhum ainda: essa tela só anexa a OP, os itens de produção de verdade só
-  // nascem na Conferência (Fase 3, futura). Por isso o estado é só local,
-  // por índice de ordem, e some se trocar o arquivo.
-  const [rotasEditadas, setRotasEditadas] = useState<Record<number, string[]>>({});
-  const [editandoPill, setEditandoPill] = useState<{ ordem: number; i: number } | null>(null);
-  const [textoPill, setTextoPill] = useState('');
-
-  function setoresDaOrdem(idx: number, op: OPItem): string[] {
-    if (rotasEditadas[idx]) return rotasEditadas[idx];
-    return Array.from(new Set(op.roteiro.map(o => o.setorNome || o.setor).filter(Boolean)));
-  }
-  function abrirEdicaoPill(idx: number, i: number, valorAtual: string) {
-    setEditandoPill({ ordem: idx, i }); setTextoPill(valorAtual);
-  }
-  function salvarEdicaoPill(idx: number, op: OPItem) {
-    if (!editandoPill || editandoPill.ordem !== idx) return;
-    const atual = setoresDaOrdem(idx, op).slice();
-    const texto = textoPill.trim();
-    if (texto) atual[editandoPill.i] = texto; else atual.splice(editandoPill.i, 1);
-    setRotasEditadas(prev => ({ ...prev, [idx]: atual }));
-    setEditandoPill(null);
-  }
-  function removerPill(idx: number, op: OPItem, i: number) {
-    const atual = setoresDaOrdem(idx, op).slice();
-    atual.splice(i, 1);
-    setRotasEditadas(prev => ({ ...prev, [idx]: atual }));
-  }
-  function adicionarPill(idx: number, op: OPItem) {
-    const atual = setoresDaOrdem(idx, op).slice();
-    atual.push('Nova etapa');
-    setRotasEditadas(prev => ({ ...prev, [idx]: atual }));
-    setEditandoPill({ ordem: idx, i: atual.length - 1 }); setTextoPill('Nova etapa');
-  }
+  // Por onde a peça vai passar — roteiro da Caldeiraria escolhido pelo OPERADOR
+  // na abertura (lista ordenada de códigos de setor). Persiste no pedido como
+  // roteiro_base = ['emissao', ...roteiroSel]. Inspeção CQ pode repetir; vazio
+  // cai no mínimo ['emissao','caldeiraria']. Some se trocar o arquivo.
+  const [roteiroSel, setRoteiroSel] = useState<string[]>([]);
+  const addEtapa = (cod: string) => setRoteiroSel(r => [...r, cod]);
+  const removerEtapa = (i: number) => setRoteiroSel(r => r.filter((_, idx) => idx !== i));
+  const moverEtapa = (i: number, dir: -1 | 1) => setRoteiroSel(r => {
+    const j = i + dir; if (j < 0 || j >= r.length) return r;
+    const n = r.slice(); [n[i], n[j]] = [n[j], n[i]]; return n;
+  });
+  const carregarRoteiroPadrao = () => setRoteiroSel(PROCESSO_CALDEIRARIA.slice());
 
   async function selecionarArquivo(f: File | null) {
     setArquivo(f);
     setLeitura(null); setErroLeitura(''); setComponentesAbertos(new Set());
-    setRotasEditadas({}); setEditandoPill(null);
     if (!f) return;
     if (f.type && f.type !== 'application/pdf') return; // leitura automática só p/ PDF
     setLendo(true);
@@ -132,11 +112,6 @@ export default function PcpHrmPage() {
     setComponentesAbertos(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; });
   }
 
-  const fabricaLabel: Record<FabricaEscolha, string> = {
-    leve: 'Caldeiraria Leve',
-    pesada: 'Caldeiraria Pesada',
-    depois: 'Definir na conferência',
-  };
   const origemLabel: Record<Origem, string> = { totvs: 'Totvs', omie: 'Omie' };
 
   async function salvar(e: React.FormEvent) {
@@ -155,7 +130,6 @@ export default function PcpHrmPage() {
 
         const linhasObs = [
           `Origem: ${origemLabel[origem]}`,
-          `Fábrica: ${fabricaLabel[fabrica]}`,
           obs.trim(),
         ].filter(Boolean).join('\n');
 
@@ -166,7 +140,9 @@ export default function PcpHrmPage() {
           vendedor: '',
           prazo_entrega: semPrazo ? '' : prazo,
           prioridade: 'normal',
-          roteiro_base: ['emissao', 'caldeiraria'],
+          // Por onde a peça passa = o que o operador montou na abertura. 1º passo
+          // é sempre 'emissao' (fixo). Sem seleção, cai no mínimo (Recebimento).
+          roteiro_base: roteiroSel.length ? ['emissao', ...roteiroSel] : ['emissao', 'caldeiraria'],
           observacoes: linhasObs,
           itens: [],
         });
@@ -199,13 +175,12 @@ export default function PcpHrmPage() {
         id,
         numero: numero.trim() || 'provisório',
         cliente: cliente.trim() || 'A definir',
-        fabrica: fabricaLabel[fabrica],
         pn: leitura?.ops[0]?.cabecalho?.pn || '',
         produto: leitura?.ops[0]?.produto?.descricao || '',
       }]);
       // reset pra próxima OP
       setNumero(''); setCliente(''); setPrazo(''); setSemPrazo(false); setObs('');
-      setFabrica('depois'); setOrigem('totvs'); setArquivo(null);
+      setOrigem('totvs'); setArquivo(null); setRoteiroSel([]);
       setLeitura(null); setErroLeitura(''); setCriadoId(null); setComponentesAbertos(new Set());
       setFileKey(k => k + 1);
     } catch (e: unknown) {
@@ -282,7 +257,7 @@ export default function PcpHrmPage() {
                       {op.numero}{op.pn ? ` · PN ${op.pn}` : ''}
                     </span>
                     <span style={{ fontSize:11, color:'#4b5563', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                      {[op.cliente, op.produto, op.fabrica].filter(Boolean).join(' · ')}
+                      {[op.cliente, op.produto].filter(Boolean).join(' · ')}
                     </span>
                   </div>
                   <i className="bi bi-box-arrow-up-right" style={{ marginLeft:'auto', color:'#16a34a', fontSize:13 }} />
@@ -332,16 +307,10 @@ export default function PcpHrmPage() {
             </div>
           </div>
 
-          {/* Fábrica + Prazo */}
+          {/* Prazo (previsão de faturamento) */}
           <div className="card" style={{ padding:20 }}>
             <div style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
-              <i className="bi bi-sliders" style={{ marginRight:6 }} />Classificação
-            </div>
-            <label className={labelCls}>Fábrica</label>
-            <div style={{ display:'flex', gap:10, marginTop:6, marginBottom:16 }}>
-              <div style={toggleBtn(fabrica==='leve')} onClick={() => setFabrica('leve')}>Caldeiraria Leve</div>
-              <div style={toggleBtn(fabrica==='pesada')} onClick={() => setFabrica('pesada')}>Caldeiraria Pesada</div>
-              <div style={toggleBtn(fabrica==='depois')} onClick={() => setFabrica('depois')}>Definir depois</div>
+              <i className="bi bi-calendar-event" style={{ marginRight:6 }} />Prazo
             </div>
             <label className={labelCls}>Previsão de faturamento (Omie)</label>
             <div style={{ display:'flex', alignItems:'center', gap:14, marginTop:6, flexWrap:'wrap' }}>
@@ -420,7 +389,6 @@ export default function PcpHrmPage() {
               <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
                 {leitura.ops.map((op, idx) => {
                   const multi = leitura.ops.length > 1;
-                  const setoresRoteiro = setoresDaOrdem(idx, op);
                   const aberto = componentesAbertos.has(idx);
                   // Gate pela QUALIDADE pós-decodificação (plausibilidade do que
                   // saiu), não pela legibilidade nativa (confianca). Só esconde os
@@ -539,41 +507,6 @@ export default function PcpHrmPage() {
                               </ul>
                             </div>
                           )}
-                          {/* Por onde passa (setores do roteiro) — leitura sugerida, editável aqui só
-                              pra conferir na hora (não grava ainda; a Conferência real vem na Fase 3).
-                              Clicar numa etapa corrige o texto; "x" remove; "+" adiciona. */}
-                          {!leituraRuim && (<div style={{ marginBottom:16 }}>
-                            <span className={labelCls}>Por onde passa (sugestão da leitura — clique pra corrigir)</span>
-                            <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6, alignItems:'center' }}>
-                              {setoresRoteiro.map((s, i) => {
-                                const editando = editandoPill?.ordem === idx && editandoPill?.i === i;
-                                if (editando) return (
-                                  <input key={i} autoFocus value={textoPill}
-                                    onChange={e => setTextoPill(e.target.value)}
-                                    onBlur={() => salvarEdicaoPill(idx, op)}
-                                    onKeyDown={e => { if (e.key === 'Enter') salvarEdicaoPill(idx, op); if (e.key === 'Escape') setEditandoPill(null); }}
-                                    style={{ border:'1.5px solid #1a3a5c', borderRadius:20, padding:'4px 12px', fontSize:12.5, fontWeight:700, color:'#1a3a5c', width:160 }} />
-                                );
-                                return (
-                                  <span key={i} style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#eef4fb', border:'1px solid #cfe0f2', color:'#1a3a5c', borderRadius:20, padding:'4px 6px 4px 12px', fontSize:12.5, fontWeight:700 }}>
-                                    <button type="button" onClick={() => abrirEdicaoPill(idx, i, s)}
-                                      style={{ background:'none', border:'none', cursor:'pointer', color:'#1a3a5c', fontWeight:700, fontSize:12.5, padding:0 }}>
-                                      <span style={{ opacity:.6 }}>{i + 1}.</span> {s}
-                                    </button>
-                                    <button type="button" onClick={() => removerPill(idx, op, i)} title="Remover etapa"
-                                      style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', padding:'0 2px', fontSize:13, lineHeight:1 }}>
-                                      <i className="bi bi-x-lg" />
-                                    </button>
-                                  </span>
-                                );
-                              })}
-                              <button type="button" onClick={() => adicionarPill(idx, op)}
-                                style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#fff', border:'1px dashed #cfe0f2', color:'#1a3a5c', borderRadius:20, padding:'4px 12px', fontSize:12.5, fontWeight:700, cursor:'pointer' }}>
-                                <i className="bi bi-plus-lg" />Etapa
-                              </button>
-                            </div>
-                          </div>)}
-
                           {!leituraRuim && op.materiais.length > 0 && (
                             <div style={{ overflowX:'auto', marginTop:16 }}>
                               <span className={labelCls}>Componentes</span>
@@ -639,6 +572,67 @@ export default function PcpHrmPage() {
               </div>
             </div>
           )}
+
+          {/* Por onde a peça vai passar — o operador monta o roteiro da
+              Caldeiraria (seleção livre da lista REAL de setores). Persiste no
+              pedido (roteiro_base). Inspeção CQ pode entrar mais de uma vez. */}
+          <div className="card" style={{ padding:20 }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, flexWrap:'wrap', marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
+              <span style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1 }}>
+                <i className="bi bi-signpost-split" style={{ marginRight:6 }} />Por onde a peça vai passar
+              </span>
+              <div style={{ display:'flex', gap:8 }}>
+                <button type="button" onClick={carregarRoteiroPadrao}
+                  style={{ background:'#eef4fb', border:'1px solid #cfe0f2', color:'#1a3a5c', borderRadius:8, padding:'6px 12px', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  <i className="bi bi-list-check" style={{ marginRight:5 }} />Usar roteiro padrão
+                </button>
+                {roteiroSel.length > 0 && (
+                  <button type="button" onClick={() => setRoteiroSel([])}
+                    style={{ background:'#fff', border:'1px solid #e5e7eb', color:'#94a3b8', borderRadius:8, padding:'6px 12px', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                    Limpar
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {roteiroSel.length === 0 ? (
+              <div style={{ fontSize:13, color:'#7a8aa0', background:'#f8faff', border:'1px dashed #cfe0f2', borderRadius:10, padding:'14px 16px', marginBottom:14 }}>
+                <i className="bi bi-info-circle" style={{ marginRight:6 }} />
+                Escolha por onde a peça passa — clique nos setores abaixo na ordem do processo. Ou use o <b>roteiro padrão</b> da Caldeiraria e ajuste.
+              </div>
+            ) : (
+              <ol style={{ listStyle:'none', margin:'0 0 14px', padding:0, display:'flex', flexDirection:'column', gap:6 }}>
+                {roteiroSel.map((cod, i) => (
+                  <li key={i} style={{ display:'flex', alignItems:'center', gap:8, background:'#f8faff', border:'1px solid #cfe0f2', borderRadius:10, padding:'8px 8px 8px 12px' }}>
+                    <span style={{ flexShrink:0, minWidth:22, height:22, borderRadius:11, background:'#1a3a5c', color:'#fff', fontWeight:800, fontSize:12, display:'inline-flex', alignItems:'center', justifyContent:'center' }}>{i + 1}</span>
+                    <span style={{ flex:1, minWidth:0, fontSize:13.5, fontWeight:700, color:'#1a3a5c' }}>{NOMES[cod] || cod}</span>
+                    <button type="button" onClick={() => moverEtapa(i, -1)} disabled={i === 0} title="Subir"
+                      style={{ background:'none', border:'none', cursor:i===0?'default':'pointer', color:i===0?'#d1d5db':'#1a3a5c', fontSize:14, padding:'0 3px' }}>
+                      <i className="bi bi-arrow-up" />
+                    </button>
+                    <button type="button" onClick={() => moverEtapa(i, 1)} disabled={i === roteiroSel.length - 1} title="Descer"
+                      style={{ background:'none', border:'none', cursor:i===roteiroSel.length-1?'default':'pointer', color:i===roteiroSel.length-1?'#d1d5db':'#1a3a5c', fontSize:14, padding:'0 3px' }}>
+                      <i className="bi bi-arrow-down" />
+                    </button>
+                    <button type="button" onClick={() => removerEtapa(i)} title="Remover"
+                      style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:14, padding:'0 3px' }}>
+                      <i className="bi bi-x-lg" />
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            <span className={labelCls}>Adicionar etapa (clique pra incluir no fim — a Inspeção CQ pode repetir)</span>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
+              {SETORES_CALD.map(cod => (
+                <button key={cod} type="button" onClick={() => addEtapa(cod)}
+                  style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#fff', border:'1px dashed #cfe0f2', color:'#1a3a5c', borderRadius:20, padding:'5px 12px', fontSize:12.5, fontWeight:700, cursor:'pointer' }}>
+                  <i className="bi bi-plus-lg" style={{ fontSize:11 }} />{NOMES[cod] || cod}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Observações */}
           <div className="card" style={{ padding:20 }}>
