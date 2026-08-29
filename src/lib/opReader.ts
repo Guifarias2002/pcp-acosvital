@@ -758,16 +758,22 @@ function avaliar(op: Omit<OPItem, 'qualidade' | 'validacao'>): { qualidade: numb
 // (o glifo desenha certo, só o código por trás do texto embaralha) — então dá
 // pra ignorar a cifra inteiramente e ler a imagem com OCR.
 //
-// Custo: OCR demora ~3s por página. Ler o documento inteiro assim (uma OP real
-// tem 13-18 páginas) estoura o tempo de uma função da Vercel. Por isso o OCR
-// roda SÓ na(s) página(s) da tabela de COMPONENTES de cada ordem cujos
-// materiais saíram ruins pela decodificação normal — a prioridade combinada
-// com o usuário foi materiais/quantidades, não o roteiro inteiro. Limite de 2
-// páginas por ordem e 6 no total pro documento, pra nunca estourar o tempo
-// mesmo numa OP com várias ordens ruins.
-const OCR_MAX_PAGINAS_MATERIAIS_POR_ORDEM = 2;
-const OCR_MAX_PAGINAS_ROTEIRO_POR_ORDEM = 4;
-const OCR_MAX_PAGINAS_TOTAL = 5;
+// Custo: OCR demora ~3s por página. O objetivo é ler a OP COMPLETA (materiais +
+// roteiro, todas as páginas). O que impede é o tempo da função na Vercel — então
+// o orçamento é por TEMPO, não só por página: OCR roda até um limite de tempo
+// (deixando folga sob o maxDuration da rota) OU até os tetos de segurança por
+// página. Assim OP pequena/média vem 100% completa e OP muito grande pega o
+// máximo que couber no tempo (roteiro parcial correto > nenhum roteiro).
+const OCR_MAX_PAGINAS_MATERIAIS_POR_ORDEM = 3;
+const OCR_MAX_PAGINAS_ROTEIRO_POR_ORDEM = 14;
+const OCR_MAX_PAGINAS_TOTAL = 18;
+// Limite de tempo do OCR (ms). A rota tem maxDuration=60s; paramos com folga
+// pra sobrar tempo pro parse/decode/resposta. Nunca estoura a função.
+const OCR_LIMITE_MS = 45000;
+// Orçamento vivo: páginas restantes + relógio. `ok()` = ainda tem página E ainda
+// tem tempo. Compartilhado entre todas as ordens/páginas de UMA leitura.
+interface OrcamentoOcr { restante: number; inicio: number; }
+const orcamentoOk = (o: OrcamentoOcr) => o.restante > 0 && (Date.now() - o.inicio) < OCR_LIMITE_MS;
 
 // Página (0-based) onde está o título soletrado "COMPONENTES"/"ROTEIRO DE
 // OPERAÇÕES" DESTA ordem — mesma checagem por FORMA (spacedTitleInfo) que as
@@ -860,11 +866,11 @@ function parseMateriaisOcr(texto: string): OPMaterial[] {
 // chamada — inicializar custa ~0,5s). Retorna `null` sem alterar nada quando
 // não achar a página, ou quando o OCR não render nenhum material com código
 // numérico coerente (não troca uma leitura ruim por outra pior).
-async function tentarOcrMateriais(renderCtx: RenderCtx, lines: Line[], worker: { recognize: (b: Buffer) => Promise<{ data: { text: string } }> }, orcamento: { restante: number }): Promise<OPMaterial[] | null> {
+async function tentarOcrMateriais(renderCtx: RenderCtx, lines: Line[], worker: { recognize: (b: Buffer) => Promise<{ data: { text: string } }> }, orcamento: OrcamentoOcr): Promise<OPMaterial[] | null> {
   const pagInicial = paginaComponentes(lines);
   if (pagInicial == null) return null;
   const materiaisTodos: OPMaterial[] = [];
-  for (let i = 0; i < OCR_MAX_PAGINAS_MATERIAIS_POR_ORDEM && orcamento.restante > 0; i++) {
+  for (let i = 0; i < OCR_MAX_PAGINAS_MATERIAIS_POR_ORDEM && orcamentoOk(orcamento); i++) {
     let png: Buffer;
     try { png = await renderPaginaPng(renderCtx, pagInicial + i); } catch { break; }
     orcamento.restante--;
@@ -955,12 +961,12 @@ function parseRoteiroOcr(texto: string): OPOperacao[] {
 // orçamento/limite por ordem acabar, o que vier primeiro). Documentos muito
 // longos podem não caber no orçamento total — melhor um roteiro PARCIAL
 // correto do que nenhum, e nunca estourar o tempo da função.
-async function tentarOcrRoteiro(renderCtx: RenderCtx, lines: Line[], worker: { recognize: (b: Buffer) => Promise<{ data: { text: string } }> }, orcamento: { restante: number }): Promise<OPOperacao[] | null> {
+async function tentarOcrRoteiro(renderCtx: RenderCtx, lines: Line[], worker: { recognize: (b: Buffer) => Promise<{ data: { text: string } }> }, orcamento: OrcamentoOcr): Promise<OPOperacao[] | null> {
   const pagInicial = paginaRoteiro(lines);
   if (pagInicial == null) return null;
   const pagFinal = Math.min(pagInicial + OCR_MAX_PAGINAS_ROTEIRO_POR_ORDEM - 1, ultimaPagina(lines));
   const roteiroTodo: OPOperacao[] = [];
-  for (let p = pagInicial; p <= pagFinal && orcamento.restante > 0; p++) {
+  for (let p = pagInicial; p <= pagFinal && orcamentoOk(orcamento); p++) {
     let png: Buffer;
     try { png = await renderPaginaPng(renderCtx, p); } catch { break; }
     orcamento.restante--;
@@ -1012,7 +1018,7 @@ export async function lerOP(buf: Buffer): Promise<OPLeitura> {
   // várias ordens ruins.
   let worker: Awaited<ReturnType<typeof import('tesseract.js').createWorker>> | null = null;
   let renderCtx: RenderCtx | null = null;
-  const orcamentoOcr = { restante: OCR_MAX_PAGINAS_TOTAL };
+  const orcamentoOcr: OrcamentoOcr = { restante: OCR_MAX_PAGINAS_TOTAL, inicio: Date.now() };
   const ops: OPItem[] = [];
   for (const g of grupos) {
     const cabecalho = parseCabecalho(g.redbox);
@@ -1030,13 +1036,18 @@ export async function lerOP(buf: Buffer): Promise<OPLeitura> {
     // ordem de sub-item) — sem isso, uma ordem que TEM componentes mas não
     // achou (compIdx=-1 por decode ruim) passaria despercebida.
     const precisaMateriais = qualidade < 0.7 || materiais.length === 0;
-    // Roteiro ruim = poucos setores batendo com o vocabulário conhecido (não
-    // "roteiro.length===0" — uma ordem sem roteiro pode ser legítima, tipo um
-    // sub-item; aqui o sinal é "tem roteiro mas ele não faz sentido").
+    // Roteiro precisa de OCR quando a ORDEM TEM seção de roteiro (título soletrado
+    // detectado por FORMA, `paginaRoteiro` — independe do decode da cifra) mas o
+    // decode veio VAZIO (cifra pesada não achou o "ROTEIRO DE OPERAÇÕES" no texto,
+    // ex.: OP-013335 -> roteiro=0) OU IMPLAUSÍVEL (poucos setores conhecidos).
+    // BUG ANTERIOR: o gatilho exigia `roteiro.length > 0`, então o PIOR caso
+    // (roteiro totalmente ilegível -> 0 linhas) nunca disparava o OCR e o roteiro
+    // era descartado em silêncio. `paginaRoteiro != null` evita OCR à toa em ordem
+    // que legitimamente não tem roteiro (ex.: sub-item).
     const setoresRoteiro = roteiro.map(o => (o.setorNome || o.setor || '').toUpperCase());
     const fracSetorOk = setoresRoteiro.length ? setoresRoteiro.filter(s => VOCAB_ROTEIRO.some(v => s.includes(v))).length / setoresRoteiro.length : 1;
-    const precisaRoteiro = roteiro.length > 0 && fracSetorOk < 0.5;
-    if ((precisaMateriais || precisaRoteiro) && orcamentoOcr.restante > 0) {
+    const precisaRoteiro = paginaRoteiro(g.lines) != null && (roteiro.length === 0 || fracSetorOk < 0.5);
+    if ((precisaMateriais || precisaRoteiro) && orcamentoOk(orcamentoOcr)) {
       const avisosOcr: string[] = [];
       try {
         if (!worker) {
@@ -1056,7 +1067,7 @@ export async function lerOP(buf: Buffer): Promise<OPLeitura> {
             avisosOcr.push('Materiais lidos por OCR (imagem da página) — a decodificação normal não veio confiável nesta ordem.');
           }
         }
-        if (precisaRoteiro && orcamentoOcr.restante > 0) {
+        if (precisaRoteiro && orcamentoOk(orcamentoOcr)) {
           const ocrRot = await tentarOcrRoteiro(renderCtx, g.lines, worker, orcamentoOcr);
           if (ocrRot) {
             base.roteiro = ocrRot;

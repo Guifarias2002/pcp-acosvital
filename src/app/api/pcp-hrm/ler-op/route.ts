@@ -4,7 +4,7 @@ import { lerOP } from '@/lib/opReader';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const MAX_SIZE = 20 * 1024 * 1024;
 
