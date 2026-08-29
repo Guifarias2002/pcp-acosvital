@@ -5,14 +5,34 @@ import AuthGuard from '@/components/AuthGuard';
 // Ticker global compartilhado: um único setInterval de 1s para TODOS os
 // cronômetros da tela, em vez de um timer por card. Reduz drasticamente o
 // número de timers/agendamentos quando há muitas parciais em andamento.
+//
+// PAUSA quando a aba está oculta (tablet dormindo / app em segundo plano): sem
+// isso o ticker fica re-renderizando todos os cronômetros de 1 em 1s à toa por
+// horas num tablet ligado 24/7 no chão de fábrica. Ao voltar a ficar visível,
+// atualiza na hora e retoma o timer.
 const tickSubs = new Set<() => void>();
 let tickTimer: ReturnType<typeof setInterval> | null = null;
+function runTicks() { tickSubs.forEach(f => f()); }
+function startTick() {
+  if (tickTimer || tickSubs.size === 0) return;
+  if (typeof document !== 'undefined' && document.hidden) return; // não roda oculto
+  tickTimer = setInterval(runTicks, 1000);
+}
+function stopTick() {
+  if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopTick();
+    else { runTicks(); startTick(); }
+  });
+}
 function subscribeTick(cb: () => void) {
   tickSubs.add(cb);
-  if (!tickTimer) tickTimer = setInterval(() => { tickSubs.forEach(f => f()); }, 1000);
+  startTick();
   return () => {
     tickSubs.delete(cb);
-    if (tickSubs.size === 0 && tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+    if (tickSubs.size === 0) stopTick();
   };
 }
 
@@ -37,6 +57,7 @@ import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
 import { useRealtime } from '@/hooks/useRealtime';
+import { useKioskReload } from '@/hooks/useKioskReload';
 import ConfirmModal from '@/components/ConfirmModal';
 import EntregarModal from '@/components/EntregarModal';
 import EntregarPedidoModal, { ItemEntrega } from '@/components/EntregarPedidoModal';
@@ -3410,6 +3431,11 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
     carregar,
     [`setor-${setor}`],
   );
+
+  // Higiene de quiosque: o tablet do setor fica ligado 24/7 no chão. Depois de
+  // muitas horas aberto, recarrega sozinho pra liberar memória acumulada — só
+  // quando a tela está apagada ou ociosa, nunca no meio do uso do operador.
+  useKioskReload();
 
   // Polling de segurança a cada 60 s — garante que a tela reflita mudanças
   // (inativar item, cancelar parcial, item avançando de setor) em até ~1 min

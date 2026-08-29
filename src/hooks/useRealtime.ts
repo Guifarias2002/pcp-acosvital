@@ -18,6 +18,7 @@ export function useRealtime(
   useEffect(() => {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     let fallbackTimer: ReturnType<typeof setInterval> | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let channel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null;
     let mounted = true;
 
@@ -29,8 +30,17 @@ export function useRealtime(
       }, 400);
     }
 
+    // Remove qualquer canal pendurado antes de abrir outro. Sem isso, em wifi
+    // instavel (chao de fabrica) a reconexao via retry E via visibilitychange
+    // podiam criar canais sobrepostos ao longo de horas — cada um segurando um
+    // WebSocket e listeners — ate o tablet travar. Garante 1 canal por vez.
+    function teardownChannel() {
+      if (channel) { supabase?.removeChannel(channel); channel = null; }
+    }
+
     function subscribe() {
-      if (!supabase) return;
+      if (!supabase || !mounted) return;
+      teardownChannel(); // nunca deixa um canal antigo pendurado
 
       const channelName = `rt-${tablesKey}-${Math.random().toString(36).slice(2, 8)}`;
       channel = supabase.channel(channelName);
@@ -51,8 +61,9 @@ export function useRealtime(
         // automatica. O polling de 15s fica sempre ativo como garantia; o WebSocket,
         // quando entrega eventos de verdade, so faz a atualizacao chegar mais rapido.
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          if (channel) { supabase?.removeChannel(channel); channel = null; }
-          setTimeout(() => { if (mounted) subscribe(); }, 3_000);
+          teardownChannel();
+          if (retryTimer) clearTimeout(retryTimer); // um retry por vez
+          retryTimer = setTimeout(() => { if (mounted) subscribe(); }, 3_000);
         }
       });
     }
@@ -81,7 +92,8 @@ export function useRealtime(
       mounted = false;
       if (debounceTimer) clearTimeout(debounceTimer);
       if (fallbackTimer) clearInterval(fallbackTimer);
-      if (channel) supabase?.removeChannel(channel);
+      if (retryTimer) clearTimeout(retryTimer);
+      teardownChannel();
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('focus', onVisibilityChange);
     };
