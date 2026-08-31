@@ -570,10 +570,17 @@ async function handlePOST(
     if (!['em_andamento', 'em_aberto', 'recebido'].includes(parcial.status))
       return NextResponse.json({ erro: 'Parcial não pode ser pausada neste status' }, { status: 400 });
 
+    // Motivo da pausa (Usinagem/Furação): só o CÓDIGO é gravado (ex.: 'almoco',
+    // 'troca_maquina'). Ausente = pausa sem motivo (ex.: divergência) → o
+    // retomar continua pedindo a máquina, como antes. Ver src/lib/maquinas.ts.
+    const motivoPausa = typeof body.motivo_pausa === 'string' && body.motivo_pausa.trim()
+      ? body.motivo_pausa.trim().slice(0, 40)
+      : null;
+
     await sql.begin(async (tx) => {
       await tx`
         UPDATE producao_itemparcial
-        SET status = 'pausado', atualizado_em = NOW()
+        SET status = 'pausado', motivo_pausa = ${motivoPausa}, atualizado_em = NOW()
         WHERE id = ${parcialId}
       `;
       await tx`
@@ -794,11 +801,11 @@ async function handlePOST(
         await tx`
           INSERT INTO producao_itemparcial
             (item_pedido_id, pedido_id, parcial_origem_id, quantidade, setor_atual, status,
-             observacao, fotos, maquina, operador, criado_por_id, criado_em, atualizado_em)
+             observacao, fotos, maquina, operador, motivo_pausa, criado_por_id, criado_em, atualizado_em)
           VALUES
             (${parcial.item_id}, ${parcial.pedido_id}, ${parcialId}, ${qtdAtual - qtdCont}, ${parcial.setor_atual},
              'pausado', ${`Saldo pausado (${qtdAtual - qtdCont} ${parcial.unidade})`}, ${(parcial.fotos as string[]) || []},
-             ${parcial.maquina || null}, ${parcial.operador || null}, ${user.id}, NOW(), NOW())
+             ${parcial.maquina || null}, ${parcial.operador || null}, ${parcial.motivo_pausa || null}, ${user.id}, NOW(), NOW())
         `;
       }
 
@@ -810,6 +817,7 @@ async function handlePOST(
         SET status = 'em_andamento',
             quantidade = ${ehParcial ? qtdCont : qtdAtual},
             concluido_em = NULL,
+            motivo_pausa = NULL,
             iniciado_em = COALESCE(iniciado_em, NOW()),
             maquina = COALESCE(${maquinaNova}, maquina),
             operador = COALESCE(${operadorNovo}, operador),

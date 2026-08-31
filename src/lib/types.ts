@@ -603,6 +603,8 @@ export interface ItemParcial {
   observacao: string | null;
   maquina?: string | null;
   operador?: string | null;
+  /** Código do motivo da pausa (ver MOTIVOS_PAUSA em src/lib/maquinas.ts). Só preenchido quando status = 'pausado'. */
+  motivo_pausa?: string | null;
   /** Status do item (não da parcial) — usado pra detectar reprovado/divergência. */
   item_status?: string;
   numero_op?: string;

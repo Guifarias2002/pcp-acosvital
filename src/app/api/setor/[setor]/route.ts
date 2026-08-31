@@ -106,7 +106,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     sql`
       SELECT
         pa.id, pa.quantidade::text AS quantidade, pa.status, pa.observacao,
-        pa.maquina, pa.operador,
+        pa.maquina, pa.operador, pa.motivo_pausa,
         pa.parcial_origem_id, pa.criado_em, pa.atualizado_em,
         pa.retrabalho, pa.motivo_retrabalho, pa.devolvido_de,
         -- contexto da parcial-pai: detecta retorno de retrabalho
@@ -337,6 +337,9 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       setor_atual_nome: nomeSector(setorEfetivo),
       status: p.status,
       observacao: p.observacao ?? null,
+      maquina: p.maquina ?? null,
+      operador: p.operador ?? null,
+      motivo_pausa: p.motivo_pausa ?? null,
       item_codigo: p.item_codigo,
       item_descricao: p.item_descricao,
       quantidade_total_item: p.quantidade_total_item,

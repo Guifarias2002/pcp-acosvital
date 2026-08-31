@@ -24,6 +24,52 @@ export function temMaquinas(setor: string): boolean {
 }
 
 /**
+ * Motivos de pausa (Usinagem/Furação). Ao pausar uma peça na máquina o operador
+ * escolhe um motivo. Só os motivos com `pedeMaquina: true` (troca/quebra de
+ * máquina) fazem o "Retomar" perguntar a máquina de novo — nesses casos a peça
+ * pode voltar em OUTRA máquina. Os demais (almoço, banheiro, etc.) retomam
+ * direto, na mesma máquina, sem reperguntar nada.
+ */
+export interface MotivoPausa {
+  codigo: string;
+  label: string;
+  /** true = ao retomar, pede a máquina de novo (a peça pode trocar de máquina). */
+  pedeMaquina: boolean;
+  icone: string;
+}
+
+export const MOTIVOS_PAUSA: MotivoPausa[] = [
+  { codigo: 'almoco',          label: 'Almoço',                        pedeMaquina: false, icone: 'bi-cup-hot' },
+  { codigo: 'banheiro',        label: 'Banheiro / Necessidades',       pedeMaquina: false, icone: 'bi-person-walking' },
+  { codigo: 'reuniao',         label: 'Reunião',                       pedeMaquina: false, icone: 'bi-people' },
+  { codigo: 'falta_material',  label: 'Falta de material',             pedeMaquina: false, icone: 'bi-box-seam' },
+  { codigo: 'fim_expediente',  label: 'Fim de expediente',             pedeMaquina: false, icone: 'bi-moon-stars' },
+  { codigo: 'troca_maquina',   label: 'Troca de máquina',              pedeMaquina: true,  icone: 'bi-arrow-left-right' },
+  { codigo: 'maquina_quebrada', label: 'Máquina quebrada / manutenção', pedeMaquina: true, icone: 'bi-tools' },
+];
+
+export function motivoPausaPorCodigo(codigo?: string | null): MotivoPausa | undefined {
+  if (!codigo) return undefined;
+  return MOTIVOS_PAUSA.find(m => m.codigo === codigo);
+}
+
+/** Rótulo amigável do motivo (ou o próprio código, se desconhecido/legado). */
+export function labelMotivoPausa(codigo?: string | null): string | null {
+  if (!codigo) return null;
+  return motivoPausaPorCodigo(codigo)?.label ?? codigo;
+}
+
+/**
+ * Ao retomar: só pede a máquina se o motivo da pausa exigir (troca/quebra de
+ * máquina). Motivo ausente (null) = pausa legada ou de outro fluxo — mantém o
+ * comportamento antigo (pede a máquina) por segurança.
+ */
+export function retomarPedeMaquina(motivo?: string | null): boolean {
+  if (!motivo) return true;
+  return !!motivoPausaPorCodigo(motivo)?.pedeMaquina;
+}
+
+/**
  * Foto de cada máquina (arquivos estáticos em /public/maquinas). A chave é o
  * nome exato usado em MAQUINAS_POR_SETOR / gravado no apontamento. Máquina sem
  * foto aqui simplesmente não exibe imagem.

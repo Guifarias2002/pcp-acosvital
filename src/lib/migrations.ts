@@ -307,4 +307,13 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   // default false, marcado por um admin. Dada ao Gilmar e à equipe PCP; staff
   // (is_staff) já pode por ser PCP. Demais líderes/operadores só visualizam.
   await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS pode_definir_previsao BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
+
+  // M28: motivo da pausa por parcial (Usinagem/Furação). Guarda o CÓDIGO do
+  // motivo escolhido ao pausar (ex.: 'almoco', 'troca_maquina') — ver a lista
+  // em src/lib/maquinas.ts (MOTIVOS_PAUSA). Só motivos de troca/quebra de
+  // máquina fazem o "Retomar" pedir a máquina de novo; almoço/banheiro/etc.
+  // retomam direto na mesma máquina. NULL = pausa sem motivo registrado (pausa
+  // legada, ou de outro fluxo como divergência) — nesse caso o retomar continua
+  // pedindo a máquina, como antes. Limpo ao retomar/iniciar/mover/etc.
+  await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS motivo_pausa VARCHAR(40)`).catch(() => {});
 }

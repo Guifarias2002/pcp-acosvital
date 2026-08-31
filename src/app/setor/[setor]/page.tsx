@@ -65,7 +65,8 @@ import DespacharModal from '@/components/DespacharModal';
 import IniciarEntregaModal from '@/components/IniciarEntregaModal';
 import DivergenciaResolucaoModal from '@/components/DivergenciaResolucaoModal';
 import IniciarProducaoModal from '@/components/IniciarProducaoModal';
-import { temMaquinas } from '@/lib/maquinas';
+import PausarModal from '@/components/PausarModal';
+import { temMaquinas, retomarPedeMaquina, labelMotivoPausa, type MotivoPausa } from '@/lib/maquinas';
 import AdicionarItemPedidoModal from '@/components/AdicionarItemPedidoModal';
 import RastreioModal from '@/components/RastreioModal';
 import ObservacaoPedidoModal from '@/components/ObservacaoPedidoModal';
@@ -779,6 +780,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [showReceberModal, setShowReceberModal] = useState(false);
   const [showIniciarProducao, setShowIniciarProducao] = useState(false);
   const [showRetomarProducao, setShowRetomarProducao] = useState(false);
+  const [showPausar, setShowPausar] = useState(false);
   const [qtdEnvio, setQtdEnvio] = useState('');
   const [setorDestino, setSetorDestino] = useState('');
   const [obsEnvio, setObsEnvio] = useState('');
@@ -1361,7 +1363,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
                 </button>
               </>
             )}
-            <button onClick={() => acao('pausar')} disabled={loading} style={btnStyle('#fd7e14')}>
+            <button onClick={() => temMaquinas(parcial.setor_atual) ? setShowPausar(true) : acao('pausar')} disabled={loading} style={btnStyle('#fd7e14')}>
               <i className="bi bi-pause-fill" style={{ marginRight: 5 }} />Pausar
             </button>
             {isLogistica && (
@@ -1381,7 +1383,12 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
         {/* ── Pausado ──────────────────────────────────────────────────────── */}
         {isPausado && (
           <>
-            <button onClick={() => temMaquinas(parcial.setor_atual) ? setShowRetomarProducao(true) : acao('retomar')} disabled={loading} style={btnStyle('#198754')}>
+            {parcial.motivo_pausa && (
+              <span style={{ flexBasis: '100%', fontSize: 11, fontWeight: 600, color: '#9a3412', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '3px 8px', boxSizing: 'border-box' }}>
+                <i className="bi bi-pause-circle-fill" style={{ marginRight: 5 }} />Pausado: {labelMotivoPausa(parcial.motivo_pausa)}
+              </span>
+            )}
+            <button onClick={() => (temMaquinas(parcial.setor_atual) && retomarPedeMaquina(parcial.motivo_pausa)) ? setShowRetomarProducao(true) : acao('retomar')} disabled={loading} style={btnStyle('#198754')}>
               <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Retomar
             </button>
             {!isLogistica && (
@@ -1689,6 +1696,19 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
         />
       )}
 
+      {/* Modal motivo da pausa (Usinagem/Furação) — troca/quebra de máquina fará o Retomar pedir a máquina */}
+      {showPausar && (
+        <PausarModal
+          contexto={`${parcial.item_codigo || ''}${parcial.maquina ? ` · ${parcial.maquina}` : ''}`}
+          loading={loading}
+          onCancel={() => setShowPausar(false)}
+          onConfirm={(m: MotivoPausa) => {
+            setShowPausar(false);
+            acao('pausar', { motivo_pausa: m.codigo, observacao: `Pausa: ${m.label}` });
+          }}
+        />
+      )}
+
       {/* Painel "Não entregue" — exclusivo da Logística */}
       {showNaoEntregue && (
         <div style={{ marginTop: 10, background: '#fff8f8', border: '1px solid #f5c2c7', borderRadius: 8, padding: 14 }}>
@@ -1932,6 +1952,8 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   const [showDespacharGrupo, setShowDespacharGrupo] = useState(false);
   const [showIniciarEntregaGrupo, setShowIniciarEntregaGrupo] = useState(false);
   const [showDivModal, setShowDivModal] = useState<'retrabalho' | 'resolver' | 'cancelar_item' | null>(null);
+  const [showPausarGrupo, setShowPausarGrupo] = useState(false);
+  const [showRetomarGrupo, setShowRetomarGrupo] = useState(false);
 
   if (parciais.length === 1) return <ParcialCard parcial={parciais[0]} onRefresh={onRefresh} setor={setor} />;
 
@@ -2060,6 +2082,11 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             <strong>{p0.item_codigo}</strong>
             {p0.item_descricao && <span style={{ color: '#999', marginLeft: 6 }}>{p0.item_descricao}</span>}
           </div>
+          {temMaquinas(p0.setor_atual) && p0.maquina && (
+            <div style={{ fontSize: 12, color: '#0d6efd', fontWeight: 600, marginTop: 2 }}>
+              🔧 {p0.maquina}{p0.operador ? ` · ${p0.operador}` : ''}
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <PrevisaoItemBtn itemId={p0.item_pedido_id} previsaoEfetiva={p0.previsao_efetiva} previsaoEfetivaFmt={p0.previsao_efetiva_fmt} atrasado={p0.atrasado} onRefresh={onRefresh} />
@@ -2330,7 +2357,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             <button onClick={() => { setShowEnviarParcial(v => !v); setShowEnviar(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#0d6efd')}>
               <i className="bi bi-send" style={{ marginRight: 5 }} />Enviar parcial
             </button>
-            <button onClick={() => acaoTodos('pausar')} disabled={loading} style={btnStyle('#fd7e14')}>
+            <button onClick={() => temMaquinas(p0.setor_atual) ? setShowPausarGrupo(true) : acaoTodos('pausar')} disabled={loading} style={btnStyle('#fd7e14')}>
               <i className="bi bi-pause-fill" style={{ marginRight: 5 }} />Pausar
             </button>
           </>
@@ -2345,7 +2372,12 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
 
         {!isLogistica && isPausado && (
           <>
-            <button onClick={() => acaoTodos('retomar')} disabled={loading} style={btnStyle('#198754')}>
+            {p0.motivo_pausa && (
+              <span style={{ flexBasis: '100%', fontSize: 11, fontWeight: 600, color: '#9a3412', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '3px 8px', boxSizing: 'border-box' }}>
+                <i className="bi bi-pause-circle-fill" style={{ marginRight: 5 }} />Pausado: {labelMotivoPausa(p0.motivo_pausa)}
+              </span>
+            )}
+            <button onClick={() => (temMaquinas(p0.setor_atual) && retomarPedeMaquina(p0.motivo_pausa)) ? setShowRetomarGrupo(true) : acaoTodos('retomar')} disabled={loading} style={btnStyle('#198754')}>
               <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Retomar
             </button>
             <button onClick={() => { setShowEnviar(v => !v); setShowEnviarParcial(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
@@ -2481,6 +2513,39 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
                 mostrarErroGrupo(ax?.response?.data?.erro || String(e));
               } finally { setLoading(false); }
             } else { acaoItemGrupo('reprovar', { observacao: obs || 'Divergência no recebimento' }); }
+          }}
+        />
+      )}
+
+      {/* Modal motivo da pausa (grupo — Usinagem/Furação). Aplica o motivo a
+          todas as parciais deste card (mesma máquina). */}
+      {showPausarGrupo && (
+        <PausarModal
+          contexto={`${p0.item_codigo || ''}${p0.maquina ? ` · ${p0.maquina}` : ''} · ${parciais.length} parciais`}
+          loading={loading}
+          onCancel={() => setShowPausarGrupo(false)}
+          onConfirm={(m: MotivoPausa) => {
+            setShowPausarGrupo(false);
+            acaoTodos('pausar', { motivo_pausa: m.codigo, observacao: `Pausa: ${m.label}` });
+          }}
+        />
+      )}
+
+      {/* Modal retomar produção do grupo (troca/quebra de máquina): escolhe a
+          máquina e aplica a todas as parciais deste card. */}
+      {showRetomarGrupo && (
+        <IniciarProducaoModal
+          setor={p0.setor_atual}
+          loading={loading}
+          titulo="Retomar Produção"
+          pergunta="Continuar em qual máquina?"
+          textoBotao="Retomar produção"
+          maquinaInicial={p0.maquina}
+          operadorInicial={p0.operador}
+          onCancel={() => setShowRetomarGrupo(false)}
+          onConfirm={(maquina, operador) => {
+            setShowRetomarGrupo(false);
+            acaoTodos('retomar', { maquina, operador });
           }}
         />
       )}
@@ -3757,11 +3822,20 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {pedidosVis.map(({ pedido_id, numero_pedido_venda, parciais }, ordemIdx) => {
-                    // Agrupar parciais do pedido por item_pedido_id
-                    const itemMap = new Map<number, ItemParcial[]>();
+                    // Agrupar parciais do pedido por item_pedido_id.
+                    // Em Usinagem/Furação, sub-agrupa também por MÁQUINA: o mesmo
+                    // item rodando em duas máquinas (ex.: Torno 01 e Torno 02) vira
+                    // dois cards separados — assim pausar/trocar/retomar uma máquina
+                    // não mexe na outra. Peças ainda não iniciadas (sem máquina)
+                    // ficam juntas num card só.
+                    const ehSetorMaquina = temMaquinas(setor);
+                    const itemMap = new Map<string, ItemParcial[]>();
                     for (const p of parciais) {
-                      if (!itemMap.has(p.item_pedido_id)) itemMap.set(p.item_pedido_id, []);
-                      itemMap.get(p.item_pedido_id)!.push(p);
+                      const chave = ehSetorMaquina
+                        ? `${p.item_pedido_id}|${p.maquina || ''}`
+                        : String(p.item_pedido_id);
+                      if (!itemMap.has(chave)) itemMap.set(chave, []);
+                      itemMap.get(chave)!.push(p);
                     }
                     const grupos = Array.from(itemMap.values());
                     // Renderizamos um card POR ITEM (item_pedido_id), NÃO por código:
