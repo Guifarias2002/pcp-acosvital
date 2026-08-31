@@ -63,6 +63,26 @@ export default function PcpHrmPage() {
   const [leitura, setLeitura] = useState<OPLeitura | null>(null);
   const [erroLeitura, setErroLeitura] = useState('');
   const [componentesAbertos, setComponentesAbertos] = useState<Set<number>>(new Set());
+  // Nome sugerido pra baixar a OP e mandar pras áreas — parte da descrição do
+  // produto lida, mas o operador pode ajustar antes de baixar.
+  const [nomeEnvio, setNomeEnvio] = useState('');
+
+  // Tira do nome os caracteres que o Windows não aceita em arquivo (\ / : * ? " < > |)
+  // e junta espaços repetidos. Vazio se não sobrar nada.
+  const limparNomeArquivo = (s: string) =>
+    (s || '').replace(/[\\/:*?"<>|\n\r\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Baixa o MESMO PDF anexado, só renomeado, pro operador encaminhar às áreas.
+  function baixarRenomeada() {
+    if (!arquivo) return;
+    const base = limparNomeArquivo(nomeEnvio) || arquivo.name.replace(/\.pdf$/i, '') || 'OP';
+    const nome = (/\.pdf$/i.test(base) ? base : `${base}.pdf`).slice(0, 150);
+    const url = URL.createObjectURL(arquivo);
+    const a = document.createElement('a');
+    a.href = url; a.download = nome;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 
   // Por onde a peça vai passar — roteiro da Caldeiraria escolhido pelo OPERADOR
   // na abertura (lista ordenada de códigos de setor). Persiste no pedido como
@@ -79,7 +99,7 @@ export default function PcpHrmPage() {
 
   async function selecionarArquivo(f: File | null) {
     setArquivo(f);
-    setLeitura(null); setErroLeitura(''); setComponentesAbertos(new Set());
+    setLeitura(null); setErroLeitura(''); setComponentesAbertos(new Set()); setNomeEnvio('');
     if (!f) return;
     if (f.type && f.type !== 'application/pdf') return; // leitura automática só p/ PDF
     setLendo(true);
@@ -92,6 +112,12 @@ export default function PcpHrmPage() {
       if (data.ok) {
         const ops: OPItem[] = data.ops || [];
         setLeitura({ ops, totalPaginas: data.totalPaginas ?? 0 });
+        // Nome sugerido pra distribuir às áreas = descrição do produto lida
+        // (a 1ª ordem que tiver descrição); se a leitura veio ruim, cai pro
+        // NS/PN e, por fim, pro nome original do arquivo.
+        const descProduto = ops.find(o => o.produto?.descricao)?.produto.descricao
+          || ops[0]?.cabecalho?.ns || ops[0]?.cabecalho?.pn || '';
+        setNomeEnvio(limparNomeArquivo(descProduto) || f.name.replace(/\.pdf$/i, ''));
         // Pré-preenche Cliente/Prazo com o que a OP leu — só quando a pessoa
         // ainda não digitou nada (nunca sobrescreve o que já foi preenchido
         // à mão). "Situacao"/"Quantidade" ficam só na Identificação pra
@@ -380,6 +406,38 @@ export default function PcpHrmPage() {
                     {leitura.totalPaginas} pág. · {leitura.ops.length} {leitura.ops.length === 1 ? 'ordem' : 'ordens'}
                   </span>
                 </span>
+              </div>
+
+              {/* Quadro do total de páginas + renomear pra mandar às áreas */}
+              <div style={{ display:'flex', alignItems:'stretch', gap:14, flexWrap:'wrap', marginBottom:16 }}>
+                {/* Quadrado: total de páginas do PDF */}
+                <div style={{ flex:'0 0 auto', minWidth:120, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, background:'#eff6ff', border:'2px solid #bfdbfe', borderRadius:12, padding:'14px 22px' }}>
+                  <div style={{ fontSize:38, fontWeight:800, color:'#1d4ed8', lineHeight:1 }}>{leitura.totalPaginas}</div>
+                  <div style={{ fontSize:11, fontWeight:700, color:'#1e3a8a', textTransform:'uppercase', letterSpacing:1 }}>
+                    {leitura.totalPaginas === 1 ? 'página' : 'páginas'}
+                  </div>
+                  <div style={{ fontSize:10.5, color:'#64748b' }}>total do PDF</div>
+                </div>
+
+                {/* Renomear por descrição do produto e baixar pra encaminhar */}
+                <div style={{ flex:'1 1 260px', minWidth:240, background:'#f8faff', border:'1px solid #dbe4f0', borderRadius:12, padding:'12px 14px' }}>
+                  <label className={labelCls}>Nome do arquivo pra enviar às áreas</label>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:4, flexWrap:'wrap' }}>
+                    <div style={{ flex:'1 1 180px', display:'flex', alignItems:'center', border:'1px solid #cbd5e1', borderRadius:8, background:'#fff', overflow:'hidden' }}>
+                      <input value={nomeEnvio} onChange={e => setNomeEnvio(e.target.value)}
+                        placeholder="descrição do produto"
+                        style={{ flex:1, minWidth:0, border:'none', outline:'none', padding:'8px 10px', fontSize:13, color:'#1a3a5c', fontWeight:600 }} />
+                      <span style={{ padding:'8px 10px', fontSize:12, color:'#94a3b8', background:'#f1f5f9', borderLeft:'1px solid #e2e8f0' }}>.pdf</span>
+                    </div>
+                    <button type="button" onClick={baixarRenomeada} disabled={!arquivo}
+                      style={{ background:'#1a3a5c', color:'#fff', border:'none', borderRadius:8, padding:'9px 14px', fontSize:13, fontWeight:700, cursor: arquivo ? 'pointer' : 'not-allowed', opacity: arquivo ? 1 : .5, whiteSpace:'nowrap' }}>
+                      <i className="bi bi-download" style={{ marginRight:6 }} />Baixar renomeada
+                    </button>
+                  </div>
+                  <div style={{ fontSize:11, color:'#7a8aa0', marginTop:6 }}>
+                    Baixa o mesmo PDF com esse nome. O anexo enviado ao sistema continua o original.
+                  </div>
+                </div>
               </div>
 
               {leitura.ops.length === 0 && (
