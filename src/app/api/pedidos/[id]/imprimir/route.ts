@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { PDFDocument } from 'pdf-lib';
+import { b2Download } from '@/lib/b2';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,11 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const BUCKET = 'desenhos';
 
 async function baixar(path: string): Promise<{ bytes: ArrayBuffer; tipo: string } | null> {
+  // Arquivo novo (Backblaze) — marcado com prefixo "b2:"
+  if (path.startsWith('b2:')) {
+    const r = await b2Download(path.slice(3));
+    return r.ok ? { bytes: r.body, tipo: (r.contentType || '').toLowerCase() } : null;
+  }
   const r = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, {
     headers: { Authorization: `Bearer ${SERVICE_KEY}` },
   });

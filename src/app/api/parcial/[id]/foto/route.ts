@@ -3,9 +3,12 @@ import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { podeAcessarSetor } from '@/lib/auth';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
+import { b2Upload, b2Download, b2Delete, B2_CONFIGURADO } from '@/lib/b2';
 
 export const dynamic = 'force-dynamic';
 
+// Fotos NOVAS vão pro Backblaze B2 (fora do egress do Supabase). No banco ficam
+// com prefixo "b2:"; as antigas (sem prefixo) seguem lidas do Supabase.
 const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/^﻿/, '');
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const BUCKET = 'desenhos'; // reaproveita o bucket existente; fotos ficam sob o prefixo fotos/
@@ -13,15 +16,6 @@ const MAX_SIZE = 25 * 1024 * 1024; // fotos de celular podem ser grandes
 const TIPOS_ACEITOS = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/heic', 'image/heif'];
 // Setores onde é permitido ADICIONAR fotos (a visualização é liberada em qualquer setor).
 const SETORES_UPLOAD = ['embalagem'];
-
-async function uploadStorage(path: string, body: ArrayBuffer, contentType: string) {
-  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${SERVICE_KEY}`, 'Content-Type': contentType, 'x-upsert': 'true' },
-    body,
-  });
-  if (!res.ok) throw new Error(`Storage upload failed: ${await res.text()}`);
-}
 
 async function deleteStorage(path: string) {
   await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, {
@@ -50,10 +44,28 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const storagePath = fotos[idx];
   if (!storagePath) return new Response('Foto não encontrada', { status: 404 });
 
+  // Arquivo novo (Backblaze) — marcado com prefixo "b2:"
+  if (storagePath.startsWith('b2:')) {
+    const r = await b2Download(storagePath.slice(3));
+    if (!r.ok) return new Response('Não foi possível abrir o arquivo.', { status: 502 });
+    const extB2 = r.contentType.split('/')[1] || 'jpg';
+    return new Response(r.body, {
+      headers: {
+        'Content-Type': r.contentType,
+        'Content-Disposition': `inline; filename="foto_${parcialId}_${idx}.${extB2}"`,
+        'Cache-Control': 'private, max-age=604800',
+      },
+    });
+  }
+
   const fileRes = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${storagePath}`, {
     headers: { Authorization: `Bearer ${SERVICE_KEY}` },
   });
-  if (!fileRes.ok) return new Response('Erro ao buscar arquivo', { status: 500 });
+  if (!fileRes.ok) {
+    if (fileRes.status === 402)
+      return new Response('Armazenamento indisponível no momento (limite de tráfego do plano).', { status: 402 });
+    return new Response('Erro ao buscar arquivo', { status: 500 });
+  }
 
   const contentType = fileRes.headers.get('content-type') || 'application/octet-stream';
   const nome = storagePath.split('/').pop() || `foto_${parcialId}_${idx}`;
@@ -78,8 +90,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const parcialId = Number(params.id);
     if (!Number.isInteger(parcialId) || parcialId <= 0)
       return NextResponse.json({ erro: 'ID inválido' }, { status: 400 });
-    if (!SERVICE_KEY)
-      return NextResponse.json({ erro: 'Configuração incompleta (SERVICE_KEY)' }, { status: 500 });
+    if (!B2_CONFIGURADO)
+      return NextResponse.json({ erro: 'Armazenamento de anexos não configurado. Avise o TI.' }, { status: 500 });
 
     const [parcial] = await sql`SELECT setor_atual FROM producao_itemparcial WHERE id = ${parcialId}`;
     if (!parcial) return NextResponse.json({ erro: 'Parcial não encontrada' }, { status: 404 });
@@ -102,11 +114,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const ext = (arquivo.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
     const ts = Date.now();
     const rnd = Math.random().toString(36).slice(2, 8);
-    const storagePath = `fotos/parcial_${parcialId}_${ts}_${rnd}.${ext}`;
+    const fileName = `parcial_${parcialId}_foto_${ts}_${rnd}.${ext}`;
     const bytes = await arquivo.arrayBuffer();
 
-    await uploadStorage(storagePath, bytes, arquivo.type);
+    try {
+      await b2Upload(fileName, arquivo.type, bytes);
+    } catch (e) {
+      const motivo = e instanceof Error ? e.message : String(e);
+      return NextResponse.json({ erro: `Falha ao enviar a foto pro armazenamento: ${motivo}` }, { status: 502 });
+    }
 
+    const storagePath = `b2:${fileName}`;
     await sql`
       UPDATE producao_itemparcial
       SET fotos = array_append(COALESCE(fotos, '{}'), ${storagePath}), atualizado_em = NOW()
@@ -140,7 +158,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   if (!fotos.includes(path))
     return NextResponse.json({ ok: true, jaRemovido: true });
 
-  await deleteStorage(path);
+  if (path.startsWith('b2:')) await b2Delete(path.slice(3)); else await deleteStorage(path);
   await sql`
     UPDATE producao_itemparcial
     SET fotos = array_remove(COALESCE(fotos, '{}'), ${path}), atualizado_em = NOW()

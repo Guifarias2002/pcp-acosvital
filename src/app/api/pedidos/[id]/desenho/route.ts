@@ -2,9 +2,13 @@ import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
+import { b2Upload, b2Download, b2Delete, B2_CONFIGURADO } from '@/lib/b2';
 
 export const dynamic = 'force-dynamic';
 
+// Anexos NOVOS vão pro Backblaze B2 (não contam no egress do Supabase, que
+// estourou a cota e travou o Storage). No banco ficam com o prefixo "b2:";
+// os antigos (sem prefixo) continuam sendo lidos do Supabase quando possível.
 const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/^﻿/, '');
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const BUCKET = 'desenhos';
@@ -17,15 +21,6 @@ const TIPOS_ACEITOS = [
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];
-
-async function uploadStorage(path: string, body: ArrayBuffer, contentType: string) {
-  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${SERVICE_KEY}`, 'Content-Type': contentType, 'x-upsert': 'true' },
-    body,
-  });
-  if (!res.ok) throw new Error(`Storage upload failed: ${await res.text()}`);
-}
 
 async function deleteStorage(path: string) {
   await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, {
@@ -55,10 +50,30 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const storagePath = desenhos[idx];
   if (!storagePath) return new Response('Desenho não encontrado', { status: 404 });
 
+  // Arquivo novo (Backblaze) — marcado com prefixo "b2:"
+  if (storagePath.startsWith('b2:')) {
+    const r = await b2Download(storagePath.slice(3));
+    if (!r.ok) return new Response('Não foi possível abrir o arquivo.', { status: 502 });
+    const extB2 = r.contentType.split('/')[1] || 'bin';
+    return new Response(r.body, {
+      headers: {
+        'Content-Type': r.contentType,
+        'Content-Disposition': `inline; filename="desenho_${pedidoId}_${idx}.${extB2}"`,
+        'Cache-Control': 'private, max-age=604800',
+      },
+    });
+  }
+
+  // Arquivo antigo — continua no Supabase Storage
   const fileRes = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${storagePath}`, {
     headers: { Authorization: `Bearer ${SERVICE_KEY}` },
   });
-  if (!fileRes.ok) return new Response('Erro ao buscar arquivo', { status: 500 });
+  if (!fileRes.ok) {
+    // 402 = cota de tráfego do Supabase estourada — trava o Storage inteiro
+    if (fileRes.status === 402)
+      return new Response('Armazenamento indisponível no momento (limite de tráfego do plano).', { status: 402 });
+    return new Response('Erro ao buscar arquivo', { status: 500 });
+  }
 
   const contentType = fileRes.headers.get('content-type') || 'application/octet-stream';
   const nome = storagePath.split('/').pop() || `desenho_${pedidoId}_${idx}`;
@@ -85,8 +100,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (!Number.isInteger(pedidoId) || pedidoId <= 0)
       return NextResponse.json({ erro: 'ID inválido' }, { status: 400 });
 
-    if (!SERVICE_KEY)
-      return NextResponse.json({ erro: 'Configuração do servidor incompleta (SERVICE_KEY)' }, { status: 500 });
+    if (!B2_CONFIGURADO)
+      return NextResponse.json({ erro: 'Armazenamento de anexos não configurado. Avise o TI.' }, { status: 500 });
 
     const formData = await req.formData();
     const arquivo = formData.get('arquivo') as File | null;
@@ -97,13 +112,21 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (arquivo.size > MAX_SIZE)
       return NextResponse.json({ erro: 'Arquivo muito grande (máx 20 MB)' }, { status: 400 });
 
+    // Nome plano (sem barras) pro Backblaze, único por anexo.
     const ext = arquivo.type.split('/')[1] || 'bin';
     const ts = Date.now();
-    const storagePath = `pedidos/pedido_${pedidoId}_${ts}.${ext}`;
+    const rnd = Math.random().toString(36).slice(2, 8);
+    const fileName = `pedido_${pedidoId}_desenho_${ts}_${rnd}.${ext}`;
     const bytes = await arquivo.arrayBuffer();
 
-    await uploadStorage(storagePath, bytes, arquivo.type);
+    try {
+      await b2Upload(fileName, arquivo.type, bytes);
+    } catch (e) {
+      const motivo = e instanceof Error ? e.message : String(e);
+      return NextResponse.json({ erro: `Falha ao enviar o arquivo pro armazenamento: ${motivo}` }, { status: 502 });
+    }
 
+    const storagePath = `b2:${fileName}`;
     await sql`
       UPDATE producao_pedido
       SET desenhos = array_append(COALESCE(desenhos, '{}'), ${storagePath})
@@ -134,7 +157,9 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   // desenho no pedido, então sem path apaga tudo que existir (compatibilidade).
   if (!path) {
     const todos = desenhos.length > 0 ? desenhos : (row.desenho_url ? [row.desenho_url] : []);
-    for (const p of todos) await deleteStorage(p);
+    for (const p of todos) {
+      if (p.startsWith('b2:')) await b2Delete(p.slice(3)); else await deleteStorage(p);
+    }
     await sql`UPDATE producao_pedido SET desenhos = '{}', desenho_url = NULL WHERE id = ${pedidoId}`;
     return NextResponse.json({ ok: true });
   }
@@ -142,7 +167,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   if (!desenhos.includes(path))
     return NextResponse.json({ erro: 'Arquivo não pertence a este pedido' }, { status: 400 });
 
-  await deleteStorage(path);
+  if (path.startsWith('b2:')) await b2Delete(path.slice(3)); else await deleteStorage(path);
   await sql`
     UPDATE producao_pedido
     SET desenhos = array_remove(COALESCE(desenhos, '{}'), ${path}), desenho_url = NULL
