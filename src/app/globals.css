@@ -666,21 +666,24 @@ body {
   }
 }
 
-/* Botões e inputs dos cards do operador — toque amigável */
-@media (max-width: 1024px) {
+/* Botões e inputs dos cards do operador — toque amigável.
+   Vale por LARGURA (≤1024px) OU por PONTEIRO GROSSO (dedo): assim o
+   tablet DEITADO (landscape, >1024px) — que antes pegava o estilo de
+   PC — também ganha os alvos grandes da tela do operador. */
+@media (max-width: 1024px), (pointer: coarse) {
   .setor-conteudo button {
-    min-height: 44px !important;
-    font-size: 14px !important;
-    padding: 10px 18px !important;
+    min-height: 48px !important;
+    font-size: 15px !important;
+    padding: 12px 18px !important;
     border-radius: 8px !important;
   }
   .setor-conteudo select,
   .setor-conteudo input[type="number"],
   .setor-conteudo input[type="text"],
   .setor-conteudo textarea {
-    min-height: 44px !important;
-    font-size: 15px !important;
-    padding: 10px 12px !important;
+    min-height: 46px !important;
+    font-size: 16px !important;
+    padding: 11px 12px !important;
     border-radius: 8px !important;
   }
   /* Quantity display maior */
@@ -872,4 +875,96 @@ body {
 /* Respeita quem pediu menos animação no sistema operacional */
 @media (prefers-reduced-motion: reduce) {
   .pcp-pulse, .pcp-blink { animation: none; }
+}
+
+/* =====================================================
+   TOQUE / TABLET — resposta ao toque em TODAS as telas
+   Foco no "toque não responde bem": tira o atraso de ~300ms,
+   dá feedback imediato ao encostar o dedo, mata o hover que
+   "gruda" depois do toque e garante alvos grandes em QUALQUER
+   tablet — inclusive deitado (landscape), que passa de 1024px e
+   cairia no estilo de PC (botões pequenos, feito pra mouse).
+   Tudo aditivo: não altera o comportamento no PC com mouse.
+   ===================================================== */
+
+/* 1) Sem atraso de 300ms e sem duplo-toque-zoom EM CIMA dos controles
+      (o pinch-zoom da página continua funcionando normalmente). */
+button, a, [role="button"], .btn,
+input, select, textarea, label {
+  touch-action: manipulation;
+}
+
+/* 2) Remove o "flash" cinza/azul que o Android/iOS pinta ao tocar —
+      o feedback passa a vir do :active (instantâneo, item 3). */
+button, a, [role="button"], .btn,
+input, select, textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 3) Feedback imediato ao encostar: o botão "afunda" 1px e clareia.
+      Como :hover não existe no toque, é o :active que faz o toque
+      "responder na hora" em vez de parecer travado. */
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+  opacity: .9;
+}
+
+/* 4) Não deixa selecionar texto sem querer ao segurar botão/menu. */
+.btn, [role="button"],
+#sidebar .nav-link, .setor-filtros button {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 5) Aparelhos SEM hover de verdade (dedo): tira o hover "grudado" —
+      a sombra/realce que ficava preso no botão depois do toque, até
+      tocar em outro lugar. O feedback certo é o :active do item 3. */
+@media (hover: none) {
+  .btn-primary:hover:not(:disabled),
+  .btn-success:hover:not(:disabled),
+  .btn-danger:hover:not(:disabled),
+  .btn-warning:hover:not(:disabled),
+  .btn-secondary:hover:not(:disabled) {
+    box-shadow: none;
+  }
+  .etapa-card:hover { opacity: 1; }
+  .table-app tbody tr:hover { background: transparent; }
+}
+
+/* 6) QUALQUER aparelho de toque (pointer: coarse = dedo), incluindo
+      tablet deitado acima de 1024px: alvos confortáveis no sistema
+      inteiro — menu, botões, campos. É o que faltava pro tablet que
+      não é "estreito" e por isso não pegava as regras de ≤1024px. */
+@media (pointer: coarse) {
+  .btn {
+    min-height: 44px;
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+  .btn-lg { min-height: 52px; }
+  /* .btn-sm depois do .btn pra vencer (mesma especificidade): botão
+     pequeno continua menor, mas ainda tocável. */
+  .btn-sm {
+    min-height: 38px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  /* Menu lateral — links altos o suficiente pro dedo acertar. */
+  #sidebar .nav-link {
+    padding: 13px 16px;
+    font-size: 14px;
+  }
+  #sidebar .sec-toggle { padding: 16px 14px 4px; }
+
+  /* Botões da topbar (hambúrguer, sair, etc.) — área mínima tocável
+      mesmo quando o ícone é pequeno. */
+  .topbar button, .topbar a { min-height: 40px; }
+
+  /* Campos de formulário — mais altos e com texto ≥16px, que também
+      evita o zoom automático do iOS ao focar o campo. */
+  input, select, textarea {
+    min-height: 44px;
+    font-size: 16px;
+  }
 }
