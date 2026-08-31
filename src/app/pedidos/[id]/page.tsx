@@ -437,7 +437,6 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
 
   const concluidos = pedido.itens.filter(i => i.status === 'entregue').length;
   const total = pedido.itens.length;
-  const pct = total > 0 ? Math.round((concluidos / total) * 100) : 0;
 
   // Roteiro com checkmarks — pedido.setor_atual só reflete o ÚLTIMO item que
   // se moveu (é sobrescrito a cada movimentação de QUALQUER item do pedido),
@@ -450,6 +449,60 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const setoresAtuais = new Set(itensAtivosRoteiro.map(i => i.setor_atual));
   const posicoesAtuais = Array.from(setoresAtuais).map(s => roteiroIdx.indexOf(s)).filter(idx => idx >= 0);
   const setorAtualIdx = itensAtivosRoteiro.length === 0 ? roteiroIdx.length : (posicoesAtuais.length > 0 ? Math.min(...posicoesAtuais) : roteiroIdx.indexOf(pedido.setor_atual));
+
+  // ── Projeção de Conclusão ──────────────────────────────────────────────────
+  // Cruza DUAS medidas do pedido, depois que o PCP (Gilmar) define a data de
+  // conclusão:
+  //  • Executado (real): média, entre as peças ativas, de quantas etapas do
+  //    roteiro a peça já venceu (peça entregue = 100%). É "a sequência do que
+  //    está sendo feito" — a barra colorida.
+  //  • Tempo: quanto do prazo já correu, do início (emissão) até a previsão de
+  //    conclusão — o tracinho que "enche com os dias".
+  // A cor sai da folga (executado − tempo): à frente = verde; atrás = amarelo/
+  // vermelho. Sem previsão definida = neutro (cinza), sem julgar atraso.
+  const projecao = (() => {
+    const itensProg = pedido.itens.filter(i => !i.inativo);
+    const progItem = (it: ItemPedido) => {
+      if (it.status === 'entregue') return 1;
+      const rot = (it.roteiro_efetivo && it.roteiro_efetivo.length > 0) ? it.roteiro_efetivo : pedido.roteiro_base;
+      if (!rot || rot.length === 0) return 0;
+      const idx = rot.indexOf(it.setor_atual);
+      if (idx < 0) return 0;
+      return Math.min(idx / rot.length, 1); // etapas ANTES da atual já venceram
+    };
+    const execFrac = itensProg.length > 0
+      ? itensProg.reduce((a, it) => a + progItem(it), 0) / itensProg.length
+      : 0;
+    const execPct = Math.round(execFrac * 100);
+
+    const prevISO = pedido.previsao_conclusao_efetiva || null;
+    const inicioRaw = pedido.data_emissao || pedido.criado_em || null;
+    let tempoPct: number | null = null;
+    if (prevISO && inicioRaw) {
+      const ini = new Date(inicioRaw).getTime();
+      const fim = new Date(prevISO + 'T23:59:59').getTime();
+      if (!isNaN(ini) && !isNaN(fim) && fim > ini) {
+        tempoPct = Math.round(Math.min(Math.max((Date.now() - ini) / (fim - ini), 0), 1) * 100);
+      }
+    }
+
+    const entregue = pedido.status === 'entregue' || execPct >= 100;
+    const diasRest = pedido.dias_prazo; // >=0 dias restantes; <0 vencido (server, base previsão)
+    let cor: 'neutro' | 'verde' | 'amarelo' | 'vermelho';
+    let rotulo: string;
+    if (entregue) { cor = 'verde'; rotulo = 'Concluído'; }
+    else if (!prevISO) { cor = 'neutro'; rotulo = 'Sem data de conclusão'; }
+    else if (diasRest < 0) { cor = 'vermelho'; rotulo = 'Prazo vencido'; }
+    else {
+      const folga = execPct - (tempoPct ?? 0);
+      if (folga >= 0) { cor = 'verde'; rotulo = 'No prazo'; }
+      else if (folga >= -15) { cor = 'amarelo'; rotulo = 'Atenção'; }
+      else { cor = 'vermelho'; rotulo = 'Atrás do previsto'; }
+    }
+    const inicioFmt = inicioRaw && !isNaN(new Date(inicioRaw).getTime())
+      ? new Date(inicioRaw).toLocaleDateString('pt-BR') : '—';
+    return { execPct, tempoPct, cor, rotulo, prevISO, diasRest, entregue, inicioFmt };
+  })();
 
   return (
     <AuthGuard>
@@ -585,21 +638,62 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
           </div>
         </div>
 
-        {/* Progresso */}
+        {/* Projeção de Conclusão — executado (etapas do roteiro) × tempo (dias). */}
+        {(() => {
+          const M = ({
+            neutro:   { bar: 'bg-gray-400',    text: 'text-gray-500',    badge: 'bg-gray-100 text-gray-600' },
+            verde:    { bar: 'bg-emerald-500', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
+            amarelo:  { bar: 'bg-amber-500',   text: 'text-amber-700',   badge: 'bg-amber-100 text-amber-700' },
+            vermelho: { bar: 'bg-red-500',     text: 'text-red-700',     badge: 'bg-red-100 text-red-700' },
+          } as const)[projecao.cor];
+          const icone = projecao.cor === 'verde' ? 'bi-check-circle-fill'
+            : projecao.cor === 'amarelo' ? 'bi-exclamation-triangle-fill'
+            : projecao.cor === 'vermelho' ? 'bi-clock-fill' : 'bi-hourglass-split';
+          return (
         <div className="bg-white rounded-xl border shadow-sm p-4 mb-4">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-              <span>≡</span> Progresso da Produção
+              <i className="bi bi-speedometer2" /> Projeção de Conclusão
             </p>
-            <span className="text-xs text-gray-400">{concluidos} de {total} item{total !== 1 ? 's' : ''} pronto · <span className="font-bold text-blue-600">{pct}%</span></span>
+            <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${M.badge}`}>
+              <i className={`bi ${icone}`} /> {projecao.rotulo}
+            </span>
           </div>
-          <div className="w-full bg-gray-100 rounded-full h-2">
-            <div className="bg-blue-600 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
+
+          <div className="flex items-baseline gap-2 mb-1">
+            <span className="text-3xl font-bold text-gray-800 leading-none">{projecao.execPct}%</span>
+            <span className="text-xs text-gray-500">executado · {concluidos} de {total} item{total !== 1 ? 's' : ''} pronto{concluidos !== 1 ? 's' : ''}</span>
           </div>
-          {pct < 100 && (
-            <p className="text-xs text-gray-400 mt-2">{total - concluidos} item{(total - concluidos) !== 1 ? 's' : ''} ainda em produção</p>
-          )}
+
+          {/* Barra: execução (preenchida pelas etapas) + marcador do tempo decorrido */}
+          <div className="relative w-full bg-gray-100 rounded-full h-3 mt-2">
+            <div className={`h-3 rounded-full transition-all ${M.bar}`} style={{ width: `${projecao.execPct}%` }} />
+            {projecao.tempoPct != null && !projecao.entregue && (
+              <div className="absolute -top-1 -bottom-1 w-0.5 bg-gray-700 rounded"
+                style={{ left: `${projecao.tempoPct}%` }} title={`Tempo decorrido: ${projecao.tempoPct}%`} />
+            )}
+          </div>
+
+          {/* Legenda: início → previsão, tempo decorrido e dias restantes */}
+          <div className="flex items-center justify-between text-xs text-gray-400 mt-2 gap-2">
+            <span>Início {projecao.inicioFmt}</span>
+            {projecao.prevISO ? (
+              projecao.tempoPct != null && !projecao.entregue ? (
+                <span className={`font-medium ${M.text}`}>
+                  Tempo: {projecao.tempoPct}% · {projecao.diasRest < 0
+                    ? `vencido há ${Math.abs(projecao.diasRest)} dia${Math.abs(projecao.diasRest) !== 1 ? 's' : ''}`
+                    : `faltam ${projecao.diasRest} dia${projecao.diasRest !== 1 ? 's' : ''}`} (conclusão {pedido.previsao_conclusao_fmt})
+                </span>
+              ) : (
+                <span>Conclusão {pedido.previsao_conclusao_fmt}</span>
+              )
+            ) : (
+              <span>Defina a data de conclusão para ver a projeção do prazo</span>
+            )}
+          </div>
         </div>
+          );
+        })()}
 
         {/* Conteúdo principal — no celular (<768px) empilha em 1 coluna;
             tablet/PC (>=768px) mantêm o layout de 3 colunas (2/3 + 1/3). */}
