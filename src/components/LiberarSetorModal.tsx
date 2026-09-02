@@ -1,8 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { SETOR_CHOICES } from '@/lib/types';
-
-const NOMES = Object.fromEntries(SETOR_CHOICES);
+import DestinoSetorPicker from '@/components/DestinoSetorPicker';
 
 export default function LiberarSetorModal({
   roteiro, setorAtual, proximoSetor, onConfirm, onCancel,
@@ -17,9 +15,7 @@ export default function LiberarSetorModal({
   qtdMax?: number;         // quantidade máxima permitida
   unidade?: string;
 }) {
-  const idxAtual = roteiro.indexOf(setorAtual);
-  const setoresDisponiveis = roteiro.filter((_, i) => i > idxAtual);
-  const [selecionado, setSelecionado] = useState<string>(proximoSetor || setoresDisponiveis[0] || '');
+  const [selecionado, setSelecionado] = useState<string>(proximoSetor || '');
   const [qtd, setQtd] = useState('');
 
   const qtdNum = Number(qtd);
@@ -36,7 +32,7 @@ export default function LiberarSetorModal({
         <p style={{ margin: '0 0 18px', fontSize: 13, color: '#666' }}>
           {parcial
             ? 'Informe a quantidade a enviar e o setor de destino. O restante permanece em Emissão.'
-            : 'Selecione o setor de destino. O padrão é o próximo no roteiro.'}
+            : 'Escolha a área e o setor de destino. O próximo do roteiro já vem marcado, mas dá pra mandar pra qualquer setor.'}
         </p>
 
         {/* Campo de quantidade (modo parcial) */}
@@ -61,32 +57,15 @@ export default function LiberarSetorModal({
           </div>
         )}
 
-        {/* Seleção de setor */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 22 }}>
-          {setoresDisponiveis.length === 0 && (
-            <span style={{ color: '#dc2626', fontSize: 13 }}>Nenhum setor disponível após o atual no roteiro.</span>
-          )}
-          {setoresDisponiveis.map((setor) => {
-            const ehProximo = setor === (proximoSetor || setoresDisponiveis[0]);
-            const selecionadoAtual = setor === selecionado;
-            return (
-              <label key={setor} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
-                border: selecionadoAtual ? '2px solid #0d6efd' : '1px solid #e5e7eb',
-                background: selecionadoAtual ? '#eff6ff' : '#fafafa',
-              }}>
-                <input type="radio" name="setor_destino" value={setor}
-                  checked={selecionadoAtual} onChange={() => setSelecionado(setor)}
-                  style={{ accentColor: '#0d6efd' }} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#1a3a5c' }}>{NOMES[setor] || setor}</span>
-                {ehProximo && (
-                  <span style={{ marginLeft: 'auto', fontSize: 10, background: '#dbeafe', color: '#1d4ed8', padding: '1px 7px', borderRadius: 10, fontWeight: 700 }}>
-                    padrão
-                  </span>
-                )}
-              </label>
-            );
-          })}
+        {/* Seleção de setor — agrupada por área (Flanges / Caldeiraria) */}
+        <div style={{ marginBottom: 22 }}>
+          <DestinoSetorPicker
+            setorAtual={setorAtual}
+            roteiro={roteiro}
+            proximoSetor={proximoSetor}
+            value={selecionado}
+            onChange={setSelecionado}
+          />
         </div>
 
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>

@@ -15,6 +15,7 @@ import EntregarModal from '@/components/EntregarModal';
 import AnexarComprovanteModal from '@/components/AnexarComprovanteModal';
 import ConfirmModal from '@/components/ConfirmModal';
 import LiberarSetorModal from '@/components/LiberarSetorModal';
+import DestinoSetorPicker from '@/components/DestinoSetorPicker';
 import ProgressoRoteiro, { RoteiroCirculo } from '@/components/workspace/ProgressoRoteiro';
 import LinhaDoTempo from '@/components/workspace/LinhaDoTempo';
 import OndeEstaoPecas from '@/components/workspace/OndeEstaoPecas';
@@ -608,14 +609,15 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                       <>
                         <div>
                           <label className="block text-xs text-gray-500 mb-1">Enviar para:</label>
-                          <select value={setorDestinoEnvio || item.proximo_setor || ''} onChange={e => setSetorDestinoEnvio(e.target.value)}
-                            className="w-full border rounded px-2 py-1.5 text-sm mb-2">
-                            {SETOR_CHOICES.filter(([cod]) => cod !== item.setor_atual).map(([cod, nome]) => (
-                              <option key={cod} value={cod}>
-                                {nome}{cod === item.proximo_setor ? ' (próximo no roteiro)' : ''}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="mb-2">
+                            <DestinoSetorPicker
+                              setorAtual={item.setor_atual}
+                              roteiro={item.roteiro_efetivo || []}
+                              proximoSetor={item.proximo_setor}
+                              value={setorDestinoEnvio || item.proximo_setor || ''}
+                              onChange={setSetorDestinoEnvio}
+                            />
+                          </div>
                         </div>
                         <button onClick={aprovarQualidade} disabled={atuando}
                           className="w-full bg-[#1a3a5c] text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:opacity-90 disabled:opacity-60">
@@ -664,14 +666,15 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                       <>
                         <div>
                           <label className="block text-xs text-gray-500 mb-1">Enviar para:</label>
-                          <select value={setorDestinoEnvio || item.proximo_setor || ''} onChange={e => setSetorDestinoEnvio(e.target.value)}
-                            className="w-full border rounded px-2 py-1.5 text-sm mb-2">
-                            {SETOR_CHOICES.filter(([cod]) => cod !== item.setor_atual).map(([cod, nome]) => (
-                              <option key={cod} value={cod}>
-                                {nome}{cod === item.proximo_setor ? ' (próximo no roteiro)' : ''}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="mb-2">
+                            <DestinoSetorPicker
+                              setorAtual={item.setor_atual}
+                              roteiro={item.roteiro_efetivo || []}
+                              proximoSetor={item.proximo_setor}
+                              value={setorDestinoEnvio || item.proximo_setor || ''}
+                              onChange={setSetorDestinoEnvio}
+                            />
+                          </div>
                         </div>
                         <button onClick={() => acao('enviar_tudo', { setor_destino: setorDestinoEnvio || item.proximo_setor })} disabled={atuando}
                           className="w-full bg-[#1a3a5c] text-white px-4 py-2.5 rounded text-sm font-semibold text-left hover:opacity-90 disabled:opacity-60">

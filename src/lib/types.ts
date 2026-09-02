@@ -629,6 +629,7 @@ export interface ItemParcial {
   atrasado?: boolean;
   quantidade_total_item?: string;
   proximo_setor?: string | null;
+  roteiro_efetivo?: string[];
   iniciado_em?: string | null;
   concluido_em?: string | null;
   criado_em: string;

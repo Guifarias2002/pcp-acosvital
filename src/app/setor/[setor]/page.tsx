@@ -72,6 +72,7 @@ import RastreioModal from '@/components/RastreioModal';
 import ObservacaoPedidoModal from '@/components/ObservacaoPedidoModal';
 import MontarReceitaModal from '@/components/MontarReceitaModal';
 import ChecklistProcessoModal from '@/components/ChecklistProcessoModal';
+import DestinoSetorPicker from '@/components/DestinoSetorPicker';
 
 // Setores internos da Caldeiraria (Recebimento + etapas próprias) — entre eles
 // o envio manual pode ir pra qualquer um dos outros, mais Qualidade, Acabamento,
@@ -442,16 +443,15 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
                 <span style={{ fontSize: 10, color: '#9ca3af' }}>ou pro Flange — escolha o setor abaixo (já vem com o próximo do roteiro) e clique em &quot;Enviar tudo&quot;:</span>
               </div>
             )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 12, color: '#666', whiteSpace: 'nowrap' }}>Enviar para:</span>
-              <select value={setorDestinoEnvio || item.proximo_setor || ''} onChange={e => setSetorDestinoEnvio(e.target.value)}
-                style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
-                {destinosEnvio(item.setor_atual).map(([cod, nome]) => (
-                  <option key={cod} value={cod}>
-                    {nome}{cod === item.proximo_setor ? ' (próximo no roteiro)' : ''}
-                  </option>
-                ))}
-              </select>
+            <div style={{ width: '100%' }}>
+              <span style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 6 }}>Enviar para:</span>
+              <DestinoSetorPicker
+                setorAtual={item.setor_atual}
+                roteiro={item.roteiro_efetivo || []}
+                proximoSetor={item.proximo_setor}
+                value={setorDestinoEnvio || item.proximo_setor || ''}
+                onChange={setSetorDestinoEnvio}
+              />
             </div>
             <button onClick={() => !loading && setConfirm({ titulo: 'Enviar para o setor selecionado', mensagem: `Confirma o envio de TODOS os itens para ${NOMES[setorDestinoEnvio || item.proximo_setor || ''] || 'o setor selecionado'}?`, acao: () => acao('enviar_tudo', { setor_destino: setorDestinoEnvio || item.proximo_setor }) })} disabled={loading}
               style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
@@ -1766,13 +1766,13 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             <label style={{ fontSize: 11, color: foraDoRoteiro ? '#92400e' : '#555', fontWeight: foraDoRoteiro ? 700 : 400 }}>
               {foraDoRoteiro ? '⚠ Selecione o setor destino:' : 'Setor destino:'}
             </label>
-            <select value={setorDestino || parcial.proximo_setor || ''} onChange={e => setSetorDestino(e.target.value)}
-              style={{ border: foraDoRoteiro ? '2px solid #f59e0b' : '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
-              <option value="">Selecione o setor...</option>
-              {destinosEnvio(parcial.setor_atual).map(([cod, nome]) => (
-                <option key={cod} value={cod}>{nome}{cod === parcial.proximo_setor ? ' ✓' : ''}</option>
-              ))}
-            </select>
+            <DestinoSetorPicker
+              setorAtual={parcial.setor_atual}
+              roteiro={parcial.roteiro_efetivo || []}
+              proximoSetor={parcial.proximo_setor}
+              value={setorDestino || parcial.proximo_setor || ''}
+              onChange={setSetorDestino}
+            />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <label style={{ fontSize: 11, color: '#555' }}>Quantidade:</label>
@@ -2321,13 +2321,13 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
           <>
             {!showDivQualidade && (
               <>
-                <select value={setorDestino || p0.proximo_setor || ''} onChange={e => setSetorDestino(e.target.value)}
-                  style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
-                  {!p0.proximo_setor && !setorDestino && <option value="">Selecione o setor...</option>}
-                  {destinosEnvio(p0.setor_atual).map(([cod, nome]) => (
-                    <option key={cod} value={cod}>{nome}{cod === p0.proximo_setor ? ' ✓' : ''}</option>
-                  ))}
-                </select>
+                <DestinoSetorPicker
+                  setorAtual={p0.setor_atual}
+                  roteiro={p0.roteiro_efetivo || []}
+                  proximoSetor={p0.proximo_setor}
+                  value={setorDestino || p0.proximo_setor || ''}
+                  onChange={setSetorDestino}
+                />
                 <button onClick={aprovarGrupoQualidade} disabled={loading} style={btnStyle('#1a3a5c')}>
                   <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar tudo
                 </button>
@@ -2575,13 +2575,13 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             <label style={{ fontSize: 11, color: foraDoRoteiroGrupo ? '#92400e' : '#555', fontWeight: foraDoRoteiroGrupo ? 700 : 400 }}>
               {foraDoRoteiroGrupo ? '⚠ Selecione o setor destino:' : 'Setor destino:'}
             </label>
-            <select value={setorDestino || p0.proximo_setor || ''} onChange={e => setSetorDestino(e.target.value)}
-              style={{ border: foraDoRoteiroGrupo ? '2px solid #f59e0b' : '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
-              <option value="">Selecione o setor...</option>
-              {destinosEnvio(p0.setor_atual).map(([cod, nome]) => (
-                <option key={cod} value={cod}>{nome}{cod === p0.proximo_setor ? ' ✓' : ''}</option>
-              ))}
-            </select>
+            <DestinoSetorPicker
+              setorAtual={p0.setor_atual}
+              roteiro={p0.roteiro_efetivo || []}
+              proximoSetor={p0.proximo_setor}
+              value={setorDestino || p0.proximo_setor || ''}
+              onChange={setSetorDestino}
+            />
           </div>
           {/* Observação livre no envio — controle do que sai de Mogi (Flange) pra
               Arujá (Caldeiraria), hoje sem rastreio formal em Acabamento/Embalagem. */}
@@ -2616,13 +2616,13 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             <label style={{ fontSize: 11, color: foraDoRoteiroGrupo ? '#92400e' : '#555', fontWeight: foraDoRoteiroGrupo ? 700 : 400 }}>
               {foraDoRoteiroGrupo ? '⚠ Selecione o setor destino:' : 'Setor destino:'}
             </label>
-            <select value={setorDestino || p0.proximo_setor || ''} onChange={e => setSetorDestino(e.target.value)}
-              style={{ border: foraDoRoteiroGrupo ? '2px solid #f59e0b' : '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 12 }}>
-              <option value="">Selecione o setor...</option>
-              {destinosEnvio(p0.setor_atual).map(([cod, nome]) => (
-                <option key={cod} value={cod}>{nome}{cod === p0.proximo_setor ? ' ✓' : ''}</option>
-              ))}
-            </select>
+            <DestinoSetorPicker
+              setorAtual={p0.setor_atual}
+              roteiro={p0.roteiro_efetivo || []}
+              proximoSetor={p0.proximo_setor}
+              value={setorDestino || p0.proximo_setor || ''}
+              onChange={setSetorDestino}
+            />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <label style={{ fontSize: 11, color: '#555' }}>Quantidade (máx: {fmtQtd(String(totalQtd))}):</label>
@@ -4205,13 +4205,13 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                                 <label style={{ fontSize: 11, color: '#1a3a5c', fontWeight: 700 }}>
                                   Encaminhar as {enviaveis.length} {enviaveis.length > 1 ? 'parciais' : 'parcial'} para o setor:
                                 </label>
-                                <select value={enviarTudoSetor} onChange={e => setEnviarTudoSetor(e.target.value)}
-                                  style={{ border: '1px solid #b6d4fe', borderRadius: 5, padding: '6px 8px', fontSize: 12, background: '#fff' }}>
-                                  <option value="">Selecione o setor...</option>
-                                  {destinosEnvio(setor).map(([cod, nome]) => (
-                                    <option key={cod} value={cod}>{nome}{cod === enviaveis[0]?.proximo_setor ? ' (próximo no roteiro)' : ''}</option>
-                                  ))}
-                                </select>
+                                <DestinoSetorPicker
+                                  setorAtual={setor}
+                                  roteiro={enviaveis[0]?.roteiro_efetivo || []}
+                                  proximoSetor={enviaveis[0]?.proximo_setor || null}
+                                  value={enviarTudoSetor}
+                                  onChange={setEnviarTudoSetor}
+                                />
                               </div>
                               <button disabled={carregando || !enviarTudoSetor} onClick={() => executarEnvioTudo(enviarTudoSetor)}
                                 style={{ background: (carregando || !enviarTudoSetor) ? '#93a7c4' : '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: (carregando || !enviarTudoSetor) ? 'not-allowed' : 'pointer' }}>

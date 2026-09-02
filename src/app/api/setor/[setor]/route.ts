@@ -369,6 +369,9 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       cliente: p.cliente,
       prioridade: p.prioridade,
       proximo_setor,
+      // Roteiro efetivo da parcial (com quarentena) — o menu de destino usa pra
+      // destacar/ordenar os setores do roteiro ("seguir o roteiro" ao enviar).
+      roteiro_efetivo: roteiro,
       criado_em: p.criado_em,
       atualizado_em: p.atualizado_em,
       retrabalho: p.retrabalho ?? false,

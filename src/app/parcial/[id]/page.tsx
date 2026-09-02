@@ -17,6 +17,7 @@ import EntregarModal from '@/components/EntregarModal';
 import DespacharModal from '@/components/DespacharModal';
 import ReceberModal from '@/components/ReceberModal';
 import IniciarProducaoModal from '@/components/IniciarProducaoModal';
+import DestinoSetorPicker from '@/components/DestinoSetorPicker';
 import { temMaquinas } from '@/lib/maquinas';
 
 // Shape returned by GET /api/parcial/[id]
@@ -707,13 +708,13 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
             {showSplit && (isRecebido || isAndamento || isFinalizado) && (
               <div className="mt-3 space-y-2 border-t pt-3">
                 <p className="text-xs font-semibold text-gray-600">Enviar parcial para outro setor</p>
-                <select value={setorDestino} onChange={e => setSetorDestino(e.target.value)}
-                  className="w-full border rounded px-2 py-1.5 text-sm">
-                  <option value="">Selecione o setor...</option>
-                  {setoresDisponiveis.map(([cod, nome]) => (
-                    <option key={cod} value={cod}>{nome}</option>
-                  ))}
-                </select>
+                <DestinoSetorPicker
+                  setorAtual={parcial.setor_atual}
+                  roteiro={roteiro}
+                  proximoSetor={roteiro[roteiro.indexOf(parcial.setor_atual) + 1] || null}
+                  value={setorDestino}
+                  onChange={setSetorDestino}
+                />
                 <input
                   type="number"
                   value={qtdEnvio}
