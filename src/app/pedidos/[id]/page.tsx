@@ -476,7 +476,9 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
     const execPct = Math.round(execFrac * 100);
 
     const prevISO = pedido.previsao_conclusao_efetiva || null;
-    const inicioRaw = pedido.data_emissao || pedido.criado_em || null;
+    // Início da barra de tempo = início REAL da produção (1º apontamento). Sem
+    // apontamento ainda, cai pra emissão/criação como antes.
+    const inicioRaw = pedido.producao_iniciada_em || pedido.data_emissao || pedido.criado_em || null;
     let tempoPct: number | null = null;
     if (prevISO && inicioRaw) {
       const ini = new Date(inicioRaw).getTime();
@@ -1370,11 +1372,28 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                 })()}
               </div>
               <div className="mt-3 space-y-1 text-xs text-gray-600">
+                {pedido.numero_pedido_cliente && (
+                  <div className="flex items-center gap-1">
+                    <span>🔖</span>
+                    <span>Nº Pedido do Cliente: <strong>{pedido.numero_pedido_cliente}</strong></span>
+                  </div>
+                )}
                 <div className="flex items-center gap-1">
                   <span>📅</span>
                   <span>Prev. faturamento (Omie): <strong>{pedido.prazo_entrega}</strong></span>
                 </div>
-                {/* Previsão de conclusão do PEDIDO (Gilmar/PCP) — base do atraso real. */}
+                {/* Entrega CONTRATUAL — prazo fixo do contrato (não é base de atraso). */}
+                <div className="flex items-center gap-1">
+                  <span>📜</span>
+                  <span>Entrega contratual: <strong>{pedido.entrega_contratual_fmt || '—'}</strong></span>
+                </div>
+                {/* Início REAL da produção (1º apontamento). */}
+                <div className="flex items-center gap-1">
+                  <span>▶️</span>
+                  <span>Início da produção: <strong>{pedido.producao_iniciada_em_fmt || '—'}</strong></span>
+                </div>
+                {/* Previsão de conclusão do PEDIDO (Gilmar/PCP) — base do atraso real.
+                    É também a "entrega prevista/real" pro cliente (item do e-mail). */}
                 <div className="flex items-start gap-1">
                   <span>🏁</span>
                   {editandoPrevisaoPed ? (
@@ -1401,7 +1420,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                     </div>
                   ) : (
                     <span>
-                      Previsão de conclusão: <strong>{pedido.previsao_conclusao_fmt || '—'}</strong>
+                      {pedido.status === 'entregue' ? 'Entrega realizada' : 'Previsão de conclusão (entrega prevista)'}: <strong>{pedido.previsao_conclusao_fmt || '—'}</strong>
                       {!pedido.previsao_conclusao && pedido.previsao_conclusao_efetiva && (
                         <span className="text-gray-400 ml-1">(das peças)</span>
                       )}

@@ -316,4 +316,16 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   // legada, ou de outro fluxo como divergência) — nesse caso o retomar continua
   // pedindo a máquina, como antes. Limpo ao retomar/iniciar/mover/etc.
   await sql.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS motivo_pausa VARCHAR(40)`).catch(() => {});
+
+  // M29: nº do pedido do CLIENTE (a OC/PO que o cliente emitiu), usado pelo
+  // cliente pra rastrear a peça dele. É DISTINTO do PV interno
+  // (numero_pedido_venda) e do nº da OP (numero_op). Opcional, texto livre.
+  await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS numero_pedido_cliente VARCHAR(120)`).catch(() => {});
+
+  // M30: data de entrega CONTRATUAL — o prazo FIXO acordado em contrato. É só
+  // referência do compromisso; NÃO define atraso (o atraso continua vindo da
+  // previsao_conclusao, que é a "entrega prevista/real" que se move por
+  // antecipação/atraso). Separada também da previsão de faturamento (Omie,
+  // prazo_entrega). Opcional.
+  await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS entrega_contratual DATE`).catch(() => {});
 }

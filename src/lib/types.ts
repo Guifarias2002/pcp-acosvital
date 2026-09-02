@@ -540,6 +540,15 @@ export interface Pedido {
   previsao_conclusao?: string | null;
   previsao_conclusao_efetiva?: string | null;
   previsao_conclusao_fmt?: string;
+  // Nº do pedido do CLIENTE (OC/PO dele) — rastreio pelo cliente, distinto do PV.
+  numero_pedido_cliente?: string | null;
+  // Entrega CONTRATUAL (prazo fixo do contrato). Não é base de atraso.
+  entrega_contratual?: string | null;
+  entrega_contratual_fmt?: string;
+  // Início REAL da produção: 1º apontamento (iniciado_em) das parciais do pedido.
+  // null = ainda não começou a produzir. Derivado, nunca digitado.
+  producao_iniciada_em?: string | null;
+  producao_iniciada_em_fmt?: string;
   criado_por_nome: string;
   data_emissao: string;
   criado_em: string;

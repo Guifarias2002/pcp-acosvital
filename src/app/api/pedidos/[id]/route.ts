@@ -110,7 +110,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         body.prazo_entrega !== undefined ||
         body.prioridade !== undefined ||
         body.roteiro_base !== undefined ||
-        body.observacoes !== undefined) {
+        body.observacoes !== undefined ||
+        body.numero_pedido_cliente !== undefined ||
+        body.entrega_contratual !== undefined) {
 
       const pv = typeof body.numero_pedido_venda === 'string' ? body.numero_pedido_venda.trim().slice(0, 100) : null;
       const op = typeof body.numero_op === 'string' ? body.numero_op.trim().slice(0, 100) : null;
@@ -122,18 +124,27 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       const prio = PRIORIDADES_VALIDAS.includes(body.prioridade) ? body.prioridade : null;
       const rot = Array.isArray(body.roteiro_base) ? body.roteiro_base : null;
       const obs = typeof body.observacoes === 'string' ? body.observacoes.trim() : null;
+      // Nº pedido do cliente e entrega contratual. Estes DEIXAM limpar: quando o
+      // campo é enviado como string vazia, grava NULL (não usa COALESCE p/ manter
+      // o antigo). Enviar undefined (campo ausente no body) preserva o valor.
+      const temPedCli = typeof body.numero_pedido_cliente === 'string';
+      const pedCli = temPedCli ? (body.numero_pedido_cliente.trim().slice(0, 120) || null) : null;
+      const temEntCtr = body.entrega_contratual !== undefined;
+      const entCtr = normalizarDataISO(body.entrega_contratual);
 
       await tx`
         UPDATE producao_pedido SET
-          numero_pedido_venda = COALESCE(${pv}, numero_pedido_venda),
-          numero_op           = COALESCE(${op}, numero_op),
-          cliente             = COALESCE(${cli}, cliente),
-          vendedor            = COALESCE(${vend}, vendedor),
-          prazo_entrega       = COALESCE(${prazo}::date, prazo_entrega),
-          prioridade          = COALESCE(${prio}, prioridade),
-          roteiro_base        = COALESCE(${rot}::text[], roteiro_base),
-          observacoes         = COALESCE(${obs}, observacoes),
-          atualizado_em       = NOW()
+          numero_pedido_venda   = COALESCE(${pv}, numero_pedido_venda),
+          numero_op             = COALESCE(${op}, numero_op),
+          cliente               = COALESCE(${cli}, cliente),
+          vendedor              = COALESCE(${vend}, vendedor),
+          prazo_entrega         = COALESCE(${prazo}::date, prazo_entrega),
+          prioridade            = COALESCE(${prio}, prioridade),
+          roteiro_base          = COALESCE(${rot}::text[], roteiro_base),
+          observacoes           = COALESCE(${obs}, observacoes),
+          numero_pedido_cliente = CASE WHEN ${temPedCli} THEN ${pedCli} ELSE numero_pedido_cliente END,
+          entrega_contratual    = CASE WHEN ${temEntCtr} THEN ${entCtr}::date ELSE entrega_contratual END,
+          atualizado_em         = NOW()
         WHERE id = ${pedidoId}
       `;
     }

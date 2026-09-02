@@ -55,6 +55,7 @@ export async function GET(req: Request) {
     SELECT p.id, p.criado_por_id, p.numero_pedido_venda, p.numero_op, p.cliente,
            p.vendedor, p.prazo_entrega::text, p.prioridade, p.status, p.setor_atual,
            p.roteiro_base, p.observacoes, p.data_emissao::text, p.criado_em, p.atualizado_em,
+           p.numero_pedido_cliente, p.entrega_contratual::text,
            p.valor_total::text,
            p.pedido_venda_url IS NOT NULL AS tem_pedido_venda,
            p.ordem_producao_url IS NOT NULL AS tem_ordem_producao,
@@ -62,7 +63,7 @@ export async function GET(req: Request) {
     FROM producao_pedido p
     LEFT JOIN usuarios_usuario u ON u.id = p.criado_por_id
     WHERE 1=1
-      AND (${cliente} = '' OR p.cliente ILIKE ${'%' + cliente + '%'} OR p.numero_pedido_venda ILIKE ${'%' + cliente + '%'} OR p.numero_op ILIKE ${'%' + cliente + '%'})
+      AND (${cliente} = '' OR p.cliente ILIKE ${'%' + cliente + '%'} OR p.numero_pedido_venda ILIKE ${'%' + cliente + '%'} OR p.numero_op ILIKE ${'%' + cliente + '%'} OR p.numero_pedido_cliente ILIKE ${'%' + cliente + '%'})
       AND (${vendedor} = '' OR (${vendedorExato} AND lower(p.vendedor) = lower(${vendedor})) OR (NOT ${vendedorExato} AND p.vendedor ILIKE ${'%' + vendedor + '%'}))
       AND (${status}  = '' OR p.status = ${status})
       AND (${prioridade} = '' OR p.prioridade = ${prioridade})
@@ -108,7 +109,7 @@ export async function GET(req: Request) {
       SELECT COUNT(*)::int AS total
       FROM producao_pedido p
       WHERE 1=1
-        AND (${cliente} = '' OR p.cliente ILIKE ${'%' + cliente + '%'} OR p.numero_pedido_venda ILIKE ${'%' + cliente + '%'} OR p.numero_op ILIKE ${'%' + cliente + '%'})
+        AND (${cliente} = '' OR p.cliente ILIKE ${'%' + cliente + '%'} OR p.numero_pedido_venda ILIKE ${'%' + cliente + '%'} OR p.numero_op ILIKE ${'%' + cliente + '%'} OR p.numero_pedido_cliente ILIKE ${'%' + cliente + '%'})
         AND (${vendedor} = '' OR (${vendedorExato} AND lower(p.vendedor) = lower(${vendedor})) OR (NOT ${vendedorExato} AND p.vendedor ILIKE ${'%' + vendedor + '%'}))
         AND (${status}  = '' OR p.status = ${status})
         AND (${prioridade} = '' OR p.prioridade = ${prioridade})
@@ -174,7 +175,8 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const { numero_pedido_venda, numero_op, cliente, vendedor, prazo_entrega,
-            prioridade, roteiro_base, observacoes, itens } = body;
+            prioridade, roteiro_base, observacoes, itens,
+            numero_pedido_cliente, entrega_contratual } = body;
     pvSubmetido = numero_pedido_venda?.toString().trim() || '';
 
     // Pedido "casca" do PCP HRM (Anexar OP): sem item, roteiro fixo
@@ -205,6 +207,10 @@ export async function POST(req: Request) {
       if (prazo_entrega < hojeBRT)
         return NextResponse.json({ erro: 'A previsao de faturamento nao pode ser anterior a data de emissao (hoje).' }, { status: 400 });
     }
+    // Entrega contratual (opcional): quando vem, tem que ser YYYY-MM-DD. É o
+    // prazo fixo do contrato — não valida contra emissão (pode ser qualquer data).
+    if (entrega_contratual && !/^\d{4}-\d{2}-\d{2}$/.test(entrega_contratual))
+      return NextResponse.json({ erro: 'Entrega contratual invalida (YYYY-MM-DD)' }, { status: 400 });
     if (!PRIORIDADES_VALIDAS.includes(prioridade))
       return NextResponse.json({ erro: 'Prioridade invalida' }, { status: 400 });
     if (!Array.isArray(roteiro_base) || roteiro_base.length === 0)
@@ -229,11 +235,13 @@ export async function POST(req: Request) {
         INSERT INTO producao_pedido
           (numero_pedido_venda, numero_op, cliente, vendedor, prazo_entrega,
            prioridade, roteiro_base, observacoes, status, setor_atual,
+           numero_pedido_cliente, entrega_contratual,
            data_emissao, criado_por_id, criado_em, atualizado_em)
         VALUES (
           ${numero_pedido_venda}, ${numero_op.toString().trim()}, ${cliente}, ${vendedor || ''},
           ${prazo_entrega || null}, ${prioridade}, ${roteiro_base},
           ${observacoes || ''}, 'emitido', ${roteiro_base[0] || ''},
+          ${numero_pedido_cliente?.toString().trim() || null}, ${entrega_contratual || null},
           (NOW() AT TIME ZONE 'America/Sao_Paulo')::date, ${user.id}, NOW(), NOW()
         )
         RETURNING id

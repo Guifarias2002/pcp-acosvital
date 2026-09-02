@@ -50,6 +50,8 @@ export default function NovoPedidoCaldeirariaPage() {
   const [cliente, setCliente] = useState('');
   const [vendedor, setVendedor] = useState('');
   const [prazo, setPrazo] = useState('');
+  const [pedCliente, setPedCliente] = useState('');
+  const [entregaContratual, setEntregaContratual] = useState('');
   const [prioridade, setPrioridade] = useState('normal');
   const [obs, setObs] = useState('');
   const [itens, setItens] = useState<ItemForm[]>([{ codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', tipo_produto: '' }]);
@@ -97,6 +99,7 @@ export default function NovoPedidoCaldeirariaPage() {
         const res = await criarPedido({
           numero_pedido_venda: pvFinal, numero_op: op, cliente, vendedor,
           prazo_entrega: prazo, prioridade, roteiro_base: ['emissao', 'caldeiraria'],
+          numero_pedido_cliente: pedCliente, entrega_contratual: entregaContratual,
           observacoes: obs,
           itens: itens.filter(i => i.codigo).map(i => ({
             ...i,
@@ -230,6 +233,14 @@ export default function NovoPedidoCaldeirariaPage() {
               <div>
                 <label className={labelCls}>Previsão de faturamento (Omie) *</label>
                 <input type="date" value={prazo} onChange={e => setPrazo(e.target.value)} required className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Nº Pedido do Cliente</label>
+                <input value={pedCliente} onChange={e => setPedCliente(e.target.value)} placeholder="OC/PO do cliente (rastreio)" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Entrega Contratual</label>
+                <input type="date" value={entregaContratual} onChange={e => setEntregaContratual(e.target.value)} className={inputCls} />
               </div>
               <div>
                 <label className={labelCls}>Prioridade</label>

@@ -84,6 +84,8 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
   const [cliente, setCliente] = useState('');
   const [vendedor, setVendedor] = useState('');
   const [prazo, setPrazo] = useState('');
+  const [pedCliente, setPedCliente] = useState('');
+  const [entregaContratual, setEntregaContratual] = useState('');
   const [prioridade, setPrioridade] = useState('normal');
   const [obs, setObs] = useState('');
 
@@ -134,6 +136,8 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
       setCliente(pedido.cliente || '');
       setVendedor(pedido.vendedor || '');
       setPrazo(paraISODate(pedido.prazo_entrega));
+      setPedCliente(pedido.numero_pedido_cliente || '');
+      setEntregaContratual(paraISODate(pedido.entrega_contratual));
       setPrioridade(pedido.prioridade || 'normal');
       setObs(pedido.observacoes || '');
       aplicarPedido(pedido);
@@ -268,6 +272,8 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
         cliente,
         vendedor,
         prazo_entrega: prazo,
+        numero_pedido_cliente: pedCliente,
+        entrega_contratual: entregaContratual,
         prioridade,
         roteiro_base,
         observacoes: obs,
@@ -298,6 +304,8 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
         cliente,
         vendedor,
         prazo_entrega: prazo,
+        numero_pedido_cliente: pedCliente,
+        entrega_contratual: entregaContratual,
         prioridade,
         roteiro_base,
         observacoes: obs,
@@ -439,6 +447,14 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
                 <div>
                   <label className={labelCls}>Previsão de faturamento (Omie) *</label>
                   <input type="date" value={prazo} onChange={e => setPrazo(e.target.value)} required className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Nº Pedido do Cliente</label>
+                  <input value={pedCliente} onChange={e => setPedCliente(e.target.value)} placeholder="OC/PO do cliente (rastreio)" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Entrega Contratual</label>
+                  <input type="date" value={entregaContratual} onChange={e => setEntregaContratual(e.target.value)} className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Prioridade</label>

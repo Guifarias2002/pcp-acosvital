@@ -191,6 +191,15 @@ export function formatPedido(row: any, itens: unknown[] = []) {
     previsao_conclusao: isoDate(row.previsao_conclusao),
     previsao_conclusao_efetiva: previsaoEfetiva,
     previsao_conclusao_fmt: fmtData(previsaoEfetiva || ''),
+    // Rastreio pelo cliente + entrega contratual (só o detalhe do pedido e a
+    // lista trazem essas colunas; nas rotas que não as selecionam ficam vazias).
+    numero_pedido_cliente: row.numero_pedido_cliente || null,
+    entrega_contratual: isoDate(row.entrega_contratual),
+    entrega_contratual_fmt: fmtData(isoDate(row.entrega_contratual) || ''),
+    // Início REAL da produção (1º apontamento). Vem do getPedidoComItens; sem
+    // apontamento ainda = null. É o começo verdadeiro, não a emissão da OP.
+    producao_iniciada_em: row.producao_iniciada_em || null,
+    producao_iniciada_em_fmt: fmtData(row.producao_iniciada_em ? String(row.producao_iniciada_em) : ''),
     // ATRASO pela PREVISÃO DE CONCLUSÃO efetiva do pedido (não pelo faturamento
     // Omie). Sem previsão = não atrasado, dias_prazo 0, cor neutra.
     atrasado: !!previsaoEfetiva && diasPrazo(previsaoEfetiva) < 0 && row.status !== 'entregue',
@@ -218,7 +227,10 @@ export function formatPedido(row: any, itens: unknown[] = []) {
 export async function getPedidoComItens(id: number, incluirInativos = false) {
   const [pedRow] = await sql`
     SELECT p.*, u.nome AS criado_por_nome,
-           COALESCE((SELECT SUM(i2.quantidade * COALESCE(i2.valor_unitario,0)) FROM producao_itempedido i2 WHERE i2.pedido_id = p.id AND (${incluirInativos} OR i2.inativo = false)), 0)::text AS valor_calculado
+           COALESCE((SELECT SUM(i2.quantidade * COALESCE(i2.valor_unitario,0)) FROM producao_itempedido i2 WHERE i2.pedido_id = p.id AND (${incluirInativos} OR i2.inativo = false)), 0)::text AS valor_calculado,
+           -- Início REAL da produção = 1º apontamento (menor iniciado_em) entre
+           -- todas as parciais do pedido. NULL enquanto nada começou a produzir.
+           (SELECT MIN(ip.iniciado_em) FROM producao_itemparcial ip WHERE ip.pedido_id = p.id) AS producao_iniciada_em
     FROM producao_pedido p
     LEFT JOIN usuarios_usuario u ON u.id = p.criado_por_id
     WHERE p.id = ${id}

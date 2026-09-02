@@ -66,6 +66,10 @@ function Conteudo() {
   const [quantidade, setQuantidade] = useState('1');
   const [unidade, setUnidade] = useState('PC');
   const [roteiroSel, setRoteiroSel] = useState<string[]>([]);
+  // Rastreio pelo cliente + entrega contratual (pré-preenchidos da leitura da OP:
+  // PO = pedido do cliente; entrega = data lida no cabeçalho, já em ISO).
+  const [pedCliente, setPedCliente] = useState('');
+  const [entregaContratual, setEntregaContratual] = useState('');
   const [lancando, setLancando] = useState(false);
   const [token, setToken] = useState('');
 
@@ -91,6 +95,8 @@ function Conteudo() {
             if (op0.produto?.descricao) setDescricao(op0.produto.descricao);
             if (op0.identificacao?.quantidade) setQuantidade(op0.identificacao.quantidade.replace(',', '.'));
             if (op0.identificacao?.unidade) setUnidade(op0.identificacao.unidade);
+            if (op0.cabecalho?.po) setPedCliente(op0.cabecalho.po);
+            if (op0.identificacao?.entrega) setEntregaContratual(op0.identificacao.entrega);
             // Pré-seleciona o roteiro a partir dos setores lidos (na ordem da OP)
             const sug: string[] = [];
             for (const o of op0.roteiro) {
@@ -140,6 +146,8 @@ function Conteudo() {
       // Cria o item com roteiro próprio ['emissao', ...setores escolhidos].
       await editarPedido(pedidoId, {
         observacoes: obsLimpa,
+        numero_pedido_cliente: pedCliente,
+        entrega_contratual: entregaContratual,
         itens: [{
           codigo: codigo.trim() || 'S/COD',
           descricao: descricao.trim(),
@@ -229,6 +237,21 @@ function Conteudo() {
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <div><label style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Quantidade</label><input type="number" value={quantidade} onChange={e => setQuantidade(e.target.value)} style={{ width: 110 }} className={inputCls} /></div>
               <div><label style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Unidade</label><input value={unidade} onChange={e => setUnidade(e.target.value)} style={{ width: 90 }} className={inputCls} /></div>
+            </div>
+          </div>
+
+          {/* Rastreio pelo cliente + entrega contratual (editável, pré-lido da OP) */}
+          <div style={card}>
+            <div style={secTitle}><i className="bi bi-bookmark-check" style={{ marginRight: 6 }} />Rastreio do cliente</div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ flex: '1 1 240px' }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Nº Pedido do Cliente</label>
+                <input value={pedCliente} onChange={e => setPedCliente(e.target.value)} placeholder="OC/PO do cliente" className={inputCls} />
+              </div>
+              <div style={{ flex: '0 1 200px' }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Entrega Contratual</label>
+                <input type="date" value={entregaContratual} onChange={e => setEntregaContratual(e.target.value)} className={inputCls} />
+              </div>
             </div>
           </div>
 
