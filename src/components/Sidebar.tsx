@@ -226,9 +226,12 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
           {(emHrm || (!isAdmin && !!user?.acesso_hrm)) && (
             <NavGroup label="🏭 PCP HRM" defaultOpen={true}>
               <NavItem href="/pcp-hrm" label="Anexar OP" icon="bi-file-earmark-arrow-up" onNav={fechar} />
-              {/* Conferência: só PCP/admin (no workspace HRM). O perfil restrito
-                  (acesso_hrm puro) só anexa OP — não confere/lança. */}
+              {/* Conferência + visões de PCP: só PCP/admin (no workspace HRM). O
+                  perfil restrito (acesso_hrm puro) só anexa OP — não confere nem
+                  vê o painel/kanban (a API do painel é staff-only). */}
               {emHrm && <NavItem href="/pcp-hrm/conferencia" label="Conferência" icon="bi-clipboard-check" onNav={fechar} />}
+              {emHrm && <NavItem href="/pcp-hrm/painel" label="Onde está cada OP" icon="bi-signpost-split" onNav={fechar} />}
+              {emHrm && <NavItem href="/kanban?fabrica=caldeiraria" label="Kanban" icon="bi-kanban" onNav={fechar} />}
             </NavGroup>
           )}
 

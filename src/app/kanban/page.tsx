@@ -73,6 +73,15 @@ export default function KanbanPage() {
     return () => clearInterval(t);
   }, []);
 
+  // Abre já na fábrica pedida na URL (?fabrica=caldeiraria) — usado pelo link do
+  // menu do PCP HRM, pra cair direto no Kanban da Caldeiraria.
+  useEffect(() => {
+    try {
+      const f = new URLSearchParams(window.location.search).get('fabrica');
+      if (f && FABRICAS.some(x => x.cod === f)) setFabricaAtiva(f);
+    } catch { /* window/URL indisponível */ }
+  }, []);
+
   const carregarRef = useRef<() => void>(() => {});
   carregarRef.current = carregar;
 
