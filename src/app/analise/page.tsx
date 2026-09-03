@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import AuthGuard from '@/components/AuthGuard';
-import { getToken, isAdministrador, podeVerAnalise } from '@/lib/auth';
+import { getToken, isAdministrador, podeVerAnalise, getUser } from '@/lib/auth';
 import { MAQUINAS_POR_SETOR, fotoMaquina } from '@/lib/maquinas';
 
 const NOMES: Record<string, string> = {
@@ -66,7 +66,10 @@ type Rec = Record<string, string>;
 const C = { azul: '#1a3a5c', azul2: '#1d4ed8', verde: '#16a34a', laranja: '#d97706', vermelho: '#dc2626', roxo: '#7c3aed', cinza: '#64748b' };
 
 // Diagnóstico executivo calculado ao vivo (endpoint /api/analise/diagnostico).
-interface DiagMaq { maquina: string; ciclos: number; ciclo_mediano_h: number; horas_registradas: number }
+interface DiagMaq {
+  maquina: string; ciclos: number; dias_uso?: number; ciclo_mediano_h: number; horas_registradas: number;
+  cadastrada?: boolean; capacidade_dia_h?: number | null; utilizacao_pct?: number | null;
+}
 interface Diag {
   periodo: { de: string; ate: string; dias_produzidos: number };
   producao: { mes: string; un: number; itens: number; dias: number; media_dia: number | null }[];
@@ -77,7 +80,13 @@ interface Diag {
   maquinas: DiagMaq[];
   gargalos: { setor: string; passagens: number; dias_medio: number; dias_mediana: number }[];
   qualidade: { com_tempo: number; timer_estourado: number; pct_timer_estourado: number | null };
+  demanda: {
+    meta_mensal_un: number | null; dias_uteis_mes: number; necessidade_dia: number | null;
+    producao_dia_atual: number | null; saldo_dia: number | null; risco_atraso: boolean | null; tem_capacidade: boolean;
+  };
 }
+// Parâmetros editáveis (capacidade por máquina + meta de demanda).
+interface ParamMaq { maquina: string; horas_dia: number; dias_semana: number; cadastrada: boolean; usada: boolean }
 
 export default function AnalisePage() {
   const hoje = new Date();
@@ -95,12 +104,43 @@ export default function AnalisePage() {
   const [maqDet, setMaqDet] = useState<{ loading: boolean; rows: Rec[] } | null>(null);
   // Diagnóstico executivo (histórico inteiro, calculado ao vivo no back).
   const [diag, setDiag] = useState<Diag | null>(null);
-  useEffect(() => {
+  const carregarDiag = useCallback(() => {
     fetch('/api/analise/diagnostico', { headers: { Authorization: `Bearer ${getToken() || ''}` } })
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (d && !d.erro) setDiag(d as Diag); })
       .catch(() => {});
   }, []);
+  useEffect(() => { carregarDiag(); }, [carregarDiag]);
+
+  // Parâmetros editáveis: capacidade por máquina + meta de demanda.
+  const meStaff = !!getUser()?.is_staff;
+  const [params, setParams] = useState<{ maquinas: ParamMaq[]; meta: string } | null>(null);
+  const [paramsAberto, setParamsAberto] = useState(false);
+  const [savingParams, setSavingParams] = useState(false);
+  const carregarParams = useCallback(() => {
+    fetch('/api/analise/parametros', { headers: { Authorization: `Bearer ${getToken() || ''}` } })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d) setParams({ maquinas: (d.maquinas || []) as ParamMaq[], meta: d.meta_mensal_un != null ? String(d.meta_mensal_un) : '' }); })
+      .catch(() => {});
+  }, []);
+  useEffect(() => { carregarParams(); }, [carregarParams]);
+  const setParamMaq = (nome: string, campo: 'horas_dia' | 'dias_semana', valor: string) =>
+    setParams(p => p ? { ...p, maquinas: p.maquinas.map(m => m.maquina === nome ? { ...m, [campo]: Number(valor) } : m) } : p);
+  async function salvarParams() {
+    if (!params) return;
+    setSavingParams(true);
+    try {
+      const res = await fetch('/api/analise/parametros', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
+        body: JSON.stringify({
+          maquinas: params.maquinas.map(m => ({ maquina: m.maquina, horas_dia: Number(m.horas_dia), dias_semana: Number(m.dias_semana) })),
+          meta_mensal_un: params.meta === '' ? '' : Number(params.meta),
+        }),
+      });
+      if (res.ok) { carregarParams(); carregarDiag(); }
+    } catch { /* ignora */ } finally { setSavingParams(false); }
+  }
   const admin = isAdministrador();
   const podeVer = podeVerAnalise(); // admin OU usuário com a flag pode_ver_analise
 
@@ -256,6 +296,16 @@ export default function AnalisePage() {
                 {tile('Tendência (mês a mês)', cres == null ? '—' : `${cres >= 0 ? '+' : ''}${fmt(cres, 1)}%`, corCres, 'produção/dia')}
                 {tile('Em processo (WIP)', diag.wip?.pct_wip != null ? `${fmt(diag.wip.pct_wip, 1)}%` : '—', C.laranja, `${fmt(diag.wip?.un_wip)} de ${fmt(diag.wip?.un_total)} un`)}
                 {tile('Máquina líder', diag.maquina_lider?.maquina || '—', C.roxo, diag.maquina_lider ? `ciclo mediano ${fmt(diag.maquina_lider.ciclo_mediano_h, 2)} h · ${diag.maquina_lider.ciclos} ciclos` : undefined)}
+                {/* Demanda × produção — só quando a meta está cadastrada. */}
+                {diag.demanda?.necessidade_dia != null && (
+                  tile('Necessidade', `${fmt(diag.demanda.necessidade_dia, 1)} un/dia`, C.azul,
+                    `meta ${fmt(diag.demanda.meta_mensal_un)}/mês ÷ ${diag.demanda.dias_uteis_mes}d`)
+                )}
+                {diag.demanda?.saldo_dia != null && (
+                  tile('Saldo/dia', `${diag.demanda.saldo_dia >= 0 ? '+' : ''}${fmt(diag.demanda.saldo_dia, 1)} un`,
+                    diag.demanda.risco_atraso ? C.vermelho : C.verde,
+                    diag.demanda.risco_atraso ? '⚠ risco de atraso' : '✓ produção cobre a meta')
+                )}
               </div>
 
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
@@ -295,6 +345,41 @@ export default function AnalisePage() {
                 </div>
               </div>
 
+              {/* Máquinas — ciclo mediano + utilização (quando a jornada foi cadastrada) */}
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, marginBottom: 4 }}>
+                  Máquinas <span style={{ fontWeight: 400, color: '#94a3b8' }}>(ciclo mediano · utilização nos dias em que rodou)</span>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
+                    <thead><tr>
+                      <th style={th}>Máquina</th>
+                      <th style={{ ...th, textAlign: 'right' }}>Ciclos</th>
+                      <th style={{ ...th, textAlign: 'right' }}>Ciclo mediano</th>
+                      <th style={{ ...th, textAlign: 'right' }}>Horas reg.</th>
+                      <th style={{ ...th, textAlign: 'right' }}>Utilização</th>
+                    </tr></thead>
+                    <tbody>
+                      {diag.maquinas.slice(0, 10).map(m => {
+                        const u = m.utilizacao_pct;
+                        const cor = u == null ? '#cbd5e1' : u > 100 ? C.vermelho : u >= 70 ? C.verde : u >= 40 ? C.laranja : C.azul2;
+                        return (
+                          <tr key={m.maquina}>
+                            <td style={td}>{m.maquina}</td>
+                            <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{m.ciclos}</td>
+                            <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{fmt(m.ciclo_mediano_h, 2)} h</td>
+                            <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{fmt(m.horas_registradas, 1)} h</td>
+                            <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: cor }}>
+                              {u == null ? <span style={{ fontWeight: 600, color: '#94a3b8' }}>jornada?</span> : `${fmt(u, 0)}%`}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               {/* Alertas de qualidade de dado + o que falta */}
               <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {diag.qualidade?.pct_timer_estourado != null && diag.qualidade.pct_timer_estourado > 0 && (
@@ -303,11 +388,88 @@ export default function AnalisePage() {
                     <b>{fmt(diag.qualidade.pct_timer_estourado, 0)}%</b> dos apontamentos de máquina têm o cronômetro maior que o tempo real (timer não pausado) — as <b>horas de máquina</b> estão superestimadas. Por isso uso o <b>ciclo mediano</b>, não a média.
                   </div>
                 )}
-                <div style={{ fontSize: 11.5, color: '#475569', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 10px' }}>
-                  <i className="bi bi-info-circle" style={{ marginRight: 6 }} />
-                  <b>Não calculável sem cadastro:</b> utilização da capacidade, capacidade ociosa, saldo e risco de atraso dependem de <b>capacidade (jornada/turno por máquina)</b> e <b>demanda</b> — que ainda não existem no sistema.
-                </div>
+                {(!diag.demanda?.tem_capacidade || diag.demanda?.meta_mensal_un == null) ? (
+                  <div style={{ fontSize: 11.5, color: '#475569', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 10px' }}>
+                    <i className="bi bi-info-circle" style={{ marginRight: 6 }} />
+                    Falta cadastrar {!diag.demanda?.tem_capacidade && <b>capacidade (jornada por máquina)</b>}
+                    {!diag.demanda?.tem_capacidade && diag.demanda?.meta_mensal_un == null && ' e '}
+                    {diag.demanda?.meta_mensal_un == null && <b>demanda (meta mensal)</b>} — sem isso, utilização, ociosidade, saldo e risco de atraso ficam em branco.{' '}
+                    <button onClick={() => setParamsAberto(true)} style={{ border: 'none', background: 'none', color: C.azul2, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>Cadastrar agora ↓</button>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11.5, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 8, padding: '7px 10px' }}>
+                    <i className="bi bi-check-circle" style={{ marginRight: 6 }} />
+                    Utilização e demanda calculadas a partir dos <b>Parâmetros</b> cadastrados. Ajuste em Parâmetros (abaixo) quando a jornada ou a meta mudar.
+                  </div>
+                )}
               </div>
+            </div>
+          );
+        })()}
+
+        {/* ── Parâmetros: capacidade por máquina + meta de demanda ──────────── */}
+        {params && (() => {
+          const th = { textAlign: 'left' as const, padding: '5px 8px', fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase' as const, fontWeight: 700 };
+          const td = { padding: '5px 8px', fontSize: 13, color: '#334155', borderTop: '1px solid #f1f5f9' };
+          const inp = { border: '1.5px solid #e2e8f0', borderRadius: 6, padding: '4px 6px', fontSize: 13, textAlign: 'center' as const };
+          return (
+            <div className="card no-print" style={{ padding: 0, marginBottom: 18, overflow: 'hidden' }}>
+              <button onClick={() => setParamsAberto(v => !v)}
+                style={{ width: '100%', textAlign: 'left', border: 'none', background: '#f8fafc', padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: C.azul }}>
+                  <i className="bi bi-sliders" style={{ marginRight: 6 }} />Parâmetros — capacidade por máquina e demanda
+                  {!meStaff && <span style={{ fontWeight: 500, color: '#94a3b8', fontSize: 11, marginLeft: 8 }}>(só leitura)</span>}
+                </span>
+                <i className={`bi ${paramsAberto ? 'bi-chevron-up' : 'bi-chevron-down'}`} style={{ color: C.cinza }} />
+              </button>
+              {paramsAberto && (
+                <div style={{ padding: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+                    <label style={{ fontSize: 12.5, fontWeight: 700, color: C.cinza }}>Demanda — meta mensal (unidades):</label>
+                    <input type="number" min={0} value={params.meta} disabled={!meStaff}
+                      onChange={e => setParams(p => p ? { ...p, meta: e.target.value } : p)} placeholder="ex.: 1200"
+                      style={{ ...inp, width: 140, textAlign: 'left' }} />
+                    <span style={{ fontSize: 11.5, color: '#94a3b8' }}>quantas peças precisam sair por mês</span>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
+                      <thead><tr>
+                        <th style={th}>Máquina</th>
+                        <th style={{ ...th, textAlign: 'center' }}>Horas/dia</th>
+                        <th style={{ ...th, textAlign: 'center' }}>Dias/semana</th>
+                        <th style={{ ...th, textAlign: 'center' }}>Cap. semanal</th>
+                        <th style={{ ...th, textAlign: 'right' }} />
+                      </tr></thead>
+                      <tbody>
+                        {params.maquinas.map(m => (
+                          <tr key={m.maquina}>
+                            <td style={td}>{m.maquina}{!m.usada && <span style={{ fontSize: 10, color: '#94a3b8', marginLeft: 6 }}>(sem apontamento)</span>}</td>
+                            <td style={{ ...td, textAlign: 'center' }}>
+                              <input type="number" min={0} max={24} step={0.5} value={m.horas_dia} disabled={!meStaff}
+                                onChange={e => setParamMaq(m.maquina, 'horas_dia', e.target.value)} style={{ ...inp, width: 72 }} />
+                            </td>
+                            <td style={{ ...td, textAlign: 'center' }}>
+                              <input type="number" min={0} max={7} value={m.dias_semana} disabled={!meStaff}
+                                onChange={e => setParamMaq(m.maquina, 'dias_semana', e.target.value)} style={{ ...inp, width: 62 }} />
+                            </td>
+                            <td style={{ ...td, textAlign: 'center', color: '#94a3b8' }}>{fmt(Number(m.horas_dia) * Number(m.dias_semana), 0)} h/sem</td>
+                            <td style={{ ...td, textAlign: 'right' }}>{m.cadastrada ? <span style={{ fontSize: 10.5, color: C.verde }}>✓ cadastrada</span> : <span style={{ fontSize: 10.5, color: '#cbd5e1' }}>padrão 8h/5d</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {meStaff && (
+                    <div style={{ marginTop: 14, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button onClick={salvarParams} disabled={savingParams}
+                        style={{ background: C.azul, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: savingParams ? 0.6 : 1 }}>
+                        {savingParams ? 'Salvando…' : 'Salvar parâmetros'}
+                      </button>
+                      <span style={{ fontSize: 11.5, color: '#94a3b8' }}>ao salvar, o diagnóstico recalcula utilização, saldo e risco.</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })()}

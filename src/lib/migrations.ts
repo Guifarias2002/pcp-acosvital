@@ -343,4 +343,28 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
       perfil::text = ANY (ARRAY['administrador','pcp','lider','operador','vendedor','apontador']::text[])
     )
   `).catch(() => {});
+
+  // M32: CAPACIDADE por máquina (jornada). Uma linha por máquina com horas
+  // disponíveis/dia e dias trabalhados/semana — insumo que faltava pra calcular
+  // utilização e capacidade ociosa na Análise PCP (ver [[project_analise_pcp]]).
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS producao_maquina_capacidade (
+      maquina TEXT PRIMARY KEY,
+      horas_dia NUMERIC(5,2) NOT NULL DEFAULT 8,
+      dias_semana SMALLINT NOT NULL DEFAULT 5,
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_por_id BIGINT
+    )
+  `).catch(() => {});
+
+  // M33: config genérica chave→valor do PCP (começa com a META de demanda
+  // mensal em unidades). Key-value pra não criar tabela nova a cada parâmetro.
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS producao_config (
+      chave TEXT PRIMARY KEY,
+      valor TEXT NOT NULL DEFAULT '',
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_por_id BIGINT
+    )
+  `).catch(() => {});
 }

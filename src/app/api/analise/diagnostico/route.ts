@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   if (!podeVerAnalise(user)) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   try {
-    const [rng, prodMes, diasMes, ritmoMes, wip, maquinas, gargalos, qualidade] = await withTimeout(Promise.all([
+    const [rng, prodMes, diasMes, ritmoMes, wip, maquinas, gargalos, qualidade, capacidades, metaCfg] = await withTimeout(Promise.all([
       // Intervalo + dias produzidos (datas distintas com apontamento)
       sql`SELECT MIN(iniciado_em)::date de, MAX(iniciado_em)::date ate,
                  count(DISTINCT iniciado_em::date)::int dias_produzidos
@@ -49,6 +49,7 @@ export async function GET(req: Request) {
       // Máquinas: ciclo MEDIANO (h) — mediana ignora o timer estourado. Ordena
       // por nº de ciclos (mais usada primeiro).
       sql`SELECT maquina, count(*)::int ciclos,
+            count(DISTINCT COALESCE(concluido_em::date, iniciado_em::date))::int dias_uso,
             ROUND((percentile_cont(0.5) WITHIN GROUP (ORDER BY maquina_segundos_acumulados)/3600.0)::numeric,2)::float ciclo_mediano_h,
             ROUND((SUM(maquina_segundos_acumulados)/3600.0)::numeric,1)::float horas_registradas
           FROM producao_itemparcial
@@ -72,6 +73,11 @@ export async function GET(req: Request) {
             count(*) FILTER (WHERE maquina_segundos_acumulados > EXTRACT(EPOCH FROM (concluido_em-iniciado_em))+120
                              AND concluido_em IS NOT NULL AND iniciado_em IS NOT NULL)::int timer_estourado
           FROM producao_itemparcial`,
+      // Capacidade cadastrada por máquina (jornada) + meta de demanda mensal.
+      // `.catch([])` — se a migration ainda não criou as tabelas, o diagnóstico
+      // segue funcionando (só sem utilização/demanda) em vez de dar 500.
+      sql`SELECT maquina, horas_dia::float horas_dia, dias_semana::int dias_semana FROM producao_maquina_capacidade`.catch(() => []),
+      sql`SELECT valor FROM producao_config WHERE chave='meta_mensal_un'`.catch(() => []),
     ]), 55000);
 
     // Junta entregas + dias por mês → média diária por mês.
@@ -100,7 +106,36 @@ export async function GET(req: Request) {
     const q = (qualidade as unknown as { com_tempo: number; timer_estourado: number }[])[0];
     const pct_timer_estourado = q && q.com_tempo > 0 ? (q.timer_estourado / q.com_tempo) * 100 : null;
 
-    const maqList = maquinas as unknown as { maquina: string; ciclos: number; ciclo_mediano_h: number; horas_registradas: number }[];
+    const maqRaw = maquinas as unknown as { maquina: string; ciclos: number; dias_uso: number; ciclo_mediano_h: number; horas_registradas: number }[];
+    const capMap = new Map((capacidades as unknown as { maquina: string; horas_dia: number; dias_semana: number }[])
+      .map(c => [c.maquina, c]));
+    // Utilização por máquina = horas registradas ÷ (horas/dia × dias em que a
+    // máquina rodou). "Nos dias em que rodou" — não superdimensiona por dias
+    // ociosos que o sistema nem viu. Só quando a jornada foi cadastrada.
+    const maqList = maqRaw.map(m => {
+      const cap = capMap.get(m.maquina);
+      const capacidade_dia_h = cap ? cap.horas_dia : null;
+      const utilizacao_pct = cap && cap.horas_dia > 0 && m.dias_uso > 0
+        ? (m.horas_registradas / (cap.horas_dia * m.dias_uso)) * 100
+        : null;
+      return { ...m, cadastrada: !!cap, capacidade_dia_h, utilizacao_pct };
+    });
+
+    // ── Demanda × produção (unidades) ────────────────────────────────────────
+    // Meta mensal (un) ÷ dias úteis do mês → necessidade diária. Compara com a
+    // produção real diária (mês completo mais recente) → saldo e risco.
+    const metaRaw = (metaCfg as unknown as { valor: string }[])[0]?.valor;
+    const meta_mensal_un = metaRaw != null && metaRaw !== '' && Number.isFinite(Number(metaRaw)) ? Number(metaRaw) : null;
+    // Dias úteis/mês: média de dias_semana das máquinas cadastradas × 4,345; cai
+    // em 22 (padrão 5×~4,345≈22) quando não há jornada cadastrada.
+    const capArr = Array.from(capMap.values());
+    const diasSemanaMedio = capArr.length ? capArr.reduce((s, c) => s + c.dias_semana, 0) / capArr.length : 5;
+    const dias_uteis_mes = Math.max(1, Math.round(diasSemanaMedio * 4.345));
+    const completosProd = producao.filter(m => m.dias >= 10 && m.media_dia != null);
+    const producao_dia_atual = completosProd.length ? (completosProd[completosProd.length - 1].media_dia as number) : null;
+    const necessidade_dia = meta_mensal_un != null ? meta_mensal_un / dias_uteis_mes : null;
+    const saldo_dia = (producao_dia_atual != null && necessidade_dia != null) ? producao_dia_atual - necessidade_dia : null;
+    const risco_atraso = saldo_dia != null ? saldo_dia < 0 : null;
 
     return NextResponse.json({
       periodo: (rng as unknown as { de: string; ate: string; dias_produzidos: number }[])[0],
@@ -112,6 +147,11 @@ export async function GET(req: Request) {
       maquinas: maqList,
       gargalos,
       qualidade: { com_tempo: q?.com_tempo ?? 0, timer_estourado: q?.timer_estourado ?? 0, pct_timer_estourado },
+      // Bloco demanda × capacidade (só preenche o que a meta/jornada permitem).
+      demanda: {
+        meta_mensal_un, dias_uteis_mes, necessidade_dia, producao_dia_atual, saldo_dia, risco_atraso,
+        tem_capacidade: capArr.length > 0,
+      },
     });
   } catch (e) {
     console.error('[analise/diagnostico GET]', e);
