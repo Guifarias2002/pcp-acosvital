@@ -169,6 +169,18 @@ export const getParcial = (id: number) =>
 export const parcialAcao = (id: number, acao: string, body?: Record<string, unknown>) =>
   postIdempotente(`/api/parcial/${id}/acao/${acao}`, body || {});
 
+// ── Inspeções / Hold Points (Caldeiraria) ───────────────────────────────────
+// Apontador solicita uma inspeção numa parcial; Qualidade lista pendentes e
+// lança o laudo. Ver producao_inspecao (M34) e [[project_datas_op_cliente]].
+export const solicitarInspecao = (parcialId: number, tipo: string, observacao?: string) =>
+  postIdempotente(`/api/parcial/${parcialId}/inspecao`, { tipo, observacao: observacao || '' });
+
+export const getInspecoes = (status: 'pendente' | 'resolvidas' | 'todas' = 'pendente') =>
+  api.get('/api/inspecoes', { params: { status } }).then(r => r.data);
+
+export const laudoInspecao = (inspecaoId: number, resultado: string, laudo?: string) =>
+  postIdempotente(`/api/inspecao/${inspecaoId}/laudo`, { resultado, laudo: laudo || '' });
+
 // Salva o peso da embalagem (lista de pesos por pallet, em kg) de uma parcial,
 // junto do nome/número de identificação de cada pallet (alinhado por índice).
 export const setPesosPallets = (id: number, pesos_pallets: number[], nomes_pallets: string[] = []) =>

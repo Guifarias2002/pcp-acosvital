@@ -201,6 +201,21 @@ export const TIPOS_PRODUTO_CALDEIRARIA: { cod: string; label: string }[] = [
   { cod: 'tanque_processo', label: 'Tanque de Processo' },
 ];
 
+// ── Tipos de INSPEÇÃO (Hold Points) — Caldeiraria ────────────────────────────
+// Fila de inspeções pedida pelo PCP (checklist de aceite). O apontador solicita
+// uma inspeção num ponto do roteiro; a Qualidade atua sobre os 'pendente'. Lista
+// CONFIGURÁVEL: começa pelo Fit-Up (confirmado no e-mail); os demais tipos da
+// lista anexa da Qualidade entram aqui, sem mexer em código do fluxo. Ver
+// producao_inspecao (M34) e [[project_datas_op_cliente]].
+export const TIPOS_INSPECAO: { cod: string; label: string }[] = [
+  { cod: 'fit_up', label: 'Fit-Up (preparação de chanfros p/ soldagem)' },
+];
+export const TIPOS_INSPECAO_COD = TIPOS_INSPECAO.map(t => t.cod);
+export const nomeInspecao = (cod: string) => TIPOS_INSPECAO.find(t => t.cod === cod)?.label || cod;
+// Resultados possíveis do laudo do inspetor.
+export const RESULTADOS_INSPECAO = ['aprovado', 'reprovado', 'retrabalho'] as const;
+export type ResultadoInspecao = typeof RESULTADOS_INSPECAO[number];
+
 // Etapas da Caldeiraria que exigem checklist de processo. Separada de
 // SETORES_CALDEIRARIA_INTERNOS de propósito — aquela constante já é usada em
 // outros lugares (menu, kanban) e não deve ganhar efeito colateral novo.
@@ -660,6 +675,7 @@ export interface ItemParcial {
   item_pai_codigo?: string | null;
   componentes?: { id: number; codigo: string; setor_atual: string; setor_nome: string; status: string }[];
   item_tipo_produto?: string | null;
+  item_fabrica?: string | null;
 }
 
 export interface ResumoItemParcial {

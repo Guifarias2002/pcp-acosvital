@@ -114,7 +114,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         origem.motivo_retrabalho AS origem_motivo_retrabalho,
         origem.devolvido_de AS origem_devolvido_de,
         i.id AS item_pedido_id, i.codigo AS item_codigo, i.unidade, i.descricao AS item_descricao,
-        i.quantidade::text AS quantidade_total_item, i.roteiro_proprio, i.status AS item_status, i.item_pai_id, i.tipo_produto,
+        i.quantidade::text AS quantidade_total_item, i.roteiro_proprio, i.status AS item_status, i.item_pai_id, i.tipo_produto, i.fabrica,
         p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade, p.roteiro_base, p.prazo_entrega::text AS pedido_prazo,
         COALESCE(i.previsao_conclusao, p.previsao_conclusao)::text AS previsao_efetiva,
         p.embalagem_identificacao, p.embalagem_qtd_pallets, p.embalagem_peso_total, p.embalagem_total_unidades,
@@ -214,7 +214,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         pa.parcial_origem_id, pa.criado_em, pa.atualizado_em,
         pa.retrabalho, pa.motivo_retrabalho, pa.devolvido_de,
         i.id AS item_pedido_id, i.codigo AS item_codigo, i.unidade, i.descricao AS item_descricao,
-        i.quantidade::text AS quantidade_total_item, i.roteiro_proprio, i.status AS item_status, i.item_pai_id, i.tipo_produto,
+        i.quantidade::text AS quantidade_total_item, i.roteiro_proprio, i.status AS item_status, i.item_pai_id, i.tipo_produto, i.fabrica,
         p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade, p.roteiro_base, p.prazo_entrega::text AS pedido_prazo,
         COALESCE(i.previsao_conclusao, p.previsao_conclusao)::text AS previsao_efetiva,
         p.embalagem_identificacao, p.embalagem_qtd_pallets, p.embalagem_peso_total, p.embalagem_total_unidades,
@@ -385,6 +385,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         ...f, setor_nome: nomeSector(f.setor_atual),
       })),
       item_tipo_produto: p.tipo_produto ?? null,
+      item_fabrica: p.fabrica ?? null,
     };
   };
 

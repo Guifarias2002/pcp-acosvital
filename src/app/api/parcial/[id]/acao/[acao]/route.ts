@@ -15,7 +15,7 @@ import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
 import { isAdministrador, podeAcessarSetor, podeDesfazerRecebimento } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
-import { SETOR_CHOICES } from '@/lib/types';
+import { SETOR_CHOICES, nomeInspecao } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
 import { temMaquinas } from '@/lib/maquinas';
@@ -102,6 +102,19 @@ async function handlePOST(
     return NextResponse.json({ erro: 'Etapa finalizada. Use "mover" para enviar para o próximo setor ou "retomar" para voltar à produção.' }, { status: 400 });
 
   const obs = body.observacao || '';
+
+  // Hold Point (Caldeiraria): parcial com inspeção PENDENTE não avança até a
+  // Qualidade laudar. Bloqueio server-side do "peça parada aguardando inspeção"
+  // (item 9 do checklist do PCP). Resiliente se a tabela ainda não existir.
+  if (['mover', 'concluir', 'finalizar'].includes(acao)) {
+    const pend = await sql`
+      SELECT tipo FROM producao_inspecao WHERE parcial_id = ${parcialId} AND status = 'pendente' LIMIT 1
+    `.catch(() => [] as { tipo: string }[]);
+    if (pend.length > 0)
+      return NextResponse.json({
+        erro: `Peça aguardando inspeção da Qualidade (${nomeInspecao((pend[0] as { tipo: string }).tipo)}). Só avança após o laudo.`,
+      }, { status: 409 });
+  }
 
   // Fecha qualquer sessão de máquina em aberto ANTES de rodar a ação — mesma
   // lógica de /api/item/[id]/acao/[acao]: a parcial é reaproveitada em vários

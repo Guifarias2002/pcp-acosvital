@@ -50,9 +50,9 @@ function Cronometro({ desde }: { desde: string }) {
     </span>
   );
 }
-import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, registrarSinetePedido, setPesosPallets, setEmbalagemResumo, inativarItem, editarPedido } from '@/lib/api';
+import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, registrarSinetePedido, setPesosPallets, setEmbalagemResumo, inativarItem, editarPedido, solicitarInspecao } from '@/lib/api';
 import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento, podeDefinirPrevisao } from '@/lib/auth';
-import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA } from '@/lib/types';
+import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA, TIPOS_INSPECAO } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
@@ -804,6 +804,12 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [showMontarReceita, setShowMontarReceita] = useState(false);
   const [showChecklistProcesso, setShowChecklistProcesso] = useState(false);
   const [acaoPendente, setAcaoPendente] = useState<(() => void) | null>(null);
+  // Inspeção / Hold Point — só Caldeiraria (diferenciado do fluxo de Flange).
+  const [showInspecao, setShowInspecao] = useState(false);
+  const [inspTipo, setInspTipo] = useState(TIPOS_INSPECAO[0]?.cod || '');
+  const [inspObs, setInspObs] = useState('');
+  const [savingInsp, setSavingInsp] = useState(false);
+  const ehCaldeiraria = parcial.item_fabrica === 'caldeiraria';
   const isLogistica = parcial.setor_atual === 'logistica';
   const isQualidade = parcial.setor_atual === 'qualidade';
   const isRecebido = parcial.status === 'recebido';
@@ -832,6 +838,17 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
       onRefresh();
     } catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
     finally { setLoading(false); }
+  }
+
+  async function enviarInspecao() {
+    if (savingInsp || !inspTipo) return;
+    setSavingInsp(true);
+    try {
+      await solicitarInspecao(parcial.id, inspTipo, inspObs);
+      setShowInspecao(false); setInspObs('');
+      onRefresh();
+    } catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
+    finally { setSavingInsp(false); }
   }
 
   function erroMsg(e: unknown) {
@@ -1565,7 +1582,53 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             {TIPOS_PRODUTO_CALDEIRARIA.map(t => <option key={t.cod} value={t.cod}>{t.label}</option>)}
           </select>
         )}
+
+        {/* Solicitar inspeção (Hold Point) — SÓ Caldeiraria. O apontador pede a
+            inspeção; a peça fica pendente e visível pra Qualidade atuar. */}
+        {ehCaldeiraria && (
+          <button
+            onClick={() => setShowInspecao(v => !v)}
+            disabled={loading}
+            title="Solicitar inspeção da Qualidade (ex.: Fit-Up)"
+            style={btnStyle('#0891b2', true)}
+          >
+            <i className="bi bi-clipboard2-check" style={{ marginRight: 5 }} />Solicitar Inspeção
+          </button>
+        )}
       </div>
+      )}
+      {ehCaldeiraria && showInspecao && (
+        <div style={{ marginTop: 10, background: '#ecfeff', border: '1px solid #67e8f9', borderRadius: 8, padding: '12px 14px' }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: '#0e7490', margin: '0 0 8px' }}>
+            <i className="bi bi-clipboard2-check" style={{ marginRight: 6 }} />Solicitar inspeção da Qualidade
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <select
+              value={inspTipo}
+              onChange={e => setInspTipo(e.target.value)}
+              disabled={savingInsp}
+              style={{ fontSize: 12, padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 6 }}
+            >
+              {TIPOS_INSPECAO.map(t => <option key={t.cod} value={t.cod}>{t.label}</option>)}
+            </select>
+            <input
+              value={inspObs}
+              onChange={e => setInspObs(e.target.value)}
+              placeholder="Observação (opcional)"
+              disabled={savingInsp}
+              style={{ flex: '1 1 200px', minWidth: 160, fontSize: 12, padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 6 }}
+            />
+            <button onClick={enviarInspecao} disabled={savingInsp || !inspTipo} style={btnStyle('#0891b2', true)}>
+              {savingInsp ? 'Enviando…' : 'Confirmar'}
+            </button>
+            <button onClick={() => setShowInspecao(false)} disabled={savingInsp} style={btnStyle('#64748b', false)}>
+              Cancelar
+            </button>
+          </div>
+          <p style={{ fontSize: 11, color: '#155e75', margin: '8px 0 0' }}>
+            A peça fica <b>aguardando inspeção</b> e aparece na fila da Qualidade. Só volta a andar depois do laudo.
+          </p>
+        </div>
       )}
       {showMontarReceita && (
         <MontarReceitaModal

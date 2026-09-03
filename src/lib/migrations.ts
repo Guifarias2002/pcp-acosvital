@@ -367,4 +367,32 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
       atualizado_por_id BIGINT
     )
   `).catch(() => {});
+
+  // M34: INSPEÇÕES / Hold Points (Caldeiraria). Fluxo pedido pelo PCP: o
+  // apontador solicita uma inspeção (ex.: Fit-Up) num ponto do roteiro → fica
+  // 'pendente' e VISÍVEL pra Qualidade → o inspetor lança o laudo (aprovado /
+  // reprovado / retrabalho). Aprovado libera a peça; reprovado/retrabalho
+  // devolve pra Caldeiraria (reusa o fluxo 'devolver' das parciais). Uma linha
+  // por inspeção — histórico preservado (a mesma peça pode ter várias). Tipos
+  // configuráveis em TIPOS_INSPECAO (types.ts). Ver [[project_datas_op_cliente]].
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS producao_inspecao (
+      id SERIAL PRIMARY KEY,
+      item_id INTEGER NOT NULL REFERENCES producao_itempedido(id) ON DELETE CASCADE,
+      parcial_id INTEGER REFERENCES producao_itemparcial(id) ON DELETE SET NULL,
+      pedido_id INTEGER NOT NULL REFERENCES producao_pedido(id) ON DELETE CASCADE,
+      tipo VARCHAR(40) NOT NULL,
+      setor VARCHAR(30),
+      status VARCHAR(20) NOT NULL DEFAULT 'pendente',
+      observacao_solicitacao TEXT,
+      solicitado_por_id INTEGER REFERENCES usuarios_usuario(id) ON DELETE SET NULL,
+      solicitado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      inspetor_id INTEGER REFERENCES usuarios_usuario(id) ON DELETE SET NULL,
+      laudo TEXT,
+      resolvido_em TIMESTAMPTZ
+    )
+  `).catch(() => {});
+  await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_inspecao_status   ON producao_inspecao (status)`).catch(() => {});
+  await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_inspecao_item     ON producao_inspecao (item_id)`).catch(() => {});
+  await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_inspecao_parcial  ON producao_inspecao (parcial_id)`).catch(() => {});
 }
