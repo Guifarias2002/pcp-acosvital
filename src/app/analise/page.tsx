@@ -65,6 +65,20 @@ type Rec = Record<string, string>;
 
 const C = { azul: '#1a3a5c', azul2: '#1d4ed8', verde: '#16a34a', laranja: '#d97706', vermelho: '#dc2626', roxo: '#7c3aed', cinza: '#64748b' };
 
+// Diagnóstico executivo calculado ao vivo (endpoint /api/analise/diagnostico).
+interface DiagMaq { maquina: string; ciclos: number; ciclo_mediano_h: number; horas_registradas: number }
+interface Diag {
+  periodo: { de: string; ate: string; dias_produzidos: number };
+  producao: { mes: string; un: number; itens: number; dias: number; media_dia: number | null }[];
+  crescimento_dia_pct: number | null;
+  ritmo: { mes: string; apontamentos: number; dia: number | null }[];
+  wip: { un_wip: number; un_entregue: number; un_total: number; pct_wip: number | null };
+  maquina_lider: DiagMaq | null;
+  maquinas: DiagMaq[];
+  gargalos: { setor: string; passagens: number; dias_medio: number; dias_mediana: number }[];
+  qualidade: { com_tempo: number; timer_estourado: number; pct_timer_estourado: number | null };
+}
+
 export default function AnalisePage() {
   const hoje = new Date();
   const [de, setDe] = useState(iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)));
@@ -79,6 +93,14 @@ export default function AnalisePage() {
   const [aba, setAba] = useState<'geral' | 'homem' | 'maquina' | 'catalogo'>('geral');
   const [maquinaSel, setMaquinaSel] = useState<string | null>(null);
   const [maqDet, setMaqDet] = useState<{ loading: boolean; rows: Rec[] } | null>(null);
+  // Diagnóstico executivo (histórico inteiro, calculado ao vivo no back).
+  const [diag, setDiag] = useState<Diag | null>(null);
+  useEffect(() => {
+    fetch('/api/analise/diagnostico', { headers: { Authorization: `Bearer ${getToken() || ''}` } })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && !d.erro) setDiag(d as Diag); })
+      .catch(() => {});
+  }, []);
   const admin = isAdministrador();
   const podeVer = podeVerAnalise(); // admin OU usuário com a flag pode_ver_analise
 
@@ -197,6 +219,98 @@ export default function AnalisePage() {
             <button className="abtn no-print" onClick={() => window.print()}><i className="bi bi-printer" style={{ marginRight: 6 }} />Imprimir / PDF</button>
           </div>
         </div>
+
+        {/* ── Diagnóstico executivo (ao vivo, histórico inteiro) ─────────────── */}
+        {diag && (() => {
+          const mesLabel = (m: string) => `${m.slice(5)}/${m.slice(2, 4)}`;
+          // Mês mais recente COMPLETO (>=10 dias) — evita o mês corrente parcial.
+          const completos = diag.producao.filter(m => m.dias >= 10 && m.media_dia != null);
+          const ult = completos[completos.length - 1] || diag.producao[diag.producao.length - 1] || null;
+          const cres = diag.crescimento_dia_pct;
+          const corCres = cres == null ? C.cinza : cres >= 0 ? C.verde : C.vermelho;
+          // Gargalos internos de produção (tira fim-de-linha e emissão).
+          const gargProd = diag.gargalos.filter(g => !['quarentena', 'logistica', 'emissao'].includes(g.setor)).slice(0, 5);
+          const tile = (label: string, valor: string, cor: string, sub?: string) => (
+            <div style={{ flex: '1 1 150px', minWidth: 140, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 12px' }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: .6 }}>{label}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: cor, lineHeight: 1.15, marginTop: 2 }}>{valor}</div>
+              {sub && <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>{sub}</div>}
+            </div>
+          );
+          const th = { textAlign: 'left' as const, padding: '4px 8px', fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase' as const, fontWeight: 700 };
+          const td = { padding: '4px 8px', fontSize: 12.5, color: '#334155', borderTop: '1px solid #f1f5f9' };
+          return (
+            <div className="card" style={{ padding: 16, marginBottom: 18, border: `1.5px solid ${C.azul}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: C.azul }}>
+                  <i className="bi bi-clipboard-data" style={{ marginRight: 6 }} />Diagnóstico executivo
+                  <span style={{ fontWeight: 500, color: '#94a3b8', fontSize: 11.5, marginLeft: 8 }}>
+                    histórico {diag.periodo?.de} → {diag.periodo?.ate} · {diag.periodo?.dias_produzidos} dias produzidos · dado real, ao vivo
+                  </span>
+                </div>
+              </div>
+
+              {/* KPIs */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                {tile('Produção média', ult?.media_dia != null ? `${fmt(ult.media_dia, 1)} un/dia` : '—', C.azul2, ult ? `mês ${mesLabel(ult.mes)} · ${fmt(ult.un)} un` : undefined)}
+                {tile('Tendência (mês a mês)', cres == null ? '—' : `${cres >= 0 ? '+' : ''}${fmt(cres, 1)}%`, corCres, 'produção/dia')}
+                {tile('Em processo (WIP)', diag.wip?.pct_wip != null ? `${fmt(diag.wip.pct_wip, 1)}%` : '—', C.laranja, `${fmt(diag.wip?.un_wip)} de ${fmt(diag.wip?.un_total)} un`)}
+                {tile('Máquina líder', diag.maquina_lider?.maquina || '—', C.roxo, diag.maquina_lider ? `ciclo mediano ${fmt(diag.maquina_lider.ciclo_mediano_h, 2)} h · ${diag.maquina_lider.ciclos} ciclos` : undefined)}
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                {/* Produção mês a mês */}
+                <div style={{ flex: '1 1 300px', minWidth: 280 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, marginBottom: 4 }}>Produção entregue por mês</div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr><th style={th}>Mês</th><th style={{ ...th, textAlign: 'right' }}>Un</th><th style={{ ...th, textAlign: 'right' }}>Dias</th><th style={{ ...th, textAlign: 'right' }}>Un/dia</th></tr></thead>
+                    <tbody>
+                      {diag.producao.map(m => (
+                        <tr key={m.mes}>
+                          <td style={td}>{mesLabel(m.mes)}</td>
+                          <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{fmt(m.un)}</td>
+                          <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{m.dias}</td>
+                          <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: C.azul2 }}>{m.media_dia != null ? fmt(m.media_dia, 1) : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Gargalos internos */}
+                <div style={{ flex: '1 1 300px', minWidth: 280 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, marginBottom: 4 }}>Gargalos internos <span style={{ fontWeight: 400, color: '#94a3b8' }}>(dias parado por setor)</span></div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr><th style={th}>Setor</th><th style={{ ...th, textAlign: 'right' }}>Dias méd.</th><th style={{ ...th, textAlign: 'right' }}>Passagens</th></tr></thead>
+                    <tbody>
+                      {gargProd.map(g => (
+                        <tr key={g.setor}>
+                          <td style={td}>{nm(g.setor)}</td>
+                          <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: g.dias_medio >= 1.3 ? C.vermelho : g.dias_medio >= 1 ? C.laranja : C.verde }}>{fmt(g.dias_medio, 2)}</td>
+                          <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{fmt(g.passagens)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Alertas de qualidade de dado + o que falta */}
+              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {diag.qualidade?.pct_timer_estourado != null && diag.qualidade.pct_timer_estourado > 0 && (
+                  <div style={{ fontSize: 11.5, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '7px 10px' }}>
+                    <i className="bi bi-exclamation-triangle" style={{ marginRight: 6 }} />
+                    <b>{fmt(diag.qualidade.pct_timer_estourado, 0)}%</b> dos apontamentos de máquina têm o cronômetro maior que o tempo real (timer não pausado) — as <b>horas de máquina</b> estão superestimadas. Por isso uso o <b>ciclo mediano</b>, não a média.
+                  </div>
+                )}
+                <div style={{ fontSize: 11.5, color: '#475569', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 10px' }}>
+                  <i className="bi bi-info-circle" style={{ marginRight: 6 }} />
+                  <b>Não calculável sem cadastro:</b> utilização da capacidade, capacidade ociosa, saldo e risco de atraso dependem de <b>capacidade (jornada/turno por máquina)</b> e <b>demanda</b> — que ainda não existem no sistema.
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Abas */}
         <div className="no-print" style={{ display: 'flex', gap: 8, marginBottom: 18, borderBottom: '1.5px solid #e2e8f0', paddingBottom: 2 }}>
