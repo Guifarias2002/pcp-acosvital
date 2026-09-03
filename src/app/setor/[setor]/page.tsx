@@ -3467,7 +3467,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   useEffect(() => {
     fetch(`/api/setor/${encodeURIComponent(setor)}/ordem`, { headers: { Authorization: `Bearer ${getToken() || ''}` } })
       .then(r => r.json())
-      .then(d => setOrdemManual(Array.isArray(d.ordem) ? d.ordem : []))
+      // Força número: a ordem vem do banco (BIGINT[]) como string; sem isso o
+      // sort por pedido_id (número) não casava e a ordem salva sumia ao voltar.
+      .then(d => setOrdemManual(Array.isArray(d.ordem) ? d.ordem.map(Number).filter((n: number) => Number.isFinite(n)) : []))
       .catch(() => {});
   }, [setor]);
 

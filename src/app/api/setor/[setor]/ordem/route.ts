@@ -19,7 +19,12 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
   if (!setor) return NextResponse.json({ erro: 'Setor inválido' }, { status: 400 });
   try {
     const rows = await sql`SELECT ordem FROM producao_setor_ordem WHERE setor = ${setor}`;
-    return NextResponse.json({ ordem: (rows[0]?.ordem as number[]) ?? [] });
+    // A coluna é BIGINT[] e o driver devolve os elementos como STRING. Sem
+    // converter pra número, o front (que compara com pedido_id numérico) nunca
+    // casava a posição salva e a ordem manual era ignorada no recarregar —
+    // parecia que "não salvava". Converte aqui na origem.
+    const ordem = ((rows[0]?.ordem as (string | number)[]) ?? []).map(Number).filter(Number.isFinite);
+    return NextResponse.json({ ordem });
   } catch (e) {
     console.error('[setor/ordem GET]', e);
     return NextResponse.json({ ordem: [] });
