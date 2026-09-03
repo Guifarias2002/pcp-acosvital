@@ -579,10 +579,14 @@ async function handlePOST(
       `;
       const rDevolver = await tx`UPDATE producao_itempedido SET status='aguardando', setor_atual=${destino}, atualizado_em=NOW() WHERE id=${item.id} AND status=${item.status}`;
       if (rDevolver.count === 0) throw new Error(ERRO_CONCORRENCIA);
-      // Move TODAS as parciais ativas do item para o setor de devolucao, onde quer que
-      // estejam (principal e filhas de splits anteriores em outros setores). Antes,
-      // as filhas eram CANCELADAS em vez de devolvidas - perdia a quantidade que
-      // estava fisicamente em outro setor no meio de um envio parcial.
+      // Devolve APENAS as parciais que estão no setor de onde se está devolvendo
+      // (o setor atual do item). Filhas de um split anterior que estão FISICAMENTE
+      // em OUTRO setor NÃO são arrastadas — elas seguem o próprio fluxo. Sem o
+      // filtro de setor, devolver um lote (ex.: um envio parcial que caiu no setor
+      // errado) puxava junto o saldo que estava parado em outro setor, inflando a
+      // quantidade no destino da devolução (bug 03/09: devolver 61 da Inspeção
+      // trazia junto as 194 do Corte Maçarico). Nada é cancelado — só não move o
+      // que não é deste setor.
       // Marca como "correção" (devolvido_de + motivo, retrabalho=FALSE): a peça
       // voltou por engano/recebimento errado, não é retrabalho da Qualidade. O
       // destino mostra o banner de devolução com o motivo informado.
@@ -593,6 +597,7 @@ async function handlePOST(
             motivo_retrabalho = ${obs || null},
             devolvido_de = ${item.setor_atual}
         WHERE item_pedido_id = ${item.id}
+          AND setor_atual = ${item.setor_atual}
           AND status NOT IN ('cancelada', 'concluida')
         RETURNING id
       `;
