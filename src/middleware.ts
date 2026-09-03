@@ -63,6 +63,14 @@ export async function middleware(req: NextRequest) {
     : (meuSetor ? [meuSetor] : []);
 
   const isVendedor = !isAdmin && payload.perfil === 'vendedor';
+  // Apontador: percorre a fábrica pedido por pedido atualizando previsão. Entra
+  // direto em "Todos os Pedidos" (não no painel de setor), mesmo que tenha
+  // setores no cadastro — por isso vem ANTES da regra de operador abaixo.
+  const isApontador = !isAdmin && payload.perfil === 'apontador';
+
+  if (isApontador && pathname === '/') {
+    return NextResponse.redirect(new URL('/pedidos', req.url));
+  }
 
   // Redirecionar operadores da raiz para o painel do próprio setor
   if (!isAdmin && meuSetor && pathname === '/') {

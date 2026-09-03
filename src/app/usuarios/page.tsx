@@ -27,9 +27,10 @@ const PERFIL_BADGE: Record<string, { bg: string; cor: string }> = {
   lider:         { bg: '#0d6efd', cor: '#fff' },
   operador:      { bg: '#6c757d', cor: '#fff' },
   vendedor:      { bg: '#20c997', cor: '#fff' },
+  apontador:     { bg: '#fd7e14', cor: '#fff' },
 };
 
-const PERFIS = ['administrador', 'pcp', 'lider', 'operador', 'vendedor'];
+const PERFIS = ['administrador', 'pcp', 'lider', 'operador', 'vendedor', 'apontador'];
 
 // Separação por fábrica: os setores são agrupados no seletor para deixar claro
 // o que é Flanges x Caldeiraria (e os compartilhados). A Caldeiraria hoje tem só

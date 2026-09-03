@@ -65,6 +65,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     campos.is_staff = false;
     campos.somente_leitura = true;
   }
+  // Apontador nunca é staff (não é admin/PCP). NÃO força somente_leitura — ele
+  // precisa poder editar (vai definir a previsão de conclusão pedido a pedido).
+  if (campos.perfil === 'apontador') {
+    campos.is_staff = false;
+  }
   if (typeof body.senha === 'string' && body.senha) {
     if (body.senha.length < 8)
       return NextResponse.json({ erro: 'Senha deve ter pelo menos 8 caracteres' }, { status: 400 });

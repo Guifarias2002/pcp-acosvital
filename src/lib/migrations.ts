@@ -328,4 +328,19 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   // antecipação/atraso). Separada também da previsão de faturamento (Omie,
   // prazo_entrega). Opcional.
   await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS entrega_contratual DATE`).catch(() => {});
+
+  // M31: novo perfil "apontador" — quem percorre a fábrica pedido por pedido
+  // atualizando a previsão de conclusão. Não é staff (não é admin nem PCP), não
+  // é vendedor (vê TODOS os pedidos, não só os próprios) e cai direto em "Todos
+  // os Pedidos" ao entrar. A constraint perfil_valido (herdada do Django) só
+  // aceitava administrador/pcp/lider/operador/vendedor; recria incluindo
+  // 'apontador'. Idempotente: dropa e recria com a lista completa a cada startup
+  // (tabela pequena, validação instantânea; nenhuma linha existente viola).
+  await sql.unsafe(`ALTER TABLE usuarios_usuario DROP CONSTRAINT IF EXISTS perfil_valido`).catch(() => {});
+  await sql.unsafe(`
+    ALTER TABLE usuarios_usuario
+    ADD CONSTRAINT perfil_valido CHECK (
+      perfil::text = ANY (ARRAY['administrador','pcp','lider','operador','vendedor','apontador']::text[])
+    )
+  `).catch(() => {});
 }

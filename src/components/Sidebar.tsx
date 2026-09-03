@@ -119,6 +119,9 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
   // regra da página/API). Fora do bloco só-admin pra funcionar pra não-admin.
   const podeVer = podeVerAnalise(user);
   const isVendedor = !isAdmin && user?.perfil === 'vendedor';
+  // Apontador: foco em "Todos os Pedidos" (percorre a fábrica atualizando
+  // previsão). Sem Dashboard no menu — cai direto na lista de pedidos.
+  const isApontador = !isAdmin && user?.perfil === 'apontador';
   const meuSetor = user?.setor;
   // Setores que o operador pode acessar (múltiplos). Fallback pro setor único.
   const meusSetores = (user?.setores && user.setores.length > 0)
@@ -196,7 +199,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
         <nav>
           {!restritoHrm && (
             <NavGroup label="Geral">
-              {!isVendedor && <NavItem href="/" label="Dashboard" icon="bi-speedometer2" onNav={fechar} />}
+              {!isVendedor && !isApontador && <NavItem href="/" label="Dashboard" icon="bi-speedometer2" onNav={fechar} />}
               <NavItem href="/pedidos" label={vendedorRestrito(user) ? 'Meus Pedidos' : 'Todos os Pedidos'} icon="bi-list-ul" onNav={fechar} />
               {/* Análise PCP — liberada por is_staff/admin OU pela flag pode_ver_analise
                   (fora do bloco só-admin abaixo, pra aparecer também pra não-admin). */}
