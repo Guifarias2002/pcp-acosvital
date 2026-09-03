@@ -56,6 +56,7 @@ export async function GET(req: Request) {
            p.vendedor, p.prazo_entrega::text, p.prioridade, p.status, p.setor_atual,
            p.roteiro_base, p.observacoes, p.data_emissao::text, p.criado_em, p.atualizado_em,
            p.numero_pedido_cliente, p.entrega_contratual::text,
+           p.previsao_conclusao::text,
            p.valor_total::text,
            p.pedido_venda_url IS NOT NULL AS tem_pedido_venda,
            p.ordem_producao_url IS NOT NULL AS tem_ordem_producao,
@@ -91,6 +92,7 @@ export async function GET(req: Request) {
       SELECT pedido_id,
              SUM(quantidade * COALESCE(valor_unitario, 0))::text AS valor_calculado,
              json_agg(json_build_object('id', id, 'status', status)) AS itens,
+             MAX(previsao_conclusao)::text AS item_previsao_max,
              bool_or('caldeiraria' = ANY(roteiro_proprio)) AS tem_item_caldeiraria
       FROM producao_itempedido
       WHERE pedido_id = ANY(${ids}) AND inativo = false
@@ -137,6 +139,11 @@ export async function GET(req: Request) {
         valor_calculado: im?.valor_calculado ?? '0',
         setores_parciais: pm?.setores_parciais ?? [],
         tem_item_caldeiraria: im?.tem_item_caldeiraria ?? false,
+        // Previsão de conclusão (fabricação) efetiva do pedido: a própria quando
+        // definida, senão a MAIOR entre as peças (a lista não traz as peças
+        // individuais, então o MAX vem agregado aqui). Sem isso a coluna de
+        // previsão e o "atrasado" ficavam sempre vazios na lista.
+        previsao_conclusao: r.previsao_conclusao ?? im?.item_previsao_max ?? null,
       },
       im?.itens ?? [],
     );

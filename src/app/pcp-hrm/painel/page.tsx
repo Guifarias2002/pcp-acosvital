@@ -48,6 +48,26 @@ const posSetor = (cod: string) => {
   return i >= 0 ? i : 900 + cod.charCodeAt(0);
 };
 
+// Classes do badge de PREVISÃO DE FABRICAÇÃO por folga.
+const PREV_CLS: Record<string, string> = {
+  green: 'bg-emerald-100 text-emerald-700 border-emerald-300',
+  amber: 'bg-amber-100 text-amber-800 border-amber-300',
+  red:   'bg-red-100 text-red-700 border-red-300',
+  gray:  'bg-gray-100 text-gray-400 border-gray-200',
+};
+
+// Folga da previsão vs. hoje (ambos 'AAAA-MM-DD'): cor + texto de dias.
+function folgaPrevisao(prevIso: string | null, hojeIso: string, entregue: boolean) {
+  if (entregue) return { cor: 'green', dias: '' };
+  if (!prevIso) return { cor: 'gray', dias: '' };
+  const dias = Math.round(
+    (new Date(prevIso + 'T12:00:00').getTime() - new Date(hojeIso + 'T12:00:00').getTime()) / 86400000,
+  );
+  const cor = dias < 0 ? 'red' : dias <= 3 ? 'amber' : 'green';
+  const txt = dias < 0 ? `${Math.abs(dias)}d atraso` : dias === 0 ? 'hoje' : `faltam ${dias}d`;
+  return { cor, dias: txt };
+}
+
 export default function PainelCaldeirariaPage() {
   const [pedidos, setPedidos] = useState<PedidoPainel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -197,9 +217,9 @@ export default function PainelCaldeirariaPage() {
             : (Array.from(atuais).sort((a, b) => roteiro.indexOf(a) - roteiro.indexOf(b))
                 .map(s => NOMES[s] || s).join(' · ') || (NOMES[p.setor_atual] || p.setor_atual || '—'));
           const prev = p.previsao_iso;
-          const atrasado = !entregue && !!prev && prev < hoje;
           const totalEtapas = roteiro.length;
           const feitas = Math.min(atualIdx, totalEtapas);
+          const folga = folgaPrevisao(prev, hoje, entregue);
           return (
             <Link key={p.id} href={`/pedidos/${p.id}`}
               className="block bg-white rounded-xl border shadow-sm p-4 hover:border-blue-300 hover:shadow transition-all">
@@ -226,6 +246,15 @@ export default function PainelCaldeirariaPage() {
                     {entregue && <i className="bi bi-check-circle-fill mr-1" />}{setorAtualNome}
                   </div>
                   <div className="text-xs text-gray-400 mt-0.5">{feitas}/{totalEtapas} etapas</div>
+                  {/* PREVISÃO DE FABRICAÇÃO em destaque — o que os líderes do PCP
+                      precisam ver de relance. Colorida pela folga. */}
+                  <div className="mt-1.5 flex justify-end">
+                    <span className={`inline-flex items-center gap-1 text-sm font-extrabold px-2.5 py-1 rounded-lg border ${PREV_CLS[folga.cor]}`}
+                      title="Previsão de fabricação (conclusão)">
+                      🏭 {prev ? fmtBR(prev) : 'Sem previsão'}
+                      {folga.dias && <span className="font-semibold opacity-80">· {folga.dias}</span>}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -243,23 +272,18 @@ export default function PainelCaldeirariaPage() {
                 })}
               </div>
 
-              {/* Linha final: prazos */}
-              <div className="flex items-center gap-x-5 gap-y-1 flex-wrap mt-3 text-xs">
-                {p.previsao_iso ? (
-                  <span className={atrasado ? 'text-red-600 font-semibold' : 'text-gray-500'}>
-                    <i className="bi bi-flag mr-1" />Conclusão {fmtBR(p.previsao_iso)}
-                    {atrasado && ' · atrasado'}
-                  </span>
-                ) : (
-                  <span className="text-gray-300"><i className="bi bi-flag mr-1" />Sem previsão de conclusão</span>
-                )}
-                {p.entrega_contratual_iso && (
-                  <span className="text-gray-500"><i className="bi bi-calendar-check mr-1" />Contratual {fmtBR(p.entrega_contratual_iso)}</span>
-                )}
-                {p.prazo_iso && (
-                  <span className="text-gray-400"><i className="bi bi-cash-coin mr-1" />Faturamento {fmtBR(p.prazo_iso)}</span>
-                )}
-              </div>
+              {/* Linha final: prazos de referência (a previsão de fabricação já
+                  está em destaque no topo do card). */}
+              {(p.entrega_contratual_iso || p.prazo_iso) && (
+                <div className="flex items-center gap-x-5 gap-y-1 flex-wrap mt-3 text-xs">
+                  {p.entrega_contratual_iso && (
+                    <span className="text-gray-500"><i className="bi bi-calendar-check mr-1" />Contratual {fmtBR(p.entrega_contratual_iso)}</span>
+                  )}
+                  {p.prazo_iso && (
+                    <span className="text-gray-400"><i className="bi bi-cash-coin mr-1" />Faturamento {fmtBR(p.prazo_iso)}</span>
+                  )}
+                </div>
+              )}
             </Link>
           );
         })}

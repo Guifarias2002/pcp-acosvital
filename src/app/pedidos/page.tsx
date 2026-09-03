@@ -6,9 +6,18 @@ import AuthGuard from '@/components/AuthGuard';
 import { getPedidos } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 import { Pedido, STATUS_LABELS, getPedidoEtapa, ETAPA_LABELS, NOMES, SETOR_CHOICES, FABRICAS } from '@/lib/types';
-import { getUser, podeEditar, podeVerCliente, vendedorRestrito } from '@/lib/auth';
+import { getUser, podeEditar, podeVerCliente, vendedorRestrito, podeDefinirPrevisao } from '@/lib/auth';
 import Link from 'next/link';
 import RastreioModal from '@/components/RastreioModal';
+
+// Cores da PREVISÃO DE FABRICAÇÃO por folga (mesma escala do cor_prazo do back:
+// success=no prazo, warning=perto, danger=atrasado/vencido, secondary=sem data).
+const COR_PREVISAO: Record<string, { bg: string; fg: string; bd: string }> = {
+  success:   { bg: '#d1fae5', fg: '#065f46', bd: '#6ee7b7' },
+  warning:   { bg: '#fef3c7', fg: '#92400e', bd: '#fcd34d' },
+  danger:    { bg: '#fee2e2', fg: '#991b1b', bd: '#fca5a5' },
+  secondary: { bg: '#f1f5f9', fg: '#64748b', bd: '#e2e8f0' },
+};
 
 function fmtData(s: string) {
   if (!s) return '—';
@@ -57,6 +66,11 @@ function PedidosPageInner() {
   const [modalExcluirLote, setModalExcluirLote] = useState<ModalExcluirLote | null>(null);
   const [avisoProducao, setAvisoProducao] = useState<AvisoProducao | null>(null);
   const [modalRastreio, setModalRastreio] = useState<ModalRastreio | null>(null);
+  // Edição inline da PREVISÃO DE FABRICAÇÃO na própria lista (apontador percorre
+  // pedido a pedido definindo aqui). editPrevId = pedido em edição no momento.
+  const [editPrevId, setEditPrevId] = useState<number | null>(null);
+  const [prevInput, setPrevInput] = useState('');
+  const [savingPrev, setSavingPrev] = useState(false);
 
   function abrirRastreio(pedidoId: number, numero: string) {
     setModalRastreio({ pedidoId, numero });
@@ -91,6 +105,23 @@ function PedidosPageInner() {
     getPedidos(params).then(r => { setPedidos(r.pedidos); setPaginacao({ page: r.page, pages: r.pages, total: r.total }); }).catch(() => {}).finally(() => setLoading(false));
   }
   buscarRef.current = buscar;
+
+  // Quem pode DEFINIR a previsão de fabricação (apontador/PCP/admin) e não é
+  // somente-leitura. Controla a edição inline na lista.
+  const podeDefPrev = podeDefinirPrevisao(_u) && editavel;
+  async function salvarPrevisao(pedidoId: number, valor: string) {
+    setSavingPrev(true);
+    try {
+      const res = await fetch(`/api/pedidos/${pedidoId}/previsao`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
+        body: JSON.stringify({ previsao: valor }),
+      });
+      if (res.ok) { setEditPrevId(null); buscarRef.current(); }
+    } catch { /* ignora — a lista recarrega sozinha no polling */ } finally {
+      setSavingPrev(false);
+    }
+  }
 
   useEffect(() => { setPage(1); buscarRef.current(1); }, []);
 
@@ -434,17 +465,17 @@ function PedidosPageInner() {
                   title="Selecionar todos"
                 />
               </th>
-              {['Criado em','Pedido','OP',...(verCliente ? ['Cliente'] : []),'Vendedor','Setor Atual','Status','Prioridade','Faturamento','Docs','Ações'].map(h => (
+              {['Criado em','Pedido','OP',...(verCliente ? ['Cliente'] : []),'Vendedor','Setor Atual','Status','Prioridade','Previsão Fabricação','Faturamento','Docs','Ações'].map(h => (
                 <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontWeight: 600, fontSize: 12 }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={12} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Carregando...</td></tr>
+              <tr><td colSpan={13} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Carregando...</td></tr>
             )}
             {!loading && pedidosFiltrados.length === 0 && (
-              <tr><td colSpan={12} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum pedido encontrado.</td></tr>
+              <tr><td colSpan={13} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum pedido encontrado.</td></tr>
             )}
             {pedidosFiltrados.map(p => {
               const selected = selectedIds.has(p.id);
@@ -526,6 +557,48 @@ function PedidosPageInner() {
                       style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4 }}>
                       {p.prioridade?.charAt(0).toUpperCase()+p.prioridade?.slice(1)}
                     </span>
+                  </td>
+                  {/* PREVISÃO DE FABRICAÇÃO — em destaque, colorida pela folga.
+                      Editável inline por quem pode (apontador/PCP). */}
+                  <td style={{ padding: '8px 12px' }}>
+                    {editPrevId === p.id ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+                        <input type="date" value={prevInput} onChange={e => setPrevInput(e.target.value)}
+                          style={{ fontSize: 12, padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: 5 }} />
+                        <button disabled={savingPrev} onClick={() => salvarPrevisao(p.id, prevInput)}
+                          style={{ fontSize: 11, fontWeight: 800, padding: '3px 9px', borderRadius: 6, background: '#10b981', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                          {savingPrev ? '…' : 'OK'}
+                        </button>
+                        {p.previsao_conclusao_efetiva && (
+                          <button disabled={savingPrev} onClick={() => salvarPrevisao(p.id, '')}
+                            style={{ fontSize: 11, padding: '3px 7px', borderRadius: 6, background: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', cursor: 'pointer' }}>limpar</button>
+                        )}
+                        <button disabled={savingPrev} onClick={() => setEditPrevId(null)}
+                          style={{ fontSize: 12, padding: '3px 7px', borderRadius: 6, background: 'none', color: '#94a3b8', border: '1px solid #e2e8f0', cursor: 'pointer' }}>✕</button>
+                      </span>
+                    ) : (() => {
+                      const c = COR_PREVISAO[p.cor_prazo] || COR_PREVISAO.secondary;
+                      if (p.previsao_conclusao_efetiva) {
+                        const d = p.dias_prazo ?? 0;
+                        const diasTxt = d < 0 ? `${Math.abs(d)}d atraso` : d === 0 ? 'hoje' : `faltam ${d}d`;
+                        return (
+                          <button onClick={() => { if (podeDefPrev) { setPrevInput(p.previsao_conclusao_efetiva || ''); setEditPrevId(p.id); } }}
+                            title={podeDefPrev ? 'Alterar previsão de fabricação' : `Conclusão prevista: ${p.previsao_conclusao_fmt}`}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 800, padding: '4px 10px', borderRadius: 20,
+                              background: c.bg, color: c.fg, border: `1px solid ${c.bd}`, cursor: podeDefPrev ? 'pointer' : 'default', whiteSpace: 'nowrap' }}>
+                            🏭 {p.previsao_conclusao_fmt} <span style={{ fontWeight: 600, opacity: .85 }}>· {diasTxt}</span>
+                          </button>
+                        );
+                      }
+                      return podeDefPrev ? (
+                        <button onClick={() => { setPrevInput(''); setEditPrevId(p.id); }}
+                          title="Definir a previsão de fabricação deste pedido"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 20,
+                            background: '#eff6ff', color: '#1d4ed8', border: '1px dashed #93c5fd', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                          <i className="bi bi-flag" /> definir
+                        </button>
+                      ) : <span style={{ color: '#cbd5e1' }}>—</span>;
+                    })()}
                   </td>
                   <td style={{ padding: '8px 12px', color: p.atrasado ? '#dc3545' : '#555', fontWeight: p.atrasado ? 700 : 400, fontSize: 12 }}>
                     {fmtData(p.prazo_entrega)}

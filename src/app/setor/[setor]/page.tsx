@@ -3883,9 +3883,12 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                     let prazoInfo: { cor: string; txt: string } | null = null;
                     if (previsaoPed) {
                       const dias = Math.ceil((new Date(previsaoPed + 'T12:00:00').getTime() - Date.now()) / 86400000);
+                      // Mostra a DATA de fabricação (DD/MM) + a folga em dias — o
+                      // chão de fábrica precisa ver a data prevista de relance.
+                      const dataFab = `${previsaoPed.slice(8, 10)}/${previsaoPed.slice(5, 7)}`;
                       prazoInfo = {
                         cor: dias < 0 ? '#ef4444' : dias <= 3 ? '#f59e0b' : '#22c55e',
-                        txt: dias < 0 ? `Atrasado ${Math.abs(dias)}d` : dias === 0 ? 'Conclui hoje' : `Conclusão: ${dias}d`,
+                        txt: `${dataFab} · ${dias < 0 ? `${Math.abs(dias)}d atraso` : dias === 0 ? 'hoje' : `faltam ${dias}d`}`,
                       };
                     }
                     // Atrasado = passou da previsão de conclusão. Faz o card piscar/
@@ -3979,8 +3982,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                               </span>
                             )}
                             {prazoInfo && (
-                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: prazoInfo.cor, color: '#fff', whiteSpace: 'nowrap' }}>
-                                ⏰ {prazoInfo.txt}
+                              <span title="Previsão de fabricação (conclusão)"
+                                style={{ fontSize: 11.5, fontWeight: 800, padding: '3px 10px', borderRadius: 20, background: prazoInfo.cor, color: '#fff', whiteSpace: 'nowrap', boxShadow: '0 1px 3px rgba(0,0,0,.2)' }}>
+                                🏭 {prazoInfo.txt}
                               </span>
                             )}
                             {/* Definir/alterar a data de conclusão direto no card (Gilmar/PCP) */}
