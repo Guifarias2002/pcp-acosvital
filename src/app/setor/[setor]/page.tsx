@@ -3481,6 +3481,21 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
     }).catch(() => {});
   }, [setor]);
 
+  // Sobe/desce um pedido UMA posição na fila e salva na hora. É o jeito fácil de
+  // "furar a fila" que funciona no TABLET (o drag HTML5 não funciona em touch).
+  // `ordemAtual` = lista completa de pedido_id na ordem exibida agora; grava a
+  // lista inteira como ordem manual (o pedido movido "fixa" a posição, e os
+  // demais mantêm a ordem que já estavam vendo).
+  const moverPedidoFila = useCallback((ordemAtual: number[], pedidoId: number, dir: -1 | 1) => {
+    const i = ordemAtual.indexOf(pedidoId);
+    if (i < 0) return;
+    const j = i + dir;
+    if (j < 0 || j >= ordemAtual.length) return;
+    const nova = ordemAtual.slice();
+    [nova[i], nova[j]] = [nova[j], nova[i]];
+    salvarOrdem(nova);
+  }, [salvarOrdem]);
+
   // Ref sempre aponta para a versão mais recente de carregar — evita closure stale no interval
   const carregarRef = useRef(carregar);
   carregarRef.current = carregar;
@@ -3796,6 +3811,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
               : pedidos;
             const totalPedidos = pedidosVis.length;
             const totalParciais = pedidosVis.reduce((s, pd) => s + pd.parciais.length, 0);
+            // Ordem completa exibida agora (todos os pedidos, na ordem em que
+            // aparecem) — base pros botões ▲/▼ subir/descer um pedido e salvar.
+            const ordemIds = pedidos.map(pp => pp.pedido_id);
 
             return (
               <section>
@@ -3814,7 +3832,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                       </button>
                     ) : (
                       <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 400, textTransform: 'none', color: '#94a3b8' }}>
-                        · arraste a alça <i className="bi bi-grip-vertical" /> pra furar a fila
+                        · use as setas <i className="bi bi-chevron-up" /><i className="bi bi-chevron-down" /> (ou arraste <i className="bi bi-grip-vertical" />) pra furar a fila
                       </span>
                     )
                   )}
@@ -3899,18 +3917,48 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                           })}
                           style={{ background: '#1a3a5c', color: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}
                         >
-                          {/* Alça de arrastar — PCP reordena a fila ("furar a fila") */}
-                          {podeEditar() && (
-                            <span
-                              draggable
-                              onDragStart={(e) => { e.stopPropagation(); setDragPedidoId(pedido_id); e.dataTransfer.effectAllowed = 'move'; }}
-                              onDragEnd={() => setDragPedidoId(null)}
-                              onClick={(e) => e.stopPropagation()}
-                              title="Arraste para reordenar a produção (furar a fila)"
-                              style={{ flexShrink: 0, cursor: 'grab', color: 'rgba(255,255,255,.6)', fontSize: 16, lineHeight: 1, padding: '0 2px' }}>
-                              <i className="bi bi-grip-vertical" />
-                            </span>
-                          )}
+                          {/* Furar a fila — jeito FÁCIL (funciona no tablet): botões
+                              ▲/▼ sobem/descem o pedido uma posição e salvam na hora.
+                              A alça de arrastar (ao lado) continua pra quem usa mouse. */}
+                          {podeEditar() && (() => {
+                            const posFila = ordemIds.indexOf(pedido_id);
+                            const ehPrimeiro = posFila <= 0;
+                            const ehUltimo = posFila < 0 || posFila >= ordemIds.length - 1;
+                            const setaBtn = (desativado: boolean): React.CSSProperties => ({
+                              width: 30, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              background: 'rgba(255,255,255,.16)', border: 'none', borderRadius: 5, color: '#fff',
+                              fontSize: 13, lineHeight: 1, padding: 0, cursor: desativado ? 'default' : 'pointer',
+                              opacity: desativado ? 0.3 : 1,
+                            });
+                            return (
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                                <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  <button type="button" aria-label="Subir na fila" title="Subir uma posição na fila"
+                                    disabled={ehPrimeiro}
+                                    onClick={(e) => { e.stopPropagation(); moverPedidoFila(ordemIds, pedido_id, -1); }}
+                                    style={setaBtn(ehPrimeiro)}>
+                                    <i className="bi bi-chevron-up" />
+                                  </button>
+                                  <button type="button" aria-label="Descer na fila" title="Descer uma posição na fila"
+                                    disabled={ehUltimo}
+                                    onClick={(e) => { e.stopPropagation(); moverPedidoFila(ordemIds, pedido_id, 1); }}
+                                    style={setaBtn(ehUltimo)}>
+                                    <i className="bi bi-chevron-down" />
+                                  </button>
+                                </span>
+                                {/* Alça de arrastar (desktop/mouse) */}
+                                <span
+                                  draggable
+                                  onDragStart={(e) => { e.stopPropagation(); setDragPedidoId(pedido_id); e.dataTransfer.effectAllowed = 'move'; }}
+                                  onDragEnd={() => setDragPedidoId(null)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  title="Arraste para reordenar a produção (furar a fila)"
+                                  style={{ flexShrink: 0, cursor: 'grab', color: 'rgba(255,255,255,.6)', fontSize: 16, lineHeight: 1, padding: '0 2px' }}>
+                                  <i className="bi bi-grip-vertical" />
+                                </span>
+                              </span>
+                            );
+                          })()}
                           {/* Nº de sequência da programação (PCP): ordem sugerida de produção */}
                           <span title="Ordem sugerida de produção (prioridade → prazo → chegada)"
                             style={{ flexShrink: 0, minWidth: 24, height: 24, padding: '0 6px', borderRadius: 12, background: prioUrgente ? '#ef4444' : '#fff', color: prioUrgente ? '#fff' : '#1a3a5c', fontWeight: 800, fontSize: 13, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,.3)' }}>
