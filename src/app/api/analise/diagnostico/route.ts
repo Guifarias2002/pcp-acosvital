@@ -50,6 +50,7 @@ export async function GET(req: Request) {
       // por nº de ciclos (mais usada primeiro).
       sql`SELECT maquina, count(*)::int ciclos,
             count(DISTINCT COALESCE(concluido_em::date, iniciado_em::date))::int dias_uso,
+            MIN(COALESCE(iniciado_em, concluido_em))::date AS desde,
             ROUND((percentile_cont(0.5) WITHIN GROUP (ORDER BY maquina_segundos_acumulados)/3600.0)::numeric,2)::float ciclo_mediano_h,
             ROUND((SUM(maquina_segundos_acumulados)/3600.0)::numeric,1)::float horas_registradas
           FROM producao_itemparcial
@@ -106,20 +107,31 @@ export async function GET(req: Request) {
     const q = (qualidade as unknown as { com_tempo: number; timer_estourado: number }[])[0];
     const pct_timer_estourado = q && q.com_tempo > 0 ? (q.timer_estourado / q.com_tempo) * 100 : null;
 
-    const maqRaw = maquinas as unknown as { maquina: string; ciclos: number; dias_uso: number; ciclo_mediano_h: number; horas_registradas: number }[];
+    const maqRaw = maquinas as unknown as { maquina: string; ciclos: number; dias_uso: number; desde: string | Date | null; ciclo_mediano_h: number; horas_registradas: number }[];
     const capMap = new Map((capacidades as unknown as { maquina: string; horas_dia: number; dias_semana: number }[])
       .map(c => [c.maquina, c]));
-    // Utilização por máquina = horas registradas ÷ (horas/dia × dias em que a
-    // máquina rodou). "Nos dias em que rodou" — não superdimensiona por dias
-    // ociosos que o sistema nem viu. Só quando a jornada foi cadastrada.
+    // Análise das máquinas começa DE QUANDO A MÁQUINA COMEÇOU A RODAR (1º
+    // apontamento com tempo), não do início do sistema. Utilização = horas
+    // registradas ÷ (horas/dia × DIAS ÚTEIS desde que a máquina começou até
+    // hoje) — inclui os dias parados no período, que é a utilização real que o
+    // PCP quer. Só quando a jornada foi cadastrada.
+    const hojeIso = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    const toIso = (v: string | Date | null): string | null =>
+      !v ? null : (typeof v === 'string' ? v.slice(0, 10) : new Date(v).toISOString().slice(0, 10));
+    const diasInclusivos = (de: string, ate: string) =>
+      Math.max(1, Math.round((new Date(ate + 'T12:00:00').getTime() - new Date(de + 'T12:00:00').getTime()) / 86400000) + 1);
     const maqList = maqRaw.map(m => {
       const cap = capMap.get(m.maquina);
-      const capacidade_dia_h = cap ? cap.horas_dia : null;
-      const utilizacao_pct = cap && cap.horas_dia > 0 && m.dias_uso > 0
-        ? (m.horas_registradas / (cap.horas_dia * m.dias_uso)) * 100
+      const desdeIso = toIso(m.desde);
+      const diasCorridos = desdeIso ? diasInclusivos(desdeIso, hojeIso) : null;
+      const dias_uteis_periodo = (cap && diasCorridos != null) ? Math.max(1, Math.round(diasCorridos * (cap.dias_semana / 7))) : null;
+      const utilizacao_pct = (cap && cap.horas_dia > 0 && dias_uteis_periodo)
+        ? (m.horas_registradas / (cap.horas_dia * dias_uteis_periodo)) * 100
         : null;
-      return { ...m, cadastrada: !!cap, capacidade_dia_h, utilizacao_pct };
+      return { ...m, desde: desdeIso, cadastrada: !!cap, capacidade_dia_h: cap ? cap.horas_dia : null, dias_uteis_periodo, utilizacao_pct };
     });
+    // Quando as máquinas começaram a rodar (mais antiga) — janela da análise de máquina.
+    const maq_desde = maqList.map(m => m.desde).filter(Boolean).sort()[0] || null;
 
     // ── Demanda × produção (unidades) ────────────────────────────────────────
     // Meta mensal (un) ÷ dias úteis do mês → necessidade diária. Compara com a
@@ -145,6 +157,7 @@ export async function GET(req: Request) {
       wip: { ...w, pct_wip },
       maquina_lider: maqList[0] || null,
       maquinas: maqList,
+      maq_desde,
       gargalos,
       qualidade: { com_tempo: q?.com_tempo ?? 0, timer_estourado: q?.timer_estourado ?? 0, pct_timer_estourado },
       // Bloco demanda × capacidade (só preenche o que a meta/jornada permitem).

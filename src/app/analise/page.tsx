@@ -67,8 +67,8 @@ const C = { azul: '#1a3a5c', azul2: '#1d4ed8', verde: '#16a34a', laranja: '#d977
 
 // Diagnóstico executivo calculado ao vivo (endpoint /api/analise/diagnostico).
 interface DiagMaq {
-  maquina: string; ciclos: number; dias_uso?: number; ciclo_mediano_h: number; horas_registradas: number;
-  cadastrada?: boolean; capacidade_dia_h?: number | null; utilizacao_pct?: number | null;
+  maquina: string; ciclos: number; dias_uso?: number; desde?: string | null; ciclo_mediano_h: number; horas_registradas: number;
+  cadastrada?: boolean; capacidade_dia_h?: number | null; dias_uteis_periodo?: number | null; utilizacao_pct?: number | null;
 }
 interface Diag {
   periodo: { de: string; ate: string; dias_produzidos: number };
@@ -78,6 +78,7 @@ interface Diag {
   wip: { un_wip: number; un_entregue: number; un_total: number; pct_wip: number | null };
   maquina_lider: DiagMaq | null;
   maquinas: DiagMaq[];
+  maq_desde: string | null;
   gargalos: { setor: string; passagens: number; dias_medio: number; dias_mediana: number }[];
   qualidade: { com_tempo: number; timer_estourado: number; pct_timer_estourado: number | null };
   demanda: {
@@ -348,7 +349,9 @@ export default function AnalisePage() {
               {/* Máquinas — ciclo mediano + utilização (quando a jornada foi cadastrada) */}
               <div style={{ marginTop: 14 }}>
                 <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, marginBottom: 4 }}>
-                  Máquinas <span style={{ fontWeight: 400, color: '#94a3b8' }}>(ciclo mediano · utilização nos dias em que rodou)</span>
+                  Máquinas <span style={{ fontWeight: 400, color: '#94a3b8' }}>
+                    (ciclo mediano · utilização = horas ÷ jornada{diag.maq_desde ? ` desde ${diag.maq_desde.split('-').reverse().join('/')}` : ' desde o início da máquina'})
+                  </span>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
