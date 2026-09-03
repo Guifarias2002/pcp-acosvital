@@ -341,6 +341,20 @@ export const posSetorRoteiro = (cod: string) => {
   return i === -1 ? ORDEM_SETORES.length : i;
 };
 
+// ── Funil de FABRICAÇÃO dos Flanges (relatório de Acompanhamento em /analise) ─
+// Corte definido pela produção (email/decisão 03/09): a FABRICAÇÃO vai da
+// emissão até o ACABAMENTO. Depois do acabamento é só verificação do PCP
+// (quarentena) e despacho (logística) — não é mais "produzir". Fonte única
+// usada pelo endpoint /api/analise/fabricacao. Ver [[project_analise_pcp]].
+//  • EM FABRICAÇÃO: setores de chão até o acabamento (inclui 'estoque', peça
+//    aguardando material/etapa dentro do processo).
+//  • PRONTO: passou do acabamento — fabricada, esperando verificação/despacho.
+//  • FILA: ainda não entrou na fabricação (emissão/compras/recebimento) ou
+//    status aguardando/emitido.
+export const FAB_SETORES_EM_FABRICACAO = ['estoque', 'maçarico', 'plasma', 'laser', 'serra', 'usinagem', 'furacao', 'qualidade', 'sinete', 'acabamento'];
+export const FAB_SETORES_PRONTO = ['embalagem', 'quarentena', 'logistica', 'liberado'];
+export const FAB_SETORES_FILA = ['emissao', 'recebimento', 'compras', 'beneficiadores'];
+
 export const STATUS_LABELS: Record<string, string> = {
   emitido: 'Emitido',
   aguardando: 'Aguardando',

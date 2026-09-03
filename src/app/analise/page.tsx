@@ -86,6 +86,25 @@ interface Diag {
     producao_dia_atual: number | null; saldo_dia: number | null; risco_atraso: boolean | null; tem_capacidade: boolean;
   };
 }
+// Acompanhamento de fabricação (endpoint /api/analise/fabricacao) — Flanges.
+interface Fab {
+  funil: {
+    fila: { itens: number; un: number };
+    em_fabricacao: { itens: number; un: number };
+    pronto: { itens: number; un: number };
+    entregue: { itens: number; un: number };
+  };
+  total_un: number;
+  fabricadas_un: number;
+  fabricado_mes: { mes: string; itens: number; un: number }[];
+  meta: {
+    meta_mensal_un: number | null; mes_atual: string; fabricado_mes_atual_un: number;
+    dias_uteis_mes: number; dias_uteis_decorridos: number;
+    ritmo_necessario_dia: number | null; ritmo_real_dia: number | null;
+    projetado_fim_mes: number | null; faltam_un: number | null; risco: boolean | null;
+  };
+}
+
 // Parâmetros editáveis (capacidade por máquina + meta de demanda).
 interface ParamMaq { maquina: string; horas_dia: number; dias_semana: number; cadastrada: boolean; usada: boolean }
 
@@ -113,6 +132,16 @@ export default function AnalisePage() {
   }, []);
   useEffect(() => { carregarDiag(); }, [carregarDiag]);
 
+  // Acompanhamento de fabricação (funil ao vivo + meta do mês) — Flanges.
+  const [fab, setFab] = useState<Fab | null>(null);
+  const carregarFab = useCallback(() => {
+    fetch('/api/analise/fabricacao', { headers: { Authorization: `Bearer ${getToken() || ''}` } })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && !d.erro) setFab(d as Fab); })
+      .catch(() => {});
+  }, []);
+  useEffect(() => { carregarFab(); }, [carregarFab]);
+
   // Parâmetros editáveis: capacidade por máquina + meta de demanda.
   const meStaff = !!getUser()?.is_staff;
   const [params, setParams] = useState<{ maquinas: ParamMaq[]; meta: string } | null>(null);
@@ -139,7 +168,7 @@ export default function AnalisePage() {
           meta_mensal_un: params.meta === '' ? '' : Number(params.meta),
         }),
       });
-      if (res.ok) { carregarParams(); carregarDiag(); }
+      if (res.ok) { carregarParams(); carregarDiag(); carregarFab(); }
     } catch { /* ignora */ } finally { setSavingParams(false); }
   }
   const admin = isAdministrador();
@@ -406,6 +435,133 @@ export default function AnalisePage() {
                   </div>
                 )}
               </div>
+            </div>
+          );
+        })()}
+
+        {/* ── Acompanhamento de fabricação (funil ao vivo + meta do mês) ─────── */}
+        {fab && (() => {
+          const F = fab.funil;
+          const total = fab.total_un || 1;
+          const mesLabel = (m: string) => `${m.slice(5)}/${m.slice(2, 4)}`;
+          // Segmentos do funil, na ordem do processo.
+          const segs = [
+            { k: 'fila', label: 'Na fila', cor: '#cbd5e1', v: F.fila },
+            { k: 'em_fabricacao', label: 'Em fabricação', cor: '#3b82f6', v: F.em_fabricacao },
+            { k: 'pronto', label: 'Fabricadas — prontas', cor: C.verde, v: F.pronto },
+            { k: 'entregue', label: 'Entregues', cor: '#0f766e', v: F.entregue },
+          ];
+          const M = fab.meta;
+          const meta = M.meta_mensal_un;
+          const pctMeta = meta && meta > 0 ? Math.min(100, (M.fabricado_mes_atual_un / meta) * 100) : 0;
+          const pctRitmo = Math.min(100, (M.dias_uteis_decorridos / M.dias_uteis_mes) * 100); // onde "deveríamos" estar hoje
+          const tile = (label: string, valor: string, cor: string, sub?: string) => (
+            <div style={{ flex: '1 1 150px', minWidth: 140, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 12px' }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: .6 }}>{label}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: cor, lineHeight: 1.15, marginTop: 2 }}>{valor}</div>
+              {sub && <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>{sub}</div>}
+            </div>
+          );
+          const th = { textAlign: 'left' as const, padding: '4px 8px', fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase' as const, fontWeight: 700 };
+          const td = { padding: '4px 8px', fontSize: 12.5, color: '#334155', borderTop: '1px solid #f1f5f9' };
+          return (
+            <div className="card" style={{ padding: 16, marginBottom: 18, border: `1.5px solid ${C.verde}` }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: C.verde, marginBottom: 4 }}>
+                <i className="bi bi-diagram-3" style={{ marginRight: 6 }} />Acompanhamento de Fabricação — Flanges
+                <span style={{ fontWeight: 500, color: '#94a3b8', fontSize: 11.5, marginLeft: 8 }}>
+                  da emissão ao acabamento · ao vivo, anda com os pedidos
+                </span>
+              </div>
+
+              {/* Funil — barra segmentada proporcional às unidades */}
+              <div style={{ marginTop: 12, marginBottom: 6 }}>
+                <div style={{ display: 'flex', width: '100%', height: 30, borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                  {segs.map(s => {
+                    const w = (s.v.un / total) * 100;
+                    if (w <= 0) return null;
+                    return (
+                      <div key={s.k} title={`${s.label}: ${fmt(s.v.un)} un`}
+                        style={{ width: `${w}%`, background: s.cor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 800, minWidth: 0 }}>
+                        {w >= 8 ? fmt(s.v.un) : ''}
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Legenda / contagem */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 8 }}>
+                  {segs.map(s => (
+                    <div key={s.k} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                      <span style={{ width: 11, height: 11, borderRadius: 3, background: s.cor, display: 'inline-block' }} />
+                      <span style={{ color: '#475569' }}>{s.label}</span>
+                      <b style={{ color: '#0f172a' }}>{fmt(s.v.un)} un</b>
+                      <span style={{ color: '#94a3b8' }}>({s.v.itens} itens)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Destaque: fabricadas paradas esperando despacho */}
+              {F.pronto.un > 0 && (
+                <div style={{ marginTop: 10, fontSize: 11.5, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 8, padding: '7px 10px' }}>
+                  <i className="bi bi-box-seam" style={{ marginRight: 6 }} />
+                  <b>{fmt(F.pronto.un)} peças</b> já fabricadas ({F.pronto.itens} itens) aguardando verificação do PCP / despacho pela logística.
+                </div>
+              )}
+
+              {/* Meta do mês */}
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, marginBottom: 6 }}>
+                  Meta do mês <span style={{ fontWeight: 400, color: '#94a3b8' }}>({mesLabel(M.mes_atual)} · fabricado = passou do acabamento)</span>
+                </div>
+                {meta && meta > 0 ? (
+                  <>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                      {tile('Fabricado no mês', `${fmt(M.fabricado_mes_atual_un)} un`, C.verde, `meta ${fmt(meta)} un`)}
+                      {tile('Faltam', `${fmt(M.faltam_un)} un`, M.faltam_un && M.faltam_un > 0 ? C.laranja : C.verde, 'para bater a meta')}
+                      {tile('Ritmo real', `${fmt(M.ritmo_real_dia, 1)} un/dia`, C.azul2, `necessário ${fmt(M.ritmo_necessario_dia, 1)} un/dia`)}
+                      {tile('Projeção fim do mês', `${fmt(M.projetado_fim_mes)} un`, M.risco ? C.vermelho : C.verde, M.risco ? '⚠ risco de não bater' : '✓ no rumo da meta')}
+                    </div>
+                    {/* Barra de progresso da meta + marcador de ritmo esperado */}
+                    <div style={{ position: 'relative', width: '100%', height: 22, background: '#f1f5f9', borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                      <div style={{ width: `${pctMeta}%`, height: '100%', background: M.risco ? C.laranja : C.verde, transition: 'width .3s' }} />
+                      {/* marcador de onde "deveríamos estar" hoje */}
+                      <div title={`ritmo esperado até hoje (${fmt(pctRitmo, 0)}%)`}
+                        style={{ position: 'absolute', top: -2, bottom: -2, left: `${pctRitmo}%`, width: 2, background: C.azul, opacity: .7 }} />
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#0f172a' }}>
+                        {fmt(pctMeta, 0)}% da meta
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 4 }}>
+                      A linha azul marca onde a produção deveria estar hoje ({fmt(pctRitmo, 0)}% do mês) — barra à esquerda dela = atrasado.
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: 11.5, color: '#475569', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 10px' }}>
+                    <i className="bi bi-info-circle" style={{ marginRight: 6 }} />
+                    Sem meta cadastrada — o funil acima já funciona sozinho. Defina a <b>meta mensal</b> em Parâmetros pra ver progresso, ritmo e projeção.{' '}
+                    <button onClick={() => setParamsAberto(true)} style={{ border: 'none', background: 'none', color: C.azul2, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>Cadastrar agora ↓</button>
+                  </div>
+                )}
+              </div>
+
+              {/* Fabricado por mês */}
+              {fab.fabricado_mes.length > 0 && (
+                <div style={{ marginTop: 14, maxWidth: 420 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, marginBottom: 4 }}>Fabricado por mês <span style={{ fontWeight: 400, color: '#94a3b8' }}>(peças que passaram do acabamento)</span></div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr><th style={th}>Mês</th><th style={{ ...th, textAlign: 'right' }}>Peças</th><th style={{ ...th, textAlign: 'right' }}>Itens</th></tr></thead>
+                    <tbody>
+                      {fab.fabricado_mes.slice(-8).map(m => (
+                        <tr key={m.mes}>
+                          <td style={td}>{mesLabel(m.mes)}</td>
+                          <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: C.verde }}>{fmt(m.un)}</td>
+                          <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{m.itens}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           );
         })()}
