@@ -132,9 +132,6 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
   // deliberadamente restrito a um setor específico, ex.: PCP que só pode
   // movimentar na Quarentena mas mantém a visão ampla do resto do sistema).
   const acessoIrrestrito = isAdmin && meusSetores.length === 0;
-  // Fila de Inspeções (Caldeiraria): Qualidade (setor 'qualidade'), Caldeiraria,
-  // HRM e admin. Diferenciado do fluxo de Flange — ver [[project_datas_op_cliente]].
-  const podeVerInspecoes = !!isAdmin || !!user?.acesso_hrm || meusSetores.includes('qualidade') || meusSetores.includes('caldeiraria');
 
   // ── Workspace (PCP AÇOS VITAL × PCP HRM) ──────────────────────────────────
   // Só admin/PCP (staff) trocam de mundo. Operador (não-staff) NUNCA vê o
@@ -207,7 +204,6 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
               {/* Análise PCP — liberada por is_staff/admin OU pela flag pode_ver_analise
                   (fora do bloco só-admin abaixo, pra aparecer também pra não-admin). */}
               {podeVer && <NavItem href="/analise" label="Análise PCP" icon="bi-graph-up-arrow" onNav={fechar} />}
-              {podeVerInspecoes && <NavItem href="/inspecoes" label="Inspeções (Caldeiraria)" icon="bi-clipboard2-check" onNav={fechar} />}
               {isAdmin && (
                 <>
                   <NavItem href="/kanban" label="Kanban" icon="bi-kanban" onNav={fechar} />
@@ -271,6 +267,8 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
               {(acessoIrrestrito ? SETORES_CALDEIRARIA_EXTRA : SETORES_CALDEIRARIA_EXTRA.filter(cod => meusSetores.includes(cod))).map(cod => (
                 <NavItem key={cod} href={`/setor/${cod}`} label={NOMES[cod] || cod} icon={SETOR_ICONS[cod]} onNav={fechar} />
               ))}
+              {/* Fila de inspeções / Hold Points — só na Caldeiraria (fora do Flange). */}
+              <NavItem href="/inspecoes" label="Inspeções" icon="bi-clipboard2-check" onNav={fechar} />
             </NavGroup>
           )}
 
