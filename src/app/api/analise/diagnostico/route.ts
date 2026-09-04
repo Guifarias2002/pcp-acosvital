@@ -143,13 +143,22 @@ export async function GET(req: Request) {
       !v ? null : (typeof v === 'string' ? v.slice(0, 10) : new Date(v).toISOString().slice(0, 10));
     const diasInclusivos = (de: string, ate: string) =>
       Math.max(1, Math.round((new Date(ate + 'T12:00:00').getTime() - new Date(de + 'T12:00:00').getTime()) / 86400000) + 1);
+    const HORAS_JORNADA_MES = 220; // jornada mensal padrão (sem horas extras)
     const maqList = maqRaw.map(m => {
       const cap = capMap.get(m.maquina);
       const desdeIso = toIso(m.desde);
       const diasCorridos = desdeIso ? diasInclusivos(desdeIso, hojeIso) : null;
       const dias_uteis_periodo = (cap && diasCorridos != null) ? Math.max(1, Math.round(diasCorridos * (cap.dias_semana / 7))) : null;
-      const utilizacao_pct = (cap && cap.horas_dia > 0 && dias_uteis_periodo)
-        ? (m.horas_registradas / (cap.horas_dia * dias_uteis_periodo)) * 100
+      // Horas de jornada disponíveis no período: se a máquina tem jornada
+      // cadastrada em Parâmetros, usa horas/dia × dias úteis; senão, a jornada
+      // padrão de 220 h/mês (SEM horas extras), rateada pelos dias corridos desde
+      // que a máquina começou a rodar. Horas trabalhadas acima da jornada aparecem
+      // como utilização > 100% (indica hora extra), em vez de inflar o disponível.
+      const horasJornadaPeriodo = (cap && cap.horas_dia > 0 && dias_uteis_periodo)
+        ? cap.horas_dia * dias_uteis_periodo
+        : (diasCorridos != null ? HORAS_JORNADA_MES * (diasCorridos / 30.436875) : null);
+      const utilizacao_pct = (horasJornadaPeriodo && horasJornadaPeriodo > 0)
+        ? (m.horas_registradas / horasJornadaPeriodo) * 100
         : null;
       return { ...m, desde: desdeIso, cadastrada: !!cap, capacidade_dia_h: cap ? cap.horas_dia : null, dias_uteis_periodo, utilizacao_pct };
     });

@@ -391,7 +391,7 @@ export default function AnalisePage() {
                           <td style={td}>{mesLabel(m.mes)}</td>
                           <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{fmt(m.un)}</td>
                           <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{m.dias}</td>
-                          <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: C.azul2 }}>{m.media_dia != null ? fmt(m.media_dia, 1) : '—'}</td>
+                          <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: C.azul2 }}>{m.media_dia != null ? fmt(m.media_dia, 0) : '—'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -407,7 +407,7 @@ export default function AnalisePage() {
                       {gargProd.map(g => (
                         <tr key={g.setor}>
                           <td style={td}>{nm(g.setor)}</td>
-                          <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: g.dias_medio >= 1.3 ? C.vermelho : g.dias_medio >= 1 ? C.laranja : C.verde }}>{fmt(g.dias_medio, 2)}</td>
+                          <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: g.dias_medio >= 1.3 ? C.vermelho : g.dias_medio >= 1 ? C.laranja : C.verde }}>{fmt(g.dias_medio, 0)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -463,11 +463,16 @@ export default function AnalisePage() {
                 </div>
               ) : null}
 
-              {/* Máquinas — ciclo mediano + utilização (quando a jornada foi cadastrada) */}
+              {/* Máquinas — ciclo mediano + utilização. Esconde as praticamente
+                  paradas (< 1 h registrada) e mostra ciclo em minutos inteiros. */}
+              {(() => {
+                const maqs = diag.maquinas.filter(m => Number(m.horas_registradas) >= 1).slice(0, 12);
+                if (maqs.length === 0) return null;
+                return (
               <div style={{ marginTop: 14 }}>
                 <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, marginBottom: 4 }}>
                   Máquinas <span style={{ fontWeight: 400, color: '#94a3b8' }}>
-                    (ciclo mediano · utilização = horas ÷ jornada{diag.maq_desde ? ` desde ${diag.maq_desde.split('-').reverse().join('/')}` : ' desde o início da máquina'})
+                    (ciclo mediano em minutos · utilização = horas registradas ÷ jornada de 220 h/mês, sem horas extras{diag.maq_desde ? `, desde ${diag.maq_desde.split('-').reverse().join('/')}` : ''} · máquinas com menos de 1 h ocultas)
                   </span>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
@@ -476,19 +481,19 @@ export default function AnalisePage() {
                       <th style={th}>Máquina</th>
                       <th style={{ ...th, textAlign: 'right' }}>Ciclos</th>
                       <th style={{ ...th, textAlign: 'right' }}>Ciclo mediano</th>
-                      <th style={{ ...th, textAlign: 'right' }}>Horas reg.</th>
+                      <th style={{ ...th, textAlign: 'right' }}>Horas registradas</th>
                       <th style={{ ...th, textAlign: 'right' }}>Utilização</th>
                     </tr></thead>
                     <tbody>
-                      {diag.maquinas.slice(0, 10).map(m => {
+                      {maqs.map(m => {
                         const u = m.utilizacao_pct;
                         const cor = u == null ? '#cbd5e1' : u > 100 ? C.vermelho : u >= 70 ? C.verde : u >= 40 ? C.laranja : C.azul2;
                         return (
                           <tr key={m.maquina}>
                             <td style={td}>{m.maquina}</td>
                             <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{m.ciclos}</td>
-                            <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{fmt(m.ciclo_mediano_h, 2)} h</td>
-                            <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{fmt(m.horas_registradas, 1)} h</td>
+                            <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{fmt(Math.round(Number(m.ciclo_mediano_h) * 60))} min</td>
+                            <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{fmt(Math.round(Number(m.horas_registradas)))} h</td>
                             <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: cor }}>
                               {u == null ? <span style={{ fontWeight: 600, color: '#94a3b8' }}>jornada?</span> : `${fmt(u, 0)}%`}
                             </td>
@@ -499,6 +504,8 @@ export default function AnalisePage() {
                   </table>
                 </div>
               </div>
+                );
+              })()}
 
               {/* Alertas de qualidade de dado + o que falta */}
               <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
