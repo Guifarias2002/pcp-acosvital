@@ -43,6 +43,7 @@ export const MOTIVOS_PAUSA: MotivoPausa[] = [
   { codigo: 'banheiro',        label: 'Banheiro / Necessidades',       pedeMaquina: false, icone: 'bi-person-walking' },
   { codigo: 'reuniao',         label: 'Reunião',                       pedeMaquina: false, icone: 'bi-people' },
   { codigo: 'falta_material',  label: 'Falta de material',             pedeMaquina: false, icone: 'bi-box-seam' },
+  { codigo: 'troca_peca',      label: 'Troca de peça',                 pedeMaquina: false, icone: 'bi-arrow-repeat' },
   { codigo: 'fim_expediente',  label: 'Fim de expediente',             pedeMaquina: false, icone: 'bi-moon-stars' },
   { codigo: 'troca_maquina',   label: 'Troca de máquina',              pedeMaquina: true,  icone: 'bi-arrow-left-right' },
   { codigo: 'maquina_quebrada', label: 'Máquina quebrada / manutenção', pedeMaquina: true, icone: 'bi-tools' },
