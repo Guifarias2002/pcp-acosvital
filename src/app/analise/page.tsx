@@ -119,6 +119,15 @@ interface Fab {
   };
 }
 
+// Capacidade & compromisso (endpoint /api/analise/capacidade) — Flanges.
+interface Cap {
+  ritmo: { dia: number | null; semana: number | null; mes: number | null; mes_ref: string | null; dias_mes: number | null };
+  backlog: { pecas: number; pedidos: number; meses_fila: number | null; dias_para_comecar: number | null };
+  folga: { pecas_mes: number | null; pedidos_mes: number | null; pecas_por_pedido: number | null };
+  por_tipo: { tipo: string; ritmo_mes: number; backlog_pecas: number; backlog_pedidos: number; meses_fila: number | null; folga_mes: number }[];
+  por_maquina: { maquina: string; cap_horas_mes: number; horas_mes: number | null; horas_livres: number | null; utilizacao_pct: number | null; desde: string | null }[];
+}
+
 // Parâmetros editáveis (capacidade por máquina + meta de demanda).
 interface ParamMaq { maquina: string; horas_dia: number; dias_semana: number; cadastrada: boolean; usada: boolean }
 
@@ -133,7 +142,7 @@ export default function AnalisePage() {
   const [fechamentos, setFechamentos] = useState<Rec[]>([]);
   const [genLoad, setGenLoad] = useState(false);
   const [detalhe, setDetalhe] = useState<{ titulo: string; loading: boolean; itens: Rec[] } | null>(null);
-  const [aba, setAba] = useState<'geral' | 'homem' | 'maquina' | 'catalogo'>('geral');
+  const [aba, setAba] = useState<'geral' | 'homem' | 'maquina' | 'catalogo' | 'capacidade'>('geral');
   const [maquinaSel, setMaquinaSel] = useState<string | null>(null);
   const [maqDet, setMaqDet] = useState<{ loading: boolean; rows: Rec[] } | null>(null);
   // Diagnóstico executivo (histórico inteiro, calculado ao vivo no back).
@@ -155,6 +164,16 @@ export default function AnalisePage() {
       .catch(() => {});
   }, []);
   useEffect(() => { carregarFab(); }, [carregarFab]);
+
+  // Capacidade & compromisso (quanto dá pra aceitar) — Flanges.
+  const [cap, setCap] = useState<Cap | null>(null);
+  const carregarCap = useCallback(() => {
+    fetch('/api/analise/capacidade', { headers: { Authorization: `Bearer ${getToken() || ''}` } })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && !d.erro) setCap(d as Cap); })
+      .catch(() => {});
+  }, []);
+  useEffect(() => { carregarCap(); }, [carregarCap]);
 
   // Parâmetros editáveis: capacidade por máquina + meta de demanda.
   const meStaff = !!getUser()?.is_staff;
@@ -757,6 +776,7 @@ export default function AnalisePage() {
             { id: 'homem' as const, icon: 'bi-people', label: 'Produção Homem' },
             { id: 'maquina' as const, icon: 'bi-gear-wide-connected', label: 'Produção Máquina' },
             { id: 'catalogo' as const, icon: 'bi-collection', label: 'Catálogo de Flanges' },
+            { id: 'capacidade' as const, icon: 'bi-clipboard-check', label: 'Capacidade' },
           ]).map(t => (
             <button key={t.id} onClick={() => setAba(t.id)}
               style={{
@@ -1023,6 +1043,105 @@ export default function AnalisePage() {
             <b>Como usar:</b> o ritmo vem das <b>datas reais</b>: <b>Peças/dia</b> = total de peças ÷ <b>dias corridos</b> entre o 1º apontamento (quando começou) e a última entrega (quando foi finalizado), passando por todas as áreas. <b>Semana</b> = ×7 e <b>mês</b> = ×30 dias corridos. Flanges que começaram mas ainda não foram finalizadas aparecem como <i>&ldquo;em produção&rdquo;</i>. Ordenado por peças — ajuda a priorizar a programação (junto com a previsão do Gilmar).
           </div>
           </>)}
+
+          {aba === 'capacidade' && (() => {
+            const mesLbl = (m: string | null) => (m ? `${m.slice(5)}/${m.slice(2, 4)}` : '');
+            const cardBox = (bg: string, bd: string): React.CSSProperties => ({ background: bg, border: `1px solid ${bd}`, borderRadius: 10, padding: '12px 14px' });
+            const capLabel: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: .5 };
+            const capBig: React.CSSProperties = { fontSize: 22, fontWeight: 800, color: C.azul, lineHeight: 1.15, marginTop: 3 };
+            const capSub: React.CSSProperties = { fontSize: 11.5, color: '#64748b', marginTop: 2 };
+            return (
+            <>
+              <SectionTitle icon="bi-clipboard-check" t="Capacidade & compromisso" s="Quanto a fábrica entrega, quanto já está na fila e quanto ainda dá pra aceitar com certeza — entrando no fim da fila, sem furar fila" />
+              {!cap ? <div style={{ textAlign: 'center', padding: 30, color: C.cinza }}><i className="bi bi-hourglass-split" style={{ fontSize: 22 }} /><p>Calculando capacidade…</p></div> : (<>
+                {/* Resumo */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(215px,1fr))', gap: 12, marginBottom: 18 }}>
+                  <div style={cardBox('#f0f9ff', '#bae6fd')}>
+                    <div style={{ ...capLabel, color: '#0369a1' }}><i className="bi bi-box-seam" style={{ marginRight: 5 }} />Ritmo de saída (real)</div>
+                    <div style={capBig}>{cap.ritmo.mes != null ? fmt(cap.ritmo.mes, 0) : '—'} <span style={{ fontSize: 13, fontWeight: 700, color: '#0369a1' }}>peças/mês</span></div>
+                    <div style={capSub}>~{fmt(cap.ritmo.semana, 0)}/semana · ~{fmt(cap.ritmo.dia, 0)}/dia{cap.ritmo.mes_ref ? ` · base ${mesLbl(cap.ritmo.mes_ref)}` : ''}</div>
+                  </div>
+                  <div style={cardBox('#fffbeb', '#fde68a')}>
+                    <div style={{ ...capLabel, color: C.laranja }}><i className="bi bi-hourglass-split" style={{ marginRight: 5 }} />Fila atual (já comprometido)</div>
+                    <div style={capBig}>{fmt(cap.backlog.pecas, 0)} <span style={{ fontSize: 13, fontWeight: 700, color: C.laranja }}>peças</span></div>
+                    <div style={capSub}>{fmt(cap.backlog.pedidos, 0)} pedidos{cap.backlog.meses_fila != null ? ` · ≈ ${fmt(cap.backlog.meses_fila, 1)} meses de produção` : ''}</div>
+                  </div>
+                  <div style={cardBox('#f8fafc', '#e2e8f0')}>
+                    <div style={{ ...capLabel, color: C.cinza }}><i className="bi bi-calendar-check" style={{ marginRight: 5 }} />Pedido novo começa a sair em</div>
+                    <div style={capBig}>{cap.backlog.dias_para_comecar != null ? `~${fmt(cap.backlog.dias_para_comecar, 0)} dias` : '—'}</div>
+                    <div style={capSub}>depois de limpar a fila atual (sem furar fila)</div>
+                  </div>
+                  {cap.folga.pecas_mes != null && cap.folga.pecas_mes > 0 ? (
+                    <div style={cardBox('#f0fdf4', '#bbf7d0')}>
+                      <div style={{ ...capLabel, color: C.verde }}><i className="bi bi-plus-circle" style={{ marginRight: 5 }} />Cabe aceitar (no mês)</div>
+                      <div style={capBig}>+{fmt(cap.folga.pecas_mes, 0)} <span style={{ fontSize: 13, fontWeight: 700, color: C.verde }}>peças</span></div>
+                      <div style={capSub}>{cap.folga.pedidos_mes != null ? `≈ ${fmt(cap.folga.pedidos_mes, 1)} pedidos` : ''}{cap.folga.pecas_por_pedido != null ? ` · pedido médio ~${fmt(cap.folga.pecas_por_pedido, 0)} peças` : ''}</div>
+                    </div>
+                  ) : (
+                    <div style={cardBox('#fef2f2', '#fca5a5')}>
+                      <div style={{ ...capLabel, color: C.vermelho }}><i className="bi bi-exclamation-triangle" style={{ marginRight: 5 }} />Fila cheia</div>
+                      <div style={{ ...capBig, color: C.vermelho }}>0 no mês</div>
+                      <div style={capSub}>a fila atual já ocupa o próximo mês inteiro</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Por tipo de flange */}
+                <div style={{ fontSize: 12, fontWeight: 800, color: C.azul, margin: '4px 0 8px' }}>
+                  <i className="bi bi-collection" style={{ marginRight: 6 }} />Por tipo de flange
+                </div>
+                <div className="card" style={{ padding: 0, marginBottom: 20, overflowX: 'auto' }}>
+                  <table style={tbl}>
+                    <thead><tr>{['Tipo', 'Ritmo/mês', 'Na fila (peças)', 'Pedidos na fila', 'Fila (meses)', 'Cabe aceitar/mês'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {cap.por_tipo.map(t => (
+                        <tr key={t.tipo}>
+                          <td style={{ ...td, fontWeight: 700 }}>{t.tipo}</td>
+                          <td style={{ ...tdR, color: C.azul2, fontWeight: 700 }}>{fmt(t.ritmo_mes, 0)}</td>
+                          <td style={{ ...tdR, fontWeight: 700 }}>{fmt(t.backlog_pecas, 0)}</td>
+                          <td style={tdR}>{fmt(t.backlog_pedidos, 0)}</td>
+                          <td style={{ ...tdR, fontWeight: 700, color: t.meses_fila == null ? '#cbd5e1' : t.meses_fila >= 3 ? C.vermelho : t.meses_fila >= 1.5 ? C.laranja : C.verde }}>
+                            {t.meses_fila != null ? fmt(t.meses_fila, 1) : <span style={{ fontStyle: 'italic', color: '#cbd5e1' }}>sem saída recente</span>}
+                          </td>
+                          <td style={{ ...tdR, fontWeight: 700, color: t.folga_mes > 0 ? C.verde : '#cbd5e1' }}>{t.folga_mes > 0 ? `+${fmt(t.folga_mes, 0)}` : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Por máquina */}
+                <div style={{ fontSize: 12, fontWeight: 800, color: C.azul, margin: '4px 0 8px' }}>
+                  <i className="bi bi-gear-wide-connected" style={{ marginRight: 6 }} />Por máquina <span style={{ fontWeight: 400, color: '#94a3b8' }}>(jornada 220 h/mês, sem horas extras)</span>
+                </div>
+                <div className="card" style={{ padding: 0, marginBottom: 16, overflowX: 'auto' }}>
+                  <table style={tbl}>
+                    <thead><tr>{['Máquina', 'Capacidade (h/mês)', 'Usadas/mês', 'Livres/mês', 'Utilização'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {cap.por_maquina.map(m => {
+                        const u = m.utilizacao_pct;
+                        const cor = u == null ? '#cbd5e1' : u > 100 ? C.vermelho : u >= 70 ? C.verde : u >= 40 ? C.laranja : C.azul2;
+                        return (
+                          <tr key={m.maquina}>
+                            <td style={{ ...td, fontWeight: 700 }}>{m.maquina}</td>
+                            <td style={tdR}>{fmt(m.cap_horas_mes, 0)} h</td>
+                            <td style={tdR}>{m.horas_mes != null ? `${fmt(m.horas_mes, 0)} h` : '—'}</td>
+                            <td style={{ ...tdR, fontWeight: 700, color: (m.horas_livres ?? 0) > 20 ? C.verde : C.laranja }}>{m.horas_livres != null ? `${fmt(m.horas_livres, 0)} h` : '—'}</td>
+                            <td style={{ ...tdR, fontWeight: 800, color: cor }}>{u != null ? `${fmt(u, 0)}%` : '—'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 16px', fontSize: 12, color: '#64748b', marginBottom: 40, lineHeight: 1.55 }}>
+                  <b>Como ler:</b> <b>Ritmo de saída</b> = peças entregues no último mês completo (o que a fábrica realmente tira por mês). <b>Fila</b> = tudo que já entrou e ainda não foi entregue (pedidos já comprometidos). <b>Cabe aceitar</b> = o que sobra do ritmo do mês depois da fila — é o que dá pra prometer <b>entrando no fim da fila, sem passar ninguém na frente por urgência</b>. Na <b>máquina</b>, capacidade é a jornada de 220 h/mês (sem hora extra); acima de 100% indica que rodou em hora extra.
+                </div>
+              </>)}
+            </>
+            );
+          })()}
 
           {aba === 'geral' && (<>
           {/* Projeção de produção */}
