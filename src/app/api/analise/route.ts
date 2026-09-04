@@ -276,7 +276,19 @@ export async function GET(req: Request) {
                JOIN producao_itempedido i2 ON i2.id = ip.item_pedido_id
                WHERE i2.codigo = i.codigo AND COALESCE(i2.fabrica,'flange') = 'flange'
                  AND i2.inativo IS NOT TRUE AND ip.maquina IS NOT NULL
-             ), 0) AS segundos_producao
+             ), 0) AS segundos_producao,
+             -- Início REAL: primeiro apontamento (iniciado_em) de qualquer item do código.
+             (SELECT MIN(ip.iniciado_em)
+               FROM producao_itemparcial ip
+               JOIN producao_itempedido i3 ON i3.id = ip.item_pedido_id
+               WHERE i3.codigo = i.codigo AND COALESCE(i3.fabrica,'flange') = 'flange'
+                 AND i3.inativo IS NOT TRUE AND ip.iniciado_em IS NOT NULL) AS inicio,
+             -- Fim REAL: última entrega (finalização) de qualquer item do código.
+             (SELECT MAX(m.criado_em)
+               FROM producao_movimentacaoitem m
+               JOIN producao_itempedido i4 ON i4.id = m.item_id
+               WHERE i4.codigo = i.codigo AND COALESCE(i4.fabrica,'flange') = 'flange'
+                 AND i4.inativo IS NOT TRUE AND m.status_novo = 'entregue') AS fim
       FROM producao_itempedido i WHERE ${FLANGE}
       GROUP BY i.codigo ORDER BY pecas DESC LIMIT 200`;
 
@@ -302,16 +314,31 @@ export async function GET(req: Request) {
       maquinas,
       atraso_setor: atrasoSetor,
       produtos,
-      catalogo_flanges: catalogoFlanges.map((r: Record<string, unknown>) => ({
-        codigo: r.codigo,
-        descricao: r.descricao,
-        pedidos: num(r.pedidos),
-        pecas: num(r.pecas),
-        itens: num(r.itens),
-        segundos_producao: num(r.segundos_producao),
-        // tempo médio por peça (só faz sentido quando houve produção medida)
-        seg_por_peca: num(r.pecas) > 0 ? num(r.segundos_producao) / num(r.pecas) : 0,
-      })),
+      catalogo_flanges: catalogoFlanges.map((r: Record<string, unknown>) => {
+        // Ritmo REAL: peças ÷ dias corridos entre o 1º apontamento (início) e a
+        // última entrega (fim). Nada de tempo de ciclo — é a produção observada,
+        // do começo à finalização, passando pelas áreas. Dias corridos (calendário).
+        const inicio = r.inicio ? new Date(r.inicio as string) : null;
+        const fim = r.fim ? new Date(r.fim as string) : null;
+        const pecas = num(r.pecas);
+        const diasProducao = (inicio && fim && fim.getTime() > inicio.getTime())
+          ? Math.max(1, (fim.getTime() - inicio.getTime()) / 86400000)
+          : null;
+        const pecas_dia = (diasProducao != null && pecas > 0) ? pecas / diasProducao : null;
+        return {
+          codigo: r.codigo,
+          descricao: r.descricao,
+          pedidos: num(r.pedidos),
+          pecas,
+          itens: num(r.itens),
+          segundos_producao: num(r.segundos_producao),
+          seg_por_peca: num(r.pecas) > 0 ? num(r.segundos_producao) / num(r.pecas) : 0,
+          inicio: inicio ? inicio.toISOString() : null,
+          fim: fim ? fim.toISOString() : null,
+          dias_producao: diasProducao != null ? Math.round(diasProducao) : null,
+          pecas_dia, // peças por dia corrido; semana = ×7, mês = ×30 no frontend
+        };
+      }),
     });
   } catch (e) {
     console.error('[analise]', e);

@@ -59,7 +59,7 @@ interface Dados {
   maquinas: Rec[];
   atraso_setor: Rec[];
   produtos: Rec[];
-  catalogo_flanges?: { codigo: string; descricao: string; pedidos: number; pecas: number; itens: number; segundos_producao: number; seg_por_peca: number }[];
+  catalogo_flanges?: { codigo: string; descricao: string; pedidos: number; pecas: number; itens: number; segundos_producao: number; seg_por_peca: number; inicio: string | null; fim: string | null; dias_producao: number | null; pecas_dia: number | null }[];
 }
 type Rec = Record<string, string>;
 
@@ -991,28 +991,27 @@ export default function AnalisePage() {
 
           {aba === 'catalogo' && (<>
           {/* Catálogo de Flanges — histórico por código + tempo de produção */}
-          <SectionTitle icon="bi-collection" t="Catálogo de Flanges" s="Todo o histórico — cada flange e quantas peças dá pra fazer por dia/semana/mês no ritmo medido (para priorização)" />
+          <SectionTitle icon="bi-collection" t="Catálogo de Flanges" s="Todo o histórico — cada flange e o ritmo real de peças por dia/semana/mês (das datas de produção, para priorização)" />
           <div className="card" style={{ padding: 0, marginBottom: 20, maxHeight: 560, overflow: 'auto' }}>
             {(dados.catalogo_flanges || []).length === 0 ? <Vazio /> : (
               <table style={tbl}>
-                <thead><tr>{['Código', 'Produto', 'Pedidos', 'Peças', 'Tempo total (máq.)', 'Peças/dia', 'Peças/semana', 'Peças/mês'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                <thead><tr>{['Código', 'Produto', 'Pedidos', 'Peças', 'Dias (real)', 'Peças/dia', 'Peças/semana', 'Peças/mês'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
                 <tbody>
                   {dados.catalogo_flanges!.map((p, i) => {
-                    // No ritmo medido (segundos de máquina por peça), quantas peças cabem
-                    // numa jornada padrão: 8 h/dia · 5 dias/semana · 22 dias/mês.
-                    const seg = p.seg_por_peca;
-                    const pd = seg > 0 ? Math.round((8 * 3600) / seg) : null;
-                    const semMedicao = <span style={{ color: '#cbd5e1', fontStyle: 'italic' }}>a medir</span>;
+                    // Ritmo REAL: peças ÷ dias corridos entre o 1º apontamento e a última
+                    // entrega (calendário). Semana = ×7, mês = ×30 dias corridos.
+                    const pd = p.pecas_dia;
+                    const emProducao = <span style={{ color: '#cbd5e1', fontStyle: 'italic' }}>em produção</span>;
                     return (
                     <tr key={i}>
                       <td style={{ ...td, whiteSpace: 'nowrap' }}><code>{p.codigo}</code></td>
                       <td style={td}>{p.descricao}</td>
                       <td style={tdR}>{fmt(p.pedidos)}</td>
                       <td style={{ ...tdR, fontWeight: 700, color: C.azul }}>{fmt(p.pecas)}</td>
-                      <td style={tdR}>{p.segundos_producao > 0 ? fmtHorasMin(p.segundos_producao) : semMedicao}</td>
-                      <td style={{ ...tdR, fontWeight: 700, color: pd != null ? C.roxo : undefined }}>{pd != null ? fmt(pd) : semMedicao}</td>
-                      <td style={{ ...tdR, color: pd != null ? '#334155' : undefined }}>{pd != null ? fmt(pd * 5) : semMedicao}</td>
-                      <td style={{ ...tdR, color: pd != null ? '#334155' : undefined }}>{pd != null ? fmt(pd * 22) : semMedicao}</td>
+                      <td style={tdR} title={p.inicio && p.fim ? `${p.inicio.slice(0,10).split('-').reverse().join('/')} → ${p.fim.slice(0,10).split('-').reverse().join('/')}` : undefined}>{p.dias_producao != null ? `${fmt(p.dias_producao)} d` : emProducao}</td>
+                      <td style={{ ...tdR, fontWeight: 700, color: pd != null ? C.roxo : undefined }}>{pd != null ? fmt(Math.round(pd)) : emProducao}</td>
+                      <td style={{ ...tdR, color: pd != null ? '#334155' : undefined }}>{pd != null ? fmt(Math.round(pd * 7)) : emProducao}</td>
+                      <td style={{ ...tdR, color: pd != null ? '#334155' : undefined }}>{pd != null ? fmt(Math.round(pd * 30)) : emProducao}</td>
                     </tr>
                     );
                   })}
@@ -1021,7 +1020,7 @@ export default function AnalisePage() {
             )}
           </div>
           <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 16px', fontSize: 12, color: '#64748b', marginBottom: 40 }}>
-            <b>Como usar:</b> <b>Peças/dia · semana · mês</b> = quantas peças dessa flange dá pra fazer no ritmo já medido nas máquinas (Usinagem/Furação), numa jornada padrão de <b>8 h/dia · 5 dias/semana · 22 dias/mês</b>. Flanges ainda sem produção medida aparecem como <i>&ldquo;a medir&rdquo;</i>. Ordenado por peças produzidas — ajuda a priorizar a programação (junto com a previsão do Gilmar).
+            <b>Como usar:</b> o ritmo vem das <b>datas reais</b>: <b>Peças/dia</b> = total de peças ÷ <b>dias corridos</b> entre o 1º apontamento (quando começou) e a última entrega (quando foi finalizado), passando por todas as áreas. <b>Semana</b> = ×7 e <b>mês</b> = ×30 dias corridos. Flanges que começaram mas ainda não foram finalizadas aparecem como <i>&ldquo;em produção&rdquo;</i>. Ordenado por peças — ajuda a priorizar a programação (junto com a previsão do Gilmar).
           </div>
           </>)}
 
