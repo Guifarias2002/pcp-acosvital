@@ -162,18 +162,18 @@ export async function GET(req: Request) {
       FROM ent e JOIN fst f ON f.item_id = e.item_id
       WHERE e.t1 BETWEEN ${de} AND ${ate}`;
 
-    // ── 7. WIP atual + idade (itens parados agora, por setor) ─────────────────
+    // ── 7. WIP atual + idade (peças/itens parados agora, por setor) ───────────
     const qWip = sql`
       WITH ev AS (
-        SELECT m.item_id, m.criado_em, COALESCE(m.setor_destino,'(nulo)') AS setor,
+        SELECT m.item_id, m.criado_em, i.quantidade, COALESCE(m.setor_destino,'(nulo)') AS setor,
                ROW_NUMBER() OVER (PARTITION BY m.item_id ORDER BY m.criado_em DESC, m.id DESC) rn
         FROM producao_movimentacaoitem m
         JOIN producao_itempedido i ON i.id = m.item_id AND ${FLANGE} AND i.status <> 'entregue')
-      SELECT setor, COUNT(*) AS itens,
+      SELECT setor, COUNT(*) AS itens, COALESCE(SUM(quantidade),0) AS pecas,
              ROUND(AVG((EXTRACT(EPOCH FROM (NOW() - criado_em))/86400.0)::numeric),1) AS idade_media,
              ROUND(MAX((EXTRACT(EPOCH FROM (NOW() - criado_em))/86400.0)::numeric),1) AS idade_max
       FROM ev WHERE rn = 1 ${setores.length ? sql`AND setor IN ${sql(setores)}` : sql``}
-      GROUP BY setor ORDER BY itens DESC`;
+      GROUP BY setor ORDER BY pecas DESC`;
 
     // ── 8. Ordens paradas há mais tempo (em produção) ─────────────────────────
     const qTopParadas = sql`

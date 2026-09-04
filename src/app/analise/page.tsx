@@ -85,6 +85,20 @@ interface Diag {
     meta_mensal_un: number | null; dias_uteis_mes: number; necessidade_dia: number | null;
     producao_dia_atual: number | null; saldo_dia: number | null; risco_atraso: boolean | null; tem_capacidade: boolean;
   };
+  ritmo_saida: {
+    dia: number; semana: number; mes: number;
+    dias_uteis_semana: number; dias_uteis_mes: number; mes_ref: string | null;
+  } | null;
+  recordes: {
+    top_produto: { codigo: string; descricao: string; pecas: number; itens: number } | null;
+    maior_pedido: { numero: string; cliente: string; pecas: number; itens: number } | null;
+  };
+  folga: {
+    pecas_por_pedido: number | null;
+    folga_dia_pecas: number | null;
+    folga_mes_pecas: number | null;
+    folga_mes_pedidos: number | null;
+  };
 }
 // Acompanhamento de fabricação (endpoint /api/analise/fabricacao) — Flanges.
 interface Fab {
@@ -338,6 +352,33 @@ export default function AnalisePage() {
                 )}
               </div>
 
+              {/* Peças saindo — ritmo real projetado em dia / semana / mês */}
+              {diag.ritmo_saida && (() => {
+                const r = diag.ritmo_saida;
+                const stat = (v: string, l: string, hint?: string) => (
+                  <div style={{ flex: '1 1 140px', minWidth: 130 }}>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: C.azul, lineHeight: 1.1 }}>{v}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#0369a1' }}>{l}</div>
+                    {hint && <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 1 }}>{hint}</div>}
+                  </div>
+                );
+                return (
+                  <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: C.azul, textTransform: 'uppercase', letterSpacing: .5, marginBottom: 10 }}>
+                      <i className="bi bi-box-seam" style={{ marginRight: 6 }} />Peças saindo — ritmo real
+                      <span style={{ fontWeight: 500, textTransform: 'none', color: '#94a3b8', marginLeft: 6 }}>
+                        média do mês {r.mes_ref ? mesLabel(r.mes_ref) : 'mais recente'}, projetada
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+                      {stat(fmt(r.dia, 0), 'peças / dia', 'média por dia produzido')}
+                      {stat(fmt(r.semana, 0), 'peças / semana', `~${fmt(r.dias_uteis_semana, 1)} dias úteis`)}
+                      {stat(fmt(r.mes, 0), 'peças / mês', `~${r.dias_uteis_mes} dias úteis`)}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
                 {/* Produção mês a mês */}
                 <div style={{ flex: '1 1 300px', minWidth: 280 }}>
@@ -361,19 +402,66 @@ export default function AnalisePage() {
                 <div style={{ flex: '1 1 300px', minWidth: 280 }}>
                   <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, marginBottom: 4 }}>Gargalos internos <span style={{ fontWeight: 400, color: '#94a3b8' }}>(dias parado por setor)</span></div>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead><tr><th style={th}>Setor</th><th style={{ ...th, textAlign: 'right' }}>Dias méd.</th><th style={{ ...th, textAlign: 'right' }}>Passagens</th></tr></thead>
+                    <thead><tr><th style={th}>Setor</th><th style={{ ...th, textAlign: 'right' }}>Dias méd.</th></tr></thead>
                     <tbody>
                       {gargProd.map(g => (
                         <tr key={g.setor}>
                           <td style={td}>{nm(g.setor)}</td>
                           <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: g.dias_medio >= 1.3 ? C.vermelho : g.dias_medio >= 1 ? C.laranja : C.verde }}>{fmt(g.dias_medio, 2)}</td>
-                          <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{fmt(g.passagens)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               </div>
+
+              {/* Recordes — quem mais produziu e o maior pedido (por peças) */}
+              {(diag.recordes?.top_produto || diag.recordes?.maior_pedido) && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 14 }}>
+                  {diag.recordes?.top_produto && (
+                    <div style={{ flex: '1 1 260px', minWidth: 240, background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 10, padding: '10px 14px' }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: .5 }}>
+                        <i className="bi bi-trophy" style={{ marginRight: 5 }} />Produto que mais produziu
+                      </div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: C.azul, marginTop: 3 }}>
+                        {fmt(diag.recordes.top_produto.pecas, 0)} peças
+                      </div>
+                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <b>{diag.recordes.top_produto.codigo}</b>{diag.recordes.top_produto.descricao ? ` · ${diag.recordes.top_produto.descricao}` : ''}
+                      </div>
+                    </div>
+                  )}
+                  {diag.recordes?.maior_pedido && (
+                    <div style={{ flex: '1 1 260px', minWidth: 240, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '10px 14px' }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: C.verde, textTransform: 'uppercase', letterSpacing: .5 }}>
+                        <i className="bi bi-star" style={{ marginRight: 5 }} />Maior pedido
+                      </div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: C.azul, marginTop: 3 }}>
+                        {fmt(diag.recordes.maior_pedido.pecas, 0)} peças
+                      </div>
+                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <b>PV {diag.recordes.maior_pedido.numero}</b>{diag.recordes.maior_pedido.cliente ? ` · ${diag.recordes.maior_pedido.cliente}` : ''}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Folga — quantas peças/pedidos a mais ainda cabem além da meta */}
+              {diag.folga?.folga_mes_pecas != null ? (
+                <div style={{ marginTop: 12, fontSize: 12.5, color: '#166534', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '9px 12px', lineHeight: 1.5 }}>
+                  <i className="bi bi-plus-circle" style={{ marginRight: 6 }} />
+                  <b>Ainda cabe:</b> além da meta, no ritmo de hoje dá pra produzir cerca de <b>+{fmt(diag.folga.folga_mes_pecas, 0)} peças/mês</b>
+                  {diag.folga.folga_mes_pedidos != null && diag.folga.pecas_por_pedido != null && (
+                    <> — mais ou menos <b>{fmt(diag.folga.folga_mes_pedidos, 1)} pedido{diag.folga.folga_mes_pedidos >= 2 ? 's' : ''} a mais</b> <span style={{ color: '#94a3b8' }}>(pedido médio ~{fmt(diag.folga.pecas_por_pedido, 0)} peças)</span></>
+                  )}.
+                </div>
+              ) : (diag.demanda?.meta_mensal_un != null && diag.demanda?.saldo_dia != null && diag.demanda.saldo_dia <= 0) ? (
+                <div style={{ marginTop: 12, fontSize: 12.5, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '9px 12px', lineHeight: 1.5 }}>
+                  <i className="bi bi-exclamation-triangle" style={{ marginRight: 6 }} />
+                  <b>Sem folga:</b> no ritmo de hoje a produção não sobra sobre a meta — não há capacidade livre pra novos pedidos sem acelerar.
+                </div>
+              ) : null}
 
               {/* Máquinas — ciclo mediano + utilização (quando a jornada foi cadastrada) */}
               <div style={{ marginTop: 14 }}>
@@ -493,8 +581,7 @@ export default function AnalisePage() {
                     <div key={s.k} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
                       <span style={{ width: 11, height: 11, borderRadius: 3, background: s.cor, display: 'inline-block' }} />
                       <span style={{ color: '#475569' }}>{s.label}</span>
-                      <b style={{ color: '#0f172a' }}>{fmt(s.v.un)} un</b>
-                      <span style={{ color: '#94a3b8' }}>({s.v.itens} itens)</span>
+                      <b style={{ color: '#0f172a' }}>{fmt(s.v.un)} peças</b>
                     </div>
                   ))}
                 </div>
@@ -504,7 +591,7 @@ export default function AnalisePage() {
               {F.pronto.un > 0 && (
                 <div style={{ marginTop: 10, fontSize: 11.5, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 8, padding: '7px 10px' }}>
                   <i className="bi bi-box-seam" style={{ marginRight: 6 }} />
-                  <b>{fmt(F.pronto.un)} peças</b> já fabricadas ({F.pronto.itens} itens) aguardando verificação do PCP / despacho pela logística.
+                  <b>{fmt(F.pronto.un)} peças</b> já fabricadas aguardando verificação do PCP / despacho pela logística.
                 </div>
               )}
 
@@ -549,13 +636,12 @@ export default function AnalisePage() {
                 <div style={{ marginTop: 14, maxWidth: 420 }}>
                   <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, marginBottom: 4 }}>Fabricado por mês <span style={{ fontWeight: 400, color: '#94a3b8' }}>(peças que passaram do acabamento)</span></div>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead><tr><th style={th}>Mês</th><th style={{ ...th, textAlign: 'right' }}>Peças</th><th style={{ ...th, textAlign: 'right' }}>Itens</th></tr></thead>
+                    <thead><tr><th style={th}>Mês</th><th style={{ ...th, textAlign: 'right' }}>Peças</th></tr></thead>
                     <tbody>
                       {fab.fabricado_mes.slice(-8).map(m => (
                         <tr key={m.mes}>
                           <td style={td}>{mesLabel(m.mes)}</td>
                           <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: C.verde }}>{fmt(m.un)}</td>
-                          <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{m.itens}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -571,6 +657,7 @@ export default function AnalisePage() {
           const th = { textAlign: 'left' as const, padding: '5px 8px', fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase' as const, fontWeight: 700 };
           const td = { padding: '5px 8px', fontSize: 13, color: '#334155', borderTop: '1px solid #f1f5f9' };
           const inp = { border: '1.5px solid #e2e8f0', borderRadius: 6, padding: '4px 6px', fontSize: 13, textAlign: 'center' as const };
+          const sub = { fontSize: 10, fontWeight: 500 as const, color: '#94a3b8', textTransform: 'none' as const, marginTop: 2, letterSpacing: 0 };
           return (
             <div className="card no-print" style={{ padding: 0, marginBottom: 18, overflow: 'hidden' }}>
               <button onClick={() => setParamsAberto(v => !v)}
@@ -583,24 +670,40 @@ export default function AnalisePage() {
               </button>
               {paramsAberto && (
                 <div style={{ padding: 16 }}>
+                  {/* Explicação em linguagem simples — pra qualquer pessoa entender o card. */}
+                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '12px 14px', marginBottom: 14, fontSize: 12.5, color: '#1e3a8a', lineHeight: 1.5 }}>
+                    <div style={{ fontWeight: 800, marginBottom: 4 }}><i className="bi bi-info-circle" style={{ marginRight: 6 }} />Pra que serve este quadro</div>
+                    Você preenche só <b>duas coisas por máquina</b>: <b>quantas horas ela roda por dia</b> e <b>quantos dias por semana</b>.
+                    Com isso o sistema calcula sozinho a <b>capacidade semanal</b> de cada uma e, junto com a <b>meta de peças do mês</b>, mostra a utilização, o saldo e o risco de atraso.
+                    <div style={{ marginTop: 6, fontSize: 11.5, color: '#3b5bdb' }}>
+                      <span style={{ background: '#dbeafe', borderRadius: 4, padding: '1px 6px', fontWeight: 700 }}>✎ você preenche</span>
+                      <span style={{ margin: '0 6px' }}>•</span>
+                      <span style={{ background: '#f1f5f9', borderRadius: 4, padding: '1px 6px', fontWeight: 700, color: '#64748b' }}>🔒 calculado automaticamente</span>
+                    </div>
+                  </div>
+
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-                    <label style={{ fontSize: 12.5, fontWeight: 700, color: C.cinza }}>Demanda — meta mensal (unidades):</label>
+                    <label style={{ fontSize: 12.5, fontWeight: 700, color: C.cinza }}>
+                      Meta do mês <span style={{ background: '#dbeafe', color: '#3b5bdb', borderRadius: 4, padding: '1px 6px', fontSize: 10.5, fontWeight: 700, marginLeft: 4 }}>✎ você preenche</span>
+                    </label>
                     <input type="number" min={0} value={params.meta} disabled={!meStaff}
                       onChange={e => setParams(p => p ? { ...p, meta: e.target.value } : p)} placeholder="ex.: 1200"
                       style={{ ...inp, width: 140, textAlign: 'left' }} />
                     <span style={{ fontSize: 11.5, color: '#94a3b8' }}>quantas peças precisam sair por mês</span>
                   </div>
                   <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
                       <thead><tr>
-                        <th style={th}>Máquina</th>
-                        <th style={{ ...th, textAlign: 'center' }}>Horas/dia</th>
-                        <th style={{ ...th, textAlign: 'center' }}>Dias/semana</th>
-                        <th style={{ ...th, textAlign: 'center' }}>Cap. semanal</th>
+                        <th style={th}>Máquina<div style={sub}>equipamento</div></th>
+                        <th style={{ ...th, textAlign: 'center' }}>Horas/dia<div style={{ ...sub, color: '#3b5bdb' }}>✎ você preenche</div></th>
+                        <th style={{ ...th, textAlign: 'center' }}>Dias/semana<div style={{ ...sub, color: '#3b5bdb' }}>✎ você preenche</div></th>
+                        <th style={{ ...th, textAlign: 'center' }}>Cap. semanal<div style={sub}>🔒 horas × dias</div></th>
                         <th style={{ ...th, textAlign: 'right' }} />
                       </tr></thead>
                       <tbody>
-                        {params.maquinas.map(m => (
+                        {params.maquinas.map(m => {
+                          const capSem = Number(m.horas_dia) * Number(m.dias_semana);
+                          return (
                           <tr key={m.maquina}>
                             <td style={td}>{m.maquina}{!m.usada && <span style={{ fontSize: 10, color: '#94a3b8', marginLeft: 6 }}>(sem apontamento)</span>}</td>
                             <td style={{ ...td, textAlign: 'center' }}>
@@ -611,12 +714,19 @@ export default function AnalisePage() {
                               <input type="number" min={0} max={7} value={m.dias_semana} disabled={!meStaff}
                                 onChange={e => setParamMaq(m.maquina, 'dias_semana', e.target.value)} style={{ ...inp, width: 62 }} />
                             </td>
-                            <td style={{ ...td, textAlign: 'center', color: '#94a3b8' }}>{fmt(Number(m.horas_dia) * Number(m.dias_semana), 0)} h/sem</td>
+                            <td style={{ ...td, textAlign: 'center' }}>
+                              <span style={{ color: '#cbd5e1', fontSize: 11.5 }}>{fmt(Number(m.horas_dia), 0)} × {fmt(Number(m.dias_semana), 0)} = </span>
+                              <b style={{ color: C.azul }}>{fmt(capSem, 0)} h/sem</b>
+                            </td>
                             <td style={{ ...td, textAlign: 'right' }}>{m.cadastrada ? <span style={{ fontSize: 10.5, color: C.verde }}>✓ cadastrada</span> : <span style={{ fontSize: 10.5, color: '#cbd5e1' }}>padrão 8h/5d</span>}</td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
+                  </div>
+                  <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 8, lineHeight: 1.5 }}>
+                    <b>Cap. semanal</b> = Horas/dia × Dias/semana — é quanto a máquina pode rodar por semana. Quem nunca foi ajustada usa o padrão de <b>8h/dia · 5 dias</b> (40 h/sem).
                   </div>
                   {meStaff && (
                     <div style={{ marginTop: 14, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -692,7 +802,6 @@ export default function AnalisePage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 24 }}>
             <Kpi v={fmt(et.atrasados)} l="materiais atrasados" cor={C.vermelho} />
             <Kpi v={fmt(vol.pecas)} l="peças que entraram no período" cor={C.azul} />
-            <Kpi v={fmt(vol.itens)} l="itens que entraram no período" cor={C.azul} />
           </div>
 
           {/* Produção semanal */}
@@ -700,8 +809,8 @@ export default function AnalisePage() {
           <div className="card" style={{ padding: 18, marginBottom: 24 }}>
             {/* Legenda: o que é cada número */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 18px', marginBottom: 16, fontSize: 12, color: '#64748b' }}>
-              <span><b style={{ color: C.azul2 }}>Número de cima</b> = finalizados na semana <i>(itens que chegaram na Logística — produção concluída)</i></span>
-              <span><b style={{ color: '#94a3b8' }}>Número de baixo</b> = itens criados na semana <i>(entrada de novos pedidos)</i></span>
+              <span><b style={{ color: C.azul2 }}>Número de cima</b> = peças finalizadas na semana <i>(chegaram na Logística — produção concluída)</i></span>
+              <span><b style={{ color: '#94a3b8' }}>Número de baixo</b> = peças criadas na semana <i>(entrada de novos pedidos)</i></span>
             </div>
             {semanas.length === 0 ? <Vazio /> : (
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 180, paddingTop: 10 }}>
@@ -718,11 +827,11 @@ export default function AnalisePage() {
           </div>
 
           {/* Throughput + tempo por etapa */}
-          <SectionTitle icon="bi-speedometer" t="Desempenho por setor" s="Peças e itens finalizados em cada setor, e quanto tempo a peça leva ali" />
+          <SectionTitle icon="bi-speedometer" t="Desempenho por setor" s="Peças finalizadas em cada setor, e quanto tempo a peça leva ali" />
           <div className="card" style={{ padding: 0, marginBottom: 24, overflowX: 'auto' }}>
             <table style={tbl}>
               <thead><tr>
-                {['Setor', 'Peças finalizadas', 'Itens', 'Etapas concluídas', 'Tempo médio (h)', 'Espera p/ iniciar (h)', 'Em pausa (h)'].map(h =>
+                {['Setor', 'Peças finalizadas', 'Etapas concluídas', 'Tempo médio (h)', 'Espera p/ iniciar (h)', 'Em pausa (h)'].map(h =>
                   <th key={h} style={th}>{h}</th>)}
               </tr></thead>
               <tbody>
@@ -730,7 +839,6 @@ export default function AnalisePage() {
                   <tr key={r.setor}>
                     <td style={{ ...td, fontWeight: 700 }}>{nm(r.setor)}</td>
                     <td style={{ ...tdR, fontWeight: 700, color: C.azul }}>{fmt(r.pecas)}</td>
-                    <td style={tdR}>{fmt(r.itens)}</td>
                     <td style={tdR}>{fmt(r.finalizacoes)}</td>
                     <td style={tdR}>{fmt(r.media_h, 0)}</td>
                     <td style={tdR}>{fmt(r.espera_h, 0)}</td>
@@ -742,12 +850,12 @@ export default function AnalisePage() {
           </div>
 
           {/* Gargalos: WIP + ordens paradas */}
-          <SectionTitle icon="bi-exclamation-diamond" t="Gargalos e filas" s="Itens parados agora e ordens presas há mais tempo" />
+          <SectionTitle icon="bi-exclamation-diamond" t="Gargalos e filas" s="Peças paradas agora e ordens presas há mais tempo" />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 16, marginBottom: 24 }}>
             <div className="card" style={{ padding: 16 }}>
-              <p style={cardTitle}>Itens parados por setor</p>
-              {barras(dados.wip.map(w => ({ label: nm(w.setor), value: Number(w.itens), hi: ['plasma', 'quarentena', 'usinagem'].includes(w.setor), key: w.setor })), '#1d4ed8',
-                d => abrirDetalhe('wip', d.key || '', `Itens parados em ${d.label}`))}
+              <p style={cardTitle}>Peças paradas por setor</p>
+              {barras(dados.wip.map(w => ({ label: nm(w.setor), value: Number(w.pecas), hi: ['plasma', 'quarentena', 'usinagem'].includes(w.setor), key: w.setor })), '#1d4ed8',
+                d => abrirDetalhe('wip', d.key || '', `Peças paradas em ${d.label}`))}
             </div>
             <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
               <p style={{ ...cardTitle, padding: '16px 16px 0' }}>Ordens paradas há mais tempo</p>
@@ -778,7 +886,7 @@ export default function AnalisePage() {
           {/* Lead time */}
           <SectionTitle icon="bi-hourglass-split" t="Lead time de entrega" s="Tempo até entrega, do período selecionado" />
           <div className="card" style={{ padding: 18, marginBottom: 24, maxWidth: 480 }}>
-            <p style={cardTitle}>Lead time dos itens entregues no período</p>
+            <p style={cardTitle}>Lead time das entregas no período</p>
             {lead.n && Number(lead.n) > 0 ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
                 <MiniKpi v={`${fmt(lead.mediana_dias, 0)} d`} l="mediana" />
@@ -787,7 +895,7 @@ export default function AnalisePage() {
                 <MiniKpi v={`${fmt(lead.max_dias, 0)} d`} l="mais lento" />
               </div>
             ) : <Vazio />}
-            <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 10, marginBottom: 0 }}>Base: {fmt(lead.n)} itens entregues no período (da 1ª etapa à entrega).</p>
+            <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 10, marginBottom: 0 }}>Base: {fmt(lead.n)} entregas no período (da 1ª etapa à entrega).</p>
           </div>
           </>)}
 
@@ -952,16 +1060,14 @@ export default function AnalisePage() {
         <div className="card" style={{ padding: 0, overflowX: 'auto', marginBottom: 40 }}>
           {fechamentos.length === 0 ? <Vazio /> : (
             <table style={tbl}>
-              <thead><tr>{['Semana', 'Pedidos', 'Itens criados', 'Peças', 'Finalizados (logística)', 'Itens entregues', 'Lead mediano'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <thead><tr>{['Semana', 'Pedidos', 'Peças criadas', 'Finalizados (logística)', 'Lead mediano'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
               <tbody>
                 {fechamentos.map((f, i) => (
                   <tr key={i}>
                     <td style={{ ...td, fontWeight: 700 }}>{labelSemana(String(f.semana).slice(0, 10))}</td>
                     <td style={tdR}>{fmt(f.pedidos)}</td>
-                    <td style={tdR}>{fmt(f.itens_criados)}</td>
                     <td style={tdR}>{fmt(f.pecas_criadas)}</td>
                     <td style={tdR}>{fmt(f.finalizacoes)}</td>
-                    <td style={tdR}>{fmt(f.itens_entregues)}</td>
                     <td style={tdR}>{f.lead_mediana ? `${fmt(f.lead_mediana, 0)} d` : '—'}</td>
                   </tr>
                 ))}
@@ -979,7 +1085,7 @@ export default function AnalisePage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
                 <div>
                   <b style={{ fontSize: 16, color: '#1a3a5c' }}>{detalhe.titulo}</b>
-                  {!detalhe.loading && <span style={{ marginLeft: 8, color: '#94a3b8', fontSize: 13 }}>{detalhe.itens.length} {detalhe.itens.length === 1 ? 'item' : 'itens'}</span>}
+                  {!detalhe.loading && <span style={{ marginLeft: 8, color: '#94a3b8', fontSize: 13 }}>{detalhe.itens.length} {detalhe.itens.length === 1 ? 'registro' : 'registros'}</span>}
                 </div>
                 <button onClick={() => setDetalhe(null)} className="abtn"><i className="bi bi-x-lg" /></button>
               </div>
@@ -1087,8 +1193,8 @@ function mergeSemanas(d: Dados | null) {
   if (!d) return [] as { semana: string; criados: number; final: number; concl: number }[];
   const map: Record<string, { semana: string; criados: number; final: number; concl: number }> = {};
   const get = (s: string) => (map[s] = map[s] || { semana: s, criados: 0, final: 0, concl: 0 });
-  d.semanal.criados.forEach(r => { get(r.semana.slice(0, 10)).criados = Number(r.itens); });
-  d.semanal.final.forEach(r => { get(r.semana.slice(0, 10)).final = Number(r.finalizacoes); });
+  d.semanal.criados.forEach(r => { get(r.semana.slice(0, 10)).criados = Number(r.pecas); });
+  d.semanal.final.forEach(r => { get(r.semana.slice(0, 10)).final = Number(r.pecas); });
   d.semanal.entregas.forEach(r => { get(r.semana.slice(0, 10)).concl = Number(r.concluidos); });
   return Object.values(map).sort((a, b) => a.semana.localeCompare(b.semana));
 }
