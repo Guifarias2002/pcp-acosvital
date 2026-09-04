@@ -367,13 +367,13 @@ export default function AnalisePage() {
                     <div style={{ fontSize: 11, fontWeight: 800, color: C.azul, textTransform: 'uppercase', letterSpacing: .5, marginBottom: 10 }}>
                       <i className="bi bi-box-seam" style={{ marginRight: 6 }} />Peças saindo — ritmo real
                       <span style={{ fontWeight: 500, textTransform: 'none', color: '#94a3b8', marginLeft: 6 }}>
-                        média do mês {r.mes_ref ? mesLabel(r.mes_ref) : 'mais recente'}, projetada
+                        último mês completo ({r.mes_ref ? mesLabel(r.mes_ref) : 'mais recente'})
                       </span>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
                       {stat(fmt(r.dia, 0), 'peças / dia', 'média por dia produzido')}
-                      {stat(fmt(r.semana, 0), 'peças / semana', `~${fmt(r.dias_uteis_semana, 1)} dias úteis`)}
-                      {stat(fmt(r.mes, 0), 'peças / mês', `~${r.dias_uteis_mes} dias úteis`)}
+                      {stat(fmt(r.semana, 0), 'peças / semana', `~${fmt(r.dias_uteis_semana, 1)} dias/semana`)}
+                      {stat(fmt(r.mes, 0), 'peças / mês', `total do mês · ${r.dias_uteis_mes} dias produzidos`)}
                     </div>
                   </div>
                 );

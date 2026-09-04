@@ -173,17 +173,20 @@ export async function GET(req: Request) {
     const risco_atraso = saldo_dia != null ? saldo_dia < 0 : null;
 
     // ── Ritmo de saída em peças: dia → semana → mês ──────────────────────────
-    // Base = média diária do último mês completo (mesma do saldo). Semana/mês
-    // são projeções desse ritmo pelos dias úteis médios (não é previsão
-    // estatística, é o ritmo observado esticado).
-    const diasUteisSemana = Math.round(diasSemanaMedio * 10) / 10;
-    const ritmoSaida = producao_dia_atual != null ? {
-      dia: producao_dia_atual,
-      semana: producao_dia_atual * diasSemanaMedio,
-      mes: producao_dia_atual * dias_uteis_mes,
-      dias_uteis_semana: diasUteisSemana,
-      dias_uteis_mes,
-      mes_ref: completosProd.length ? completosProd[completosProd.length - 1].mes : null,
+    // Decompõe o ÚLTIMO MÊS COMPLETO de forma CONSISTENTE com a tabela "Produção
+    // entregue por mês" e o KPI de produção média: mês = TOTAL REAL entregue no
+    // mês (não uma projeção por dias úteis teóricos — senão dá diferente da
+    // tabela logo abaixo, ex.: 1.074 × 1.172). Dia = média por dia produzido;
+    // semana = mês ÷ nº de semanas do mês.
+    const SEMANAS_NO_MES = 30.4 / 7; // ≈ 4,345
+    const mesRef = completosProd.length ? completosProd[completosProd.length - 1] : null;
+    const ritmoSaida = mesRef && mesRef.media_dia != null ? {
+      dia: mesRef.media_dia,
+      semana: mesRef.un / SEMANAS_NO_MES,
+      mes: mesRef.un,
+      dias_uteis_semana: mesRef.dias / SEMANAS_NO_MES, // dias produzidos por semana
+      dias_uteis_mes: mesRef.dias,                     // dias efetivamente produzidos no mês
+      mes_ref: mesRef.mes,
     } : null;
 
     // ── Recordes: quem mais produziu e o maior pedido (por peças) ────────────
