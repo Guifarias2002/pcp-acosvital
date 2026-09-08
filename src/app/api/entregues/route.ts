@@ -9,9 +9,13 @@ export async function GET(req: Request) {
   try {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
-  // Responsável pela Logística também acessa (mesmo sem is_staff).
-  if (!user.is_staff && !setoresDoUsuario(user).includes('logistica'))
-    return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  // Responsável pela Quarentena (passo terminal do Flange) ou pela antiga
+  // Logística (Caldeiraria) também acessa (mesmo sem is_staff).
+  {
+    const setores = setoresDoUsuario(user);
+    if (!user.is_staff && !setores.includes('quarentena') && !setores.includes('logistica'))
+      return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  }
 
   const { searchParams } = new URL(req.url);
   const cliente = searchParams.get('cliente') || '';
@@ -60,6 +64,11 @@ export async function GET(req: Request) {
     LEFT JOIN producao_itempedido i ON i.pedido_id = p.id
     WHERE (p.status = 'entregue' OR EXISTS (
       SELECT 1 FROM producao_itempedido ix WHERE ix.pedido_id = p.id AND ix.status = 'entregue'
+    ) OR EXISTS (
+      -- Finalizado (09/09): item ativo parado na Quarentena = passo terminal do Flange.
+      SELECT 1 FROM producao_itempedido iq
+      WHERE iq.pedido_id = p.id AND iq.inativo = false
+        AND iq.status NOT IN ('entregue','cancelado') AND iq.setor_atual = 'quarentena'
     ))
       ${cliente ? sql`AND LOWER(p.cliente) LIKE ${'%' + cliente.toLowerCase() + '%'}` : sql``}
     GROUP BY p.id
@@ -76,6 +85,10 @@ export async function GET(req: Request) {
     LEFT JOIN producao_itempedido i ON i.pedido_id = p.id
     WHERE (p.status = 'entregue' OR EXISTS (
       SELECT 1 FROM producao_itempedido ix WHERE ix.pedido_id = p.id AND ix.status = 'entregue'
+    ) OR EXISTS (
+      SELECT 1 FROM producao_itempedido iq
+      WHERE iq.pedido_id = p.id AND iq.inativo = false
+        AND iq.status NOT IN ('entregue','cancelado') AND iq.setor_atual = 'quarentena'
     ))
       ${cliente ? sql`AND LOWER(p.cliente) LIKE ${'%' + cliente.toLowerCase() + '%'}` : sql``}
   `;

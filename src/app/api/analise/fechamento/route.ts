@@ -54,12 +54,13 @@ export async function POST(req: Request) {
       SELECT date_trunc('week', i.criado_em)::date AS semana,
              COUNT(*) AS itens, COALESCE(SUM(i.quantidade),0) AS pecas, COUNT(DISTINCT i.pedido_id) AS pedidos
       FROM producao_itempedido i WHERE ${FLANGE} GROUP BY 1`;
-    // "Finalizados" = 1ª chegada de cada item na Logística (produção concluída)
+    // "Finalizados" = 1ª chegada de cada item no passo terminal do Flange
+    // (quarentena desde 09/09; logística é a antiga — MIN por item não conta em dobro)
     const qFinal = sql`
       WITH cheg AS (
         SELECT m.item_id, MIN(m.criado_em) AS t
         FROM producao_movimentacaoitem m JOIN producao_itempedido i ON i.id = m.item_id AND ${FLANGE}
-        WHERE m.setor_destino = 'logistica' GROUP BY 1)
+        WHERE m.setor_destino IN ('quarentena','logistica') GROUP BY 1)
       SELECT date_trunc('week', t)::date AS semana, COUNT(*) AS finalizacoes FROM cheg GROUP BY 1`;
     const qEntregas = sql`
       WITH fst AS (SELECT m.item_id, MIN(m.criado_em) t0 FROM producao_movimentacaoitem m

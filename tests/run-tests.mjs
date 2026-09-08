@@ -417,17 +417,18 @@ async function testarWorkflowCompleto() {
     assert(r.json?.status === 'finalizado_setor', `esperado "finalizado_setor", recebido "${r.json?.status}"`);
   });
 
-  // 4.11 Enviar para logística
-  await expect('Enviar tudo para logística → aguardando', async () => {
+  // 4.11 Enviar para o passo terminal — desde 09/09 o Flange termina na QUARENTENA
+  // (logística aposentada), então enviar_tudo depois da qualidade cai em 'quarentena'.
+  await expect('Enviar tudo para quarentena → aguardando', async () => {
     const r = await api('POST', `/api/item/${itemId}/acao/enviar_tudo`, {}, adminToken);
     assert(r.status === 200, `esperado 200, recebido ${r.status}`);
     const check = await api('GET', `/api/pedidos/${pedidoId}`, null, adminToken);
     const item = check.json?.itens?.find(i => i.id === itemId);
-    assert(item?.setor_atual === 'logistica', `setor deve ser "logistica", recebido "${item?.setor_atual}"`);
+    assert(item?.setor_atual === 'quarentena', `setor deve ser "quarentena", recebido "${item?.setor_atual}"`);
   });
 
-  // 4.12 Entregar (via acao/entregar)
-  await expect('Receber na logística', async () => {
+  // 4.12 Entregar (via acao/entregar) — funciona a partir de qualquer setor terminal
+  await expect('Receber na quarentena', async () => {
     const r = await api('POST', `/api/item/${itemId}/acao/receber`, {}, adminToken);
     assert(r.status === 200, `esperado 200, recebido ${r.status}`);
   });
@@ -591,7 +592,7 @@ async function testarEnvioParcial() {
     assert(r.status === 200, `esperado 200, recebido ${r.status}`);
     const check = await api('GET', `/api/pedidos/${pedidoIdParcial}`, null, adminToken);
     const item = check.json?.itens?.find(i => i.id === itemIdParcial);
-    assert(item?.setor_atual === 'logistica', `item deve estar em "logistica", recebido "${item?.setor_atual}"`);
+    assert(item?.setor_atual === 'quarentena', `item deve estar em "quarentena", recebido "${item?.setor_atual}"`);
   });
 }
 

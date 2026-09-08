@@ -99,9 +99,11 @@ export async function middleware(req: NextRequest) {
   // com acesso legítimo, mandando de volta pro próprio setor sem nenhum aviso —
   // parecia que o botão "não fazia nada".
   const isPedidosLeitura = pathname === '/pedidos' || /^\/pedidos\/\d+(\/historico|\/relatorio|\/etiquetas)?$/.test(pathname);
-  // Responsável pela Logística também acessa a aba Entregas (mesma exceção
-  // de "leitura liberada por setor" usada acima pra Todos os Pedidos).
-  const podeVerEntregas = pathname === '/entregues' && meusSetores.includes('logistica');
+  // Responsável pela Quarentena (novo passo terminal do Flange) ou pela antiga
+  // Logística (Caldeiraria) acessa a aba Entregues (mesma exceção de "leitura
+  // liberada por setor" usada acima pra Todos os Pedidos).
+  const podeVerEntregas = pathname === '/entregues'
+    && (meusSetores.includes('quarentena') || meusSetores.includes('logistica'));
   const rotaBloqueada = ROTAS_ADMIN.some(r => pathname === r || pathname.startsWith(r + '/')) && !isPedidosLeitura && !podeVerEntregas;
   if (!isAdmin && rotaBloqueada) {
     const destino = meuSetor ? `/setor/${meuSetor}` : (isVendedor ? '/pedidos' : '/login');

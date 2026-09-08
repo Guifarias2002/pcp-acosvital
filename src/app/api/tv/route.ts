@@ -15,7 +15,7 @@ export async function GET(req: Request) {
       SELECT
         COUNT(*) FILTER (WHERE status != 'entregue')                                   AS total,
         COUNT(*) FILTER (WHERE status = 'emitido')                                     AS a_produzir,
-        COUNT(*) FILTER (WHERE status = 'em_producao' AND setor_atual != 'logistica')  AS produzindo,
+        COUNT(*) FILTER (WHERE status = 'em_producao' AND setor_atual NOT IN ('logistica','quarentena')) AS produzindo,
         COUNT(*) FILTER (WHERE p.status != 'entregue' AND EXISTS (
           SELECT 1 FROM producao_itempedido i2
           WHERE i2.pedido_id = p.id AND i2.inativo = false AND i2.status <> 'entregue'

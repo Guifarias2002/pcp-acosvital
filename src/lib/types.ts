@@ -144,7 +144,9 @@ export const FABRICAS: { cod: string; nome: string; icon: string; setores: strin
     icon: 'bi-nut',
     setores: SETOR_CHOICES
       .map(([c]) => c)
-      .filter(c => !['emissao', 'caldeiraria', 'beneficiadores', 'recebimento', ...SETORES_EXCLUSIVOS_CALDEIRARIA].includes(c)),
+      // 'logistica' aposentada no Flange (09/09) — o fluxo termina na Quarentena.
+      // Não é mais oferecida no seletor de roteiro nem no picker de destino.
+      .filter(c => !['emissao', 'caldeiraria', 'beneficiadores', 'recebimento', 'logistica', ...SETORES_EXCLUSIVOS_CALDEIRARIA].includes(c)),
   },
   {
     cod: 'caldeiraria',
@@ -335,20 +337,27 @@ export const ORDEM_SETORES = ['estoque', 'maçarico', 'plasma', 'laser', 'serra'
   // acima e valem pros dois kanbans. Fonte: PROCESSO_CALDEIRARIA.
   'caldeiraria', 'cald_corte_oxi', 'corte_perfis', 'cald_identificacao', 'cald_transp_externo', 'cald_conformacao_int', 'cald_conformacao_ext', 'cald_pre_usinagem', 'cald_prep_chapas', 'solda', 'cald_revestimento', 'jateamento', 'cald_pint_primer', 'cald_pint_interm', 'cald_pint_acab', 'conjuntos', 'cald_pint_antiderr', 'cald_pint_retoques', 'cald_book', 'cald_emissao_nf', 'usinagem_final', 'cald_outros'];
 
-// Regra de negócio: TODA peça passa pela Quarentena (análise/verificação) antes
-// de ir à Logística (despacho). Injeta 'quarentena' imediatamente antes de
-// 'logistica' no roteiro efetivo, se ainda não estiver — vale para pedidos
-// antigos e novos, sem precisar migrar os roteiros salvos.
+// Regra de negócio (09/09): no FLANGE a QUARENTENA é o passo TERMINAL = "Pedido
+// Finalizado". A antiga 'logistica' (despacho) foi APOSENTADA do Flange: assim
+// que a peça termina a Embalagem ela vai pra Quarentena e ali já conta como
+// finalizada. Esta função normaliza o roteiro efetivo do Flange: remove
+// 'logistica', e garante 'quarentena' como ÚLTIMO passo (logo após 'embalagem',
+// ou no fim se não houver embalagem). Vale para roteiros antigos e novos, sem
+// precisar migrar os roteiros salvos. Mantém o nome antigo (injetarQuarentena)
+// porque é chamada em vários pontos do fluxo.
 export function injetarQuarentena(roteiro: string[]): string[] {
   if (!Array.isArray(roteiro)) return roteiro;
-  // Quarentena é regra do FLANGE — a Caldeiraria NÃO tem Quarentena. Se o
-  // roteiro passa pela Caldeiraria (setor 'caldeiraria' = Recebimento, ou
-  // qualquer setor exclusivo dela), não injeta nada.
+  // Quarentena é regra do FLANGE — a Caldeiraria NÃO tem Quarentena e continua
+  // usando 'logistica' (Coleta/Entrega). Se o roteiro passa pela Caldeiraria
+  // (setor 'caldeiraria' = Recebimento, ou qualquer setor exclusivo dela), não
+  // mexe em nada.
   if (roteiro.includes('caldeiraria') || roteiro.some(s => SETORES_EXCLUSIVOS_CALDEIRARIA.includes(s))) return roteiro;
-  const idxLog = roteiro.indexOf('logistica');
-  if (idxLog === -1 || roteiro.includes('quarentena')) return roteiro;
-  const novo = [...roteiro];
-  novo.splice(idxLog, 0, 'quarentena');
+  // Flange: tira 'logistica' (aposentada) e 'quarentena' (pra reposicionar) e
+  // recoloca 'quarentena' como passo final logo depois da 'embalagem'.
+  const novo = roteiro.filter(s => s !== 'logistica' && s !== 'quarentena');
+  const idxEmb = novo.indexOf('embalagem');
+  if (idxEmb >= 0) novo.splice(idxEmb + 1, 0, 'quarentena');
+  else novo.push('quarentena');
   return novo;
 }
 export const posSetorRoteiro = (cod: string) => {
@@ -391,6 +400,8 @@ export type Etapa = 'a_produzir' | 'ag_recebimento' | 'produzindo' | 'mat_conclu
 // Para uso em itens individuais
 export function getEtapa(status: string, setorAtual?: string | null): Etapa {
   if (status === 'entregue') return 'entregue';
+  // Quarentena = passo TERMINAL do Flange (09/09) → conta como Finalizado/Entregue.
+  if (setorAtual === 'quarentena') return 'entregue';
   if (setorAtual === 'logistica') return 'mat_concluido';
   if (status === 'emitido') return 'a_produzir';
   if (status === 'aguardando') return 'ag_recebimento';
@@ -398,10 +409,16 @@ export function getEtapa(status: string, setorAtual?: string | null): Etapa {
 }
 
 // Para uso no pedido completo — verifica status real dos itens
-export function getPedidoEtapa(pedido: { status: string; setor_atual: string; itens?: { status: string }[]; setores_parciais?: string[] }): Etapa {
+export function getPedidoEtapa(pedido: { status: string; setor_atual: string; itens?: { status: string; setor_atual?: string }[]; setores_parciais?: string[] }): Etapa {
   if (pedido.status === 'entregue') return 'entregue';
   // Entrega parcial: algum item já foi entregue mas pedido ainda está aberto
   if ((pedido.itens || []).some(i => i.status === 'entregue')) return 'entregue';
+  // Finalizado no Flange (09/09): todos os itens ativos chegaram na Quarentena
+  // (passo terminal) → o pedido conta como Entregue/Finalizado.
+  {
+    const ativos = (pedido.itens || []).filter(i => i.status !== 'entregue');
+    if (ativos.length > 0 && ativos.every(i => i.setor_atual === 'quarentena')) return 'entregue';
+  }
   if (pedido.setor_atual === 'logistica') {
     const itensAtivos = (pedido.itens || []).filter(i => i.status !== 'entregue');
     if (itensAtivos.length > 0 && itensAtivos.every(i => i.status === 'em_transito')) return 'mat_concluido';

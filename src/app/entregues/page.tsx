@@ -364,6 +364,12 @@ export default function EntreguesPage() {
               const aberto = expandido === p.id;
               const temComprovante = p.comprovantes?.some(c => c.comprovante_url);
               const semComprovante = p.comprovantes?.filter(c => !c.comprovante_url) || [];
+              // Distingue "Parcial" (parte já entregue, pedido ainda aberto) de
+              // "Finalizado" (09/09: todos os itens ativos parados na Quarentena =
+              // passo terminal do Flange; entrou aqui sem ser por entrega formal).
+              const algumEntregue = p.itens?.some(i => i.status === 'entregue');
+              const finalizadoQuarentena = p.status !== 'entregue' && !algumEntregue
+                && !!p.itens?.some(i => i.status !== 'entregue' && i.setor_atual === 'quarentena');
               return (
                 <>
                   <tr key={p.id} style={{ borderBottom: '1px solid #f0f0f0', background: aberto ? '#f8fffe' : undefined }}>
@@ -378,9 +384,13 @@ export default function EntreguesPage() {
                         {p.numero_pedido_venda}
                       </Link>
                       {p.status !== 'entregue' && (
-                        <span style={{ marginLeft: 6, fontSize: 10, background: '#fef9c3', color: '#854d0e', padding: '1px 6px', borderRadius: 8, fontWeight: 700 }}>
-                          Parcial
-                        </span>
+                        finalizadoQuarentena
+                          ? <span style={{ marginLeft: 6, fontSize: 10, background: '#dcfce7', color: '#166534', padding: '1px 6px', borderRadius: 8, fontWeight: 700 }}>
+                              Finalizado
+                            </span>
+                          : <span style={{ marginLeft: 6, fontSize: 10, background: '#fef9c3', color: '#854d0e', padding: '1px 6px', borderRadius: 8, fontWeight: 700 }}>
+                              Parcial
+                            </span>
                       )}
                     </td>
                     <td style={{ padding: '8px 12px', color: '#444' }}>{p.cliente}</td>

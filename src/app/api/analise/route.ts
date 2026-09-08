@@ -103,14 +103,16 @@ export async function GET(req: Request) {
       FROM producao_itempedido i
       WHERE ${FLANGE} AND i.criado_em BETWEEN ${de} AND ${ate}
       GROUP BY 1 ORDER BY 1`;
-    // "Finalizados" = itens que CHEGARAM na Logística (produção concluída,
-    // pronta pra expedir). Conta a 1ª chegada de cada item na logística.
+    // "Finalizados" = itens que CHEGARAM no passo terminal do Flange. Desde
+    // 09/09 o Flange finaliza na QUARENTENA (logística aposentada); contamos a 1ª
+    // chegada em quarentena OU logística (o MIN por item mantém a série histórica
+    // dos que passaram pela antiga logística, sem contar em dobro).
     const qSemFinal = sql`
       WITH cheg AS (
         SELECT m.item_id, MIN(m.criado_em) AS t
         FROM producao_movimentacaoitem m
         JOIN producao_itempedido i ON i.id = m.item_id AND ${FLANGE}
-        WHERE m.setor_destino = 'logistica' GROUP BY 1)
+        WHERE m.setor_destino IN ('quarentena','logistica') GROUP BY 1)
       SELECT date_trunc('week', c.t)::date AS semana, COUNT(*) AS finalizacoes,
              COALESCE(SUM(i.quantidade), 0) AS pecas
       FROM cheg c JOIN producao_itempedido i ON i.id = c.item_id

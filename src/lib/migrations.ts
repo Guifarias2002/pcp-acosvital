@@ -395,4 +395,63 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_inspecao_status   ON producao_inspecao (status)`).catch(() => {});
   await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_inspecao_item     ON producao_inspecao (item_id)`).catch(() => {});
   await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_inspecao_parcial  ON producao_inspecao (parcial_id)`).catch(() => {});
+
+  // M35 (09/09): LOGÍSTICA APOSENTADA no FLANGE. A Quarentena passa a ser o passo
+  // TERMINAL do Flange = "Pedido Finalizado". Move para 'quarentena' tudo que está
+  // hoje parado em 'logistica' NO FLANGE — itens, parciais e o setor denormalizado
+  // do pedido. NÃO toca na CALDEIRARIA (fabrica='caldeiraria' e/ou roteiro com
+  // 'caldeiraria'), que continua usando 'logistica' como Coleta/Entrega. NADA é
+  // apagado: cada peça movida ganha uma movimentação de trilha (logistica →
+  // quarentena), então dá pra auditar e reverter. Idempotente: depois de rodar,
+  // não sobra item Flange em logística, então re-execuções não fazem nada.
+  //
+  // Guard de fábrica: COALESCE(fabrica,'flange')='flange' é a mesma convenção usada
+  // em toda a Análise; o NOT ('caldeiraria' = ANY(roteiro...)) é um cinto-e-suspensório
+  // extra pra jamais arrastar uma peça de roteiro Caldeiraria.
+
+  // 1) Trilha ANTES de mover (registra só os itens que vão sair da logística).
+  await sql.unsafe(`
+    INSERT INTO producao_movimentacaoitem
+      (item_id, pedido_id, usuario_id, setor_origem, setor_destino, status_anterior, status_novo, observacao, criado_em)
+    SELECT i.id, i.pedido_id, NULL, 'logistica', 'quarentena', i.status, i.status,
+           'Migração automática (09/09): Logística aposentada no Flange — item movido para a Quarentena (passo terminal / Finalizado).', NOW()
+    FROM producao_itempedido i
+    WHERE i.setor_atual = 'logistica'
+      AND COALESCE(i.fabrica,'flange') = 'flange'
+      AND NOT ('caldeiraria' = ANY(COALESCE(i.roteiro_proprio, ARRAY[]::text[])))
+  `).catch(() => {});
+
+  // 2) Itens do Flange: logistica → quarentena.
+  await sql.unsafe(`
+    UPDATE producao_itempedido i
+    SET setor_atual = 'quarentena', atualizado_em = NOW()
+    WHERE i.setor_atual = 'logistica'
+      AND COALESCE(i.fabrica,'flange') = 'flange'
+      AND NOT ('caldeiraria' = ANY(COALESCE(i.roteiro_proprio, ARRAY[]::text[])))
+  `).catch(() => {});
+
+  // 3) Parciais desses itens do Flange.
+  await sql.unsafe(`
+    UPDATE producao_itemparcial pp
+    SET setor_atual = 'quarentena', atualizado_em = NOW()
+    WHERE pp.setor_atual = 'logistica'
+      AND EXISTS (
+        SELECT 1 FROM producao_itempedido i
+        WHERE i.id = pp.item_pedido_id
+          AND COALESCE(i.fabrica,'flange') = 'flange'
+          AND NOT ('caldeiraria' = ANY(COALESCE(i.roteiro_proprio, ARRAY[]::text[])))
+      )
+  `).catch(() => {});
+
+  // 4) Setor denormalizado do pedido (só pedidos Flange, nunca de roteiro Caldeiraria).
+  await sql.unsafe(`
+    UPDATE producao_pedido p
+    SET setor_atual = 'quarentena', atualizado_em = NOW()
+    WHERE p.setor_atual = 'logistica'
+      AND NOT ('caldeiraria' = ANY(COALESCE(p.roteiro_base, ARRAY[]::text[])))
+      AND EXISTS (
+        SELECT 1 FROM producao_itempedido i
+        WHERE i.pedido_id = p.id AND COALESCE(i.fabrica,'flange') = 'flange'
+      )
+  `).catch(() => {});
 }

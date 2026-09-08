@@ -60,16 +60,18 @@ export async function GET(req: Request) {
       SELECT pedido_id,
              COUNT(*)                                             AS ativos,
              COUNT(*) FILTER (WHERE setor_atual = 'emissao')      AS em_emissao,
-             COUNT(*) FILTER (WHERE setor_atual = 'logistica')    AS em_logistica
+             COUNT(*) FILTER (WHERE setor_atual = 'logistica')    AS em_logistica,
+             COUNT(*) FILTER (WHERE setor_atual = 'quarentena')   AS em_quarentena
       FROM producao_itempedido
       WHERE status NOT IN ('entregue', 'cancelado') AND inativo = false
       GROUP BY pedido_id
     ),
     pedidos_abertos AS (
       SELECT p.prazo_entrega, p.prioridade, p.status,
-             COALESCE(ia.ativos, 0)       AS ativos,
-             COALESCE(ia.em_emissao, 0)   AS em_emissao,
-             COALESCE(ia.em_logistica, 0) AS em_logistica,
+             COALESCE(ia.ativos, 0)        AS ativos,
+             COALESCE(ia.em_emissao, 0)    AS em_emissao,
+             COALESCE(ia.em_logistica, 0)  AS em_logistica,
+             COALESCE(ia.em_quarentena, 0) AS em_quarentena,
              -- ATRASO = existe peça ativa cuja previsão de conclusão (própria ou
              -- herdada do pedido) já passou. Sem previsão = não conta como atraso.
              EXISTS (
@@ -79,10 +81,16 @@ export async function GET(req: Request) {
              ) AS atrasado
       FROM producao_pedido p
       LEFT JOIN itens_por_pedido ia ON ia.pedido_id = p.id
+      -- Finalizado (09/09): pedido com TODOS os itens ativos na Quarentena (passo
+      -- terminal do Flange) sai do "em aberto" e passa a contar em Entregues.
       WHERE p.status != 'entregue'
+        AND NOT (COALESCE(ia.ativos, 0) > 0 AND COALESCE(ia.em_quarentena, 0) = COALESCE(ia.ativos, 0))
     )
     SELECT
-      (SELECT COUNT(*) FROM producao_pedido WHERE status = 'entregue')                          AS entregues,
+      (SELECT COUNT(*) FROM producao_pedido WHERE status = 'entregue')
+        + (SELECT COUNT(*) FROM producao_pedido p2
+             JOIN itens_por_pedido iq ON iq.pedido_id = p2.id
+             WHERE p2.status != 'entregue' AND iq.ativos > 0 AND iq.em_quarentena = iq.ativos) AS entregues,
       COUNT(*)                                                                                  AS total,
       COUNT(*) FILTER (WHERE ativos > 0 AND em_emissao = ativos)                                AS a_produzir,
       COUNT(*) FILTER (WHERE ativos > 0 AND em_logistica = ativos)                              AS mat_concluido,
