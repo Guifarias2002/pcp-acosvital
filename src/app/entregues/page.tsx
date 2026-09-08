@@ -368,20 +368,15 @@ export default function EntreguesPage() {
               <th style={{ padding: '9px 12px', textAlign: 'left' }}>Faturamento</th>
               <th style={{ padding: '9px 12px', textAlign: 'left' }}>Prioridade</th>
               <th style={{ padding: '9px 12px', textAlign: 'left' }}>Valor</th>
-              <th style={{ padding: '9px 12px', textAlign: 'left' }}>Comprovantes</th>
-              <th style={{ padding: '9px 12px', textAlign: 'left' }}>Nota Fiscal</th>
-              <th style={{ padding: '9px 12px', textAlign: 'left' }}>Canhoto</th>
-              <th style={{ padding: '9px 12px', textAlign: 'left' }}>Divergência</th>
               <th style={{ padding: '9px 12px', textAlign: 'left' }}>Ações</th>
             </tr>
           </thead>
           <tbody>
             {!loading && (!data || data.pedidos.length === 0) && (
-              <tr><td colSpan={11} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum pedido finalizado encontrado.</td></tr>
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum pedido finalizado encontrado.</td></tr>
             )}
             {data?.pedidos.map(p => {
               const aberto = expandido === p.id;
-              const temComprovante = p.comprovantes?.some(c => c.comprovante_url);
               const semComprovante = p.comprovantes?.filter(c => !c.comprovante_url) || [];
               // Distingue "Parcial" (parte já entregue, pedido ainda aberto) de
               // "Finalizado" (09/09: todos os itens ativos parados na Quarentena =
@@ -423,30 +418,6 @@ export default function EntreguesPage() {
                       {p.valor_calculado ? `R$ ${Number(p.valor_calculado).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
                     </td>
                     <td style={{ padding: '8px 12px' }}>
-                      {temComprovante
-                        ? <span style={{ fontSize: 11, color: '#198754', fontWeight: 600 }}><i className="bi bi-paperclip" style={{ marginRight: 4 }}></i>{p.comprovantes.filter(c => c.comprovante_url).length} anexo(s)</span>
-                        : <span style={{ fontSize: 11, color: '#aaa' }}>Sem comprovante</span>}
-                    </td>
-                    <td style={{ padding: '8px 12px' }}>
-                      {p.nota_url
-                        ? <a href={p.nota_url} download="nota_fiscal" style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, textDecoration: 'none' }}>✅ Sim</a>
-                        : <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>✗ Não</span>}
-                    </td>
-                    <td style={{ padding: '8px 12px' }}>
-                      {p.canhoto_url
-                        ? <a href={p.canhoto_url} download="canhoto" style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, textDecoration: 'none' }}>✅ Sim</a>
-                        : p.anexo_pendente
-                          ? <span style={{ fontSize: 11, color: '#d97706', fontWeight: 600 }}>⏳ Pendente</span>
-                          : <span style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>✗ Não</span>}
-                    </td>
-                    <td style={{ padding: '8px 12px' }}>
-                      <button
-                        onClick={() => setDivergencia({ pedidoId: p.id, pedidoNumero: p.numero_pedido_venda, itens: p.itens })}
-                        style={{ fontSize: 11, background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontWeight: 700 }}>
-                        <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 4 }}></i>Reportar
-                      </button>
-                    </td>
-                    <td style={{ padding: '8px 12px' }}>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <Link href={`/pedidos/${p.id}`}
                           style={{ border: '1px solid #0d6efd', color: '#0d6efd', borderRadius: 4, padding: '2px 10px', textDecoration: 'none', fontSize: 12 }}>
@@ -473,7 +444,7 @@ export default function EntreguesPage() {
                   {/* Painel expandido */}
                   {aberto && (
                     <tr key={`${p.id}-detail`}>
-                      <td colSpan={11} style={{ padding: 0, background: '#f8fffe', borderBottom: '2px solid #d1fae5' }}>
+                      <td colSpan={7} style={{ padding: 0, background: '#f8fffe', borderBottom: '2px solid #d1fae5' }}>
                         <div style={{ padding: '16px 24px' }}>
                           {/* Tempo de produção: foi para produção → finalizado → total */}
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>

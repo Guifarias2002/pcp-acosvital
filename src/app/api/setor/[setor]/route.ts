@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { formatItem, nomeSector } from '@/lib/queries';
-import { SETOR_CHOICES, injetarQuarentena } from '@/lib/types';
+import { SETOR_CHOICES, injetarQuarentena, SETORES_CORTE } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 // Timeout estendido (várias consultas em paralelo). Migrado do vercel.json
@@ -53,8 +53,20 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
   // separada sem misturar com as ações normais da própria fila.
   const buscarEmCaldeiraria = setor === 'logistica';
 
+  // Recebimento (HRM): a fila inclui parciais 'em_transito' (chegando de caminhão
+  // da Conferência) além dos status normais — nos outros setores 'em_transito'
+  // fica fora (regra da logística intacta).
+  const statusParciais = setor === 'recebimento_hrm'
+    ? ['em_aberto', 'recebido', 'em_andamento', 'finalizado_setor', 'pausado', 'concluida', 'em_transito']
+    : ['em_aberto', 'recebido', 'em_andamento', 'finalizado_setor', 'pausado', 'concluida'];
+
+  // Conferência / Carregamento (Alan): além da própria fila, mostra (só leitura)
+  // o que ele já despachou e está EM TRÂNSITO pra HRM (parciais em_transito já no
+  // Recebimento).
+  const buscarEmTransitoHrm = setor === 'conferencia_hrm';
+
   // Rodar as queries em paralelo
-  const [itens, lotes_chegando, lotes_trabalho, parciais, outras_parciais, resumo, itensCaldeiraria, parciaisCaldeiraria] = await Promise.all([
+  const [itens, lotes_chegando, lotes_trabalho, parciais, outras_parciais, resumo, itensCaldeiraria, parciaisCaldeiraria, parciaisEmTransitoHrm] = await Promise.all([
     // Itens cujo setor_atual é este setor (visão tradicional).
     // Exclui itens que tenham parciais ativas em outro setor — esses já se moveram
     // (divergência/devolver) mas o setor_atual do item ficou desatualizado.
@@ -130,7 +142,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       JOIN producao_pedido p ON p.id = pa.pedido_id
       LEFT JOIN producao_itemparcial origem ON origem.id = pa.parcial_origem_id
       WHERE pa.setor_atual = ${setor}
-        AND pa.status IN ('em_aberto', 'recebido', 'em_andamento', 'finalizado_setor', 'pausado', 'concluida')
+        AND pa.status = ANY(${statusParciais})
         AND i.status != 'entregue'
         AND i.inativo = false
       ORDER BY p.numero_pedido_venda, i.codigo, pa.criado_em
@@ -225,6 +237,32 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       JOIN producao_pedido p ON p.id = pa.pedido_id
       WHERE pa.setor_atual = 'caldeiraria'
         AND pa.status IN ('em_aberto', 'recebido', 'em_andamento', 'finalizado_setor', 'pausado')
+        AND i.status != 'entregue'
+        AND i.inativo = false
+      ORDER BY p.numero_pedido_venda, i.codigo, pa.criado_em
+    `.catch(() => [] as Record<string, unknown>[]),
+
+    // Em trânsito pra HRM (só leitura, tela da Conferência): o que o Alan já
+    // despachou e ainda não foi confirmado no Recebimento.
+    !buscarEmTransitoHrm ? Promise.resolve([] as Record<string, unknown>[]) : sql`
+      SELECT
+        pa.id, pa.quantidade::text AS quantidade, pa.status, pa.observacao,
+        pa.maquina, pa.operador, pa.motivo_pausa,
+        pa.parcial_origem_id, pa.criado_em, pa.atualizado_em,
+        pa.retrabalho, pa.motivo_retrabalho, pa.devolvido_de,
+        i.id AS item_pedido_id, i.codigo AS item_codigo, i.unidade, i.descricao AS item_descricao,
+        i.quantidade::text AS quantidade_total_item, i.roteiro_proprio, i.status AS item_status, i.item_pai_id, i.tipo_produto, i.fabrica,
+        p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade, p.roteiro_base, p.prazo_entrega::text AS pedido_prazo,
+        COALESCE(i.previsao_conclusao, p.previsao_conclusao)::text AS previsao_efetiva,
+        p.embalagem_identificacao, p.embalagem_qtd_pallets, p.embalagem_peso_total, p.embalagem_total_unidades,
+        (p.pedido_venda_url IS NOT NULL) AS tem_pedido_venda,
+        (p.ordem_producao_url IS NOT NULL) AS tem_ordem_producao,
+        pa.pesos_pallets, pa.nomes_pallets, pa.fotos
+      FROM producao_itemparcial pa
+      JOIN producao_itempedido i ON i.id = pa.item_pedido_id
+      JOIN producao_pedido p ON p.id = pa.pedido_id
+      WHERE pa.setor_atual = 'recebimento_hrm'
+        AND pa.status = 'em_transito'
         AND i.status != 'entregue'
         AND i.inativo = false
       ORDER BY p.numero_pedido_venda, i.codigo, pa.criado_em
@@ -325,7 +363,15 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     // Toda peça passa pela Quarentena antes da Logística.
     const roteiro = injetarQuarentena(roteiroBase);
     const idx = roteiro.indexOf(setorEfetivo);
-    const proximo_setor = (idx !== -1 && idx < roteiro.length - 1) ? roteiro[idx + 1] : null;
+    let proximo_setor = (idx !== -1 && idx < roteiro.length - 1) ? roteiro[idx + 1] : null;
+    // Recebimento (HRM): o roteiro salvo ainda vai do corte direto pra
+    // usinagem/furação (a Conferência/Recebimento são travessia, não estão no
+    // array). Então o "próximo" natural depois do Recebimento é o que vinha logo
+    // após o CORTE no roteiro — assim o botão "Enviar" já vem pré-selecionado.
+    if (setorEfetivo === 'recebimento_hrm' && !proximo_setor) {
+      const idxCorte = roteiro.findIndex(s => SETORES_CORTE.includes(s));
+      if (idxCorte !== -1 && idxCorte < roteiro.length - 1) proximo_setor = roteiro[idxCorte + 1];
+    }
     return {
       id: p.id,
       item_pedido_id: p.item_pedido_id,
@@ -417,6 +463,10 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
     // Nova visão por parciais
     parciais: (parciais as Record<string, unknown>[]).map(p => fmtParcial(p)),
     resumo_por_item: (resumo as Record<string, unknown>[]).map(fmtResumo),
+    // Em trânsito pra HRM (só leitura) — só vem preenchido na tela da Conferência.
+    em_transito_hrm: buscarEmTransitoHrm
+      ? (parciaisEmTransitoHrm as Record<string, unknown>[]).map(p => fmtParcial(p, 'recebimento_hrm'))
+      : undefined,
     // Rastreio somente-leitura do que está na Caldeiraria (só quando setor=logistica)
     em_caldeiraria: buscarEmCaldeiraria ? {
       itens: (itensCaldeiraria as Record<string, unknown>[]).map(i => {

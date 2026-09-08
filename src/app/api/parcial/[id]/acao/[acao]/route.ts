@@ -22,7 +22,7 @@ import { temMaquinas } from '@/lib/maquinas';
 
 export const dynamic = 'force-dynamic';
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
-const ACOES_VALIDAS = ['mover', 'iniciar', 'finalizar', 'pausar', 'retomar', 'concluir', 'cancelar', 'apontar', 'devolver', 'receber', 'desfazer_recebimento', 'consolidar'] as const;
+const ACOES_VALIDAS = ['mover', 'iniciar', 'finalizar', 'pausar', 'retomar', 'concluir', 'cancelar', 'apontar', 'devolver', 'receber', 'desfazer_recebimento', 'consolidar', 'despachar_hrm', 'confirmar_recebimento'] as const;
 type Acao = typeof ACOES_VALIDAS[number];
 
 export async function POST(
@@ -98,7 +98,7 @@ async function handlePOST(
     return NextResponse.json({ erro: 'Parcial está pausada. Use "retomar" para continuar.' }, { status: 400 });
 
   // Parciais em finalizado_setor só aceitam mover, retomar, concluir, cancelar, devolver, apontar
-  if (parcial.status === 'finalizado_setor' && !['mover', 'retomar', 'concluir', 'cancelar', 'devolver', 'apontar', 'consolidar'].includes(acao))
+  if (parcial.status === 'finalizado_setor' && !['mover', 'retomar', 'concluir', 'cancelar', 'devolver', 'apontar', 'consolidar', 'despachar_hrm'].includes(acao))
     return NextResponse.json({ erro: 'Etapa finalizada. Use "mover" para enviar para o próximo setor ou "retomar" para voltar à produção.' }, { status: 400 });
 
   const obs = body.observacao || '';
@@ -916,6 +916,93 @@ async function handlePOST(
       `;
     });
     return NextResponse.json({ ok: true, status: 'em_aberto', mensagem: 'Recebimento desfeito' });
+
+  // ── despachar_hrm ───────────────────────────────────────────────────────────
+  // Conferência / Carregamento (Alan): depois de conferir físico × sistema, o
+  // material é CARREGADO e sai rumo à HRM. A parcial vai inteira pro Recebimento
+  // (HRM) com status 'em_transito' (aparece como caminhão azul nas duas telas —
+  // a do Alan, "despachados", e a do Recebimento, "chegando"). Só depois o
+  // Recebimento confirma (confirmar_recebimento) e libera pro roteiro.
+  } else if (acao === 'despachar_hrm') {
+    if (parcial.setor_atual !== 'conferencia_hrm')
+      return NextResponse.json({ erro: 'Despacho pra HRM só a partir da Conferência / Carregamento.' }, { status: 400 });
+    const destino = 'recebimento_hrm';
+    await sql.begin(async (tx) => {
+      await (tx as unknown as typeof sql)`SELECT pg_advisory_xact_lock(778899, ${parcial.item_id})`;
+      const [parcialAtual] = await (tx as unknown as typeof sql)`
+        SELECT status FROM producao_itemparcial WHERE id = ${parcialId} FOR UPDATE
+      `;
+      if (!parcialAtual || parcialAtual.status !== parcial.status)
+        throw new Error('CONCORRENCIA_QTD_INDISPONIVEL: Esta parcial foi alterada por outra operação enquanto você aguardava. Recarregue a tela e tente novamente.');
+      await tx`
+        UPDATE producao_itemparcial
+        SET setor_atual = ${destino}, status = 'em_transito',
+            devolvido_de = NULL, motivo_retrabalho = NULL, retrabalho = FALSE,
+            atualizado_em = NOW()
+        WHERE id = ${parcialId}
+      `;
+      await tx`
+        INSERT INTO producao_movimentacaoitem
+          (item_id, pedido_id, usuario_id, setor_origem, setor_destino,
+           status_anterior, status_novo, observacao, criado_em)
+        VALUES (${parcial.item_id}, ${parcial.pedido_id}, ${user.id},
+                'conferencia_hrm', ${destino},
+                ${parcial.item_status}, 'em_transito',
+                ${obs || `🚚 Despachado para a HRM: ${parcial.qtd} ${parcial.unidade} (Pedido ${parcial.numero_pedido_venda})`}, NOW())
+      `;
+      // Se o item não tem mais parciais ativas na Conferência, avança o item
+      // (denormalizado) pro Recebimento da HRM.
+      const [{ restantes }] = await tx`
+        SELECT COUNT(*)::int AS restantes
+        FROM producao_itemparcial
+        WHERE item_pedido_id = ${parcial.item_id}
+          AND setor_atual = 'conferencia_hrm'
+          AND status NOT IN ('cancelada', 'concluida')
+          AND id != ${parcialId}
+      `;
+      if (Number(restantes) === 0) {
+        await tx`
+          UPDATE producao_itempedido
+          SET setor_atual = ${destino}, atualizado_em = NOW()
+          WHERE id = ${parcial.item_id}
+        `;
+      }
+    });
+    return NextResponse.json({ ok: true, status: 'em_transito', mensagem: `🚚 Em trânsito para a HRM` });
+
+  // ── confirmar_recebimento ────────────────────────────────────────────────────
+  // Recebimento (HRM): o material chegou. Confirma (tira o caminhão) e a parcial
+  // fica 'finalizado_setor' — pronta pra ser encaminhada pro roteiro normal
+  // (usinagem / furação / ...) pelo botão "Enviar ao próximo setor".
+  } else if (acao === 'confirmar_recebimento') {
+    if (parcial.setor_atual !== 'recebimento_hrm')
+      return NextResponse.json({ erro: 'Confirmação de recebimento só no Recebimento (HRM).' }, { status: 400 });
+    if (parcial.status !== 'em_transito')
+      return NextResponse.json({ erro: 'Esta parcial não está em trânsito.' }, { status: 400 });
+    await sql.begin(async (tx) => {
+      const r = await tx`
+        UPDATE producao_itemparcial
+        SET status = 'finalizado_setor', atualizado_em = NOW()
+        WHERE id = ${parcialId} AND status = 'em_transito'
+      `;
+      if (r.count === 0)
+        throw new Error('CONCORRENCIA_QTD_INDISPONIVEL: Esta parcial não está mais em trânsito (outra ação a alterou). Recarregue a tela e tente novamente.');
+      await tx`
+        UPDATE producao_itempedido
+        SET status = 'recebido', setor_atual = 'recebimento_hrm', atualizado_em = NOW()
+        WHERE id = ${parcial.item_id} AND status IN ('aguardando', 'emitido')
+      `;
+      await tx`
+        INSERT INTO producao_movimentacaoitem
+          (item_id, pedido_id, usuario_id, setor_origem, setor_destino,
+           status_anterior, status_novo, observacao, criado_em)
+        VALUES (${parcial.item_id}, ${parcial.pedido_id}, ${user.id},
+                'recebimento_hrm', 'recebimento_hrm',
+                'em_transito', 'finalizado_setor',
+                ${obs || `📦 Recebido na HRM: ${parcial.qtd} ${parcial.unidade}`}, NOW())
+      `;
+    });
+    return NextResponse.json({ ok: true, status: 'finalizado_setor', mensagem: 'Recebimento confirmado — pronto pra encaminhar' });
   }
 
   return NextResponse.json({ erro: 'Ação não processada' }, { status: 500 });

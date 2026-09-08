@@ -17,6 +17,16 @@ export const SETOR_CHOICES: [string, string][] = [
   ['caldeiraria', 'Caldeiraria'],
   ['embalagem', 'Embalagem'],
   ['quarentena', 'Quarentena'],
+  // ── Flange — travessia para a HRM (08/09) ──────────────────────────────────
+  // Depois do CORTE, a peça de Flange passa por dois setores novos antes de
+  // seguir pro roteiro (usinagem/furação):
+  //  1) Conferência / Carregamento (Alan Diniz): confere se o físico bate com o
+  //     sistema (item por item: Conforme/Divergente + observação) e despacha
+  //     pra HRM — a peça fica "Em trânsito 🚚" (azul).
+  //  2) Recebimento (HRM): confirma o recebimento (tira o caminhão) e libera pro
+  //     roteiro normal. Ver [[project_datas_op_cliente]] / fluxo do corte.
+  ['conferencia_hrm', 'Conferência / Carregamento - HRM'],
+  ['recebimento_hrm', 'Recebimento - HRM'],
   ['desenho', 'Desenho'],
   ['calandra', 'Calandra'],
   ['chanfradeira', 'Chanfradeira'],
@@ -189,6 +199,18 @@ export const SETORES_CALDEIRARIA_KANBAN = ['caldeiraria', ...SETORES_CALDEIRARIA
 // alimentar qualquer uma das duas fábricas. Ver os botões na tela de setor.
 export const SETORES_CORTE = ['maçarico', 'plasma', 'laser', 'serra'];
 
+// ── Flange → HRM (08/09) ────────────────────────────────────────────────────
+// Os dois setores novos que a peça de Flange atravessa entre o CORTE e o
+// roteiro (usinagem/furação). Fonte única usada no fluxo do corte, na tela de
+// conferência e no recebimento. Regras:
+//  • Do CORTE, item de FLANGE só pode ir pra 'conferencia_hrm' (o de Caldeiraria
+//    continua indo pro Recebimento da Caldeiraria).
+//  • 'conferencia_hrm' → despacha → 'recebimento_hrm' com status 'em_transito'.
+//  • 'recebimento_hrm' → confirma recebimento → segue o roteiro normal.
+export const SETOR_CONFERENCIA_HRM = 'conferencia_hrm';
+export const SETOR_RECEBIMENTO_HRM = 'recebimento_hrm';
+export const SETORES_HRM_FLANGE = [SETOR_CONFERENCIA_HRM, SETOR_RECEBIMENTO_HRM];
+
 // ── Checklist de processo por etapa da Caldeiraria (29/07) ──────────────────
 // Baseado no processo real da Acosvital (site institucional: fornecedor
 // certificado ISO 9001 / CRC Petrobrás e YPFB — cliente óleo e gás exige
@@ -331,7 +353,7 @@ export function getChecklistEtapa(setor: string, tipoProduto: string | null | un
 // (sistema e TV), em vez da ordem do SETOR_CHOICES. Setor fora desta lista
 // (ex: emissão, recebimento, compras) vai pro fim, sem sumir. Fonte única:
 // mudou o roteiro, muda aqui e reflete nos dois lugares.
-export const ORDEM_SETORES = ['estoque', 'maçarico', 'plasma', 'laser', 'serra', 'usinagem', 'furacao', 'qualidade', 'sinete', 'acabamento', 'embalagem', 'quarentena', 'logistica',
+export const ORDEM_SETORES = ['estoque', 'maçarico', 'plasma', 'laser', 'serra', 'conferencia_hrm', 'recebimento_hrm', 'usinagem', 'furacao', 'qualidade', 'sinete', 'acabamento', 'embalagem', 'quarentena', 'logistica',
   // Caldeiraria — processo real (28/08), na ordem do roteiro. Só os setores
   // EXCLUSIVOS da Caldeiraria; os compartilhados (qualidade/logistica) já estão
   // acima e valem pros dois kanbans. Fonte: PROCESSO_CALDEIRARIA.
@@ -641,6 +663,9 @@ export interface SetorPainelData {
   // Rastreio somente-leitura do que está na Caldeiraria — só vem preenchido
   // quando setor === 'logistica' (ver GET /api/setor/[setor]).
   em_caldeiraria?: { itens: ItemPedido[]; parciais: ItemParcial[] };
+  // Parciais despachadas e EM TRÂNSITO pra HRM (só leitura) — só vem preenchido
+  // na tela da Conferência / Carregamento ('conferencia_hrm').
+  em_transito_hrm?: ItemParcial[];
 }
 
 // ── Parcial (fragmento de quantidade circulando pelo processo) ─────────────

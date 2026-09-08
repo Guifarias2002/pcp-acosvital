@@ -438,37 +438,42 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
 
         {item.status === 'finalizado_setor' && item.setor_atual !== 'logistica' && (
           <>
-            {/* Corte (maçarico/plasma/laser/serra): mesma escolha de fábrica dos
-                fluxos de parcial — pra enviar o item INTEIRO pra Flanges ou pra
-                Caldeiraria de uma vez, sem precisar dividir. O seletor manual
-                abaixo continua valendo como "outro setor". */}
-            {SETORES_CORTE.includes(item.setor_atual) && (
+            {SETORES_CORTE.includes(item.setor_atual) ? (
+              /* Corte: destino por FÁBRICA (dois botões), sem seleção livre de setor.
+                 Flange → Conferência / Carregamento (HRM); Caldeiraria → Recebimento. */
               <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 4 }}>
                 <span style={{ fontSize: 11, color: '#374151', fontWeight: 700 }}>Depois de cortar, encaminhar todos para:</span>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button onClick={() => !loading && setConfirm({ titulo: 'Enviar para Conferência / Carregamento (HRM)', mensagem: 'Confirma o envio de TODOS os itens para a Conferência / Carregamento (HRM)?', acao: () => acao('enviar_tudo', { setor_destino: 'conferencia_hrm' }) })} disabled={loading}
+                    style={{ background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 16px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
+                    <i className="bi bi-clipboard-check" style={{ marginRight: 5 }} />Conferência / Carregamento (HRM)
+                  </button>
                   <button onClick={() => !loading && setConfirm({ titulo: 'Enviar para Caldeiraria', mensagem: 'Confirma o envio de TODOS os itens para Caldeiraria (Recebimento)?', acao: () => acao('enviar_tudo', { setor_destino: 'caldeiraria' }) })} disabled={loading}
-                    style={{ background: '#b45309', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
+                    style={{ background: '#b45309', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 16px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
                     <i className="bi bi-hammer" style={{ marginRight: 5 }} />Caldeiraria → Recebimento
                   </button>
                 </div>
-                <span style={{ fontSize: 10, color: '#9ca3af' }}>ou pro Flange — escolha o setor abaixo (já vem com o próximo do roteiro) e clique em &quot;Enviar tudo&quot;:</span>
+                <span style={{ fontSize: 10, color: '#9ca3af' }}>Peça de Flange → Conferência (Alan confere e despacha pra HRM). Peça de Caldeiraria → Recebimento.</span>
               </div>
+            ) : (
+              <>
+                <div style={{ width: '100%' }}>
+                  <span style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 6 }}>Enviar para:</span>
+                  <DestinoSetorPicker
+                    setorAtual={item.setor_atual}
+                    roteiro={item.roteiro_efetivo || []}
+                    proximoSetor={item.proximo_setor}
+                    value={setorDestinoEnvio || item.proximo_setor || ''}
+                    onChange={setSetorDestinoEnvio}
+                  />
+                </div>
+                <button onClick={() => !loading && setConfirm({ titulo: 'Enviar para o setor selecionado', mensagem: `Confirma o envio de TODOS os itens para ${NOMES[setorDestinoEnvio || item.proximo_setor || ''] || 'o setor selecionado'}?`, acao: () => acao('enviar_tudo', { setor_destino: setorDestinoEnvio || item.proximo_setor }) })} disabled={loading}
+                  style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+                  {loading ? <i className="bi bi-hourglass-split" style={{ marginRight: 5 }}></i> : <i className="bi bi-send-fill" style={{ marginRight: 5 }}></i>}
+                  {loading ? 'Aguarde...' : 'Enviar tudo'}
+                </button>
+              </>
             )}
-            <div style={{ width: '100%' }}>
-              <span style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 6 }}>Enviar para:</span>
-              <DestinoSetorPicker
-                setorAtual={item.setor_atual}
-                roteiro={item.roteiro_efetivo || []}
-                proximoSetor={item.proximo_setor}
-                value={setorDestinoEnvio || item.proximo_setor || ''}
-                onChange={setSetorDestinoEnvio}
-              />
-            </div>
-            <button onClick={() => !loading && setConfirm({ titulo: 'Enviar para o setor selecionado', mensagem: `Confirma o envio de TODOS os itens para ${NOMES[setorDestinoEnvio || item.proximo_setor || ''] || 'o setor selecionado'}?`, acao: () => acao('enviar_tudo', { setor_destino: setorDestinoEnvio || item.proximo_setor }) })} disabled={loading}
-              style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
-              {loading ? <i className="bi bi-hourglass-split" style={{ marginRight: 5 }}></i> : <i className="bi bi-send-fill" style={{ marginRight: 5 }}></i>}
-              {loading ? 'Aguarde...' : 'Enviar tudo'}
-            </button>
             <button onClick={() => !loading && setShowParcial(v => !v)} disabled={loading}
               style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
               <i className="bi bi-scissors" style={{ marginRight: 5 }}></i>Enviar parcial
@@ -811,6 +816,11 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const [sineteTexto, setSineteTexto] = useState('');
   const [sineteAcabamento, setSineteAcabamento] = useState(false);
   const [salvandoSinete, setSalvandoSinete] = useState(false);
+  // Conferência / Carregamento (HRM): marcação conforme/divergente + observação
+  // por item. É gravada como observação do item (histórico) com prefixo padrão.
+  const [confTipo, setConfTipo] = useState<'conforme' | 'divergente' | null>(null);
+  const [confTexto, setConfTexto] = useState('');
+  const [salvandoConf, setSalvandoConf] = useState(false);
   const [showDivModal, setShowDivModal] = useState<'retrabalho' | 'resolver' | 'cancelar_item' | null>(null);
   const [showMontarReceita, setShowMontarReceita] = useState(false);
   const [showChecklistProcesso, setShowChecklistProcesso] = useState(false);
@@ -823,6 +833,8 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
   const ehCaldeiraria = parcial.item_fabrica === 'caldeiraria';
   const isLogistica = parcial.setor_atual === 'logistica';
   const isQualidade = parcial.setor_atual === 'qualidade';
+  const isConferenciaHrm = parcial.setor_atual === 'conferencia_hrm';
+  const isRecebimentoHrm = parcial.setor_atual === 'recebimento_hrm';
   const isRecebido = parcial.status === 'recebido';
   const podeDesfazer = podeDesfazerRecebimento();
   // Checklist de processo (Chanfradeira→Qualidade): só ativa se o item tiver
@@ -877,6 +889,22 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
     }
     catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
     finally { setLoading(false); }
+  }
+
+  // Conferência (Alan): grava o resultado (Conforme/Divergente) + observação como
+  // uma observação do item, com prefixo padrão pra ficar rastreável e visível no
+  // card. Não sobrescreve — cada conferência entra como uma nova linha.
+  async function salvarConferencia() {
+    if (salvandoConf || !confTipo) return;
+    setSalvandoConf(true);
+    try {
+      const rotulo = confTipo === 'divergente' ? 'DIVERGENTE' : 'CONFORME';
+      const texto = `🔎 CONFERÊNCIA ${rotulo}${confTexto.trim() ? `: ${confTexto.trim()}` : ''}`;
+      await adicionarObservacaoItem(parcial.item_pedido_id as number, texto);
+      setConfTipo(null); setConfTexto('');
+      onRefresh();
+    } catch (e: unknown) { mostrarErroParcial(erroMsg(e)); }
+    finally { setSalvandoConf(false); }
   }
 
   // Ações de divergência (retrabalho/resolver/cancelar_item) são no nível do
@@ -988,6 +1016,20 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
     return ultima.texto.replace(/^.*?SINETE:\s*/, '').trim();
   })();
 
+  // Última conferência registrada (Conforme/Divergente) — chip no card e trava do
+  // despacho (só libera depois de conferido).
+  const conferencia = (() => {
+    const marc = (parcial.observacoes || []).filter(o => o.texto && /CONFER[ÊE]NCIA/i.test(o.texto));
+    if (!marc.length) return null;
+    const u = marc.reduce((a, b) => (new Date(a.criado_em).getTime() >= new Date(b.criado_em).getTime() ? a : b));
+    const divergente = /DIVERGENTE/i.test(u.texto);
+    return {
+      divergente,
+      texto: u.texto.replace(/^.*?CONFER[ÊE]NCIA\s+(?:CONFORME|DIVERGENTE):?\s*/i, '').trim(),
+      criado_em: u.criado_em,
+    };
+  })();
+
   const btnStyle = (bg: string, outline = false): React.CSSProperties => ({
     background: outline ? 'none' : bg,
     color: outline ? bg : '#fff',
@@ -1059,9 +1101,15 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
         </div>
         {/* Linha 3: status + cronômetro + link */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-          <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: badge.bg, color: badge.color }}>
-            {LABEL_PARCIAL[parcial.status] || parcial.status}
-          </span>
+          {isEmTransito && (isRecebimentoHrm || isConferenciaHrm) ? (
+            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 800, background: '#dbeafe', color: '#1d4ed8' }}>
+              🚚 Em trânsito para a HRM
+            </span>
+          ) : (
+            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: badge.bg, color: badge.color }}>
+              {LABEL_PARCIAL[parcial.status] || parcial.status}
+            </span>
+          )}
           {(isAndamento || isEmTransito) && parcial.atualizado_em && (
             <Cronometro desde={parcial.atualizado_em} />
           )}
@@ -1267,6 +1315,71 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
       {podeEditar() && setor !== 'quarentena' && (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
 
+        {/* ── Conferência / Carregamento (HRM) ─────────────────────────────── */}
+        {/* Alan confere o item (Conforme/Divergente + observação) e só então
+            despacha pra HRM. A peça vira "Em trânsito 🚚" no Recebimento. */}
+        {isConferenciaHrm && (
+          <div style={{ width: '100%', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 12px', marginBottom: 4 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#1e40af', marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span><i className="bi bi-clipboard-check" style={{ marginRight: 5 }} />Conferência do item</span>
+              {conferencia && (
+                <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6, background: conferencia.divergente ? '#fef3c7' : '#dcfce7', color: conferencia.divergente ? '#92400e' : '#166534' }}>
+                  {conferencia.divergente ? '⚠️ Divergente' : '✅ Conforme'}
+                </span>
+              )}
+            </div>
+            {conferencia?.texto && (
+              <div style={{ fontSize: 11, color: '#475569', marginBottom: 8, whiteSpace: 'pre-wrap' }}>“{conferencia.texto}”</div>
+            )}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <button onClick={() => setConfTipo('conforme')} disabled={salvandoConf}
+                style={{ flex: 1, background: confTipo === 'conforme' ? '#16a34a' : '#fff', color: confTipo === 'conforme' ? '#fff' : '#166534', border: '1px solid #16a34a', borderRadius: 6, padding: '7px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                ✅ Conforme
+              </button>
+              <button onClick={() => setConfTipo('divergente')} disabled={salvandoConf}
+                style={{ flex: 1, background: confTipo === 'divergente' ? '#d97706' : '#fff', color: confTipo === 'divergente' ? '#fff' : '#92400e', border: '1px solid #d97706', borderRadius: 6, padding: '7px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                ⚠️ Divergente
+              </button>
+            </div>
+            {confTipo && (
+              <>
+                <textarea value={confTexto} onChange={e => setConfTexto(e.target.value)}
+                  placeholder={confTipo === 'divergente' ? 'O que está divergente? (ex.: faltando 2 peças, medida errada...)' : 'Observação (opcional)'} rows={2}
+                  style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #bfdbfe', borderRadius: 6, padding: '6px 10px', fontSize: 13, resize: 'vertical', marginBottom: 8 }} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={salvarConferencia} disabled={salvandoConf || (confTipo === 'divergente' && !confTexto.trim())}
+                    style={{ flex: 1, background: (salvandoConf || (confTipo === 'divergente' && !confTexto.trim())) ? '#93c5fd' : '#2563eb', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                    {salvandoConf ? '⏳ Salvando…' : 'Registrar conferência'}
+                  </button>
+                  <button onClick={() => { setConfTipo(null); setConfTexto(''); }} disabled={salvandoConf}
+                    style={{ background: 'none', border: '1px solid #cbd5e1', color: '#64748b', borderRadius: 6, padding: '8px 12px', fontSize: 12, cursor: 'pointer' }}>✕</button>
+                </div>
+              </>
+            )}
+            <button onClick={() => acao('despachar_hrm', undefined, '🚚 Em trânsito para a HRM')} disabled={loading || !conferencia}
+              title={!conferencia ? 'Confira o item antes de despachar' : 'Carregar e despachar pra HRM'}
+              style={{ width: '100%', marginTop: 8, background: !conferencia ? '#cbd5e1' : '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 14px', fontSize: 13, fontWeight: 800, cursor: (loading || !conferencia) ? 'not-allowed' : 'pointer' }}>
+              🚚 Despachar para a HRM
+            </button>
+            {!conferencia && (
+              <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4, textAlign: 'center' }}>Confira o item (Conforme/Divergente) para liberar o despacho.</div>
+            )}
+          </div>
+        )}
+
+        {/* ── Recebimento (HRM): material em trânsito → confirmar recebimento ── */}
+        {isRecebimentoHrm && isEmTransito && (
+          <div style={{ width: '100%', background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 8, padding: '10px 12px', marginBottom: 4 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#1d4ed8', marginBottom: 8 }}>
+              🚚 Em trânsito da Conferência — material chegando
+            </div>
+            <button onClick={() => acao('confirmar_recebimento', undefined, 'Recebimento confirmado')} disabled={loading}
+              style={{ width: '100%', background: '#198754', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 14px', fontSize: 13, fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer' }}>
+              <i className="bi bi-check-circle-fill" style={{ marginRight: 6 }} />Confirmar recebimento
+            </button>
+          </div>
+        )}
+
         {/* ── Sinete ──────────────────────────────────────────────────────── */}
         {/* Só no setor Sinete: escrever o sinete e devolver à Qualidade num clique. */}
         {parcial.setor_atual === 'sinete' && !isEmTransito && !isConcluida && (
@@ -1318,7 +1431,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             }}
           />
         )}
-        {!isLogistica && isAberto && parcial.item_status !== 'reprovado' && (
+        {!isLogistica && !isConferenciaHrm && !isRecebimentoHrm && isAberto && parcial.item_status !== 'reprovado' && (
           <button onClick={() => setShowReceberModal(true)} disabled={loading} style={btnStyle('#d97706')}>
             <i className="bi bi-box-arrow-in-down" style={{ marginRight: 5 }} />Receber
           </button>
@@ -1355,7 +1468,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             }}
           />
         )}
-        {!isLogistica && isRecebido && (
+        {!isLogistica && !isConferenciaHrm && !isRecebimentoHrm && isRecebido && (
           <>
             <button onClick={() => temMaquinas(parcial.setor_atual) ? setShowIniciarProducao(true) : acao('iniciar')} disabled={loading} style={btnStyle('#198754')}>
               <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Iniciar produção
@@ -1819,24 +1932,49 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
       {/* Painel enviar para setor */}
       {showEnviar && (
         <div style={{ marginTop: 10, background: foraDoRoteiro ? '#fffbeb' : '#f8f9fa', border: foraDoRoteiro ? '1.5px solid #f59e0b' : 'none', borderRadius: 6, padding: '10px 12px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
-          {/* Corte: operador escolhe pra qual fábrica a peça segue. Caldeiraria =
-              botão direto (destino único). Flanges = seletor de setor abaixo (já
-              vem com o próximo do roteiro pré-selecionado, mas dá pra trocar). */}
-          {SETORES_CORTE.includes(parcial.setor_atual) && (
-            <div style={{ width: '100%', marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {SETORES_CORTE.includes(parcial.setor_atual) ? (
+            /* Corte: destino é por FÁBRICA (dois botões), sem seleção livre de
+               setor. Flange sempre vai pra Conferência / Carregamento (HRM), onde
+               o Alan confere e despacha; Caldeiraria vai direto pro Recebimento. */
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <span style={{ fontSize: 11, color: '#374151', fontWeight: 700 }}>Depois de cortar, encaminhar para:</span>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onClick={() => {
+                  acao('mover', { setor_destino: 'conferencia_hrm', quantidade: Number(qtdEnvio) || Number(parcial.quantidade), ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
+                  setShowEnviar(false); setObsEnvio('');
+                }} disabled={loading}
+                  style={{ background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 16px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
+                  <i className="bi bi-clipboard-check" style={{ marginRight: 5 }} />Conferência / Carregamento (HRM)
+                </button>
                 <button onClick={() => {
                   acao('mover', { setor_destino: 'caldeiraria', quantidade: Number(qtdEnvio) || Number(parcial.quantidade), ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
                   setShowEnviar(false); setObsEnvio('');
                 }} disabled={loading}
-                  style={{ background: '#b45309', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
+                  style={{ background: '#b45309', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 16px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
                   <i className="bi bi-hammer" style={{ marginRight: 5 }} />Caldeiraria → Recebimento
                 </button>
               </div>
-              <span style={{ fontSize: 10, color: '#9ca3af' }}>ou pro Flange — escolha o setor abaixo (já vem com o próximo do roteiro) e clique em &quot;Confirmar envio&quot;:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label style={{ fontSize: 11, color: '#555' }}>Quantidade:</label>
+                <input type="number" value={qtdEnvio}
+                  onChange={e => {
+                    const v = e.target.value;
+                    const max = Number(parcial.quantidade);
+                    if (v === '' || Number(v) <= max) setQtdEnvio(v);
+                    else setQtdEnvio(String(max));
+                  }}
+                  min={1} max={Number(parcial.quantidade)}
+                  placeholder={`Máx: ${fmtQtd(parcial.quantidade)}`}
+                  style={{ border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 8px', fontSize: 13, width: 90 }} />
+                <button onClick={() => setShowEnviar(false)}
+                  style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 10px', fontSize: 12, color: '#888', cursor: 'pointer', marginLeft: 'auto' }}>
+                  ✕
+                </button>
+              </div>
+              <span style={{ fontSize: 10, color: '#9ca3af' }}>Peça de Flange → Conferência (Alan confere e despacha pra HRM). Peça de Caldeiraria → Recebimento.</span>
             </div>
-          )}
+          ) : (
+          <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 140 }}>
             <label style={{ fontSize: 11, color: foraDoRoteiro ? '#92400e' : '#555', fontWeight: foraDoRoteiro ? 700 : 400 }}>
               {foraDoRoteiro ? '⚠ Selecione o setor destino:' : 'Setor destino:'}
@@ -1886,6 +2024,8 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 10px', fontSize: 12, color: '#888', cursor: 'pointer' }}>
             ✕
           </button>
+          </>
+          )}
         </div>
       )}
 
@@ -2029,6 +2169,11 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   const [showDivModal, setShowDivModal] = useState<'retrabalho' | 'resolver' | 'cancelar_item' | null>(null);
   const [showPausarGrupo, setShowPausarGrupo] = useState(false);
   const [showRetomarGrupo, setShowRetomarGrupo] = useState(false);
+  // Conferência / Carregamento (HRM) no card de grupo — todas as parciais são do
+  // MESMO item, então a conferência é gravada uma vez no item.
+  const [confTipoG, setConfTipoG] = useState<'conforme' | 'divergente' | null>(null);
+  const [confTextoG, setConfTextoG] = useState('');
+  const [salvandoConfG, setSalvandoConfG] = useState(false);
 
   if (parciais.length === 1) return <ParcialCard parcial={parciais[0]} onRefresh={onRefresh} setor={setor} />;
 
@@ -2139,6 +2284,29 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
   const isFinalizado = p0.status === 'finalizado_setor';
   const isEmTransito = p0.status === 'em_transito';
   const isConcluida = p0.status === 'concluida';
+  const isConferenciaHrm = p0.setor_atual === 'conferencia_hrm';
+  const isRecebimentoHrm = p0.setor_atual === 'recebimento_hrm';
+
+  async function salvarConferenciaGrupo() {
+    if (salvandoConfG || !confTipoG) return;
+    setSalvandoConfG(true);
+    try {
+      const rotulo = confTipoG === 'divergente' ? 'DIVERGENTE' : 'CONFORME';
+      const texto = `🔎 CONFERÊNCIA ${rotulo}${confTextoG.trim() ? `: ${confTextoG.trim()}` : ''}`;
+      await adicionarObservacaoItem(p0.item_pedido_id as number, texto);
+      setConfTipoG(null); setConfTextoG('');
+      onRefresh();
+    } catch (e: unknown) {
+      const ax = e as { response?: { data?: { erro?: string } } };
+      mostrarErroGrupo(ax?.response?.data?.erro || String(e));
+    } finally { setSalvandoConfG(false); }
+  }
+  const conferenciaG = (() => {
+    const marc = (p0.observacoes || []).filter(o => o.texto && /CONFER[ÊE]NCIA/i.test(o.texto));
+    if (!marc.length) return null;
+    const u = marc.reduce((a, b) => (new Date(a.criado_em).getTime() >= new Date(b.criado_em).getTime() ? a : b));
+    return { divergente: /DIVERGENTE/i.test(u.texto), texto: u.texto.replace(/^.*?CONFER[ÊE]NCIA\s+(?:CONFORME|DIVERGENTE):?\s*/i, '').trim() };
+  })();
 
   return (
     <>
@@ -2165,9 +2333,15 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <PrevisaoItemBtn itemId={p0.item_pedido_id} previsaoEfetiva={p0.previsao_efetiva} previsaoEfetivaFmt={p0.previsao_efetiva_fmt} atrasado={p0.atrasado} onRefresh={onRefresh} />
-          <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: badge.bg, color: badge.color }}>
-            {LABEL_PARCIAL[p0.status] || p0.status}
-          </span>
+          {isEmTransito && (isRecebimentoHrm || isConferenciaHrm) ? (
+            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 800, background: '#dbeafe', color: '#1d4ed8' }}>
+              🚚 Em trânsito para a HRM
+            </span>
+          ) : (
+            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: badge.bg, color: badge.color }}>
+              {LABEL_PARCIAL[p0.status] || p0.status}
+            </span>
+          )}
           <Link href={`/item/${p0.item_pedido_id}`} title="Ver item completo (30 un)"
             style={{ color: '#0d6efd', fontSize: 14, textDecoration: 'none' }}>
             <i className="bi bi-eye" />
@@ -2313,6 +2487,69 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
       {setor === 'quarentena' && <FinalizadoBadge />}
       {podeEditar() && setor !== 'quarentena' && (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {/* ── Conferência / Carregamento (HRM) — em lote (item inteiro) ─────── */}
+        {isConferenciaHrm && (
+          <div style={{ width: '100%', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 12px', marginBottom: 4 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#1e40af', marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span><i className="bi bi-clipboard-check" style={{ marginRight: 5 }} />Conferência do item ({parciais.length} parciais)</span>
+              {conferenciaG && (
+                <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6, background: conferenciaG.divergente ? '#fef3c7' : '#dcfce7', color: conferenciaG.divergente ? '#92400e' : '#166534' }}>
+                  {conferenciaG.divergente ? '⚠️ Divergente' : '✅ Conforme'}
+                </span>
+              )}
+            </div>
+            {conferenciaG?.texto && (
+              <div style={{ fontSize: 11, color: '#475569', marginBottom: 8, whiteSpace: 'pre-wrap' }}>“{conferenciaG.texto}”</div>
+            )}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <button onClick={() => setConfTipoG('conforme')} disabled={salvandoConfG}
+                style={{ flex: 1, background: confTipoG === 'conforme' ? '#16a34a' : '#fff', color: confTipoG === 'conforme' ? '#fff' : '#166534', border: '1px solid #16a34a', borderRadius: 6, padding: '7px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                ✅ Conforme
+              </button>
+              <button onClick={() => setConfTipoG('divergente')} disabled={salvandoConfG}
+                style={{ flex: 1, background: confTipoG === 'divergente' ? '#d97706' : '#fff', color: confTipoG === 'divergente' ? '#fff' : '#92400e', border: '1px solid #d97706', borderRadius: 6, padding: '7px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                ⚠️ Divergente
+              </button>
+            </div>
+            {confTipoG && (
+              <>
+                <textarea value={confTextoG} onChange={e => setConfTextoG(e.target.value)}
+                  placeholder={confTipoG === 'divergente' ? 'O que está divergente? (ex.: faltando 2 peças, medida errada...)' : 'Observação (opcional)'} rows={2}
+                  style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #bfdbfe', borderRadius: 6, padding: '6px 10px', fontSize: 13, resize: 'vertical', marginBottom: 8 }} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={salvarConferenciaGrupo} disabled={salvandoConfG || (confTipoG === 'divergente' && !confTextoG.trim())}
+                    style={{ flex: 1, background: (salvandoConfG || (confTipoG === 'divergente' && !confTextoG.trim())) ? '#93c5fd' : '#2563eb', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                    {salvandoConfG ? '⏳ Salvando…' : 'Registrar conferência'}
+                  </button>
+                  <button onClick={() => { setConfTipoG(null); setConfTextoG(''); }} disabled={salvandoConfG}
+                    style={{ background: 'none', border: '1px solid #cbd5e1', color: '#64748b', borderRadius: 6, padding: '8px 12px', fontSize: 12, cursor: 'pointer' }}>✕</button>
+                </div>
+              </>
+            )}
+            <button onClick={() => acaoTodos('despachar_hrm', undefined, '🚚 Em trânsito para a HRM')} disabled={loading || !conferenciaG}
+              title={!conferenciaG ? 'Confira o item antes de despachar' : 'Carregar e despachar pra HRM'}
+              style={{ width: '100%', marginTop: 8, background: !conferenciaG ? '#cbd5e1' : '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 14px', fontSize: 13, fontWeight: 800, cursor: (loading || !conferenciaG) ? 'not-allowed' : 'pointer' }}>
+              🚚 Despachar tudo para a HRM
+            </button>
+            {!conferenciaG && (
+              <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4, textAlign: 'center' }}>Confira o item (Conforme/Divergente) para liberar o despacho.</div>
+            )}
+          </div>
+        )}
+
+        {/* ── Recebimento (HRM): tudo em trânsito → confirmar recebimento ────── */}
+        {isRecebimentoHrm && isEmTransito && (
+          <div style={{ width: '100%', background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 8, padding: '10px 12px', marginBottom: 4 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#1d4ed8', marginBottom: 8 }}>
+              🚚 Em trânsito da Conferência — {fmtQtd(String(totalQtd))} {p0.unidade} chegando
+            </div>
+            <button onClick={() => acaoTodos('confirmar_recebimento', undefined, 'Recebimento confirmado')} disabled={loading}
+              style={{ width: '100%', background: '#198754', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 14px', fontSize: 13, fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer' }}>
+              <i className="bi bi-check-circle-fill" style={{ marginRight: 6 }} />Confirmar recebimento (tudo)
+            </button>
+          </div>
+        )}
+
         {isLogistica && isAberto && (
           <button onClick={() => setShowIniciarEntregaGrupo(true)} disabled={loading} style={btnStyle('#0d6efd')}>
             <i className="bi bi-truck" style={{ marginRight: 5 }} />Iniciar movimentação
@@ -2334,7 +2571,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             }}
           />
         )}
-        {!isLogistica && isAberto && p0.item_status !== 'reprovado' && (
+        {!isLogistica && !isConferenciaHrm && !isRecebimentoHrm && isAberto && p0.item_status !== 'reprovado' && (
           <button onClick={() => setShowReceberModal(true)} disabled={loading} style={btnStyle('#d97706')}>
             <i className="bi bi-box-arrow-in-down" style={{ marginRight: 5 }} />Receber
           </button>
@@ -2371,7 +2608,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             }}
           />
         )}
-        {!isLogistica && isRecebido && (
+        {!isLogistica && !isConferenciaHrm && !isRecebimentoHrm && isRecebido && (
           <>
             {temMaquinas(p0.setor_atual) ? (
               <span style={{ fontSize: 11, color: '#92400e', background: '#fef9c3', border: '1px solid #fbbf24', borderRadius: 5, padding: '5px 10px', fontWeight: 600 }}>
@@ -2418,7 +2655,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
           </>
         )}
 
-        {!isLogistica && isAndamento && !isQualidadeGrupo && (
+        {!isLogistica && !isConferenciaHrm && !isRecebimentoHrm && isAndamento && !isQualidadeGrupo && (
           <>
             <button onClick={() => setConfirm({
               titulo: 'Finalizar etapa',
@@ -2629,24 +2866,33 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
       {/* Painel enviar */}
       {showEnviar && (
         <div style={{ marginTop: 10, background: foraDoRoteiroGrupo ? '#fffbeb' : '#f8f9fa', border: foraDoRoteiroGrupo ? '1.5px solid #f59e0b' : 'none', borderRadius: 6, padding: '10px 12px', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
-          {/* Corte: operador escolhe pra qual fábrica a peça segue. Caldeiraria =
-              botão direto (destino único). Flanges = seletor de setor abaixo (já
-              vem com o próximo do roteiro pré-selecionado, mas dá pra trocar). */}
-          {SETORES_CORTE.includes(p0.setor_atual) && (
-            <div style={{ width: '100%', marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {SETORES_CORTE.includes(p0.setor_atual) ? (
+            /* Corte: destino por FÁBRICA (dois botões), sem seleção livre. Flange
+               → Conferência / Carregamento (HRM); Caldeiraria → Recebimento. */
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <span style={{ fontSize: 11, color: '#374151', fontWeight: 700 }}>Depois de cortar, encaminhar para:</span>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onClick={() => {
+                  acaoTodos('mover', { setor_destino: 'conferencia_hrm', ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
+                  setShowEnviar(false); setObsEnvio('');
+                }} disabled={loading}
+                  style={{ background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 16px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
+                  <i className="bi bi-clipboard-check" style={{ marginRight: 5 }} />Conferência / Carregamento (HRM)
+                </button>
                 <button onClick={() => {
                   acaoTodos('mover', { setor_destino: 'caldeiraria', ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
                   setShowEnviar(false); setObsEnvio('');
                 }} disabled={loading}
-                  style={{ background: '#b45309', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
+                  style={{ background: '#b45309', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 16px', fontSize: 12, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
                   <i className="bi bi-hammer" style={{ marginRight: 5 }} />Caldeiraria → Recebimento
                 </button>
+                <button onClick={() => setShowEnviar(false)}
+                  style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 10px', fontSize: 12, color: '#888', cursor: 'pointer', marginLeft: 'auto' }}>✕</button>
               </div>
-              <span style={{ fontSize: 10, color: '#9ca3af' }}>ou pro Flange — escolha o setor abaixo (já vem com o próximo do roteiro) e clique em &quot;Confirmar envio&quot;:</span>
+              <span style={{ fontSize: 10, color: '#9ca3af' }}>Peça de Flange → Conferência (Alan confere e despacha pra HRM). Peça de Caldeiraria → Recebimento.</span>
             </div>
-          )}
+          ) : (
+          <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 140 }}>
             <label style={{ fontSize: 11, color: foraDoRoteiroGrupo ? '#92400e' : '#555', fontWeight: foraDoRoteiroGrupo ? 700 : 400 }}>
               {foraDoRoteiroGrupo ? '⚠ Selecione o setor destino:' : 'Setor destino:'}
@@ -2682,6 +2928,8 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
           </button>
           <button onClick={() => setShowEnviar(false)}
             style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 10px', fontSize: 12, color: '#888', cursor: 'pointer' }}>✕</button>
+          </>
+          )}
         </div>
       )}
 
@@ -3784,6 +4032,26 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
 
       {/* Rastreio somente-leitura do que está na Caldeiraria — a peça sai da
           fila de ações da Logística, mas não pode sumir do radar dela. */}
+      {/* Conferência / Carregamento: read-only do que já foi despachado e está
+          EM TRÂNSITO pra HRM (caminhão azul), aguardando o Recebimento confirmar. */}
+      {setor === 'conferencia_hrm' && data?.em_transito_hrm && data.em_transito_hrm.length > 0 && (
+        <div style={{ background: '#eff6ff', border: '1.5px solid #93c5fd', borderRadius: 10, padding: '12px 16px', marginBottom: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 10 }}>
+            🚚 Em trânsito para a HRM — aguardando recebimento ({data.em_transito_hrm.length})
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {data.em_transito_hrm.map(p => (
+              <div key={`transito-${p.id}`} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, fontSize: 12, color: '#1e3a8a', background: '#fff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '6px 10px' }}>
+                <span style={{ fontWeight: 700 }}>{p.numero_pedido_venda}</span>
+                <span style={{ color: '#1d4ed8' }}>{p.item_codigo}{p.item_descricao ? ` · ${p.item_descricao}` : ''}</span>
+                <span style={{ marginLeft: 'auto', fontWeight: 600 }}>{fmtQtd(String(p.quantidade))} {p.unidade}</span>
+                <span style={{ background: '#dbeafe', color: '#1d4ed8', borderRadius: 4, padding: '1px 7px', fontSize: 11, fontWeight: 800 }}>🚚 Em trânsito</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {setor === 'logistica' && data?.em_caldeiraria && (() => {
         // Um item que já tem parcial na caldeiraria não pode aparecer também na
         // lista de "itens" — senão duplica. Mesmo filtro usado nas seções normais.
