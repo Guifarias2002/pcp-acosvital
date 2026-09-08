@@ -25,12 +25,31 @@ interface PedidoEntregue extends Pedido {
   nota_url?: string | null;
   canhoto_url?: string | null;
   anexo_pendente?: boolean;
+  producao_iniciada_em?: string | null;
+  finalizado_em?: string | null;
 }
 
 function fmtHora(s: string) {
   if (!s) return '';
   const d = new Date(s);
   return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtData(s?: string | null) {
+  if (!s) return '—';
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+}
+
+// Tempo total de produção = da 1ª produção até a finalização. null se faltar data.
+function tempoTotal(ini?: string | null, fim?: string | null): string | null {
+  if (!ini || !fim) return null;
+  const ms = new Date(fim).getTime() - new Date(ini).getTime();
+  if (isNaN(ms) || ms < 0) return null;
+  const dias = Math.floor(ms / 86400000);
+  const horas = Math.floor((ms % 86400000) / 3600000);
+  if (dias > 0) return `${dias} dia${dias > 1 ? 's' : ''}${horas > 0 ? ` e ${horas}h` : ''}`;
+  return `${horas}h`;
 }
 
 function isImagem(url: string) {
@@ -284,17 +303,17 @@ export default function EntreguesPage() {
         <div>
           <h4 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c', fontSize: 20 }}>
             <i className="bi bi-check-circle-fill" style={{ marginRight: 8, color: '#198754' }}></i>
-            Entregues
+            Pedidos Finalizados
           </h4>
-          <small style={{ color: '#888' }}>Ordens de produção concluídas e entregues</small>
+          <small style={{ color: '#888' }}>Ordens de produção finalizadas (Quarentena / entregues)</small>
         </div>
       </div>
 
       {data && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 18 }}>
           {[
-            { label: 'Pedidos Entregues', val: data.total_pedidos, icon: 'bi-box-seam', color: '#198754' },
-            { label: 'Itens Entregues', val: data.total_itens, icon: 'bi-list-check', color: '#0d6efd' },
+            { label: 'Pedidos Finalizados', val: data.total_pedidos, icon: 'bi-box-seam', color: '#198754' },
+            { label: 'Itens Finalizados', val: data.total_itens, icon: 'bi-list-check', color: '#0d6efd' },
             { label: 'Valor Total', val: `R$ ${Number(data.total_valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: 'bi-currency-dollar', color: '#fd7e14' },
           ].map(c => (
             <div key={c.label} className="card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -358,7 +377,7 @@ export default function EntreguesPage() {
           </thead>
           <tbody>
             {!loading && (!data || data.pedidos.length === 0) && (
-              <tr><td colSpan={11} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum pedido entregue encontrado.</td></tr>
+              <tr><td colSpan={11} style={{ textAlign: 'center', padding: 40, color: '#999' }}>Nenhum pedido finalizado encontrado.</td></tr>
             )}
             {data?.pedidos.map(p => {
               const aberto = expandido === p.id;
@@ -456,6 +475,51 @@ export default function EntreguesPage() {
                     <tr key={`${p.id}-detail`}>
                       <td colSpan={11} style={{ padding: 0, background: '#f8fffe', borderBottom: '2px solid #d1fae5' }}>
                         <div style={{ padding: '16px 24px' }}>
+                          {/* Tempo de produção: foi para produção → finalizado → total */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+                            {[
+                              { icon: 'bi-play-circle-fill', cor: '#1d4ed8', label: 'Foi para produção', val: fmtData(p.producao_iniciada_em) },
+                              { icon: 'bi-check-circle-fill', cor: '#166534', label: 'Finalizado na produção', val: fmtData(p.finalizado_em) },
+                              { icon: 'bi-stopwatch-fill', cor: '#b45309', label: 'Tempo total', val: tempoTotal(p.producao_iniciada_em, p.finalizado_em) || '—' },
+                            ].map(d => (
+                              <div key={d.label} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, minWidth: 180 }}>
+                                <i className={`bi ${d.icon}`} style={{ fontSize: 20, color: d.cor }}></i>
+                                <div>
+                                  <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>{d.label}</div>
+                                  <div style={{ fontSize: 15, fontWeight: 800, color: d.cor }}>{d.val}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Materiais do pedido */}
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                            <i className="bi bi-list-check" style={{ marginRight: 6 }}></i>Pedido {p.numero_pedido_venda} — Materiais
+                          </div>
+                          <div style={{ overflowX: 'auto', marginBottom: 18 }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, background: '#fff', borderRadius: 8, overflow: 'hidden' }}>
+                              <thead>
+                                <tr style={{ background: '#f0fdf4' }}>
+                                  {['Código', 'Descrição', 'Quantidade'].map(h => (
+                                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10.5, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: '1px solid #d1fae5' }}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(!p.itens || p.itens.length === 0) && (
+                                  <tr><td colSpan={3} style={{ padding: 14, color: '#aaa', textAlign: 'center' }}>Nenhum material.</td></tr>
+                                )}
+                                {p.itens?.map(it => (
+                                  <tr key={it.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                                    <td style={{ padding: '7px 12px', fontWeight: 700, color: '#1a3a5c' }}>{it.codigo || '—'}</td>
+                                    <td style={{ padding: '7px 12px', color: '#444' }}>{it.descricao || '—'}</td>
+                                    <td style={{ padding: '7px 12px', color: '#444', whiteSpace: 'nowrap' }}>{it.quantidade ?? '—'} {it.unidade || ''}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+
                           <div style={{ fontSize: 11, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
                             <i className="bi bi-truck" style={{ marginRight: 6 }}></i>Registros de Entrega
                           </div>

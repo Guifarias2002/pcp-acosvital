@@ -27,12 +27,20 @@ export async function GET(req: Request) {
       COALESCE((SELECT SUM(i2.quantidade * COALESCE(i2.valor_unitario, 0)) FROM producao_itempedido i2 WHERE i2.pedido_id = p.id), 0)::text AS valor_calculado,
       p.criado_em, p.atualizado_em,
       p.nota_url, p.canhoto_url, p.anexo_pendente,
+      -- Início REAL da produção = 1º apontamento (menor iniciado_em) entre as
+      -- parciais do pedido (mesma definição usada no detalhe do pedido).
+      (SELECT MIN(ip.iniciado_em) FROM producao_itemparcial ip WHERE ip.pedido_id = p.id) AS producao_iniciada_em,
+      -- Finalizado na produção = 1ª chegada no passo terminal (quarentena desde
+      -- 09/09; logística é a antiga). MIN por pedido não conta em dobro.
+      (SELECT MIN(m.criado_em) FROM producao_movimentacaoitem m
+         WHERE m.pedido_id = p.id AND m.setor_destino IN ('quarentena','logistica')) AS finalizado_em,
       COALESCE(
         json_agg(
           json_build_object(
             'id', i.id,
             'codigo', i.codigo,
             'descricao', i.descricao,
+            'quantidade', i.quantidade::text,
             'quantidade_pendente', i.quantidade_pendente::text,
             'quantidade_entregue', i.quantidade_entregue::text,
             'unidade', i.unidade,

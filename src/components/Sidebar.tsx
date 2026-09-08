@@ -213,7 +213,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
                   <NavItem href="/kanban" label="Kanban" icon="bi-kanban" onNav={fechar} />
                   <NavItem href="/por-lider" label="Por Líder" icon="bi-people-fill" onNav={fechar} />
                   <NavItem href="/emitidos" label="Em Produção" icon="bi-send-fill" onNav={fechar} />
-                  <NavItem href="/entregues" label="Entregues" icon="bi-check-circle" onNav={fechar} />
+                  <NavItem href="/entregues" label="Pedidos Finalizados" icon="bi-check-circle" onNav={fechar} />
                   <NavItem href="/divergencias" label="Divergências" icon="bi-exclamation-triangle" onNav={fechar} />
                   <a href="/tv/movimentacoes" target="_blank" rel="noopener noreferrer" className="nav-link" title="Abre em nova aba — pra deixar ligado numa TV/monitor">
                     <i className="bi bi-tv-fill"></i>
@@ -223,7 +223,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
               )}
               {/* Responsável pela Logística também acessa Entregues, sem o resto das telas admin. */}
               {!isAdmin && meusSetores.includes('logistica') && (
-                <NavItem href="/entregues" label="Entregues" icon="bi-check-circle" onNav={fechar} />
+                <NavItem href="/entregues" label="Pedidos Finalizados" icon="bi-check-circle" onNav={fechar} />
               )}
             </NavGroup>
           )}
@@ -322,7 +322,7 @@ export function TopBar({ onHamburger, colapsada, onExpandir }: TopBarProps) {
     '/analise': 'Análise de PCP',
     '/inspecoes': 'Inspeções — Caldeiraria',
     '/emitidos': 'Ordens de Produção Emitidas',
-    '/entregues': 'Entregues',
+    '/entregues': 'Pedidos Finalizados',
     '/divergencias': 'Divergências',
     '/usuarios': 'Usuários',
     '/relatorios': 'Relatórios',
