@@ -47,6 +47,10 @@ const SETORES_CALDEIRARIA_EXTRA = SETORES_CALDEIRARIA_MENU.filter(c => c !== 'ca
 // pro Flanges, que lista "tudo que não é da Caldeiraria"). Ver types.ts.
 const SETORES_NAO_FLANGES = SETORES_EXCLUSIVOS_CALDEIRARIA;
 
+// Rótulo do setor no menu. Quarentena virou o passo terminal do Flange (09/09) =
+// Pedidos Finalizados; no menu usamos a forma curta "Finalizados".
+const labelSetorMenu = (cod: string) => cod === 'quarentena' ? 'Finalizados' : (NOMES[cod] || cod);
+
 function NavItem({ href, label, icon, onNav }: { href: string; label: string; icon?: string; onNav?: () => void }) {
   const rawPath = usePathname();
   // usePathname() não decodifica segmentos com acentos (ex: "ma%C3%A7arico")
@@ -250,7 +254,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
                 <NavItem
                   key={cod}
                   href={`/setor/${cod}`}
-                  label={NOMES[cod] || cod}
+                  label={labelSetorMenu(cod)}
                   icon={SETOR_ICONS[cod]}
                   onNav={fechar}
                 />
@@ -265,7 +269,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
                 <NavItem href="/setor/caldeiraria" label="Recebimento" icon={SETOR_ICONS.caldeiraria} onNav={fechar} />
               )}
               {(acessoIrrestrito ? SETORES_CALDEIRARIA_EXTRA : SETORES_CALDEIRARIA_EXTRA.filter(cod => meusSetores.includes(cod))).map(cod => (
-                <NavItem key={cod} href={`/setor/${cod}`} label={NOMES[cod] || cod} icon={SETOR_ICONS[cod]} onNav={fechar} />
+                <NavItem key={cod} href={`/setor/${cod}`} label={labelSetorMenu(cod)} icon={SETOR_ICONS[cod]} onNav={fechar} />
               ))}
               {/* Fila de inspeções / Hold Points — só na Caldeiraria (fora do Flange). */}
               <NavItem href="/inspecoes" label="Inspeções" icon="bi-clipboard2-check" onNav={fechar} />
@@ -277,7 +281,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
           {(!isAdmin || emAcosvital) && (acessoIrrestrito || meusSetores.includes('beneficiadores') || meusSetores.includes('recebimento')) && (
             <NavGroup label="🔗 Compartilhados" defaultOpen={true}>
               {(acessoIrrestrito ? ['beneficiadores', 'recebimento'] : meusSetores.filter(cod => ['beneficiadores', 'recebimento'].includes(cod))).map(cod => (
-                <NavItem key={cod} href={`/setor/${cod}`} label={NOMES[cod] || cod} icon={SETOR_ICONS[cod]} onNav={fechar} />
+                <NavItem key={cod} href={`/setor/${cod}`} label={labelSetorMenu(cod)} icon={SETOR_ICONS[cod]} onNav={fechar} />
               ))}
             </NavGroup>
           )}

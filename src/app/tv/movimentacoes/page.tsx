@@ -108,7 +108,7 @@ const ETAPAS_META: { etapa: Etapa; bg: string; label: string; sub: string; icon:
   { etapa: 'a_produzir', bg: '#1a3a5c', label: 'A Produzir', sub: 'OPs emitidas aguardando início', icon: 'bi-hourglass-split' },
   { etapa: 'produzindo', bg: '#1d4ed8', label: 'Produzindo', sub: 'em trabalho nos setores', icon: 'bi-gear-fill' },
   { etapa: 'mat_concluido', bg: '#b45309', label: 'Mat. Concluído', sub: 'produção ok, na logística', icon: 'bi-truck' },
-  { etapa: 'entregue', bg: '#166534', label: 'Entregue', sub: 'materiais entregues ao cliente', icon: 'bi-check-circle-fill' },
+  { etapa: 'entregue', bg: '#166534', label: 'Finalizados', sub: 'pedidos finalizados (Quarentena)', icon: 'bi-check-circle-fill' },
 ];
 const PAINEL_ETAPAS: Etapa[] = ETAPAS_META.map(e => e.etapa);
 

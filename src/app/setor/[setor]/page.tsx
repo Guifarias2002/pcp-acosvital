@@ -198,6 +198,16 @@ function PrevisaoItemBtn({ itemId, previsaoEfetiva, previsaoEfetivaFmt, atrasado
   );
 }
 
+// Selo "Finalizado" — mostrado no lugar dos botões de apontamento na Quarentena
+// (09/09: passo terminal do Flange = Pedido Finalizado, tela sem apontamento).
+function FinalizadoBadge() {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, color: '#166534', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 8, padding: '5px 12px' }}>
+      <i className="bi bi-check-circle-fill" /> Finalizado
+    </span>
+  );
+}
+
 function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedido; onRefresh: () => void; ocultarCabecalhoPedido?: boolean }) {
   const { toast: toastItem, mostrar: mostrarErroItem, fechar: fecharToastItem } = useToast();
   const [loading, setLoading] = useState(false);
@@ -367,8 +377,9 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
         temDesenho={(item as any).tem_desenho}
       />
 
-      {/* Ações — escondidas para usuários somente leitura */}
-      {podeEditar() && (
+      {/* Ações — escondidas para leitura e na Quarentena (passo terminal = Finalizado). */}
+      {item.setor_atual === 'quarentena' && <FinalizadoBadge />}
+      {podeEditar() && item.setor_atual !== 'quarentena' && (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
 
         {/* LIBERAR — item ainda emitido, envia para o proximo setor do roteiro */}
@@ -1251,8 +1262,9 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
         </div>
       )}
 
-      {/* Ações — escondidas para usuários somente leitura */}
-      {podeEditar() && (
+      {/* Ações — escondidas para leitura e na Quarentena (passo terminal = Finalizado). */}
+      {setor === 'quarentena' && <FinalizadoBadge />}
+      {podeEditar() && setor !== 'quarentena' && (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
 
         {/* ── Sinete ──────────────────────────────────────────────────────── */}
@@ -2297,8 +2309,9 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
         <PesosPalletsInfo key={`pesoinfo-${p.id}`} pesos={(p as any).pesos_pallets || []} nomes={(p as any).nomes_pallets || []} />
       ))}
 
-      {/* Ações combinadas — escondidas para usuários somente leitura */}
-      {podeEditar() && (
+      {/* Ações combinadas — escondidas para leitura e na Quarentena (passo terminal = Finalizado). */}
+      {setor === 'quarentena' && <FinalizadoBadge />}
+      {podeEditar() && setor !== 'quarentena' && (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {isLogistica && isAberto && (
           <button onClick={() => setShowIniciarEntregaGrupo(true)} disabled={loading} style={btnStyle('#0d6efd')}>
@@ -3452,7 +3465,11 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   try { setor = decodeURIComponent(setor); } catch { /* já decodificado */ }
   // 'caldeiraria' já aparece como "Recebimento" no menu lateral (é a etapa de
   // entrada da fábrica) — o título da página segue o mesmo nome pra não destoar.
-  const nomeSetor = setor === 'caldeiraria' ? 'Recebimento' : (NOMES[setor] || setor);
+  // Quarentena virou o passo terminal do Flange (09/09): a tela é a lista de
+  // Pedidos Finalizados, sem apontamento.
+  const nomeSetor = setor === 'caldeiraria' ? 'Recebimento'
+    : setor === 'quarentena' ? 'Pedidos Finalizados'
+    : (NOMES[setor] || setor);
   const [data, setData] = useState<SetorPainelData | null>(null);
   const [loading, setLoading] = useState(false);
   const [filtroLog, setFiltroLog] = useState<FiltroLogistica>('todos');
@@ -4154,8 +4171,15 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', borderRadius: 5, padding: '3px 10px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
                             <i className="bi bi-printer-fill" /> Imprimir
                           </button>
+                          {/* Quarentena = passo terminal do Flange: pedido Finalizado, sem apontamento. */}
+                          {setor === 'quarentena' && (
+                            <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, color: '#fff', background: 'rgba(255,255,255,.18)', border: '1px solid rgba(255,255,255,.35)', borderRadius: 8, padding: '4px 12px' }}>
+                              <i className="bi bi-check-circle-fill" /> Finalizado
+                            </span>
+                          )}
                           {(() => {
                             if (!podeEditar()) return null;
+                            if (setor === 'quarentena') return null; // passo terminal = Finalizado, sem apontamento
                             const recebiveis = parciais.filter(p => p.status === 'em_aberto' && p.setor_atual !== 'logistica');
                             if (recebiveis.length === 0) return null;
                             const carregando = recebendoTudo.has(pedido_id);
@@ -4181,6 +4205,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                           })()}
                           {(() => {
                             if (!podeEditar()) return null;
+                            if (setor === 'quarentena') return null; // passo terminal = Finalizado, sem apontamento
                             const recebiveisCheck = parciais.some(p => p.status === 'em_aberto' && p.setor_atual !== 'logistica');
                             const enviaveis = parciais.filter(p =>
                               ['recebido', 'em_andamento', 'pausado', 'finalizado_setor'].includes(p.status)
@@ -4247,6 +4272,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             // recebidas para "em aberto", fazendo o "Receber Tudo" reaparecer.
                             const desfaziveis = parciais.filter(p => p.status === 'recebido' && p.setor_atual !== 'logistica');
                             if (!podeEditar() || !podeDesfazer || desfaziveis.length === 0) return null;
+                            if (setor === 'quarentena') return null; // passo terminal = Finalizado, sem apontamento
                             const temRecebiveis = parciais.some(p => p.status === 'em_aberto' && p.setor_atual !== 'logistica');
                             const temEnviaveis = parciais.some(p =>
                               ['recebido', 'em_andamento', 'pausado', 'finalizado_setor'].includes(p.status)

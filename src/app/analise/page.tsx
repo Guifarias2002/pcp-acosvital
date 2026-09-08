@@ -824,7 +824,7 @@ export default function AnalisePage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 8 }}>
             <Etapa n="Etapa 1" nome="A Produzir" v={et.a_produzir} d="na Emissão, aguardando início" cor={C.cinza} />
             <Etapa n="Etapa 2" nome="Produzindo" v={et.produzindo} d="em trabalho nos setores" cor={C.azul2} />
-            <Etapa n="Etapa 3" nome="Entregue" v={et.entregue} d="materiais entregues ao cliente" cor={C.verde} />
+            <Etapa n="Etapa 3" nome="Finalizados" v={et.entregue} d="pedidos finalizados (Quarentena)" cor={C.verde} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 24 }}>
             <Kpi v={fmt(et.atrasados)} l="materiais atrasados" cor={C.vermelho} />

@@ -525,9 +525,9 @@ export default function DashboardPage() {
                 href: '/kanban',
               },
               {
-                etapa: 'entregue', bg: '#166534', label: 'Entregue',
+                etapa: 'entregue', bg: '#166534', label: 'Finalizados',
                 count: data.entregues, val: data.valor_concluido,
-                sub: 'materiais entregues ao cliente', icon: 'bi-check-circle-fill',
+                sub: 'pedidos finalizados (Quarentena)', icon: 'bi-check-circle-fill',
                 href: '/pedidos?etapa=entregue',
               },
             ].map((c, i) => {
