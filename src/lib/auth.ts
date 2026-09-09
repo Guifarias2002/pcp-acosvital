@@ -139,6 +139,17 @@ export function podeVerCliente(u?: JWTPayload | null): boolean {
   return !(user && LIDERES_SEM_CLIENTE.has(user.username));
 }
 
+// Supervisores que podem REDIRECIONAR peças de CORTE pra QUALQUER área — os
+// operadores comuns do corte só mandam pra Conferência/Carregamento (HRM) ou
+// Caldeiraria (trava server-side; ver DESTINOS_PERMITIDOS_CORTE). Administrador
+// sempre pode; além dele, esta lista EXPLÍCITA por login (mesmo padrão de
+// LIDERES_SEM_CLIENTE). Pra liberar outra pessoa, adicione o username aqui.
+const CORTE_REDIRECT_LIVRE = new Set<string>(['ezequiel']);
+export function podeRedirecionarCorteLivre(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return isAdministrador(user) || (!!user && CORTE_REDIRECT_LIVRE.has(user.username));
+}
+
 // Pode DEFINIR a previsão de conclusão das peças/pedidos? Administrador e staff
 // (PCP) sempre; o perfil `apontador` (percorre a fábrica registrando a previsão
 // de fabricação pedido a pedido — é o papel dele); além deles, usuários com a

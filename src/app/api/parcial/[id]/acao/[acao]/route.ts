@@ -13,9 +13,9 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
-import { isAdministrador, podeAcessarSetor, podeDesfazerRecebimento, podeVerNaoLocalizados } from '@/lib/auth';
+import { isAdministrador, podeAcessarSetor, podeDesfazerRecebimento, podeVerNaoLocalizados, podeRedirecionarCorteLivre } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
-import { SETOR_CHOICES, nomeInspecao, SETOR_NAO_LOCALIZADO } from '@/lib/types';
+import { SETOR_CHOICES, nomeInspecao, SETOR_NAO_LOCALIZADO, SETORES_CORTE, DESTINOS_PERMITIDOS_CORTE } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
 import { temMaquinas } from '@/lib/maquinas';
@@ -155,6 +155,15 @@ async function handlePOST(
       return NextResponse.json({ erro: 'Sem permissão para marcar pedidos como não localizados' }, { status: 403 });
     if (!setor_destino || (!SETORES_VALIDOS.includes(setor_destino) && !ehDestinoNaoLocalizado))
       return NextResponse.json({ erro: 'setor_destino inválido ou não informado' }, { status: 400 });
+
+    // Trava de CORTE: peça saindo de um setor de corte só vai pra Conferência/
+    // Carregamento (HRM) ou Caldeiraria. Admin/supervisores (ex.: Ezequiel)
+    // escapam. 'nao_localizado' (marcar sumido) é sempre permitido.
+    if (SETORES_CORTE.includes(parcial.setor_atual)
+        && !ehDestinoNaoLocalizado
+        && !DESTINOS_PERMITIDOS_CORTE.includes(setor_destino)
+        && !podeRedirecionarCorteLivre(user))
+      return NextResponse.json({ erro: 'Peça de corte só pode ser enviada para Conferência / Carregamento (HRM) ou Caldeiraria.' }, { status: 403 });
 
     const qtdMover = body.quantidade ? Number(body.quantidade) : parcial.qtd;
     if (!qtdMover || qtdMover <= 0)

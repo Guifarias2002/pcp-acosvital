@@ -1,9 +1,9 @@
 ﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
-import { podeAcessarSetor } from '@/lib/auth';
+import { podeAcessarSetor, podeRedirecionarCorteLivre } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
-import { SETOR_CHOICES, injetarQuarentena } from '@/lib/types';
+import { SETOR_CHOICES, injetarQuarentena, SETORES_CORTE, DESTINOS_PERMITIDOS_CORTE } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
 import { temMaquinas } from '@/lib/maquinas';
@@ -232,6 +232,15 @@ async function handlePOST(
   const setorDestinoEscolhido = (body.setor_destino && SETORES_VALIDOS.includes(body.setor_destino))
     ? body.setor_destino : null;
   const proximoSetor = setorDestinoEscolhido || proximoSetorRoteiro;
+
+  // Trava de CORTE: encaminhar (enviar_tudo/enviar_parcial) de um setor de corte
+  // só pode ir pra Conferência/Carregamento (HRM) ou Caldeiraria. Admin/
+  // supervisores (ex.: Ezequiel) escapam. Devolução/retrabalho não passa aqui.
+  if (['enviar_tudo', 'enviar_parcial'].includes(acao)
+      && SETORES_CORTE.includes(item.setor_atual)
+      && proximoSetor && !DESTINOS_PERMITIDOS_CORTE.includes(proximoSetor)
+      && !podeRedirecionarCorteLivre(user))
+    return NextResponse.json({ erro: 'Peça de corte só pode ser enviada para Conferência / Carregamento (HRM) ou Caldeiraria.' }, { status: 403 });
 
   const novoStatus = NOVO_STATUS[acao];
   const obs = body.observacao || '';

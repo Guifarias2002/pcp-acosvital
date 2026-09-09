@@ -209,6 +209,13 @@ export const SETORES_CALDEIRARIA_KANBAN = ['caldeiraria', ...SETORES_CALDEIRARIA
 // alimentar qualquer uma das duas fábricas. Ver os botões na tela de setor.
 export const SETORES_CORTE = ['maçarico', 'plasma', 'laser', 'serra'];
 
+// Trava de encaminhamento do CORTE (09/09): peça saindo de um setor de corte só
+// pode ir pra Conferência/Carregamento (HRM) ou Caldeiraria — enforce no
+// servidor (parcial + item), em qualquer tela. Admin e supervisores escapam
+// (ver `podeRedirecionarCorteLivre` em auth.ts). 'nao_localizado' é exceção
+// (marcar sumido). Devoluções/retrabalho ('devolver') não passam por aqui.
+export const DESTINOS_PERMITIDOS_CORTE = ['conferencia_hrm', 'caldeiraria'];
+
 // ── Flange → HRM (08/09) ────────────────────────────────────────────────────
 // Os dois setores novos que a peça de Flange atravessa entre o CORTE e o
 // roteiro (usinagem/furação). Fonte única usada no fluxo do corte, na tela de
