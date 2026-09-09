@@ -33,6 +33,10 @@ export interface JWTPayload {
   // Permissão pontual pra DEFINIR a previsão de conclusão das peças/pedidos
   // (Gilmar + equipe PCP). Ver `podeDefinirPrevisao` abaixo.
   pode_definir_previsao?: boolean;
+  // Permissão pontual pra VER/USAR a aba "Pedidos Não Localizados" (marcar no
+  // setor, ver a aba e reencaminhar) sem virar administrador completo. Admin
+  // sempre pode. Ver `podeVerNaoLocalizados` abaixo.
+  pode_ver_nao_localizados?: boolean;
 }
 
 // Um vendedor "restrito" só pode ver/filtrar os próprios pedidos (por nome).
@@ -143,6 +147,14 @@ export function podeVerCliente(u?: JWTPayload | null): boolean {
 export function podeDefinirPrevisao(u?: JWTPayload | null): boolean {
   const user = u ?? getUser();
   return isAdministrador(user) || !!user?.is_staff || user?.perfil === 'apontador' || user?.pode_definir_previsao === true;
+}
+
+// Pode VER/USAR a aba "Pedidos Não Localizados"? Administrador sempre; além
+// dele, usuários com a flag `pode_ver_nao_localizados` marcada no cadastro
+// (ex.: Ezequiel). Libera marcar no setor, ver a aba e reencaminhar.
+export function podeVerNaoLocalizados(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return isAdministrador(user) || user?.pode_ver_nao_localizados === true;
 }
 
 // Pode acessar o PCP HRM (tela "Anexar OP")? Staff (admin/PCP) já entra pelo

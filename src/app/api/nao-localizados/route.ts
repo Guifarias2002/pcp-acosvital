@@ -12,7 +12,7 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
-import { isAdministrador } from '@/lib/auth';
+import { podeVerNaoLocalizados } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
 import { injetarQuarentena, SETOR_NAO_LOCALIZADO } from '@/lib/types';
 
@@ -22,8 +22,8 @@ export async function GET(req: Request) {
   try {
     const user = await autenticar(req);
     if (user instanceof NextResponse) return user;
-    if (!isAdministrador(user))
-      return NextResponse.json({ erro: 'Acesso restrito a administradores' }, { status: 403 });
+    if (!podeVerNaoLocalizados(user))
+      return NextResponse.json({ erro: 'Sem permissão para ver os pedidos não localizados' }, { status: 403 });
 
     // Parciais atualmente no setor virtual, com item + pedido.
     const parciais = await sql`

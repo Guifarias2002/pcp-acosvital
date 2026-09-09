@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { logout, getUser, vendedorRestrito, podeVerAnalise } from '@/lib/auth';
+import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerNaoLocalizados } from '@/lib/auth';
 import { SETOR_CHOICES, NOMES, SETORES_CALDEIRARIA_MENU, SETORES_EXCLUSIVOS_CALDEIRARIA } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { JWTPayload } from '@/lib/auth';
@@ -124,6 +124,9 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
   // Ver a Análise PCP: admin OU usuário com a flag pode_ver_analise (mesma
   // regra da página/API). Fora do bloco só-admin pra funcionar pra não-admin.
   const podeVer = podeVerAnalise(user);
+  // Aba "Pedidos Não Localizados": admin OU usuário com a flag (ex.: Ezequiel).
+  // Fora do bloco só-admin, igual à Análise PCP.
+  const podeVerNaoLoc = podeVerNaoLocalizados(user);
   const isVendedor = !isAdmin && user?.perfil === 'vendedor';
   // Apontador: foco em "Todos os Pedidos" (percorre a fábrica atualizando
   // previsão). Sem Dashboard no menu — cai direto na lista de pedidos.
@@ -210,6 +213,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
               {/* Análise PCP — liberada por is_staff/admin OU pela flag pode_ver_analise
                   (fora do bloco só-admin abaixo, pra aparecer também pra não-admin). */}
               {podeVer && <NavItem href="/analise" label="Análise PCP" icon="bi-graph-up-arrow" onNav={fechar} />}
+              {podeVerNaoLoc && <NavItem href="/nao-localizados" label="Não Localizados" icon="bi-geo-alt" onNav={fechar} />}
               {isAdmin && (
                 <>
                   <NavItem href="/kanban" label="Kanban" icon="bi-kanban" onNav={fechar} />
@@ -217,7 +221,6 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
                   <NavItem href="/emitidos" label="Em Produção" icon="bi-send-fill" onNav={fechar} />
                   <NavItem href="/entregues" label="Pedidos Finalizados" icon="bi-check-circle" onNav={fechar} />
                   <NavItem href="/divergencias" label="Divergências" icon="bi-exclamation-triangle" onNav={fechar} />
-                  <NavItem href="/nao-localizados" label="Não Localizados" icon="bi-geo-alt" onNav={fechar} />
                   <a href="/tv/movimentacoes" target="_blank" rel="noopener noreferrer" className="nav-link" title="Abre em nova aba — pra deixar ligado numa TV/monitor">
                     <i className="bi bi-tv-fill"></i>
                     <span>TV Movimentação</span>

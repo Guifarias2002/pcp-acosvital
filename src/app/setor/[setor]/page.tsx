@@ -51,7 +51,7 @@ function Cronometro({ desde }: { desde: string }) {
   );
 }
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, registrarSinetePedido, setPesosPallets, setEmbalagemResumo, inativarItem, editarPedido, solicitarInspecao } from '@/lib/api';
-import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento, podeDefinirPrevisao } from '@/lib/auth';
+import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento, podeDefinirPrevisao, podeVerNaoLocalizados } from '@/lib/auth';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA, TIPOS_INSPECAO, SETOR_NAO_LOCALIZADO } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
@@ -4508,7 +4508,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                           {/* Não localizado (só ADM): o pedido está no sistema mas não foi
                               achado fisicamente aqui. Manda o pedido inteiro pra aba
                               "Pedidos Não Localizados" (sai da fila deste setor). */}
-                          {isAdministrador() && setor !== 'quarentena' && (() => {
+                          {podeVerNaoLocalizados() && setor !== 'quarentena' && (() => {
                             const carregandoNL = naoLocalizando.has(pedido_id);
                             return (
                               <button

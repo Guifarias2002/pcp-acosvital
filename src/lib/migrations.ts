@@ -454,4 +454,12 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
         WHERE i.pedido_id = p.id AND COALESCE(i.fabrica,'flange') = 'flange'
       )
   `).catch(() => {});
+
+  // M36 (09/09): permissão individual pra VER/USAR a aba "Pedidos Não
+  // Localizados" (marcar não localizado no setor, ver a aba, reencaminhar) sem
+  // virar administrador. Mesmo padrão do M23/M27: default false, marcado por um
+  // admin (ou direto no banco). Admin já vê por ser staff. A concessão a
+  // usuários específicos é feita fora daqui (UPDATE pontual), pra não brigar com
+  // uma futura remoção pela tela de cadastro.
+  await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS pode_ver_nao_localizados BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
 }

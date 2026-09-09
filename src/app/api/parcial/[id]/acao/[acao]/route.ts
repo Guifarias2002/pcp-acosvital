@@ -13,7 +13,7 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
-import { isAdministrador, podeAcessarSetor, podeDesfazerRecebimento } from '@/lib/auth';
+import { isAdministrador, podeAcessarSetor, podeDesfazerRecebimento, podeVerNaoLocalizados } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
 import { SETOR_CHOICES, nomeInspecao, SETOR_NAO_LOCALIZADO } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
@@ -76,8 +76,11 @@ async function handlePOST(
   `;
   if (!parcial) return NextResponse.json({ erro: 'Parcial não encontrada' }, { status: 404 });
 
-  // Operadores só podem agir em parciais de um setor da sua lista (múltiplos setores)
-  if (!user.is_staff && !podeAcessarSetor(user, parcial.setor_atual))
+  // Operadores só podem agir em parciais de um setor da sua lista (múltiplos setores).
+  // Exceção: o setor virtual 'nao_localizado' não está na lista de ninguém — quem
+  // tem a permissão pra essa aba (ex.: Ezequiel) pode reencaminhar de lá.
+  const podeMexerNaoLoc = parcial.setor_atual === SETOR_NAO_LOCALIZADO && podeVerNaoLocalizados(user);
+  if (!user.is_staff && !podeAcessarSetor(user, parcial.setor_atual) && !podeMexerNaoLoc)
     return NextResponse.json({ erro: 'Acesso negado: parcial não é do seu setor' }, { status: 403 });
 
   // Parciais canceladas só aceitam 'apontar' e 'retomar' (admin)
@@ -148,8 +151,8 @@ async function handlePOST(
     // alvo válido do "mover". Marca o pedido como não localizado fisicamente e o
     // tira da fila do setor. Reencaminhar depois = mover normal de volta.
     const ehDestinoNaoLocalizado = setor_destino === SETOR_NAO_LOCALIZADO;
-    if (ehDestinoNaoLocalizado && !user.is_staff)
-      return NextResponse.json({ erro: 'Apenas administradores podem marcar pedidos como não localizados' }, { status: 403 });
+    if (ehDestinoNaoLocalizado && !podeVerNaoLocalizados(user))
+      return NextResponse.json({ erro: 'Sem permissão para marcar pedidos como não localizados' }, { status: 403 });
     if (!setor_destino || (!SETORES_VALIDOS.includes(setor_destino) && !ehDestinoNaoLocalizado))
       return NextResponse.json({ erro: 'setor_destino inválido ou não informado' }, { status: 400 });
 

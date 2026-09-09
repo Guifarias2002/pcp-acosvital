@@ -1,8 +1,11 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import DestinoSetorPicker from '@/components/DestinoSetorPicker';
+import ObservacaoPedidoModal from '@/components/ObservacaoPedidoModal';
 import { getNaoLocalizados, parcialAcaoLote } from '@/lib/api';
+import { getUser, podeVerNaoLocalizados, podeEditar } from '@/lib/auth';
 import { NOMES, SETOR_NAO_LOCALIZADO } from '@/lib/types';
 
 interface Material {
@@ -51,6 +54,15 @@ export default function NaoLocalizadosPage() {
   const [reenc, setReenc] = useState<PedidoNL | null>(null);
   const [destino, setDestino] = useState<string>('');
   const [enviando, setEnviando] = useState(false);
+  // Observação do pedido (abre o ObservacaoPedidoModal).
+  const [obsPedido, setObsPedido] = useState<{ pedidoId: number; numero: string } | null>(null);
+  const router = useRouter();
+
+  // Gate por permissão: admin OU quem tem a flag pode_ver_nao_localizados
+  // (ex.: Ezequiel). Sem a flag, volta pra home.
+  useEffect(() => {
+    if (!podeVerNaoLocalizados(getUser())) router.replace('/');
+  }, [router]);
 
   const carregar = useCallback(() => {
     getNaoLocalizados()
@@ -91,7 +103,7 @@ export default function NaoLocalizadosPage() {
   const totalMateriais = pedidos.reduce((s, p) => s + p.materiais.length, 0);
 
   return (
-    <AuthGuard adminOnly>
+    <AuthGuard>
       {erro && (
         <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '12px 16px', fontSize: 13, marginBottom: 16 }}>
           <i className="bi bi-exclamation-triangle" style={{ marginRight: 6 }} />
@@ -163,6 +175,11 @@ export default function NaoLocalizadosPage() {
                     )}
                   </div>
                 </div>
+                <button onClick={() => setObsPedido({ pedidoId: p.pedido_id, numero: p.numero_pedido_venda })}
+                  title="Observação do pedido"
+                  style={{ background: '#fff', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <i className="bi bi-chat-left-text" style={{ marginRight: 6 }} />Observação
+                </button>
                 <button onClick={() => abrirReencaminhar(p)}
                   style={{ background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                   <i className="bi bi-send" style={{ marginRight: 6 }} />Reencaminhar
@@ -231,6 +248,16 @@ export default function NaoLocalizadosPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Observação do pedido (mesmo modal da tela do setor) */}
+      {obsPedido && (
+        <ObservacaoPedidoModal
+          pedidoId={obsPedido.pedidoId}
+          numero={obsPedido.numero}
+          editavel={podeEditar()}
+          onClose={() => setObsPedido(null)}
+        />
       )}
     </AuthGuard>
   );
