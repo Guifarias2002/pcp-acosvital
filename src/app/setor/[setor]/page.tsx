@@ -3826,6 +3826,63 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
     salvarOrdem(nova);
   }, [salvarOrdem]);
 
+  // Folha de CONFERÊNCIA FÍSICA do setor: imprime SÓ os números dos pedidos que
+  // estão nesta área (parciais + itens recebidos), cada um com um quadradinho
+  // pra marcar se está fisicamente presente ou não. Tudo client-side, com os
+  // dados já carregados — não bate na API. Pedido a pedido, ordenado pelo nº do PV.
+  function imprimirConferencia() {
+    if (!data) return;
+    const mapa = new Map<number, string>();
+    for (const p of (data.parciais || [])) {
+      if (!mapa.has(p.pedido_id)) mapa.set(p.pedido_id, (p.numero_pedido_venda || String(p.pedido_id)).trim());
+    }
+    for (const it of (data.itens || [])) {
+      if (!mapa.has(it.pedido_id)) mapa.set(it.pedido_id, (it.pedido_numero || String(it.pedido_id)).trim());
+    }
+    const numeros = Array.from(mapa.values())
+      .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' }));
+    if (numeros.length === 0) return;
+
+    const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+    const quando = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const linhas = numeros.map(n => `<label class="row"><span class="box"></span><span class="pv"><span class="rot">Pedido de Venda</span> ${esc(n)}</span></label>`).join('');
+    const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Conferência — ${esc(nomeSetor)}</title>
+<style>
+  @page { margin: 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #111; margin: 0; }
+  header { border-bottom: 3px solid #111; padding-bottom: 8px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
+  h1 { font-size: 20px; margin: 0; }
+  .hint { font-size: 12px; color: #555; margin-top: 2px; }
+  .meta { font-size: 12px; color: #444; text-align: right; white-space: nowrap; }
+  .meta b { font-size: 15px; color: #111; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 28px; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 9px 4px; border-bottom: 1px solid #ddd; break-inside: avoid; }
+  .box { width: 20px; height: 20px; border: 2px solid #111; border-radius: 3px; flex: none; }
+  .pv { font-size: 18px; font-weight: 700; letter-spacing: .3px; }
+  .rot { font-weight: 600; color: #555; font-size: 14px; }
+  .foot { margin-top: 20px; padding-top: 10px; border-top: 1px solid #bbb; font-size: 12px; color: #333; display: flex; justify-content: space-between; gap: 24px; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+</style></head>
+<body>
+  <header>
+    <div>
+      <h1>Conferência — ${esc(nomeSetor)}</h1>
+      <div class="hint">Marque os pedidos que estão fisicamente na área.</div>
+    </div>
+    <div class="meta">${esc(quando)}<br><b>${numeros.length}</b> pedido(s)</div>
+  </header>
+  <div class="grid">${linhas}</div>
+  <div class="foot">
+    <span>Conferido por: _______________________________</span>
+    <span>Assinatura: ____________________</span>
+  </div>
+  <script>window.onload = function () { window.print(); };</script>
+</body></html>`;
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+
   // Ref sempre aponta para a versão mais recente de carregar — evita closure stale no interval
   const carregarRef = useRef(carregar);
   carregarRef.current = carregar;
@@ -3966,6 +4023,13 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
               onClose={() => setShowAdicionarExistente(false)}
               onSucesso={() => { setShowAdicionarExistente(false); carregar(); }}
             />
+          )}
+          {data && ((data.parciais?.length || 0) + (data.itens?.length || 0) > 0) && (
+            <button onClick={imprimirConferencia}
+              title="Imprimir folha de conferência — só os números dos pedidos que estão nesta área, pra marcar quais estão presentes"
+              style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 14px', fontSize: 13, color: '#334155', cursor: 'pointer' }}>
+              <i className="bi bi-printer" style={{ marginRight: 4 }}></i>Conferência
+            </button>
           )}
           <button onClick={carregar}
             style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 5, padding: '5px 14px', fontSize: 13, color: '#0d6efd', cursor: 'pointer' }}>
