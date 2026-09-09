@@ -34,7 +34,10 @@ export async function GET(req: Request) {
         i.unidade, i.quantidade::text AS quantidade_total_item,
         i.roteiro_proprio,
         p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade,
-        p.roteiro_base, p.prazo_entrega::text AS pedido_prazo
+        p.roteiro_base, p.prazo_entrega::text AS pedido_prazo,
+        (p.ordem_producao_url IS NOT NULL) AS tem_op,
+        (p.pedido_venda_url IS NOT NULL) AS tem_pv,
+        (p.desenho_url IS NOT NULL OR COALESCE(array_length(p.desenhos,1),0) > 0) AS tem_desenho
       FROM producao_itemparcial pa
       JOIN producao_itempedido i ON i.id = pa.item_pedido_id
       JOIN producao_pedido p ON p.id = pa.pedido_id
@@ -76,6 +79,7 @@ export async function GET(req: Request) {
       pedido_id: number; numero_pedido_venda: string; numero_op: string | null;
       cliente: string; prioridade: string; pedido_prazo: string | null;
       veio_de: string; veio_de_nome: string; marcado_em: string | null; marcado_por: string | null;
+      tem_op: boolean; tem_pv: boolean; tem_desenho: boolean;
       roteiro: string[]; parcial_ids: number[]; materiais: Material[];
     }>();
 
@@ -101,6 +105,9 @@ export async function GET(req: Request) {
           veio_de_nome: veioDe ? nomeSector(veioDe) : '—',
           marcado_em: origem?.criado_em ?? null,
           marcado_por: origem?.usuario ?? null,
+          tem_op: Boolean(p.tem_op),
+          tem_pv: Boolean(p.tem_pv),
+          tem_desenho: Boolean(p.tem_desenho),
           roteiro: injetarQuarentena(roteiroBase),
           parcial_ids: [],
           materiais: [],

@@ -29,6 +29,9 @@ interface PedidoNL {
   veio_de_nome: string;
   marcado_em: string | null;
   marcado_por: string | null;
+  tem_op: boolean;
+  tem_pv: boolean;
+  tem_desenho: boolean;
   roteiro: string[];
   parcial_ids: number[];
   materiais: Material[];
@@ -80,6 +83,17 @@ export default function NaoLocalizadosPage() {
   function abrirReencaminhar(p: PedidoNL) {
     setReenc(p);
     setDestino(p.veio_de || ''); // sugere de onde veio
+  }
+
+  // Abre o documento (OP/PV/desenho) do pedido numa aba nova — o servidor junta
+  // num PDF. Mesmo endpoint usado na tela do setor (ImprimirDocsModal).
+  function abrirDoc(pedidoId: number, doc: 'op' | 'pv' | 'desenho') {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') || '' : '';
+    window.open(`/api/pedidos/${pedidoId}/imprimir?docs=${doc}&token=${encodeURIComponent(token)}`, '_blank');
+  }
+  // Relatório completo do pedido (itens/flanges, tudo) numa aba nova.
+  function abrirPedido(pedidoId: number) {
+    window.open(`/pedidos/${pedidoId}/relatorio`, '_blank');
   }
 
   async function confirmarReencaminhar() {
@@ -175,6 +189,29 @@ export default function NaoLocalizadosPage() {
                     )}
                   </div>
                 </div>
+                {/* Abrir o pedido / ver os documentos (qual flange é) */}
+                <button onClick={() => abrirPedido(p.pedido_id)}
+                  title="Abrir o pedido (itens/flanges, relatório completo)"
+                  style={{ background: '#fff', color: '#1a3a5c', border: '1px solid #1a3a5c', borderRadius: 6, padding: '8px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <i className="bi bi-folder2-open" style={{ marginRight: 6 }} />Abrir pedido
+                </button>
+                <button onClick={() => p.tem_op && abrirDoc(p.pedido_id, 'op')} disabled={!p.tem_op}
+                  title={p.tem_op ? 'Ver a Ordem de Produção (OP)' : 'OP não anexada'}
+                  style={{ background: '#fff', color: p.tem_op ? '#334155' : '#b0b7c3', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', fontSize: 13, fontWeight: 600, cursor: p.tem_op ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap' }}>
+                  <i className="bi bi-file-earmark-text" style={{ marginRight: 5 }} />OP
+                </button>
+                <button onClick={() => p.tem_pv && abrirDoc(p.pedido_id, 'pv')} disabled={!p.tem_pv}
+                  title={p.tem_pv ? 'Ver o Pedido de Venda (PV)' : 'PV não anexado'}
+                  style={{ background: '#fff', color: p.tem_pv ? '#334155' : '#b0b7c3', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', fontSize: 13, fontWeight: 600, cursor: p.tem_pv ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap' }}>
+                  <i className="bi bi-receipt" style={{ marginRight: 5 }} />PV
+                </button>
+                {p.tem_desenho && (
+                  <button onClick={() => abrirDoc(p.pedido_id, 'desenho')}
+                    title="Ver o desenho técnico"
+                    style={{ background: '#fff', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    <i className="bi bi-rulers" style={{ marginRight: 5 }} />Desenho
+                  </button>
+                )}
                 <button onClick={() => setObsPedido({ pedidoId: p.pedido_id, numero: p.numero_pedido_venda })}
                   title="Observação do pedido"
                   style={{ background: '#fff', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
