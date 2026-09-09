@@ -217,6 +217,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
                   <NavItem href="/emitidos" label="Em Produção" icon="bi-send-fill" onNav={fechar} />
                   <NavItem href="/entregues" label="Pedidos Finalizados" icon="bi-check-circle" onNav={fechar} />
                   <NavItem href="/divergencias" label="Divergências" icon="bi-exclamation-triangle" onNav={fechar} />
+                  <NavItem href="/nao-localizados" label="Não Localizados" icon="bi-geo-alt" onNav={fechar} />
                   <a href="/tv/movimentacoes" target="_blank" rel="noopener noreferrer" className="nav-link" title="Abre em nova aba — pra deixar ligado numa TV/monitor">
                     <i className="bi bi-tv-fill"></i>
                     <span>TV Movimentação</span>
@@ -326,6 +327,7 @@ export function TopBar({ onHamburger, colapsada, onExpandir }: TopBarProps) {
     '/emitidos': 'Ordens de Produção Emitidas',
     '/entregues': 'Pedidos Finalizados',
     '/divergencias': 'Divergências',
+    '/nao-localizados': 'Pedidos Não Localizados',
     '/usuarios': 'Usuários',
     '/relatorios': 'Relatórios',
     '/exportar': 'Exportar Excel',

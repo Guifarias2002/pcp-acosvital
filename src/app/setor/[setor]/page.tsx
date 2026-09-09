@@ -52,7 +52,7 @@ function Cronometro({ desde }: { desde: string }) {
 }
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, registrarSinetePedido, setPesosPallets, setEmbalagemResumo, inativarItem, editarPedido, solicitarInspecao } from '@/lib/api';
 import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento, podeDefinirPrevisao } from '@/lib/auth';
-import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA, TIPOS_INSPECAO } from '@/lib/types';
+import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA, TIPOS_INSPECAO, SETOR_NAO_LOCALIZADO } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
@@ -3733,6 +3733,8 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   const [prevInput, setPrevInput] = useState('');
   const [savingPrev, setSavingPrev] = useState(false);
   const [recebendoTudo, setRecebendoTudo] = useState<Set<number>>(new Set());
+  // Pedidos sendo marcados como "não localizados" (só admin) — trava o botão.
+  const [naoLocalizando, setNaoLocalizando] = useState<Set<number>>(new Set());
   const [enviandoTudo, setEnviandoTudo] = useState<Set<number>>(new Set());
   const [desfazendoTudo, setDesfazendoTudo] = useState<Set<number>>(new Set());
   // "Enviar Tudo" do pedido inteiro: qual pedido está com o seletor de setor
@@ -4503,6 +4505,36 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             style={{ background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', borderRadius: 5, padding: '3px 10px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
                             <i className="bi bi-printer-fill" /> Imprimir
                           </button>
+                          {/* Não localizado (só ADM): o pedido está no sistema mas não foi
+                              achado fisicamente aqui. Manda o pedido inteiro pra aba
+                              "Pedidos Não Localizados" (sai da fila deste setor). */}
+                          {isAdministrador() && setor !== 'quarentena' && (() => {
+                            const carregandoNL = naoLocalizando.has(pedido_id);
+                            return (
+                              <button
+                                disabled={carregandoNL}
+                                title="Não está fisicamente aqui — mandar o pedido pra aba de Não Localizados"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (carregandoNL) return;
+                                  setConfirm({
+                                    titulo: 'Marcar como Não Localizado',
+                                    mensagem: `O pedido ${numero_pedido_venda} não está fisicamente neste setor? Ele sairá da fila e vai pra aba "Pedidos Não Localizados" (só admin), guardando de onde veio. Você pode reencaminhá-lo quando achar.`,
+                                    acao: async () => {
+                                      setNaoLocalizando(prev => new Set(prev).add(pedido_id));
+                                      try {
+                                        await parcialAcaoLote(parciais.map(p => p.id), 'mover', { setor_destino: SETOR_NAO_LOCALIZADO });
+                                        carregar();
+                                      } catch { carregar(); }
+                                      finally { setNaoLocalizando(prev => { const s = new Set(prev); s.delete(pedido_id); return s; }); }
+                                    },
+                                  });
+                                }}
+                                style={{ background: 'rgba(180,83,9,.9)', border: 'none', color: '#fff', borderRadius: 5, padding: '3px 10px', fontSize: 12, cursor: carregandoNL ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 5, opacity: carregandoNL ? 0.6 : 1, whiteSpace: 'nowrap' }}>
+                                <i className="bi bi-geo-alt" /> {carregandoNL ? '…' : 'Não localizado'}
+                              </button>
+                            );
+                          })()}
                           {/* Quarentena = passo terminal do Flange: pedido Finalizado, sem apontamento. */}
                           {setor === 'quarentena' && (
                             <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, color: '#fff', background: 'rgba(255,255,255,.18)', border: '1px solid rgba(255,255,255,.35)', borderRadius: 8, padding: '4px 12px' }}>

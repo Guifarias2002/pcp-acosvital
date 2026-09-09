@@ -82,6 +82,16 @@ export const SETOR_CHOICES: [string, string][] = [
 
 export const NOMES: Record<string, string> = Object.fromEntries(SETOR_CHOICES);
 
+// ── Setor VIRTUAL "Pedidos não localizados" (09/09) ─────────────────────────
+// Área só-admin pra onde vai um pedido que está no sistema mas NÃO está
+// fisicamente no setor (descoberto na conferência física). NÃO entra em
+// SETOR_CHOICES de propósito: assim não vaza em nenhum menu/kanban/dashboard/TV
+// (todos iteram SETOR_CHOICES). Ganha só o nome amigável aqui e é aceito como
+// destino especial no "mover" (admin). "De onde veio" sai do log de
+// movimentação. Reencaminhar = mover normal de volta pra um setor real.
+export const SETOR_NAO_LOCALIZADO = 'nao_localizado';
+NOMES[SETOR_NAO_LOCALIZADO] = 'Pedido Não Localizado';
+
 // ── Fábricas (linhas de produção) ───────────────────────────────────────────
 // Fonte única de "quais setores pertencem a cada fábrica", usada na tela de
 // Abrir OP pra filtrar o roteiro conforme a fábrica escolhida.

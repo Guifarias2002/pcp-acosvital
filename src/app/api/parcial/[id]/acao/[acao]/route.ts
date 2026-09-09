@@ -15,7 +15,7 @@ import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
 import { isAdministrador, podeAcessarSetor, podeDesfazerRecebimento } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
-import { SETOR_CHOICES, nomeInspecao } from '@/lib/types';
+import { SETOR_CHOICES, nomeInspecao, SETOR_NAO_LOCALIZADO } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
 import { temMaquinas } from '@/lib/maquinas';
@@ -143,7 +143,14 @@ async function handlePOST(
     }
 
     const setor_destino = body.setor_destino as string;
-    if (!setor_destino || !SETORES_VALIDOS.includes(setor_destino))
+    // "nao_localizado" é um destino ESPECIAL (setor virtual só-admin): não está
+    // em SETOR_CHOICES de propósito (pra não vazar em menu/kanban/TV), mas é um
+    // alvo válido do "mover". Marca o pedido como não localizado fisicamente e o
+    // tira da fila do setor. Reencaminhar depois = mover normal de volta.
+    const ehDestinoNaoLocalizado = setor_destino === SETOR_NAO_LOCALIZADO;
+    if (ehDestinoNaoLocalizado && !user.is_staff)
+      return NextResponse.json({ erro: 'Apenas administradores podem marcar pedidos como não localizados' }, { status: 403 });
+    if (!setor_destino || (!SETORES_VALIDOS.includes(setor_destino) && !ehDestinoNaoLocalizado))
       return NextResponse.json({ erro: 'setor_destino inválido ou não informado' }, { status: 400 });
 
     const qtdMover = body.quantidade ? Number(body.quantidade) : parcial.qtd;

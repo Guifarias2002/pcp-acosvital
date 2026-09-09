@@ -151,6 +151,10 @@ export const getDashboard = () =>
 export const getSetorPainel = (setor: string) =>
   api.get(`/api/setor/${setor}`).then(r => r.data);
 
+// Pedidos marcados como "não localizados" fisicamente (só admin).
+export const getNaoLocalizados = () =>
+  api.get('/api/nao-localizados').then(r => r.data);
+
 // ── Emitidos / Entregues ──────────────────────────────────────────────────────
 export const getEmitidos = (params?: Record<string, string>) =>
   api.get('/api/emitidos', { params }).then(r => r.data);
