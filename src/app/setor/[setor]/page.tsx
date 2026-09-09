@@ -453,6 +453,18 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
                     <i className="bi bi-hammer" style={{ marginRight: 5 }} />Caldeiraria → Recebimento
                   </button>
                 </div>
+                {/* Ou mandar pra OUTRO corte (ex.: Maçarico → Serra) */}
+                {SETORES_CORTE.filter(c => c !== item.setor_atual).length > 0 && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: 10, color: '#6b7280', fontWeight: 600 }}>ou para outro corte:</span>
+                    {SETORES_CORTE.filter(c => c !== item.setor_atual).map(c => (
+                      <button key={c} onClick={() => !loading && setConfirm({ titulo: `Enviar para ${NOMES[c]}`, mensagem: `Confirma o envio de TODOS os itens para ${NOMES[c]}?`, acao: () => acao('enviar_tudo', { setor_destino: c }) })} disabled={loading}
+                        style={{ background: '#eef2f7', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}>
+                        <i className="bi bi-scissors" style={{ marginRight: 5 }} />{NOMES[c]}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <span style={{ fontSize: 10, color: '#9ca3af' }}>Peça de Flange → Conferência (Alan confere e despacha pra HRM). Peça de Caldeiraria → Recebimento.</span>
               </div>
             ) : (
@@ -1954,6 +1966,21 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
                   <i className="bi bi-hammer" style={{ marginRight: 5 }} />Caldeiraria → Recebimento
                 </button>
               </div>
+              {/* Ou mandar pra OUTRO corte (ex.: Maçarico → Serra) */}
+              {SETORES_CORTE.filter(c => c !== parcial.setor_atual).length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: 10, color: '#6b7280', fontWeight: 600 }}>ou para outro corte:</span>
+                  {SETORES_CORTE.filter(c => c !== parcial.setor_atual).map(c => (
+                    <button key={c} onClick={() => {
+                      acao('mover', { setor_destino: c, quantidade: Number(qtdEnvio) || Number(parcial.quantidade), ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
+                      setShowEnviar(false); setObsEnvio('');
+                    }} disabled={loading}
+                      style={{ background: '#eef2f7', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}>
+                      <i className="bi bi-scissors" style={{ marginRight: 5 }} />{NOMES[c]}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <label style={{ fontSize: 11, color: '#555' }}>Quantidade:</label>
                 <input type="number" value={qtdEnvio}
@@ -2889,6 +2916,21 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
                 <button onClick={() => setShowEnviar(false)}
                   style={{ background: 'none', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 10px', fontSize: 12, color: '#888', cursor: 'pointer', marginLeft: 'auto' }}>✕</button>
               </div>
+              {/* Ou mandar pra OUTRO corte (ex.: Maçarico → Serra) */}
+              {SETORES_CORTE.filter(c => c !== p0.setor_atual).length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: 10, color: '#6b7280', fontWeight: 600 }}>ou para outro corte:</span>
+                  {SETORES_CORTE.filter(c => c !== p0.setor_atual).map(c => (
+                    <button key={c} onClick={() => {
+                      acaoTodos('mover', { setor_destino: c, ...(obsEnvio.trim() ? { observacao: obsEnvio.trim() } : {}) });
+                      setShowEnviar(false); setObsEnvio('');
+                    }} disabled={loading}
+                      style={{ background: '#eef2f7', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 6, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}>
+                      <i className="bi bi-scissors" style={{ marginRight: 5 }} />{NOMES[c]}
+                    </button>
+                  ))}
+                </div>
+              )}
               <span style={{ fontSize: 10, color: '#9ca3af' }}>Peça de Flange → Conferência (Alan confere e despacha pra HRM). Peça de Caldeiraria → Recebimento.</span>
             </div>
           ) : (
