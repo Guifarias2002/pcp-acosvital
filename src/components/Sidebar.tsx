@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerRomaneios } from '@/lib/auth';
+import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerNaoLocalizados, podeVerRomaneios } from '@/lib/auth';
 import { SETOR_CHOICES, NOMES, SETORES_CALDEIRARIA_MENU, SETORES_EXCLUSIVOS_CALDEIRARIA } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { JWTPayload } from '@/lib/auth';
@@ -126,8 +126,10 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
   const podeVer = podeVerAnalise(user);
   // Aba "Pedidos Não Localizados": admin OU usuário com a flag (ex.: Ezequiel).
   // Fora do bloco só-admin, igual à Análise PCP.
-  // "Não Localizados" e "Paradas de Pedidos" agora vivem como atalhos no topo
-  // da Análise PCP (saíram do menu lateral em 10/09).
+  // "Não Localizados" continua no menu lateral (quem usa pode não ver a Análise,
+  // ex.: Ezequiel). "Paradas de Pedidos" saiu do menu — vive só como atalho no
+  // topo da Análise PCP (10/09).
+  const podeVerNaoLoc = podeVerNaoLocalizados(user);
   // Aba Logística (romaneios de carga): admin OU setor logística.
   const podeRomaneios = podeVerRomaneios(user);
   const isVendedor = !isAdmin && user?.perfil === 'vendedor';
@@ -216,8 +218,10 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
               {/* Análise PCP — liberada por is_staff/admin OU pela flag pode_ver_analise
                   (fora do bloco só-admin abaixo, pra aparecer também pra não-admin). */}
               {podeVer && <NavItem href="/analise" label="Análise PCP" icon="bi-graph-up-arrow" onNav={fechar} />}
-              {/* "Não Localizados" e "Paradas de Pedidos" saíram do menu lateral —
-                  agora são atalhos no topo da Análise PCP (10/09). */}
+              {/* "Paradas de Pedidos" saiu do menu — agora é atalho no topo da
+                  Análise PCP. "Não Localizados" continua aqui (quem usa pode não
+                  ter acesso à Análise). */}
+              {podeVerNaoLoc && <NavItem href="/nao-localizados" label="Não Localizados" icon="bi-geo-alt" onNav={fechar} />}
               {podeRomaneios && <NavItem href="/logistica" label="Logística — Romaneios" icon="bi-truck" onNav={fechar} />}
               {isAdmin && (
                 <>
