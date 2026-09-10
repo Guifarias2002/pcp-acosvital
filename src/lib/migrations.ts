@@ -17,6 +17,15 @@ let ran = false;
 // não-bloqueante) e saem sem disputar lock de tabela nenhum.
 const MIGRATION_LOCK_ID = 7274123;
 
+// Versão do schema. SEM isto, TODA instância nova (cada cold start da Vercel)
+// re-executava os ~41 passos de DDL (ALTER/CREATE IF NOT EXISTS) — mesmo já
+// aplicados, cada ALTER pega ACCESS EXCLUSIVE nas tabelas quentes
+// (producao_itempedido/pedido) e a fila de locks travava o banco inteiro,
+// deixando TODO o sistema lento. Agora gravamos a versão aplicada em
+// producao_config; se o banco já está nela, pulamos o DDL por completo.
+// AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
+const SCHEMA_VERSION = 41;
+
 export async function runMigrations() {
   if (ran) return;
   ran = true;
@@ -26,7 +35,19 @@ export async function runMigrations() {
       const [{ locked }] = await sql`SELECT pg_try_advisory_xact_lock(${MIGRATION_LOCK_ID}) AS locked`;
       if (!locked) return; // outra instância já está migrando (ou já migrou) — não competir por lock de tabela
 
+      // Fast-path: schema já na versão atual → não roda nenhum DDL de novo.
+      const ver = await sql`SELECT valor FROM producao_config WHERE chave = 'schema_version'`
+        .catch(() => [] as { valor: string }[]);
+      if (ver.length && Number(ver[0].valor) >= SCHEMA_VERSION) return;
+
       await runMigrationSteps(sql);
+
+      // Marca a versão aplicada (producao_config é criada no M33 acima).
+      await sql`
+        INSERT INTO producao_config (chave, valor, atualizado_em)
+        VALUES ('schema_version', ${String(SCHEMA_VERSION)}, NOW())
+        ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor, atualizado_em = NOW()
+      `.catch(() => {});
     });
   } catch (e) {
     console.error('[migrations] runMigrations falhou:', e);
