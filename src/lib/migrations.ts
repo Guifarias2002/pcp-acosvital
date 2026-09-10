@@ -498,4 +498,51 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   // preservado; só registra a data/hora em que voltou (dá pra medir há quanto
   // tempo estava parado e quantos ainda seguem parados).
   await sql.unsafe(`ALTER TABLE producao_parada_pedido ADD COLUMN IF NOT EXISTS retornado_em TIMESTAMPTZ`).catch(() => {});
+
+  // M40 (10/09): ROMANEIOS DE CARGA (aba Logística reativada). Documento de
+  // transferência de materiais (ex.: HRM ↔ Aços Vital) — cabeçalho + itens.
+  // Substitui o texto livre de transportadora/motorista por dado estruturado.
+  // codigo = 'ROM-' + numero com 5 dígitos; numero é sequencial (índice único).
+  // status: 'aberto' (em montagem/conferência) → 'fechado' (emitido). Cada item
+  // tem flag `conferido` pra bater a carga item a item antes de fechar/imprimir.
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS producao_romaneio (
+      id SERIAL PRIMARY KEY,
+      numero INTEGER NOT NULL,
+      codigo VARCHAR(20) NOT NULL,
+      origem VARCHAR(80) NOT NULL DEFAULT 'HRM',
+      destino VARCHAR(80) NOT NULL DEFAULT 'Aços Vital',
+      data_carregamento DATE,
+      placa VARCHAR(20),
+      motorista VARCHAR(120),
+      setor_descarga VARCHAR(80) DEFAULT 'Produto acabado',
+      finalidade VARCHAR(80) DEFAULT 'Produto Acabado',
+      operador_separacao VARCHAR(120),
+      conferente_carregamento VARCHAR(120),
+      conferente_descarga VARCHAR(120),
+      observacao TEXT,
+      status VARCHAR(20) NOT NULL DEFAULT 'aberto',
+      criado_por VARCHAR(150),
+      criado_por_nome VARCHAR(150),
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      fechado_em TIMESTAMPTZ
+    )
+  `).catch(() => {});
+  await sql.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS idx_romaneio_numero ON producao_romaneio (numero)`).catch(() => {});
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS producao_romaneio_item (
+      id SERIAL PRIMARY KEY,
+      romaneio_id INTEGER NOT NULL REFERENCES producao_romaneio(id) ON DELETE CASCADE,
+      ordem INTEGER NOT NULL DEFAULT 0,
+      pedido VARCHAR(80),
+      descricao TEXT NOT NULL,
+      categoria VARCHAR(60) DEFAULT 'Produção',
+      finalidade VARCHAR(80) DEFAULT 'Produto Acabado',
+      unidade VARCHAR(20),
+      quantidade NUMERIC,
+      conferido BOOLEAN NOT NULL DEFAULT false,
+      item_pedido_id INTEGER
+    )
+  `).catch(() => {});
+  await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_romaneio_item_rom ON producao_romaneio_item (romaneio_id)`).catch(() => {});
 }

@@ -171,6 +171,21 @@ export const excluirParada = (id: number) =>
 export const marcarRetornoParada = (id: number, retornar: boolean) =>
   api.patch(`/api/paradas?id=${id}`, { retornar }).then(r => r.data);
 
+// ── Romaneios de Carga (aba Logística) ────────────────────────────────────────
+export const getRomaneios = () =>
+  api.get('/api/romaneios').then(r => r.data);
+export const getRomaneio = (id: number) =>
+  api.get(`/api/romaneios/${id}`).then(r => r.data);
+export const criarRomaneio = (body: Record<string, unknown>) =>
+  postIdempotente('/api/romaneios', body);
+export const salvarRomaneio = (id: number, body: Record<string, unknown>) =>
+  api.patch(`/api/romaneios/${id}`, body).then(r => r.data);
+export const excluirRomaneio = (id: number) =>
+  api.delete(`/api/romaneios/${id}`).then(r => r.data);
+// Itens do sistema pra montar o romaneio (prontos, ou por PV quando informado).
+export const getRomaneioDisponiveis = (pv?: string) =>
+  api.get('/api/romaneios/disponiveis', { params: pv ? { pv } : {} }).then(r => r.data);
+
 // ── Emitidos / Entregues ──────────────────────────────────────────────────────
 export const getEmitidos = (params?: Record<string, string>) =>
   api.get('/api/emitidos', { params }).then(r => r.data);

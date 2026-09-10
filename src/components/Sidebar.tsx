@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerNaoLocalizados, podeRegistrarParadas } from '@/lib/auth';
+import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerNaoLocalizados, podeRegistrarParadas, podeVerRomaneios } from '@/lib/auth';
 import { SETOR_CHOICES, NOMES, SETORES_CALDEIRARIA_MENU, SETORES_EXCLUSIVOS_CALDEIRARIA } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { JWTPayload } from '@/lib/auth';
@@ -129,6 +129,8 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
   const podeVerNaoLoc = podeVerNaoLocalizados(user);
   // Registro de Paradas de Pedidos: controle PRIVADO (só o login do Guilherme).
   const podeParadas = podeRegistrarParadas(user);
+  // Aba Logística (romaneios de carga): admin OU setor logística.
+  const podeRomaneios = podeVerRomaneios(user);
   const isVendedor = !isAdmin && user?.perfil === 'vendedor';
   // Apontador: foco em "Todos os Pedidos" (percorre a fábrica atualizando
   // previsão). Sem Dashboard no menu — cai direto na lista de pedidos.
@@ -217,6 +219,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
               {podeVer && <NavItem href="/analise" label="Análise PCP" icon="bi-graph-up-arrow" onNav={fechar} />}
               {podeVerNaoLoc && <NavItem href="/nao-localizados" label="Não Localizados" icon="bi-geo-alt" onNav={fechar} />}
               {podeParadas && <NavItem href="/paradas" label="Paradas de Pedidos" icon="bi-pause-circle" onNav={fechar} />}
+              {podeRomaneios && <NavItem href="/logistica" label="Logística — Romaneios" icon="bi-truck" onNav={fechar} />}
               {isAdmin && (
                 <>
                   <NavItem href="/kanban" label="Kanban" icon="bi-kanban" onNav={fechar} />
@@ -335,6 +338,7 @@ export function TopBar({ onHamburger, colapsada, onExpandir }: TopBarProps) {
     '/divergencias': 'Divergências',
     '/nao-localizados': 'Pedidos Não Localizados',
     '/paradas': 'Paradas de Pedidos',
+    '/logistica': 'Logística — Romaneios',
     '/usuarios': 'Usuários',
     '/relatorios': 'Relatórios',
     '/exportar': 'Exportar Excel',

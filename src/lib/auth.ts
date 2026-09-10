@@ -181,6 +181,15 @@ export function podeRegistrarParadas(u?: JWTPayload | null): boolean {
   return !!user && PARADAS_LOGINS.has(user.username);
 }
 
+// Pode VER/USAR a aba "Logística" (criar/conferir romaneios de carga)?
+// Administrador sempre; além dele, quem tem o setor 'logistica' no cadastro.
+// (Acesso definitivo a confirmar — fácil de trocar por lista de login ou flag,
+// como em [[project_paradas_pedidos]] / podeRegistrarParadas.)
+export function podeVerRomaneios(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return isAdministrador(user) || podeAcessarSetor(user, 'logistica');
+}
+
 // Pode acessar o PCP HRM (tela "Anexar OP")? Staff (admin/PCP) já entra pelo
 // seletor de workspace; além deles, usuários comuns com a flag `acesso_hrm`.
 export function podeAcessarHrm(u?: JWTPayload | null): boolean {
