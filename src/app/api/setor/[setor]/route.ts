@@ -129,6 +129,8 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         i.quantidade::text AS quantidade_total_item, i.roteiro_proprio, i.status AS item_status, i.item_pai_id, i.tipo_produto, i.fabrica,
         p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade, p.roteiro_base, p.prazo_entrega::text AS pedido_prazo,
         COALESCE(i.previsao_conclusao, p.previsao_conclusao)::text AS previsao_efetiva,
+        i.prazo_setor::text AS item_prazo_setor, i.prazo_setor_ref AS item_prazo_setor_ref,
+        p.prazo_setor::text AS pedido_prazo_setor, p.prazo_setor_ref AS pedido_prazo_setor_ref,
         p.embalagem_identificacao, p.embalagem_qtd_pallets, p.embalagem_peso_total, p.embalagem_total_unidades,
         (p.desenho_url IS NOT NULL OR COALESCE(array_length(p.desenhos,1),0) > 0) AS pedido_tem_desenho,
         (COALESCE(array_length(i.desenhos,1),0) > 0) AS item_tem_desenho,
@@ -229,6 +231,8 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         i.quantidade::text AS quantidade_total_item, i.roteiro_proprio, i.status AS item_status, i.item_pai_id, i.tipo_produto, i.fabrica,
         p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade, p.roteiro_base, p.prazo_entrega::text AS pedido_prazo,
         COALESCE(i.previsao_conclusao, p.previsao_conclusao)::text AS previsao_efetiva,
+        i.prazo_setor::text AS item_prazo_setor, i.prazo_setor_ref AS item_prazo_setor_ref,
+        p.prazo_setor::text AS pedido_prazo_setor, p.prazo_setor_ref AS pedido_prazo_setor_ref,
         p.embalagem_identificacao, p.embalagem_qtd_pallets, p.embalagem_peso_total, p.embalagem_total_unidades,
         (p.pedido_venda_url IS NOT NULL) AS tem_pedido_venda,
         (p.ordem_producao_url IS NOT NULL) AS tem_ordem_producao
@@ -254,6 +258,8 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         i.quantidade::text AS quantidade_total_item, i.roteiro_proprio, i.status AS item_status, i.item_pai_id, i.tipo_produto, i.fabrica,
         p.id AS pedido_id, p.numero_pedido_venda, p.numero_op, p.cliente, p.prioridade, p.roteiro_base, p.prazo_entrega::text AS pedido_prazo,
         COALESCE(i.previsao_conclusao, p.previsao_conclusao)::text AS previsao_efetiva,
+        i.prazo_setor::text AS item_prazo_setor, i.prazo_setor_ref AS item_prazo_setor_ref,
+        p.prazo_setor::text AS pedido_prazo_setor, p.prazo_setor_ref AS pedido_prazo_setor_ref,
         p.embalagem_identificacao, p.embalagem_qtd_pallets, p.embalagem_peso_total, p.embalagem_total_unidades,
         (p.pedido_venda_url IS NOT NULL) AS tem_pedido_venda,
         (p.ordem_producao_url IS NOT NULL) AS tem_ordem_producao,
@@ -412,6 +418,26 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       previsao_efetiva: p.previsao_efetiva ? String(p.previsao_efetiva).slice(0, 10) : null,
       previsao_efetiva_fmt: p.previsao_efetiva ? fmtDataLocal(String(p.previsao_efetiva)) : null,
       atrasado: !!p.previsao_efetiva && diasPrazoLocal(String(p.previsao_efetiva)) < 0 && p.status !== 'concluida' && (p.item_status as string) !== 'entregue',
+      // ── Prazo POR SETOR (só honra o prazo cujo ref = setor onde a peça está
+      // agora; ao mudar de setor, "zera" até definirem um novo). Item tem
+      // prioridade sobre o pedido. Ver [[project_prazo_por_setor]].
+      ...(() => {
+        const itemPz = p.item_prazo_setor_ref === setorEfetivo ? (p.item_prazo_setor as string | null) : null;
+        const pedPz = p.pedido_prazo_setor_ref === setorEfetivo ? (p.pedido_prazo_setor as string | null) : null;
+        const efetivo = itemPz || pedPz || null;
+        const naoEntregue = p.status !== 'concluida' && (p.item_status as string) !== 'entregue';
+        return {
+          prazo_setor_item: p.item_prazo_setor_ref === setorEfetivo ? (p.item_prazo_setor ? String(p.item_prazo_setor).slice(0, 10) : null) : null,
+          prazo_setor_efetivo: efetivo ? String(efetivo).slice(0, 10) : null,
+          prazo_setor_efetivo_fmt: efetivo ? fmtDataLocal(String(efetivo)) : null,
+          prazo_setor_origem: itemPz ? 'item' : pedPz ? 'pedido' : null,
+          atrasado_setor: !!efetivo && diasPrazoLocal(String(efetivo)) < 0 && naoEntregue,
+          // Nível PEDIDO (pro botão do cabeçalho do grupo): só o prazo do pedido.
+          prazo_setor_pedido: pedPz ? String(pedPz).slice(0, 10) : null,
+          prazo_setor_pedido_fmt: pedPz ? fmtDataLocal(String(pedPz)) : null,
+          atrasado_setor_pedido: !!pedPz && diasPrazoLocal(String(pedPz)) < 0 && naoEntregue,
+        };
+      })(),
       cliente: p.cliente,
       prioridade: p.prioridade,
       proximo_setor,

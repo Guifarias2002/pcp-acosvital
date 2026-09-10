@@ -545,4 +545,34 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
     )
   `).catch(() => {});
   await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_romaneio_item_rom ON producao_romaneio_item (romaneio_id)`).catch(() => {});
+
+  // M41 (10/09): PRAZO DE FINALIZAÇÃO POR SETOR (item E pedido). Diferente da
+  // `previsao_conclusao` (prazo global, mantida): aqui cada SETOR tem seu prazo.
+  // Ao mudar de setor o prazo "zera" — na prática só é honrado quando
+  // `prazo_setor_ref` = setor onde a peça/pedido está AGORA; ao avançar, o ref
+  // não bate mais e o prazo é ignorado até definirem um novo no setor novo.
+  // Colunas denormalizadas (vigente) pro atraso ser rápido, no mesmo padrão do
+  // COALESCE(item, pedido) já usado. O histórico completo (o que cada setor teve)
+  // fica em producao_prazo_setor. Quem define: Ezequiel + admin (podeDefinirPrazoSetor).
+  await sql.unsafe(`ALTER TABLE producao_itempedido ADD COLUMN IF NOT EXISTS prazo_setor DATE`).catch(() => {});
+  await sql.unsafe(`ALTER TABLE producao_itempedido ADD COLUMN IF NOT EXISTS prazo_setor_ref VARCHAR(40)`).catch(() => {});
+  await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS prazo_setor DATE`).catch(() => {});
+  await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS prazo_setor_ref VARCHAR(40)`).catch(() => {});
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS producao_prazo_setor (
+      id SERIAL PRIMARY KEY,
+      nivel VARCHAR(10) NOT NULL,
+      item_id INTEGER REFERENCES producao_itempedido(id) ON DELETE CASCADE,
+      pedido_id INTEGER REFERENCES producao_pedido(id) ON DELETE CASCADE,
+      setor VARCHAR(40) NOT NULL,
+      prazo DATE NOT NULL,
+      vigente BOOLEAN NOT NULL DEFAULT true,
+      definido_por VARCHAR(150),
+      definido_por_nome VARCHAR(150),
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      encerrado_em TIMESTAMPTZ
+    )
+  `).catch(() => {});
+  await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_prazo_setor_item ON producao_prazo_setor (item_id) WHERE vigente`).catch(() => {});
+  await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_prazo_setor_pedido ON producao_prazo_setor (pedido_id) WHERE vigente`).catch(() => {});
 }

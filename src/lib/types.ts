@@ -716,6 +716,15 @@ export interface ItemParcial {
   previsao_efetiva?: string | null;
   previsao_efetiva_fmt?: string | null;
   atrasado?: boolean;
+  // Prazo POR SETOR (só vale enquanto a peça está neste setor). Ver prazo-setor.
+  prazo_setor_item?: string | null;
+  prazo_setor_efetivo?: string | null;
+  prazo_setor_efetivo_fmt?: string | null;
+  prazo_setor_origem?: 'item' | 'pedido' | null;
+  atrasado_setor?: boolean;
+  prazo_setor_pedido?: string | null;
+  prazo_setor_pedido_fmt?: string | null;
+  atrasado_setor_pedido?: boolean;
   quantidade_total_item?: string;
   proximo_setor?: string | null;
   roteiro_efetivo?: string[];

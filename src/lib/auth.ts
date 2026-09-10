@@ -181,11 +181,27 @@ export function podeRegistrarParadas(u?: JWTPayload | null): boolean {
   return !!user && PARADAS_LOGINS.has(user.username);
 }
 
+// Pode DEFINIR o prazo de finalização POR SETOR (item/pedido)? Administrador
+// sempre; além dele, lista EXPLÍCITA por login (hoje só Ezequiel), mesmo padrão
+// de CORTE_REDIRECT_LIVRE. Ver [[project_prazo_por_setor]]. Todos VÊEM o prazo
+// (é o que dita o atraso do setor); só estes EDITAM.
+const PRAZO_SETOR_LOGINS = new Set<string>(['ezequiel']);
+export function podeDefinirPrazoSetor(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return isAdministrador(user) || (!!user && PRAZO_SETOR_LOGINS.has(user.username));
+}
+
 // Pode VER/USAR a aba "Logística" (criar/conferir romaneios de carga)?
 // Administrador sempre; além dele, quem tem o setor 'logistica' no cadastro.
 // (Acesso definitivo a confirmar — fácil de trocar por lista de login ou flag,
 // como em [[project_paradas_pedidos]] / podeRegistrarParadas.)
+// TEMPORARIAMENTE DESATIVADA (10/09, a pedido do usuário — vão repassar detalhes
+// e a gente religa). Todo o código dos romaneios (/logistica, /api/romaneios/*,
+// migration M40) continua pronto; basta voltar o corpo pra
+// `isAdministrador(user) || podeAcessarSetor(user, 'logistica')` pra reativar.
+const ROMANEIOS_ATIVO = false;
 export function podeVerRomaneios(u?: JWTPayload | null): boolean {
+  if (!ROMANEIOS_ATIVO) return false;
   const user = u ?? getUser();
   return isAdministrador(user) || podeAcessarSetor(user, 'logistica');
 }

@@ -51,7 +51,8 @@ function Cronometro({ desde }: { desde: string }) {
   );
 }
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, registrarSinetePedido, setPesosPallets, setEmbalagemResumo, inativarItem, editarPedido, solicitarInspecao } from '@/lib/api';
-import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento, podeDefinirPrevisao, podeVerNaoLocalizados } from '@/lib/auth';
+import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento, podeDefinirPrevisao, podeVerNaoLocalizados, podeDefinirPrazoSetor } from '@/lib/auth';
+import { definirPrazoSetor } from '@/lib/api';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA, TIPOS_INSPECAO, SETOR_NAO_LOCALIZADO } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
@@ -193,6 +194,64 @@ function PrevisaoItemBtn({ itemId, previsaoEfetiva, previsaoEfetivaFmt, atrasado
     <button onClick={e => { e.stopPropagation(); setValor(previsaoEfetiva ? previsaoEfetiva.slice(0, 10) : ''); setEditando(true); }}
       title="Definir a previsão de conclusão desta peça" style={{ ...badgeSt, cursor: 'pointer' }}>
       <i className="bi bi-flag-fill" style={{ fontSize: 10 }} /> {label ? `Prazo: ${label}` : 'definir conclusão'}
+      <i className="bi bi-pencil" style={{ fontSize: 9, opacity: .7 }} />
+    </button>
+  );
+}
+
+// Prazo de finalização DO SETOR (novo, separado da previsão global). Vale só
+// enquanto a peça/pedido está neste setor; ao mudar de setor "zera". Edita só
+// Ezequiel + admin (podeDefinirPrazoSetor); os demais só veem. `nivel` diz se
+// grava no item (peça) ou no pedido inteiro. Ver [[project_prazo_por_setor]].
+function PrazoSetorBtn({ nivel, alvoId, prazo, prazoFmt, origem, atrasado, onRefresh }: {
+  nivel: 'item' | 'pedido'; alvoId: number; prazo?: string | null; prazoFmt?: string | null;
+  origem?: 'item' | 'pedido' | null; atrasado?: boolean; onRefresh: () => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const podeEditarPz = podeDefinirPrazoSetor() && podeEditar();
+  const label = prazoFmt || (prazo ? prazo.slice(0, 10).split('-').reverse().join('/') : '');
+  // Herdado do pedido (quando estou olhando uma peça sem prazo próprio).
+  const herdado = nivel === 'item' && origem === 'pedido';
+
+  async function salvar(v: string) {
+    setSalvando(true);
+    try {
+      const d = await definirPrazoSetor(nivel, alvoId, v) as { ok?: boolean };
+      if (d.ok) { setEditando(false); onRefresh(); }
+    } catch { /* recarrega no próximo ciclo */ } finally { setSalvando(false); }
+  }
+
+  const badgeSt: CSSProperties = {
+    fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 5, fontWeight: 700,
+    background: atrasado ? '#fee2e2' : label ? '#eff6ff' : '#f1f5f9', color: atrasado ? '#991b1b' : label ? '#1d4ed8' : '#475569',
+    border: `1px solid ${atrasado ? '#fca5a5' : label ? '#bfdbfe' : '#cbd5e1'}`,
+  };
+  const txt = label ? `Prazo setor: ${label}${herdado ? ' (pedido)' : ''}` : (nivel === 'pedido' ? 'prazo do setor (pedido)' : 'prazo do setor');
+
+  if (!podeEditarPz) {
+    if (!label) return null;
+    return <span style={badgeSt}><i className="bi bi-alarm" style={{ fontSize: 10 }} />{txt}</span>;
+  }
+  if (editando) {
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={e => e.stopPropagation()}>
+        <input type="date" value={valor} onChange={e => setValor(e.target.value)}
+          style={{ fontSize: 11, padding: '2px 5px', borderRadius: 5, border: '1px solid #cbd5e1' }} />
+        <button disabled={salvando} onClick={() => salvar(valor)}
+          style={{ fontSize: 10, fontWeight: 800, padding: '3px 9px', borderRadius: 20, background: '#1d4ed8', color: '#fff', border: 'none', cursor: 'pointer' }}>{salvando ? '…' : 'OK'}</button>
+        {label && !herdado && <button disabled={salvando} onClick={() => salvar('')}
+          style={{ fontSize: 10, padding: '3px 8px', borderRadius: 20, background: '#f1f5f9', color: '#475569', border: 'none', cursor: 'pointer' }}>limpar</button>}
+        <button disabled={salvando} onClick={() => setEditando(false)}
+          style={{ fontSize: 11, padding: '3px 7px', borderRadius: 20, background: '#f1f5f9', color: '#475569', border: 'none', cursor: 'pointer' }}>✕</button>
+      </span>
+    );
+  }
+  return (
+    <button onClick={e => { e.stopPropagation(); setValor(prazo && !herdado ? prazo.slice(0, 10) : ''); setEditando(true); }}
+      title={`Definir o prazo de finalização deste ${nivel} no setor atual`} style={{ ...badgeSt, cursor: 'pointer' }}>
+      <i className="bi bi-alarm" style={{ fontSize: 10 }} /> {txt}
       <i className="bi bi-pencil" style={{ fontSize: 9, opacity: .7 }} />
     </button>
   );
@@ -1082,6 +1141,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
               <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, fontWeight: 700, background: '#fee2e2', color: '#991b1b' }}>ATRASADO</span>
             )}
             <PrevisaoItemBtn itemId={parcial.item_pedido_id} previsaoEfetiva={parcial.previsao_efetiva} previsaoEfetivaFmt={parcial.previsao_efetiva_fmt} atrasado={parcial.atrasado} onRefresh={onRefresh} />
+            <PrazoSetorBtn nivel="item" alvoId={parcial.item_pedido_id} prazo={parcial.prazo_setor_efetivo} prazoFmt={parcial.prazo_setor_efetivo_fmt} origem={parcial.prazo_setor_origem} atrasado={parcial.atrasado_setor} onRefresh={onRefresh} />
             {!parcial.previsao_efetiva && (parcial.pedido_prazo_fmt || parcial.pedido_prazo) && (
               <span style={{ fontSize: 10, color: '#94a3b8' }}>
                 <i className="bi bi-calendar3" style={{ marginRight: 3 }} />{parcial.pedido_prazo_fmt || parcial.pedido_prazo}
@@ -2360,6 +2420,8 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <PrevisaoItemBtn itemId={p0.item_pedido_id} previsaoEfetiva={p0.previsao_efetiva} previsaoEfetivaFmt={p0.previsao_efetiva_fmt} atrasado={p0.atrasado} onRefresh={onRefresh} />
+          <PrazoSetorBtn nivel="item" alvoId={p0.item_pedido_id} prazo={p0.prazo_setor_efetivo} prazoFmt={p0.prazo_setor_efetivo_fmt} origem={p0.prazo_setor_origem} atrasado={p0.atrasado_setor} onRefresh={onRefresh} />
+          <PrazoSetorBtn nivel="pedido" alvoId={p0.pedido_id} prazo={p0.prazo_setor_pedido} prazoFmt={p0.prazo_setor_pedido_fmt} atrasado={p0.atrasado_setor_pedido} onRefresh={onRefresh} />
           {isEmTransito && (isRecebimentoHrm || isConferenciaHrm) ? (
             <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 800, background: '#dbeafe', color: '#1d4ed8' }}>
               🚚 Em trânsito para a HRM

@@ -186,6 +186,13 @@ export const excluirRomaneio = (id: number) =>
 export const getRomaneioDisponiveis = (pv?: string) =>
   api.get('/api/romaneios/disponiveis', { params: pv ? { pv } : {} }).then(r => r.data);
 
+// ── Prazo de finalização por setor (item/pedido) ──────────────────────────────
+// prazo vazio ('') = limpar o prazo do setor atual do alvo.
+export const definirPrazoSetor = (nivel: 'item' | 'pedido', id: number, prazo: string) =>
+  postIdempotente('/api/prazo-setor', { nivel, id, prazo });
+export const getPrazoSetorHistorico = (nivel: 'item' | 'pedido', id: number) =>
+  api.get('/api/prazo-setor', { params: { nivel, id } }).then(r => r.data);
+
 // ── Emitidos / Entregues ──────────────────────────────────────────────────────
 export const getEmitidos = (params?: Record<string, string>) =>
   api.get('/api/emitidos', { params }).then(r => r.data);
