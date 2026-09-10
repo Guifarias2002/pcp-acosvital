@@ -1058,9 +1058,10 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
     if (!semSinete && !txt) return;
     setSalvandoSinete(true);
     try {
-      // Nível do PEDIDO: grava o mesmo sinete em TODOS os itens que estão no
-      // Sinete e devolve todos de uma vez (antes ia só no item desta parcial).
-      const r = await registrarSinetePedido(parcial.pedido_id, { texto: txt, destino, semSinete }) as { mensagem?: string };
+      // Por MATERIAL: grava o sinete só no item DESTA parcial e devolve só ele.
+      // Cada material tem sua própria observação de sinete (antes o mesmo texto
+      // ia pra todos os itens do pedido no Sinete — bug corrigido em 10/09).
+      const r = await registrarSinetePedido(parcial.pedido_id, { texto: txt, destino, semSinete, item_pedido_id: parcial.item_pedido_id }) as { mensagem?: string };
       setSineteTexto('');
       if (r?.mensagem) mostrarErroParcial(r.mensagem, 'ok');
       onRefresh();

@@ -10,10 +10,12 @@ export const dynamic = 'force-dynamic';
 const DESTINOS_VALIDOS = ['qualidade', 'acabamento'];
 
 // POST /api/pedidos/[id]/sinete
-// Registra o sinete em TODOS os itens do pedido que estão no setor Sinete (mesmo
-// texto para o lote) e devolve todos de uma vez pra Qualidade (ou Acabamento).
-// Antes o sinete era gravado só no item da parcial em que o operador escrevia —
-// num pedido com vários itens, aparecia em um só. Agora vale pra todos.
+// Registra o sinete do MATERIAL informado (body.item_pedido_id) e devolve só
+// esse material pra Qualidade (ou Acabamento). CADA material tem a sua própria
+// observação de sinete. Sem item_pedido_id (chamada legada) grava em todos os
+// itens do pedido no Sinete — mantido só por compatibilidade.
+// Histórico: por um tempo gravava o mesmo texto em TODOS os itens do lote, o
+// que fazia a observação de um material "subir" pra todos — corrigido 10/09.
 export async function POST(req: Request, ctx: { params: { id: string } }) {
   return comIdempotencia(
     chaveIdempotencia(req),
@@ -39,6 +41,10 @@ async function handle(req: Request, { params }: { params: { id: string } }) {
     const semSinete = body.semSinete === true;
     const texto = typeof body.texto === 'string' ? body.texto.trim() : '';
     const destino = DESTINOS_VALIDOS.includes(body.destino) ? body.destino : 'qualidade';
+    // Material específico (novo): grava/devolve só este item. Sem ele = legado
+    // (todos os itens do pedido no Sinete).
+    const alvoItem = Number(body.item_pedido_id);
+    const porItem = Number.isInteger(alvoItem) && alvoItem > 0;
     if (!semSinete && !texto)
       return NextResponse.json({ erro: 'Escreva o sinete (ou marque "sem sinete").' }, { status: 400 });
 
@@ -46,7 +52,7 @@ async function handle(req: Request, { params }: { params: { id: string } }) {
 
     let itens = 0;
     await sql.begin(async (tx) => {
-      // Todas as parciais do pedido que estão FISICAMENTE no Sinete.
+      // Parciais no Sinete: só as do material informado (porItem) ou todas (legado).
       const parciais = await tx`
         SELECT pa.id, pa.item_pedido_id
         FROM producao_itemparcial pa
@@ -54,6 +60,7 @@ async function handle(req: Request, { params }: { params: { id: string } }) {
         WHERE i.pedido_id = ${pedidoId}
           AND pa.setor_atual = 'sinete'
           AND pa.status NOT IN ('cancelada', 'concluida')
+          ${porItem ? tx`AND pa.item_pedido_id = ${alvoItem}` : tx``}
       `;
       if (parciais.length === 0) throw new Error('NADA_NO_SINETE: Nenhum item deste pedido está no Sinete.');
 
@@ -92,10 +99,22 @@ async function handle(req: Request, { params }: { params: { id: string } }) {
         `;
       }
 
-      await tx`
-        UPDATE producao_pedido SET setor_atual = ${destino}, atualizado_em = NOW()
-        WHERE id = ${pedidoId} AND setor_atual = 'sinete'
+      // Só avança o PEDIDO quando NÃO sobrar nenhum material no Sinete — senão,
+      // ao devolver um material, o pedido "pulava" com os outros ainda no Sinete.
+      const restam = await tx`
+        SELECT 1 FROM producao_itemparcial pa
+        JOIN producao_itempedido i ON i.id = pa.item_pedido_id
+        WHERE i.pedido_id = ${pedidoId}
+          AND pa.setor_atual = 'sinete'
+          AND pa.status NOT IN ('cancelada', 'concluida')
+        LIMIT 1
       `;
+      if (restam.length === 0) {
+        await tx`
+          UPDATE producao_pedido SET setor_atual = ${destino}, atualizado_em = NOW()
+          WHERE id = ${pedidoId} AND setor_atual = 'sinete'
+        `;
+      }
     });
 
     return NextResponse.json({ ok: true, itens, mensagem: `Sinete registrado em ${itens} ${itens === 1 ? 'item' : 'itens'} → ${nomeSector(destino)}` });
