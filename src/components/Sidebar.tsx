@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerNaoLocalizados, podeRegistrarParadas, podeVerRomaneios } from '@/lib/auth';
+import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerRomaneios } from '@/lib/auth';
 import { SETOR_CHOICES, NOMES, SETORES_CALDEIRARIA_MENU, SETORES_EXCLUSIVOS_CALDEIRARIA } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { JWTPayload } from '@/lib/auth';
@@ -126,9 +126,8 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
   const podeVer = podeVerAnalise(user);
   // Aba "Pedidos Não Localizados": admin OU usuário com a flag (ex.: Ezequiel).
   // Fora do bloco só-admin, igual à Análise PCP.
-  const podeVerNaoLoc = podeVerNaoLocalizados(user);
-  // Registro de Paradas de Pedidos: controle PRIVADO (só o login do Guilherme).
-  const podeParadas = podeRegistrarParadas(user);
+  // "Não Localizados" e "Paradas de Pedidos" agora vivem como atalhos no topo
+  // da Análise PCP (saíram do menu lateral em 10/09).
   // Aba Logística (romaneios de carga): admin OU setor logística.
   const podeRomaneios = podeVerRomaneios(user);
   const isVendedor = !isAdmin && user?.perfil === 'vendedor';
@@ -217,8 +216,8 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
               {/* Análise PCP — liberada por is_staff/admin OU pela flag pode_ver_analise
                   (fora do bloco só-admin abaixo, pra aparecer também pra não-admin). */}
               {podeVer && <NavItem href="/analise" label="Análise PCP" icon="bi-graph-up-arrow" onNav={fechar} />}
-              {podeVerNaoLoc && <NavItem href="/nao-localizados" label="Não Localizados" icon="bi-geo-alt" onNav={fechar} />}
-              {podeParadas && <NavItem href="/paradas" label="Paradas de Pedidos" icon="bi-pause-circle" onNav={fechar} />}
+              {/* "Não Localizados" e "Paradas de Pedidos" saíram do menu lateral —
+                  agora são atalhos no topo da Análise PCP (10/09). */}
               {podeRomaneios && <NavItem href="/logistica" label="Logística — Romaneios" icon="bi-truck" onNav={fechar} />}
               {isAdmin && (
                 <>
