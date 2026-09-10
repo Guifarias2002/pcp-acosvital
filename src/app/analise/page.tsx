@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import AuthGuard from '@/components/AuthGuard';
-import { getToken, isAdministrador, podeVerAnalise, getUser } from '@/lib/auth';
+import { getToken, isAdministrador, podeVerAnalise, getUser, podeVerNaoLocalizados, podeRegistrarParadas } from '@/lib/auth';
 import { MAQUINAS_POR_SETOR, fotoMaquina } from '@/lib/maquinas';
 
 const NOMES: Record<string, string> = {
@@ -318,7 +318,18 @@ export default function AnalisePage() {
               Indicadores de produção para decisão de fábrica e diretoria. {dados && `Período ${dados.periodo.de} a ${dados.periodo.ate}.`}
             </small>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {/* Atalhos pra telas relacionadas (cada um respeita sua permissão). */}
+            {podeVerNaoLocalizados(getUser()) && (
+              <a href="/nao-localizados" className="abtn no-print" style={{ textDecoration: 'none', color: '#b45309', borderColor: '#fed7aa' }}>
+                <i className="bi bi-geo-alt" style={{ marginRight: 6 }} />Não Localizados
+              </a>
+            )}
+            {podeRegistrarParadas(getUser()) && (
+              <a href="/paradas" className="abtn no-print" style={{ textDecoration: 'none', color: '#dc2626', borderColor: '#fecaca' }}>
+                <i className="bi bi-pause-circle" style={{ marginRight: 6 }} />Paradas de Pedidos
+              </a>
+            )}
             <button className="abtn no-print" onClick={() => window.print()}><i className="bi bi-printer" style={{ marginRight: 6 }} />Imprimir / PDF</button>
           </div>
         </div>
@@ -678,6 +689,8 @@ export default function AnalisePage() {
           );
         })()}
 
+        {/* Barra fixa: Parâmetros + Abas grudam no topo ao rolar a página. */}
+        <div className="no-print" style={{ position: 'sticky', top: 0, zIndex: 30, background: '#f1f5f9', paddingTop: 6, marginBottom: 0 }}>
         {/* ── Parâmetros: capacidade por máquina + meta de demanda ──────────── */}
         {params && (() => {
           const th = { textAlign: 'left' as const, padding: '5px 8px', fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase' as const, fontWeight: 700 };
@@ -788,6 +801,7 @@ export default function AnalisePage() {
             </button>
           ))}
         </div>
+        </div>{/* fim da barra fixa (Parâmetros + Abas) */}
 
         {/* Filtros */}
         <div className="card no-print" style={{ padding: 16, marginBottom: 20 }}>

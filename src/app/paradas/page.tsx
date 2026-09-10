@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
-import { getParadas, criarParada, excluirParada, marcarRetornoParada } from '@/lib/api';
+import { getParadas, criarParada, excluirParada, marcarRetornoParada, editarParada } from '@/lib/api';
 import { getUser, podeRegistrarParadas } from '@/lib/auth';
 
 interface Parada {
@@ -40,8 +40,10 @@ const nInt = (v: number | null) => (v == null ? '—' : Number(v).toLocaleString
 // Rótulo do período conforme a granularidade (periodo vem como 'YYYY-MM-DD').
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 function labelPeriodo(iso: string, tipo: 'dia' | 'semana' | 'mes'): string {
-  const d = new Date(iso + 'T12:00:00');
-  if (isNaN(d.getTime())) return iso;
+  // `iso` pode vir 'YYYY-MM-DD' ou ISO completo ('...T00:00:00.000Z') — pega só
+  // a parte da data pra formatar certo (senão exibia a data crua na coluna).
+  const d = new Date(String(iso).slice(0, 10) + 'T12:00:00');
+  if (isNaN(d.getTime())) return String(iso);
   const dd = (x: Date) => `${String(x.getDate()).padStart(2, '0')}/${String(x.getMonth() + 1).padStart(2, '0')}`;
   if (tipo === 'dia') return `${dd(d)}/${d.getFullYear()}`;
   if (tipo === 'mes') return `${MESES[d.getMonth()]}/${d.getFullYear()}`;
@@ -69,6 +71,8 @@ export default function ParadasPage() {
   const [pecasIniciadas, setPecasIniciadas] = useState('');
   const [ocorrido, setOcorrido] = useState(agoraLocal());
   const [salvando, setSalvando] = useState(false);
+  // Edição: id da parada sendo editada (null = registrando uma nova).
+  const [editandoId, setEditandoId] = useState<number | null>(null);
 
   const router = useRouter();
 
@@ -98,26 +102,61 @@ export default function ParadasPage() {
     }
     setSalvando(true);
     setErro(null);
+    const dados = {
+      pedido: pedido.trim(),
+      motivo: motivo.trim(),
+      // Em edição enviamos os campos mesmo vazios (pra limpar/corrigir); ao criar,
+      // vazio vira undefined/null.
+      setor: setor.trim(),
+      pedido_prioritario: prioritario.trim(),
+      pecas_paradas: pecasParadas === '' ? null : Number(pecasParadas),
+      pecas_iniciadas: pecasIniciadas === '' ? null : Number(pecasIniciadas),
+      ocorrido_em: ocorrido || undefined,
+    };
     try {
-      await criarParada({
-        pedido: pedido.trim(),
-        motivo: motivo.trim(),
-        setor: setor.trim() || undefined,
-        pedido_prioritario: prioritario.trim() || undefined,
-        pecas_paradas: pecasParadas === '' ? null : Number(pecasParadas),
-        pecas_iniciadas: pecasIniciadas === '' ? null : Number(pecasIniciadas),
-        ocorrido_em: ocorrido || undefined,
-      });
-      // Limpa o formulário (mantém a data em "agora" pro próximo registro).
-      setPedido(''); setMotivo(''); setSetor(''); setPrioritario('');
-      setPecasParadas(''); setPecasIniciadas('');
-      setOcorrido(agoraLocal());
+      if (editandoId != null) {
+        await editarParada(editandoId, dados);
+      } else {
+        await criarParada({
+          pedido: dados.pedido, motivo: dados.motivo,
+          setor: dados.setor || undefined,
+          pedido_prioritario: dados.pedido_prioritario || undefined,
+          pecas_paradas: dados.pecas_paradas, pecas_iniciadas: dados.pecas_iniciadas,
+          ocorrido_em: dados.ocorrido_em,
+        });
+      }
+      limparForm();
       carregar();
     } catch {
-      setErro('Erro ao registrar a parada. Tente novamente.');
+      setErro(editandoId != null ? 'Erro ao salvar a alteração.' : 'Erro ao registrar a parada. Tente novamente.');
     } finally {
       setSalvando(false);
     }
+  }
+
+  function limparForm() {
+    setPedido(''); setMotivo(''); setSetor(''); setPrioritario('');
+    setPecasParadas(''); setPecasIniciadas('');
+    setOcorrido(agoraLocal()); setEditandoId(null);
+  }
+
+  // Carrega uma parada no formulário pra completar/corrigir (edição).
+  function editar(p: Parada) {
+    setEditandoId(p.id);
+    setPedido(p.pedido || '');
+    setMotivo(p.motivo || '');
+    setSetor(p.setor || '');
+    setPrioritario(p.pedido_prioritario || '');
+    setPecasParadas(p.pecas_paradas == null ? '' : String(p.pecas_paradas));
+    setPecasIniciadas(p.pecas_iniciadas == null ? '' : String(p.pecas_iniciadas));
+    // datetime-local no fuso local a partir do ISO.
+    const d = new Date(p.ocorrido_em);
+    if (!isNaN(d.getTime())) {
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      setOcorrido(d.toISOString().slice(0, 16));
+    }
+    setErro(null);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function excluir(p: Parada) {
@@ -206,10 +245,19 @@ export default function ParadasPage() {
         </div>
       </div>
 
-      {/* Formulário de nova parada */}
-      <form onSubmit={registrar} className="no-print" style={{ ...CARD, padding: 18, marginBottom: 22 }}>
-        <div style={{ fontWeight: 700, color: '#1a3a5c', fontSize: 15, marginBottom: 14 }}>
-          <i className="bi bi-plus-circle" style={{ marginRight: 7 }} />Registrar uma parada
+      {/* Formulário de nova parada / edição */}
+      <form onSubmit={registrar} className="no-print" style={{ ...CARD, padding: 18, marginBottom: 22, border: editandoId != null ? '1.5px solid #1d4ed8' : undefined }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+          <div style={{ fontWeight: 700, color: editandoId != null ? '#1d4ed8' : '#1a3a5c', fontSize: 15 }}>
+            <i className={`bi ${editandoId != null ? 'bi-pencil-square' : 'bi-plus-circle'}`} style={{ marginRight: 7 }} />
+            {editandoId != null ? 'Editar / completar a parada' : 'Registrar uma parada'}
+          </div>
+          {editandoId != null && (
+            <button type="button" onClick={limparForm}
+              style={{ background: 'none', border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 12px', fontSize: 12.5, color: '#475569', cursor: 'pointer' }}>
+              Cancelar edição
+            </button>
+          )}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
           <div>
@@ -245,9 +293,9 @@ export default function ParadasPage() {
         </div>
         <div style={{ marginTop: 16, textAlign: 'right' }}>
           <button type="submit" disabled={salvando}
-            style={{ background: salvando ? '#9ca3af' : '#dc2626', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 22px', fontSize: 14, fontWeight: 700, cursor: salvando ? 'not-allowed' : 'pointer' }}>
+            style={{ background: salvando ? '#9ca3af' : editandoId != null ? '#1d4ed8' : '#dc2626', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 22px', fontSize: 14, fontWeight: 700, cursor: salvando ? 'not-allowed' : 'pointer' }}>
             <i className="bi bi-save" style={{ marginRight: 7 }} />
-            {salvando ? 'Salvando…' : 'Registrar parada'}
+            {salvando ? 'Salvando…' : editandoId != null ? 'Salvar alteração' : 'Registrar parada'}
           </button>
         </div>
       </form>
@@ -364,6 +412,10 @@ export default function ParadasPage() {
                         <i className="bi bi-arrow-return-left" style={{ marginRight: 5 }} />Retornou
                       </button>
                     )}
+                    <button onClick={() => editar(p)} title="Editar / completar esta parada"
+                      style={{ background: 'none', border: 'none', color: '#1d4ed8', cursor: 'pointer', fontSize: 15, marginRight: 6 }}>
+                      <i className="bi bi-pencil-square" />
+                    </button>
                     <button onClick={() => excluir(p)} title="Excluir esta parada"
                       style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 15 }}>
                       <i className="bi bi-trash3" />

@@ -171,6 +171,10 @@ export const excluirParada = (id: number) =>
 export const marcarRetornoParada = (id: number, retornar: boolean) =>
   api.patch(`/api/paradas?id=${id}`, { retornar }).then(r => r.data);
 
+// Edita/completa os campos de uma parada já registrada (patch parcial).
+export const editarParada = (id: number, body: Record<string, unknown>) =>
+  api.patch(`/api/paradas?id=${id}`, body).then(r => r.data);
+
 // ── Romaneios de Carga (aba Logística) ────────────────────────────────────────
 export const getRomaneios = () =>
   api.get('/api/romaneios').then(r => r.data);

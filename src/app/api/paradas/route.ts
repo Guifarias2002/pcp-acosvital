@@ -134,10 +134,10 @@ export async function POST(req: Request) {
   }
 }
 
-// PATCH /api/paradas?id=123  { retornar: true | false }
-// Marca (ou desfaz) o RETORNO do pedido. Não apaga nada — só grava/limpa a
-// data/hora em que voltou a andar. Idempotente: marcar duas vezes mantém a 1ª
-// data (só grava se ainda estava parado); desmarcar limpa.
+// PATCH /api/paradas?id=123
+//   { retornar: true|false }  → marca/desfaz o RETORNO (não apaga nada).
+//   senão                      → EDITA os campos informados (completar/corrigir
+//                                uma parada registrada sem alguma informação).
 export async function PATCH(req: Request) {
   try {
     const user = await autenticar(req);
@@ -150,25 +150,42 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ erro: 'ID inválido' }, { status: 400 });
 
     const body = await req.json().catch(() => ({}));
-    const retornar = body.retornar !== false; // default = marcar retorno
 
-    const [row] = retornar
-      ? await sql`
-          UPDATE producao_parada_pedido
-          SET retornado_em = COALESCE(retornado_em, NOW())
-          WHERE id = ${id}
-          RETURNING id, retornado_em`
-      : await sql`
-          UPDATE producao_parada_pedido
-          SET retornado_em = NULL
-          WHERE id = ${id}
-          RETURNING id, retornado_em`;
+    // Toggle de retorno (quando o campo `retornar` vem no corpo).
+    if ('retornar' in body) {
+      const retornar = body.retornar !== false;
+      const [row] = retornar
+        ? await sql`UPDATE producao_parada_pedido SET retornado_em = COALESCE(retornado_em, NOW()) WHERE id = ${id} RETURNING id, retornado_em`
+        : await sql`UPDATE producao_parada_pedido SET retornado_em = NULL WHERE id = ${id} RETURNING id, retornado_em`;
+      if (!row) return NextResponse.json({ erro: 'Parada não encontrada' }, { status: 404 });
+      return NextResponse.json({ ok: true, id: row.id, retornado_em: row.retornado_em });
+    }
 
+    // Edição dos campos informados. Só entra o que veio no corpo (patch parcial).
+    const campos: Record<string, unknown> = {};
+    if (typeof body.pedido === 'string' && body.pedido.trim()) campos.pedido = body.pedido.trim().slice(0, 80);
+    if (typeof body.motivo === 'string' && body.motivo.trim()) campos.motivo = body.motivo.trim();
+    if ('setor' in body) campos.setor = String(body.setor ?? '').trim().slice(0, 80) || null;
+    if ('pedido_prioritario' in body) campos.pedido_prioritario = String(body.pedido_prioritario ?? '').trim().slice(0, 80) || null;
+    if ('pecas_paradas' in body) campos.pecas_paradas = intOuNull(body.pecas_paradas);
+    if ('pecas_iniciadas' in body) campos.pecas_iniciadas = intOuNull(body.pecas_iniciadas);
+    if (body.ocorrido_em) {
+      const d = new Date(String(body.ocorrido_em));
+      if (!isNaN(d.getTime())) campos.ocorrido_em = d;
+    }
+
+    if (Object.keys(campos).length === 0)
+      return NextResponse.json({ erro: 'Nada para atualizar' }, { status: 400 });
+
+    const [row] = await sql`
+      UPDATE producao_parada_pedido SET ${sql(campos)} WHERE id = ${id}
+      RETURNING id, pedido, motivo, setor, pedido_prioritario, pecas_paradas, pecas_iniciadas,
+                ocorrido_em, retornado_em, criado_por, criado_por_nome, criado_em`;
     if (!row) return NextResponse.json({ erro: 'Parada não encontrada' }, { status: 404 });
-    return NextResponse.json({ ok: true, id: row.id, retornado_em: row.retornado_em });
+    return NextResponse.json({ ok: true, parada: row });
   } catch (e) {
     console.error('[paradas][PATCH]', e);
-    return NextResponse.json({ erro: 'Erro ao atualizar o retorno' }, { status: 500 });
+    return NextResponse.json({ erro: 'Erro ao atualizar a parada' }, { status: 500 });
   }
 }
 
