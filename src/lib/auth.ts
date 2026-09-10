@@ -168,6 +168,19 @@ export function podeVerNaoLocalizados(u?: JWTPayload | null): boolean {
   return isAdministrador(user) || user?.pode_ver_nao_localizados === true;
 }
 
+// Pode VER/USAR o "Registro de Paradas de Pedidos"? Controle PRIVADO — lista
+// EXPLÍCITA por login (mesmo padrão de LIDERES_SEM_CLIENTE / CORTE_REDIRECT_LIVRE).
+// A pedido do Guilherme, é uma anotação só do acesso dele (pedidos que pararam pra
+// atender outro, com motivo/setor), pra levar pra reunião — por isso NÃO libera
+// nem pra outros administradores. Pra dar acesso a mais alguém, adicione o
+// username aqui. O gate real fica na API (podeRegistrarParadas → 403) + no
+// useEffect da página. Ver [[project_analise_pcp]].
+const PARADAS_LOGINS = new Set<string>(['guilherme.santos']);
+export function podeRegistrarParadas(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return !!user && PARADAS_LOGINS.has(user.username);
+}
+
 // Pode acessar o PCP HRM (tela "Anexar OP")? Staff (admin/PCP) já entra pelo
 // seletor de workspace; além deles, usuários comuns com a flag `acesso_hrm`.
 export function podeAcessarHrm(u?: JWTPayload | null): boolean {

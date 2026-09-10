@@ -155,6 +155,17 @@ export const getSetorPainel = (setor: string) =>
 export const getNaoLocalizados = () =>
   api.get('/api/nao-localizados').then(r => r.data);
 
+// ── Paradas de Pedidos (controle privado — ver podeRegistrarParadas) ──────────
+export const getParadas = () =>
+  api.get('/api/paradas').then(r => r.data);
+
+export const criarParada = (body: {
+  pedido: string; motivo: string; setor?: string; pedido_prioritario?: string; ocorrido_em?: string;
+}) => postIdempotente('/api/paradas', body);
+
+export const excluirParada = (id: number) =>
+  api.delete(`/api/paradas?id=${id}`).then(r => r.data);
+
 // ── Emitidos / Entregues ──────────────────────────────────────────────────────
 export const getEmitidos = (params?: Record<string, string>) =>
   api.get('/api/emitidos', { params }).then(r => r.data);

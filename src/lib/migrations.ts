@@ -462,4 +462,28 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   // usuários específicos é feita fora daqui (UPDATE pontual), pra não brigar com
   // uma futura remoção pela tela de cadastro.
   await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS pode_ver_nao_localizados BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
+
+  // M37 (10/09): REGISTRO DE PARADAS DE PEDIDOS. Anotação PRIVADA (só o login do
+  // Guilherme — ver podeRegistrarParadas em auth.ts) pra documentar quando um
+  // pedido é PARADO pra atender outro que "furou a fila", bagunçando a produção
+  // e a programação. Cada linha = uma parada, com o pedido parado, o motivo, o
+  // setor/área afetada, o pedido prioritário que causou a parada e quando
+  // ocorreu. Contagem = COUNT(*). Campos de pedido são TEXTO livre (o usuário
+  // digita o nº do PV/OP como conhece) — não referenciam producao_pedido de
+  // propósito, pra ele poder anotar até algo que não esteja cadastrado ainda.
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS producao_parada_pedido (
+      id SERIAL PRIMARY KEY,
+      pedido VARCHAR(80) NOT NULL,
+      motivo TEXT NOT NULL,
+      setor VARCHAR(80),
+      pedido_prioritario VARCHAR(80),
+      ocorrido_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      criado_por VARCHAR(150),
+      criado_por_nome VARCHAR(150),
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `).catch(() => {});
+  await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_parada_ocorrido ON producao_parada_pedido (ocorrido_em DESC)`).catch(() => {});
+  await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_parada_criado_por ON producao_parada_pedido (criado_por)`).catch(() => {});
 }
