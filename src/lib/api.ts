@@ -161,10 +161,15 @@ export const getParadas = () =>
 
 export const criarParada = (body: {
   pedido: string; motivo: string; setor?: string; pedido_prioritario?: string; ocorrido_em?: string;
+  pecas_paradas?: number | null; pecas_iniciadas?: number | null;
 }) => postIdempotente('/api/paradas', body);
 
 export const excluirParada = (id: number) =>
   api.delete(`/api/paradas?id=${id}`).then(r => r.data);
+
+// Marca (retornar=true) ou desfaz (false) o RETORNO do pedido parado. Não apaga.
+export const marcarRetornoParada = (id: number, retornar: boolean) =>
+  api.patch(`/api/paradas?id=${id}`, { retornar }).then(r => r.data);
 
 // ── Emitidos / Entregues ──────────────────────────────────────────────────────
 export const getEmitidos = (params?: Record<string, string>) =>

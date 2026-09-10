@@ -486,4 +486,16 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   `).catch(() => {});
   await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_parada_ocorrido ON producao_parada_pedido (ocorrido_em DESC)`).catch(() => {});
   await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_parada_criado_por ON producao_parada_pedido (criado_por)`).catch(() => {});
+
+  // M38 (10/09): quantas PEÇAS pararam (no pedido interrompido) e quantas PEÇAS
+  // foram iniciadas no pedido que entrou na frente — pra medir o tamanho do
+  // impacto de cada parada, não só contar ocorrências. Campos opcionais.
+  await sql.unsafe(`ALTER TABLE producao_parada_pedido ADD COLUMN IF NOT EXISTS pecas_paradas INTEGER`).catch(() => {});
+  await sql.unsafe(`ALTER TABLE producao_parada_pedido ADD COLUMN IF NOT EXISTS pecas_iniciadas INTEGER`).catch(() => {});
+
+  // M39 (10/09): quando o pedido parado VOLTOU a andar. NULL = ainda parado.
+  // Marcar o retorno NÃO apaga a parada — o histórico de que ela existiu fica
+  // preservado; só registra a data/hora em que voltou (dá pra medir há quanto
+  // tempo estava parado e quantos ainda seguem parados).
+  await sql.unsafe(`ALTER TABLE producao_parada_pedido ADD COLUMN IF NOT EXISTS retornado_em TIMESTAMPTZ`).catch(() => {});
 }
