@@ -7,7 +7,11 @@ import { withTimeout } from '@/lib/queryTimeout';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-// ── Diagnóstico executivo de PCP ─────────────────────────────────────────────
+// ── Diagnóstico executivo de PCP (só FLANGES) ────────────────────────────────
+// TODAS as queries filtram COALESCE(fabrica,'flange')='flange' AND inativo — a
+// tela é "Análise de PCP — Flanges", então nada de Caldeiraria/inativos entra
+// aqui (corrigido: antes o Diagnóstico pegava a fábrica inteira e inflava os
+// números agora que a Caldeiraria está no ar).
 // Resumo calculado AO VIVO sobre o histórico inteiro (desde o 1º apontamento):
 // produção média diária, tendência mês a mês, %WIP, gargalos por dwell time,
 // ciclo MEDIANO por máquina (robusto ao cronômetro que não foi pausado) e
@@ -20,9 +24,10 @@ export async function GET(req: Request) {
   try {
     const [rng, prodMes, diasMes, ritmoMes, wip, maquinas, gargalos, qualidade, capacidades, metaCfg, topProduto, maiorPedido, pedidoStats] = await withTimeout(Promise.all([
       // Intervalo + dias produzidos (datas distintas com apontamento)
-      sql`SELECT MIN(iniciado_em)::date de, MAX(iniciado_em)::date ate,
-                 count(DISTINCT iniciado_em::date)::int dias_produzidos
-          FROM producao_itemparcial WHERE iniciado_em IS NOT NULL`,
+      sql`SELECT MIN(ip.iniciado_em)::date de, MAX(ip.iniciado_em)::date ate,
+                 count(DISTINCT ip.iniciado_em::date)::int dias_produzidos
+          FROM producao_itemparcial ip JOIN producao_itempedido i ON i.id=ip.item_pedido_id
+          WHERE ip.iniciado_em IS NOT NULL AND COALESCE(i.fabrica,'flange')='flange' AND i.inativo IS NOT TRUE`,
       // Unidades ENTREGUES por mês (produção concluída real): 1 registro por item
       // na sua última movimentação de entrega; soma quantidade_entregue.
       sql`WITH ent AS (
@@ -32,20 +37,25 @@ export async function GET(req: Request) {
           SELECT to_char(ent.d,'YYYY-MM') mes, count(*)::int itens,
                  SUM(i.quantidade_entregue)::float un
           FROM ent JOIN producao_itempedido i ON i.id=ent.item_id
+          WHERE COALESCE(i.fabrica,'flange')='flange' AND i.inativo IS NOT TRUE
           GROUP BY 1 ORDER BY 1`,
       // Dias produzidos por mês (denominador da média diária)
-      sql`SELECT to_char(iniciado_em,'YYYY-MM') mes, count(DISTINCT iniciado_em::date)::int dias
-          FROM producao_itemparcial WHERE iniciado_em IS NOT NULL GROUP BY 1 ORDER BY 1`,
+      sql`SELECT to_char(ip.iniciado_em,'YYYY-MM') mes, count(DISTINCT ip.iniciado_em::date)::int dias
+          FROM producao_itemparcial ip JOIN producao_itempedido i ON i.id=ip.item_pedido_id
+          WHERE ip.iniciado_em IS NOT NULL AND COALESCE(i.fabrica,'flange')='flange' AND i.inativo IS NOT TRUE
+          GROUP BY 1 ORDER BY 1`,
       // Ritmo de chão: apontamentos iniciados por mês
-      sql`SELECT to_char(iniciado_em,'YYYY-MM') mes, count(*)::int apontamentos
-          FROM producao_itemparcial WHERE iniciado_em IS NOT NULL GROUP BY 1 ORDER BY 1`,
+      sql`SELECT to_char(ip.iniciado_em,'YYYY-MM') mes, count(*)::int apontamentos
+          FROM producao_itemparcial ip JOIN producao_itempedido i ON i.id=ip.item_pedido_id
+          WHERE ip.iniciado_em IS NOT NULL AND COALESCE(i.fabrica,'flange')='flange' AND i.inativo IS NOT TRUE
+          GROUP BY 1 ORDER BY 1`,
       // WIP: unidades em processo (item ainda não entregue) × entregues × total.
       // Status do ITEM (não da parcial): tudo que não é 'entregue' está em processo.
       sql`SELECT
             COALESCE(SUM(quantidade) FILTER (WHERE status <> 'entregue'),0)::float un_wip,
             COALESCE(SUM(quantidade) FILTER (WHERE status = 'entregue'),0)::float un_entregue,
             COALESCE(SUM(quantidade),0)::float un_total
-          FROM producao_itempedido WHERE inativo=false`,
+          FROM producao_itempedido WHERE inativo=false AND COALESCE(fabrica,'flange')='flange'`,
       // Máquinas: ciclo MEDIANO (h) — mediana ignora o timer estourado. Ordena
       // por nº de ciclos (mais usada primeiro).
       sql`SELECT maquina, count(*)::int ciclos,
@@ -53,15 +63,17 @@ export async function GET(req: Request) {
             MIN(COALESCE(iniciado_em, concluido_em))::date AS desde,
             ROUND((percentile_cont(0.5) WITHIN GROUP (ORDER BY maquina_segundos_acumulados)/3600.0)::numeric,2)::float ciclo_mediano_h,
             ROUND((SUM(maquina_segundos_acumulados)/3600.0)::numeric,1)::float horas_registradas
-          FROM producao_itemparcial
-          WHERE maquina IS NOT NULL AND maquina<>'' AND maquina_segundos_acumulados>0
-          GROUP BY maquina ORDER BY ciclos DESC`,
+          FROM producao_itemparcial ip JOIN producao_itempedido i ON i.id=ip.item_pedido_id
+          WHERE ip.maquina IS NOT NULL AND ip.maquina<>'' AND ip.maquina_segundos_acumulados>0
+            AND COALESCE(i.fabrica,'flange')='flange' AND i.inativo IS NOT TRUE
+          GROUP BY ip.maquina ORDER BY ciclos DESC`,
       // Gargalos: dias parado por setor (entre chegar e sair). Média manda (a
       // cauda de peças que empacam é o gargalo); mediana junto pra contexto.
       sql`WITH mov AS (
-            SELECT setor_destino setor, criado_em entrou,
-                   LEAD(criado_em) OVER (PARTITION BY item_id ORDER BY criado_em) saiu
-            FROM producao_movimentacaoitem WHERE setor_destino IS NOT NULL)
+            SELECT m.setor_destino setor, m.criado_em entrou,
+                   LEAD(m.criado_em) OVER (PARTITION BY m.item_id ORDER BY m.criado_em) saiu
+            FROM producao_movimentacaoitem m JOIN producao_itempedido i ON i.id=m.item_id
+            WHERE m.setor_destino IS NOT NULL AND COALESCE(i.fabrica,'flange')='flange' AND i.inativo IS NOT TRUE)
           SELECT setor, count(*)::int passagens,
             ROUND((AVG(EXTRACT(EPOCH FROM (saiu-entrou))/86400.0))::numeric,2)::float dias_medio,
             ROUND((percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (saiu-entrou))/86400.0))::numeric,2)::float dias_mediana
@@ -70,10 +82,11 @@ export async function GET(req: Request) {
       // Qualidade: % de registros de máquina com o cronômetro > tempo real (timer
       // não pausado). Sinaliza que as HORAS de máquina estão superestimadas.
       sql`SELECT
-            count(*) FILTER (WHERE maquina IS NOT NULL AND maquina<>'' AND maquina_segundos_acumulados>0)::int com_tempo,
-            count(*) FILTER (WHERE maquina_segundos_acumulados > EXTRACT(EPOCH FROM (concluido_em-iniciado_em))+120
-                             AND concluido_em IS NOT NULL AND iniciado_em IS NOT NULL)::int timer_estourado
-          FROM producao_itemparcial`,
+            count(*) FILTER (WHERE ip.maquina IS NOT NULL AND ip.maquina<>'' AND ip.maquina_segundos_acumulados>0)::int com_tempo,
+            count(*) FILTER (WHERE ip.maquina_segundos_acumulados > EXTRACT(EPOCH FROM (ip.concluido_em-ip.iniciado_em))+120
+                             AND ip.concluido_em IS NOT NULL AND ip.iniciado_em IS NOT NULL)::int timer_estourado
+          FROM producao_itemparcial ip JOIN producao_itempedido i ON i.id=ip.item_pedido_id
+          WHERE COALESCE(i.fabrica,'flange')='flange' AND i.inativo IS NOT TRUE`,
       // Capacidade cadastrada por máquina (jornada) + meta de demanda mensal.
       // `.catch([])` — se a migration ainda não criou as tabelas, o diagnóstico
       // segue funcionando (só sem utilização/demanda) em vez de dar 500.
@@ -90,18 +103,19 @@ export async function GET(req: Request) {
                  SUM(i.quantidade_entregue)::float pecas, count(*)::int itens
           FROM ent JOIN producao_itempedido i ON i.id=ent.item_id
           WHERE i.codigo IS NOT NULL AND i.codigo<>''
+            AND COALESCE(i.fabrica,'flange')='flange' AND i.inativo IS NOT TRUE
           GROUP BY i.codigo ORDER BY pecas DESC NULLS LAST LIMIT 1`,
       // Maior pedido (por PEÇAS) entre os pedidos ativos.
       sql`SELECT p.numero_pedido_venda numero, p.cliente,
                  SUM(i.quantidade)::float pecas, count(*)::int itens
           FROM producao_itempedido i JOIN producao_pedido p ON p.id=i.pedido_id
-          WHERE i.inativo=false
+          WHERE i.inativo=false AND COALESCE(i.fabrica,'flange')='flange'
           GROUP BY p.id, p.numero_pedido_venda, p.cliente
           ORDER BY pecas DESC NULLS LAST LIMIT 1`,
       // Tamanho médio de um pedido (peças/pedido) — base pra estimar "quantos
       // pedidos a mais ainda cabem" a partir da folga de produção.
       sql`SELECT count(DISTINCT i.pedido_id)::int pedidos, SUM(i.quantidade)::float pecas
-          FROM producao_itempedido i WHERE i.inativo=false`,
+          FROM producao_itempedido i WHERE i.inativo=false AND COALESCE(i.fabrica,'flange')='flange'`,
     ]), 55000);
 
     // Junta entregas + dias por mês → média diária por mês.
