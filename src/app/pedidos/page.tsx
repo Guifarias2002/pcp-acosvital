@@ -479,6 +479,24 @@ function PedidosPageInner() {
             )}
             {pedidosFiltrados.map(p => {
               const selected = selectedIds.has(p.id);
+              // Setor(es) onde o pedido está AGORA — mesma base usada na coluna
+              // "Setor Atual" abaixo (parciais ativas; senão o setor do pedido).
+              const setoresAtuais: string[] = (p.setores_parciais && p.setores_parciais.length > 0
+                ? p.setores_parciais
+                : [p.setor_atual]).filter(Boolean);
+              // "Finalizado" (=Entregue) SÓ quando o pedido está 100% na Quarentena
+              // (passo terminal do Flange). Pedido em qualquer setor de produção
+              // NÃO é "Entregue" — mesmo que o status gravado (faturamento/entrega
+              // parcial do Omie) diga que sim. E pedido na Quarentena passa a
+              // mostrar "Finalizado" mesmo que o status gravado ainda seja produção.
+              const finalizadoQuarentena = setoresAtuais.length > 0
+                && setoresAtuais.every(s => s === 'quarentena');
+              const statusLabel = finalizadoQuarentena
+                ? 'Finalizado'
+                : (p.status === 'entregue' ? STATUS_LABELS['em_producao'] : STATUS_LABELS[p.status]);
+              const statusCor = finalizadoQuarentena
+                ? 'success'
+                : (p.status === 'entregue' ? 'secondary' : p.cor_status);
               return (
                 <tr key={p.id} style={{
                   borderBottom: '1px solid #f0f0f0',
@@ -517,9 +535,7 @@ function PedidosPageInner() {
                   <td style={{ padding: '8px 12px', color: '#666' }}>{p.vendedor}</td>
                   <td style={{ padding: '8px 12px' }}>
                     {(() => {
-                      const setores: string[] = p.setores_parciais && p.setores_parciais.length > 0
-                        ? p.setores_parciais
-                        : [p.setor_atual];
+                      const setores: string[] = setoresAtuais.length > 0 ? setoresAtuais : [p.setor_atual];
                       if (setores.length === 1) {
                         return (
                           <span style={{ background: '#343a40', color: '#fff', fontSize: 11, padding: '2px 8px', borderRadius: 4 }}>
@@ -546,10 +562,10 @@ function PedidosPageInner() {
                   <td style={{ padding: '8px 12px' }}>
                     <span style={{
                       fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 600,
-                      background: p.cor_status === 'success' ? '#d1e7dd' : p.cor_status === 'primary' ? '#cfe2ff' : p.cor_status === 'info' ? '#cff4fc' : '#e2e3e5',
+                      background: statusCor === 'success' ? '#d1e7dd' : statusCor === 'primary' ? '#cfe2ff' : statusCor === 'info' ? '#cff4fc' : '#e2e3e5',
                       color: '#333',
                     }}>
-                      {STATUS_LABELS[p.status]}
+                      {statusLabel}
                     </span>
                   </td>
                   <td style={{ padding: '8px 12px' }}>
