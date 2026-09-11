@@ -133,6 +133,11 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
   // Aba Logística (romaneios de carga): admin OU setor logística.
   const podeRomaneios = podeVerRomaneios(user);
   const isVendedor = !isAdmin && user?.perfil === 'vendedor';
+  // Conta de VENDAS (visualização): vendedor com ve_todos_pedidos vê TODOS os
+  // pedidos E as ÁREAS/setores no menu (pra saber onde cada pedido está), mas
+  // segue 100% leitura e SEM Dashboard/Análise/Kanban. O vendedor "restrito"
+  // (ex.: ana.vital) continua só com "Meus Pedidos".
+  const vendedorVeTudo = isVendedor && user?.ve_todos_pedidos === true;
   // Apontador: foco em "Todos os Pedidos" (percorre a fábrica atualizando
   // previsão). Sem Dashboard no menu — cai direto na lista de pedidos.
   const isApontador = !isAdmin && user?.perfil === 'apontador';
@@ -146,6 +151,10 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
   // deliberadamente restrito a um setor específico, ex.: PCP que só pode
   // movimentar na Quarentena mas mantém a visão ampla do resto do sistema).
   const acessoIrrestrito = isAdmin && meusSetores.length === 0;
+  // Vê TODOS os setores no menu (Flanges/Caldeiraria/Compartilhados): staff sem
+  // lista de setores OU a conta de vendas (vendedor + ve_todos_pedidos). Pro
+  // admin é idêntico ao acessoIrrestrito (vendedorVeTudo é sempre false p/ staff).
+  const veTodosSetores = acessoIrrestrito || vendedorVeTudo;
 
   // ── Workspace (PCP AÇOS VITAL × PCP HRM) ──────────────────────────────────
   // Só admin/PCP (staff) trocam de mundo. Operador (não-staff) NUNCA vê o
@@ -257,7 +266,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
             </NavGroup>
           )}
 
-          {(acessoIrrestrito && emAcosvital) ? (
+          {(veTodosSetores && emAcosvital) ? (
             <NavGroup label="🔩 Flanges" defaultOpen={true}>
               {SETOR_CHOICES.filter(([cod]) => !SETORES_FORA_FLANGES.includes(cod) && !SETORES_NAO_FLANGES.includes(cod)).map(([cod, nome]) => (
                 <NavItem key={cod} href={`/setor/${cod}`} label={nome} icon={SETOR_ICONS[cod]} onNav={fechar} />
@@ -278,12 +287,12 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
           ) : null}
 
           {/* Caldeiraria — no workspace HRM pro admin; operador vê sempre (intocado) */}
-          {(!isAdmin || emHrm) && (acessoIrrestrito || meusSetores.includes('caldeiraria') || meusSetores.some(cod => SETORES_CALDEIRARIA_EXTRA.includes(cod))) && (
+          {(!isAdmin || emHrm) && (veTodosSetores || meusSetores.includes('caldeiraria') || meusSetores.some(cod => SETORES_CALDEIRARIA_EXTRA.includes(cod))) && (
             <NavGroup label="🏗 Caldeiraria" defaultOpen={true}>
-              {(acessoIrrestrito || meusSetores.includes('caldeiraria')) && (
+              {(veTodosSetores || meusSetores.includes('caldeiraria')) && (
                 <NavItem href="/setor/caldeiraria" label="Recebimento" icon={SETOR_ICONS.caldeiraria} onNav={fechar} />
               )}
-              {(acessoIrrestrito ? SETORES_CALDEIRARIA_EXTRA : SETORES_CALDEIRARIA_EXTRA.filter(cod => meusSetores.includes(cod))).map(cod => (
+              {(veTodosSetores ? SETORES_CALDEIRARIA_EXTRA : SETORES_CALDEIRARIA_EXTRA.filter(cod => meusSetores.includes(cod))).map(cod => (
                 <NavItem key={cod} href={`/setor/${cod}`} label={labelSetorMenu(cod)} icon={SETOR_ICONS[cod]} onNav={fechar} />
               ))}
               {/* Fila de inspeções / Hold Points — só na Caldeiraria (fora do Flange). */}
@@ -293,9 +302,9 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
 
           {/* Beneficiadores e Recebimento — setores compartilhados, vão poder
               atender tanto Flanges quanto Caldeiraria no futuro */}
-          {(!isAdmin || emAcosvital) && (acessoIrrestrito || meusSetores.includes('beneficiadores') || meusSetores.includes('recebimento')) && (
+          {(!isAdmin || emAcosvital) && (veTodosSetores || meusSetores.includes('beneficiadores') || meusSetores.includes('recebimento')) && (
             <NavGroup label="🔗 Compartilhados" defaultOpen={true}>
-              {(acessoIrrestrito ? ['beneficiadores', 'recebimento'] : meusSetores.filter(cod => ['beneficiadores', 'recebimento'].includes(cod))).map(cod => (
+              {(veTodosSetores ? ['beneficiadores', 'recebimento'] : meusSetores.filter(cod => ['beneficiadores', 'recebimento'].includes(cod))).map(cod => (
                 <NavItem key={cod} href={`/setor/${cod}`} label={labelSetorMenu(cod)} icon={SETOR_ICONS[cod]} onNav={fechar} />
               ))}
             </NavGroup>

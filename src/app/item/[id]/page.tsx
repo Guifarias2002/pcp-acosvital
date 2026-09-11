@@ -4,7 +4,7 @@ import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getItem, itemAcao, parcialAcao, inativarItem } from '@/lib/api';
 import { ItemPedido, SETOR_CHOICES, STATUS_LABELS, PRIORIDADE_COR, NOMES } from '@/lib/types';
-import { getUser, getToken, podeEditar, podeVerCliente, podeDefinirPrevisao } from '@/lib/auth';
+import { getUser, getToken, podeEditar, podeVerCliente, podeDefinirPrevisao, podeVerValores } from '@/lib/auth';
 import { fmtData, fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
@@ -456,8 +456,9 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                       {item.pedido_prioridade?.charAt(0).toUpperCase() + item.pedido_prioridade?.slice(1)}
                     </span>
                   </div>
-                  {/* Valor unitario ja vem null da API para lider/operador (nao-financeiro) */}
-                  {item.valor_unitario && (
+                  {/* Valor unitario ja vem null da API para lider/operador (nao-financeiro);
+                      podeVerValores fecha tb o caso do marcador "Ocultar valores" (vendas). */}
+                  {item.valor_unitario && podeVerValores() && (
                     <div>
                       <span className="text-gray-400 text-xs">Valor unit.</span>
                       <p className="font-semibold text-green-700">

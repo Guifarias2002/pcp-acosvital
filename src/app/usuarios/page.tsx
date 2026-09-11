@@ -16,9 +16,11 @@ interface Usuario {
   setores: string[];
   setores_nomes: string[];
   somente_leitura: boolean;
+  ve_todos_pedidos: boolean;
   pode_desfazer_recebimento: boolean;
   acesso_hrm: boolean;
   pode_definir_previsao: boolean;
+  oculta_valores: boolean;
 }
 
 const PERFIL_BADGE: Record<string, { bg: string; cor: string }> = {
@@ -90,12 +92,12 @@ export default function UsuariosPage() {
   const [copiadoId, setCopiadoId] = useState<number | null>(null);
   const [copiadoLogin, setCopiadoLogin] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] as string[], somente_leitura: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false });
+  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] as string[], somente_leitura: false, ve_todos_pedidos: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false, oculta_valores: false });
   const [salvando, setSalvando] = useState(false);
   const [formMsg, setFormMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   // Edição de usuário existente
   const [editUser, setEditUser] = useState<Usuario | null>(null);
-  const [editForm, setEditForm] = useState({ nome: '', perfil: 'operador', setores: [] as string[], is_active: true, senha: '', somente_leitura: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false });
+  const [editForm, setEditForm] = useState({ nome: '', perfil: 'operador', setores: [] as string[], is_active: true, senha: '', somente_leitura: false, ve_todos_pedidos: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false, oculta_valores: false });
   const [editMsg, setEditMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [editSalvando, setEditSalvando] = useState(false);
   const isAdmin = getUser()?.is_staff;
@@ -144,7 +146,7 @@ export default function UsuariosPage() {
         setFormMsg({ tipo: 'erro', texto: data.erro || 'Erro ao criar usuário.' });
       } else {
         setFormMsg({ tipo: 'ok', texto: 'Usuário criado com sucesso!' });
-        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setores: [], somente_leitura: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false });
+        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setores: [], somente_leitura: false, ve_todos_pedidos: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false, oculta_valores: false });
         setShowForm(false);
         carregarUsuarios();
       }
@@ -164,9 +166,11 @@ export default function UsuariosPage() {
       is_active: u.is_active,
       senha: '',
       somente_leitura: u.somente_leitura || false,
+      ve_todos_pedidos: u.ve_todos_pedidos || false,
       pode_desfazer_recebimento: u.pode_desfazer_recebimento || false,
       acesso_hrm: u.acesso_hrm || false,
       pode_definir_previsao: u.pode_definir_previsao || false,
+      oculta_valores: u.oculta_valores || false,
     });
     setEditMsg(null);
   }
@@ -183,9 +187,11 @@ export default function UsuariosPage() {
         setores: editForm.setores,
         is_active: editForm.is_active,
         somente_leitura: editForm.somente_leitura,
+        ve_todos_pedidos: editForm.ve_todos_pedidos,
         pode_desfazer_recebimento: editForm.pode_desfazer_recebimento,
         acesso_hrm: editForm.acesso_hrm,
         pode_definir_previsao: editForm.pode_definir_previsao,
+        oculta_valores: editForm.oculta_valores,
       };
       if (editForm.senha) body.senha = editForm.senha;
       const res = await fetch(`/api/usuarios/${editUser.id}`, {
@@ -306,6 +312,13 @@ export default function UsuariosPage() {
                     Vê apenas os pedidos em que o campo <strong>Vendedor</strong> bate com o <strong>Nome completo</strong> preenchido acima
                     (a comparação ignora maiúsculas/minúsculas). Não pode editar, criar ou excluir nada. Não precisa marcar setor.
                   </div>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#087f5b', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginTop: 10, paddingTop: 10, borderTop: '1px solid #96f2d7' }}>
+                    <input type="checkbox" checked={form.ve_todos_pedidos} onChange={e => setForm(f => ({ ...f, ve_todos_pedidos: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                    <span><i className="bi bi-eye" style={{ marginRight: 6 }}></i>Ver TODOS os pedidos + áreas (conta de vendas)</span>
+                  </label>
+                  <div style={{ fontSize: 12, color: '#0c8c6c', marginTop: 4, paddingLeft: 24 }}>
+                    Conta compartilhada de visualização: vê todos os pedidos (não só os do próprio nome) e as áreas/setores no menu pra acompanhar onde cada pedido está.
+                  </div>
                 </div>
               ) : (
                 <div style={{ marginBottom: 20 }}>
@@ -358,6 +371,16 @@ export default function UsuariosPage() {
                 </label>
                 <div style={{ fontSize: 12, color: '#059669', marginTop: 4, paddingLeft: 24 }}>
                   Pode preencher a previsão de conclusão das peças/pedidos (Gilmar + PCP). Demais só visualizam.
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 20, background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 6, padding: '10px 12px' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#9f1239', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={form.oculta_valores} onChange={e => setForm(f => ({ ...f, oculta_valores: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                  <span><i className="bi bi-eye-slash" style={{ marginRight: 6 }}></i>Ocultar valores (R$)</span>
+                </label>
+                <div style={{ fontSize: 12, color: '#be123c', marginTop: 4, paddingLeft: 24 }}>
+                  Esconde todos os valores monetários (total do pedido, valor unitário, valor em produção). Pensado pro acesso de vendas / visualização.
                 </div>
               </div>
 
@@ -441,6 +464,13 @@ export default function UsuariosPage() {
                     Vê apenas os pedidos em que o campo <strong>Vendedor</strong> bate com o <strong>Nome completo</strong> acima
                     (ignora maiúsculas/minúsculas). Não pode editar, criar ou excluir nada.
                   </div>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#087f5b', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginTop: 10, paddingTop: 10, borderTop: '1px solid #96f2d7' }}>
+                    <input type="checkbox" checked={editForm.ve_todos_pedidos} onChange={e => setEditForm(f => ({ ...f, ve_todos_pedidos: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                    <span><i className="bi bi-eye" style={{ marginRight: 6 }}></i>Ver TODOS os pedidos + áreas (conta de vendas)</span>
+                  </label>
+                  <div style={{ fontSize: 12, color: '#0c8c6c', marginTop: 4, paddingLeft: 24 }}>
+                    Conta compartilhada de visualização: vê todos os pedidos (não só os do próprio nome) e as áreas/setores no menu pra acompanhar onde cada pedido está.
+                  </div>
                 </div>
               ) : (
                 <div style={{ marginBottom: 14 }}>
@@ -511,6 +541,16 @@ export default function UsuariosPage() {
                 </label>
                 <div style={{ fontSize: 12, color: '#059669', marginTop: 4, paddingLeft: 24 }}>
                   Pode preencher a previsão de conclusão das peças/pedidos (Gilmar + PCP). Demais só visualizam.
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 20, background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 6, padding: '10px 12px' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#9f1239', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={editForm.oculta_valores} onChange={e => setEditForm(f => ({ ...f, oculta_valores: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                  <span><i className="bi bi-eye-slash" style={{ marginRight: 6 }}></i>Ocultar valores (R$)</span>
+                </label>
+                <div style={{ fontSize: 12, color: '#be123c', marginTop: 4, paddingLeft: 24 }}>
+                  Esconde todos os valores monetários (total do pedido, valor unitário, valor em produção). Pensado pro acesso de vendas / visualização.
                 </div>
               </div>
 

@@ -4,7 +4,7 @@ import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedido, itemAcao, inativarItem } from '@/lib/api';
 import { Pedido, ItemPedido, COR_STATUS, STATUS_LABELS, PRIORIDADE_COR, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR } from '@/lib/types';
-import { getUser, getToken, podeEditar, podeAcessarSetor, podeVerCliente, podeDefinirPrevisao } from '@/lib/auth';
+import { getUser, getToken, podeEditar, podeAcessarSetor, podeVerCliente, podeDefinirPrevisao, podeVerValores } from '@/lib/auth';
 import Link from 'next/link';
 import ConfirmModal from '@/components/ConfirmModal';
 import ReceberModal from '@/components/ReceberModal';
@@ -110,7 +110,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   const editavel = podeEditar(user);
   const isAdmin = user?.is_staff && editavel;
   const verCliente = podeVerCliente(user);
-  const verFinanceiro = user?.is_staff && user?.perfil !== 'lider';
+  const verFinanceiro = user?.is_staff && user?.perfil !== 'lider' && podeVerValores(user);
   // Documentos da Entrega (nota fiscal/canhoto): admin e PCP já são is_staff;
   // Logística também pode anexar, mesmo sem ser staff.
   const podeAnexarEntrega = editavel && (!!user?.is_staff || podeAcessarSetor(user, 'logistica'));

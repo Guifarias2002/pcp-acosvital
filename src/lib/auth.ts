@@ -37,6 +37,10 @@ export interface JWTPayload {
   // setor, ver a aba e reencaminhar) sem virar administrador completo. Admin
   // sempre pode. Ver `podeVerNaoLocalizados` abaixo.
   pode_ver_nao_localizados?: boolean;
+  // Oculta VALORES monetários (R$) do usuário — total do pedido, valor unitário,
+  // valor em produção, etc. Pensado pro acesso de VENDAS (visualização): vê
+  // pedidos e setores, mas sem o financeiro. Ver `podeVerValores` abaixo.
+  oculta_valores?: boolean;
 }
 
 // Um vendedor "restrito" só pode ver/filtrar os próprios pedidos (por nome).
@@ -218,6 +222,14 @@ export function podeAcessarHrm(u?: JWTPayload | null): boolean {
 export function podeEditar(u?: JWTPayload | null): boolean {
   const user = u ?? getUser();
   return !(user && user.somente_leitura === true);
+}
+
+// Pode VER valores monetários (R$)? Todos podem, EXCETO quem tem a flag
+// `oculta_valores` marcada no cadastro (acesso de VENDAS/visualização). É
+// ocultação só de EXIBIÇÃO (client) — mesmo espírito de `podeVerCliente`.
+export function podeVerValores(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return !(user && user.oculta_valores === true);
 }
 
 export function getUser(): JWTPayload | null {

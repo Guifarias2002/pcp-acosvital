@@ -54,9 +54,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (typeof body.is_active === 'boolean') campos.is_active = body.is_active;
   if (typeof body.is_staff === 'boolean') campos.is_staff = body.is_staff;
   if (typeof body.somente_leitura === 'boolean') campos.somente_leitura = body.somente_leitura;
+  if (typeof body.ve_todos_pedidos === 'boolean') campos.ve_todos_pedidos = body.ve_todos_pedidos;
   if (typeof body.pode_desfazer_recebimento === 'boolean') campos.pode_desfazer_recebimento = body.pode_desfazer_recebimento;
   if (typeof body.acesso_hrm === 'boolean') campos.acesso_hrm = body.acesso_hrm;
   if (typeof body.pode_definir_previsao === 'boolean') campos.pode_definir_previsao = body.pode_definir_previsao;
+  if (typeof body.oculta_valores === 'boolean') campos.oculta_valores = body.oculta_valores;
 
   // Perfil vendedor: sempre não-staff e sempre somente leitura, independente
   // do que vier no corpo (defesa em profundidade — o front já não manda esses
@@ -103,6 +105,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       if (campos.somente_leitura !== undefined) {
         await tx`UPDATE usuarios_usuario SET somente_leitura = ${campos.somente_leitura as boolean} WHERE id = ${targetId}`;
       }
+      if (campos.ve_todos_pedidos !== undefined) {
+        await tx`UPDATE usuarios_usuario SET ve_todos_pedidos = ${campos.ve_todos_pedidos as boolean} WHERE id = ${targetId}`;
+      }
       if (campos.pode_desfazer_recebimento !== undefined) {
         await tx`UPDATE usuarios_usuario SET pode_desfazer_recebimento = ${campos.pode_desfazer_recebimento as boolean} WHERE id = ${targetId}`;
       }
@@ -111,6 +116,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       }
       if (campos.pode_definir_previsao !== undefined) {
         await tx`UPDATE usuarios_usuario SET pode_definir_previsao = ${campos.pode_definir_previsao as boolean} WHERE id = ${targetId}`;
+      }
+      if (campos.oculta_valores !== undefined) {
+        await tx`UPDATE usuarios_usuario SET oculta_valores = ${campos.oculta_valores as boolean} WHERE id = ${targetId}`;
       }
       if (campos.senha !== undefined) {
         const hashed = await hashPassword(campos.senha as string);

@@ -596,4 +596,11 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   `).catch(() => {});
   await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_prazo_setor_item ON producao_prazo_setor (item_id) WHERE vigente`).catch(() => {});
   await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_prazo_setor_pedido ON producao_prazo_setor (pedido_id) WHERE vigente`).catch(() => {});
+
+  // M42 (11/09): OCULTAR VALORES (R$). Marcador por usuário — quem tem a flag
+  // NÃO vê nenhum valor monetário (valor total do pedido, valor unitário, valor
+  // em produção, etc.). Pensado pro acesso de VENDAS (visualização): vê pedidos e
+  // setores, mas sem o financeiro. Mesmo padrão das outras flags (default false,
+  // marcado no cadastro). A ocultação é de EXIBIÇÃO (client) — ver podeVerValores.
+  await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS oculta_valores BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
 }

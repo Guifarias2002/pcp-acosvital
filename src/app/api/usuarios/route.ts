@@ -27,7 +27,7 @@ export async function GET(req: Request) {
   if (user.somente_leitura === true) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   const users = await sql`
-    SELECT id, username, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, pode_desfazer_recebimento, acesso_hrm, pode_definir_previsao
+    SELECT id, username, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, ve_todos_pedidos, pode_desfazer_recebimento, acesso_hrm, pode_definir_previsao, oculta_valores
     FROM usuarios_usuario
     ORDER BY is_active DESC, nome
   `;
@@ -49,9 +49,11 @@ export async function GET(req: Request) {
       setores,
       setores_nomes: setores.map(s => NOMES[s] || s),
       somente_leitura: u.somente_leitura === true,
+      ve_todos_pedidos: u.ve_todos_pedidos === true,
       pode_desfazer_recebimento: u.pode_desfazer_recebimento === true,
       acesso_hrm: u.acesso_hrm === true,
       pode_definir_previsao: u.pode_definir_previsao === true,
+      oculta_valores: u.oculta_valores === true,
     };
   }));
 }
@@ -63,7 +65,7 @@ export async function POST(req: Request) {
   if (!checkMutationRateLimit(getClientIp(req)))
     return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
-  const { username, nome, senha, perfil, setor, setores, somente_leitura, pode_desfazer_recebimento, acesso_hrm, pode_definir_previsao } = await req.json();
+  const { username, nome, senha, perfil, setor, setores, somente_leitura, ve_todos_pedidos, pode_desfazer_recebimento, acesso_hrm, pode_definir_previsao, oculta_valores } = await req.json();
 
   if (!username || !nome || !senha || !perfil)
     return NextResponse.json({ erro: 'Preencha todos os campos obrigatórios.' }, { status: 400 });
@@ -101,11 +103,15 @@ export async function POST(req: Request) {
   }
   // Vendedor é sempre somente leitura, independente do que vier no corpo da requisição.
   const soLeitura = perfil === 'vendedor' ? true : somente_leitura === true;
+  // Ver TODOS os pedidos: só faz sentido pro perfil vendedor (conta de vendas /
+  // visualização). Nos demais perfis é ignorado (já veem tudo por outras regras).
+  const veTodosPedidos = perfil === 'vendedor' && ve_todos_pedidos === true;
   // Só faz sentido pra líder — administrador já pode, e outros perfis não
   // acessam ação de setor pra usar isso de qualquer forma.
   const podeDesfazer = perfil === 'lider' && pode_desfazer_recebimento === true;
   const acessoHrm = acesso_hrm === true;
   const podeDefinirPrevisao = pode_definir_previsao === true;
+  const ocultaValores = oculta_valores === true;
 
   // A tabela usuarios_usuario veio do Django e as migrations só ACRESCENTAM
   // colunas — dependendo do banco ela ainda tem colunas NOT NULL herdadas
@@ -117,9 +123,11 @@ export async function POST(req: Request) {
     setor: setorPrincipal, setores: listaSetores,
     is_staff, is_active: true,
     somente_leitura: soLeitura,
+    ve_todos_pedidos: veTodosPedidos,
     pode_desfazer_recebimento: podeDesfazer,
     acesso_hrm: acessoHrm,
     pode_definir_previsao: podeDefinirPrevisao,
+    oculta_valores: ocultaValores,
     date_joined: new Date(),
   };
   try {
