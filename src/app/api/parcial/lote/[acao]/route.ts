@@ -20,7 +20,11 @@ import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
 
 export const dynamic = 'force-dynamic';
 
-const ACOES_LOTE_PERMITIDAS = ['iniciar', 'finalizar', 'pausar', 'retomar', 'receber', 'devolver', 'mover', 'desfazer_recebimento'] as const;
+// despachar_hrm / confirmar_recebimento: a travessia HRM (Conferência/Carregamento
+// → Recebimento em Aruja) também tem botões de LOTE ("Despachar tudo para a HRM",
+// "Confirmar recebimento" do grupo). Os handlers individuais são self-contained e
+// transacionais por parcial, então rodam em loop igual às demais.
+const ACOES_LOTE_PERMITIDAS = ['iniciar', 'finalizar', 'pausar', 'retomar', 'receber', 'devolver', 'mover', 'desfazer_recebimento', 'despachar_hrm', 'confirmar_recebimento'] as const;
 // Abaixo do teto de 60/60s do rate limiter: cada chamada interna por item
 // também passa por ele (com uma chave nova por requisição, ver abaixo), e
 // um lote maior que o teto seria truncado no meio mesmo sendo legítimo.
