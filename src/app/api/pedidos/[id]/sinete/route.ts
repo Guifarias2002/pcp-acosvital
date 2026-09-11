@@ -41,10 +41,14 @@ async function handle(req: Request, { params }: { params: { id: string } }) {
     const semSinete = body.semSinete === true;
     const texto = typeof body.texto === 'string' ? body.texto.trim() : '';
     const destino = DESTINOS_VALIDOS.includes(body.destino) ? body.destino : 'qualidade';
-    // Material específico (novo): grava/devolve só este item. Sem ele = legado
-    // (todos os itens do pedido no Sinete).
+    // Material específico: grava/devolve SÓ este item. É OBRIGATÓRIO — sem ele a
+    // versão antiga espalhava o mesmo sinete em TODOS os itens do pedido (bug).
+    // Se vier sem (navegador com a página velha em cache), recusa e pede pra
+    // atualizar, em vez de repetir o erro.
     const alvoItem = Number(body.item_pedido_id);
     const porItem = Number.isInteger(alvoItem) && alvoItem > 0;
+    if (!porItem)
+      return NextResponse.json({ erro: 'Atualize a página (Ctrl+F5) e registre o sinete por material.' }, { status: 400 });
     if (!semSinete && !texto)
       return NextResponse.json({ erro: 'Escreva o sinete (ou marque "sem sinete").' }, { status: 400 });
 
