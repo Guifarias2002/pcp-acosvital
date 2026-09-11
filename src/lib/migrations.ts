@@ -5,7 +5,11 @@
 import postgres from 'postgres';
 import sql from './db';
 
-let ran = false;
+// Execução memoizada: várias chamadas concorrentes (ex.: várias pessoas logando
+// no mesmo cold start logo após um deploy) compartilham a MESMA execução e todas
+// esperam ela terminar — sem corrida e sem re-rodar. Um processo novo (novo
+// deploy/cold start) começa do zero (a variável nasce null de novo).
+let migrationPromise: Promise<void> | null = null;
 
 // Lock id arbitrário (qualquer bigint serve, só precisa ser o mesmo em toda
 // instância). Evita que um deploy — que sobe várias instâncias ao mesmo tempo —
@@ -24,12 +28,14 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 41;
+const SCHEMA_VERSION = 42;
 
-export async function runMigrations() {
-  if (ran) return;
-  ran = true;
+export function runMigrations(): Promise<void> {
+  if (!migrationPromise) migrationPromise = doRunMigrations();
+  return migrationPromise;
+}
 
+async function doRunMigrations(): Promise<void> {
   try {
     await sql.begin(async (sql) => {
       const [{ locked }] = await sql`SELECT pg_try_advisory_xact_lock(${MIGRATION_LOCK_ID}) AS locked`;
@@ -51,6 +57,10 @@ export async function runMigrations() {
     });
   } catch (e) {
     console.error('[migrations] runMigrations falhou:', e);
+    // Zera a memoização pra permitir uma nova tentativa numa próxima chamada
+    // (ex.: o login com auto-recuperação abaixo) — senão um erro transitório de
+    // conexão travaria a migração pro resto da vida do processo.
+    migrationPromise = null;
   }
 }
 

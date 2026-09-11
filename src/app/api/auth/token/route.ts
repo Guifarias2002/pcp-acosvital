@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { signToken } from '@/lib/auth';
+import { runMigrations } from '@/lib/migrations';
 import { pbkdf2, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
 
@@ -75,11 +76,28 @@ export async function POST(req: Request) {
     if (!username || !password)
       return NextResponse.json({ erro: 'Usuario e senha obrigatorios' }, { status: 400 });
 
-    const [user] = await sql`
+    const buscarUsuario = () => sql`
       SELECT id, username, password, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, ve_todos_pedidos, pode_desfazer_recebimento, pode_ver_analise, acesso_hrm, pode_definir_previsao, pode_ver_nao_localizados, oculta_valores
       FROM usuarios_usuario
       WHERE username = ${String(username).slice(0, 150)}
     `;
+    // Auto-recuperação: se um deploy adicionou uma coluna nova ao SELECT acima e
+    // a migração ainda não rodou (o cron keepalive aplica a cada ~10 min), o
+    // Postgres devolve 42703 (undefined_column) e o login cairia pra TODO MUNDO
+    // nessa janela. Em vez disso, aplicamos as migrações na hora e tentamos de
+    // novo — o login se cura sozinho sem esperar o cron. Em estado normal (coluna
+    // já existe) não há custo nenhum: nem migração nem query extra.
+    let user;
+    try {
+      [user] = await buscarUsuario();
+    } catch (e) {
+      if ((e as { code?: string })?.code === '42703') {
+        await runMigrations();
+        [user] = await buscarUsuario();
+      } else {
+        throw e;
+      }
+    }
 
     if (!user || !user.is_active) {
       await registrarAuditoria(username, ip, false);
