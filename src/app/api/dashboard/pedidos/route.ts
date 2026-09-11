@@ -23,11 +23,15 @@ export async function GET(req: Request) {
     sql`
       SELECT p.id, p.numero_pedido_venda, p.numero_op, p.cliente, p.vendedor,
              p.prazo_entrega::text, p.prioridade, p.status, p.setor_atual,
-             -- Atraso pela previsão de conclusão (peça própria ou herdada), não pelo faturamento.
+             -- Atraso pelo PRAZO DO SETOR ATUAL (honrado quando prazo_setor_ref =
+             -- setor onde está), caindo na previsão de conclusão global. Não é o faturamento.
              EXISTS (
                SELECT 1 FROM producao_itempedido i2
                WHERE i2.pedido_id = p.id AND i2.inativo = false AND i2.status <> 'entregue'
-                 AND COALESCE(i2.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE
+                 AND COALESCE(
+                       CASE WHEN i2.prazo_setor_ref = i2.setor_atual THEN i2.prazo_setor END,
+                       CASE WHEN p.prazo_setor_ref  = p.setor_atual  THEN p.prazo_setor  END,
+                       i2.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE
              ) AS atrasado
       FROM producao_pedido p
       WHERE p.status != 'entregue'

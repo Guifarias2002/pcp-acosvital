@@ -29,7 +29,10 @@ export async function GET(req: Request) {
              (CURRENT_DATE - prev.d)::int AS dias_atraso
       FROM producao_pedido p
       JOIN LATERAL (
-        SELECT MIN(COALESCE(i2.previsao_conclusao, p.previsao_conclusao)) AS d
+        SELECT MIN(COALESCE(
+                 CASE WHEN i2.prazo_setor_ref = i2.setor_atual THEN i2.prazo_setor END,
+                 CASE WHEN p.prazo_setor_ref  = p.setor_atual  THEN p.prazo_setor  END,
+                 i2.previsao_conclusao, p.previsao_conclusao)) AS d
         FROM producao_itempedido i2
         WHERE i2.pedido_id = p.id AND i2.inativo = false AND i2.status <> 'entregue'
       ) prev ON TRUE

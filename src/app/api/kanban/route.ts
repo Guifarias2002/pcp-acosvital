@@ -48,7 +48,13 @@ export async function GET(req: Request) {
           SELECT pa.id, pa.quantidade::text AS quantidade_pendente, pa.status, pa.setor_atual,
                  i.codigo, i.unidade, i.id AS item_pedido_id,
                  p.id AS pedido_id, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
-                 p.prazo_entrega::text AS pedido_prazo_iso, p.prioridade AS pedido_prioridade
+                 p.prazo_entrega::text AS pedido_prazo_iso, p.prioridade AS pedido_prioridade,
+                 -- Atrasado pelo PRAZO DO SETOR ATUAL (honrado quando ref = setor
+                 -- onde está), caindo na previsão de conclusão global.
+                 (i.status <> 'entregue' AND COALESCE(
+                    CASE WHEN i.prazo_setor_ref = i.setor_atual THEN i.prazo_setor END,
+                    CASE WHEN p.prazo_setor_ref = p.setor_atual THEN p.prazo_setor END,
+                    i.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE) AS atrasado
           FROM producao_itemparcial pa
           JOIN producao_itempedido i ON i.id = pa.item_pedido_id
           JOIN producao_pedido p ON p.id = pa.pedido_id
@@ -60,7 +66,13 @@ export async function GET(req: Request) {
           SELECT pa.id, pa.quantidade::text AS quantidade_pendente, pa.status, pa.setor_atual,
                  i.codigo, i.unidade, i.id AS item_pedido_id,
                  p.id AS pedido_id, p.numero_pedido_venda AS pedido_numero, p.cliente AS pedido_cliente,
-                 p.prazo_entrega::text AS pedido_prazo_iso, p.prioridade AS pedido_prioridade
+                 p.prazo_entrega::text AS pedido_prazo_iso, p.prioridade AS pedido_prioridade,
+                 -- Atrasado pelo PRAZO DO SETOR ATUAL (honrado quando ref = setor
+                 -- onde está), caindo na previsão de conclusão global.
+                 (i.status <> 'entregue' AND COALESCE(
+                    CASE WHEN i.prazo_setor_ref = i.setor_atual THEN i.prazo_setor END,
+                    CASE WHEN p.prazo_setor_ref = p.setor_atual THEN p.prazo_setor END,
+                    i.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE) AS atrasado
           FROM producao_itemparcial pa
           JOIN producao_itempedido i ON i.id = pa.item_pedido_id
           JOIN producao_pedido p ON p.id = pa.pedido_id
@@ -119,6 +131,7 @@ export async function GET(req: Request) {
       pedido_cliente: i.pedido_cliente,
       pedido_prioridade: i.pedido_prioridade,
       pedido_prazo_iso: i.pedido_prazo_iso,
+      atrasado: !!i.atrasado,
       codigo: i.codigo,
       quantidade_pendente: i.quantidade_pendente,
       unidade: i.unidade,

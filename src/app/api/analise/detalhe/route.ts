@@ -49,11 +49,20 @@ export async function GET(req: Request) {
     } else if (tipo === 'atraso') {
       q = sql`
         SELECT p.numero_pedido_venda AS pv, p.cliente, i.codigo, i.descricao, i.quantidade, i.unidade,
-               COALESCE(i.previsao_conclusao, p.previsao_conclusao)::text AS prazo
+               COALESCE(
+                 CASE WHEN i.prazo_setor_ref = i.setor_atual THEN i.prazo_setor END,
+                 CASE WHEN p.prazo_setor_ref = p.setor_atual THEN p.prazo_setor END,
+                 i.previsao_conclusao, p.previsao_conclusao)::text AS prazo
         FROM producao_pedido p JOIN producao_itempedido i ON i.pedido_id = p.id
-        WHERE COALESCE(i.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE AND p.status <> 'entregue'
+        WHERE COALESCE(
+                CASE WHEN i.prazo_setor_ref = i.setor_atual THEN i.prazo_setor END,
+                CASE WHEN p.prazo_setor_ref = p.setor_atual THEN p.prazo_setor END,
+                i.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE AND p.status <> 'entregue'
           AND ${FLANGE} AND i.status <> 'entregue' AND i.setor_atual = ${chave}
-        ORDER BY COALESCE(i.previsao_conclusao, p.previsao_conclusao) ASC`;
+        ORDER BY COALESCE(
+                   CASE WHEN i.prazo_setor_ref = i.setor_atual THEN i.prazo_setor END,
+                   CASE WHEN p.prazo_setor_ref = p.setor_atual THEN p.prazo_setor END,
+                   i.previsao_conclusao, p.previsao_conclusao) ASC`;
     } else if (tipo === 'mix') {
       q = sql`
         SELECT p.numero_pedido_venda AS pv, p.cliente, i.codigo, i.descricao, i.quantidade, i.unidade

@@ -72,12 +72,17 @@ export async function GET(req: Request) {
              COALESCE(ia.em_emissao, 0)    AS em_emissao,
              COALESCE(ia.em_logistica, 0)  AS em_logistica,
              COALESCE(ia.em_quarentena, 0) AS em_quarentena,
-             -- ATRASO = existe peça ativa cuja previsão de conclusão (própria ou
-             -- herdada do pedido) já passou. Sem previsão = não conta como atraso.
+             -- ATRASO = existe peça ativa cujo PRAZO já passou. O prazo é o do
+             -- SETOR ATUAL (honrado só quando prazo_setor_ref = setor onde está),
+             -- caindo na previsão de conclusão global quando não há prazo de setor.
+             -- Sem nenhum prazo = não conta como atraso.
              EXISTS (
                SELECT 1 FROM producao_itempedido i2
                WHERE i2.pedido_id = p.id AND i2.inativo = false AND i2.status <> 'entregue'
-                 AND COALESCE(i2.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE
+                 AND COALESCE(
+                       CASE WHEN i2.prazo_setor_ref = i2.setor_atual THEN i2.prazo_setor END,
+                       CASE WHEN p.prazo_setor_ref  = p.setor_atual  THEN p.prazo_setor  END,
+                       i2.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE
              ) AS atrasado
       FROM producao_pedido p
       LEFT JOIN itens_por_pedido ia ON ia.pedido_id = p.id
@@ -123,7 +128,10 @@ export async function GET(req: Request) {
 
   const qAtrasados = sql`
     SELECT p.id, p.numero_pedido_venda, p.cliente, p.prazo_entrega::text, p.prioridade, p.status,
-           (SELECT MIN(COALESCE(i2.previsao_conclusao, p.previsao_conclusao))
+           (SELECT MIN(COALESCE(
+                     CASE WHEN i2.prazo_setor_ref = i2.setor_atual THEN i2.prazo_setor END,
+                     CASE WHEN p.prazo_setor_ref  = p.setor_atual  THEN p.prazo_setor  END,
+                     i2.previsao_conclusao, p.previsao_conclusao))
               FROM producao_itempedido i2
               WHERE i2.pedido_id = p.id AND i2.inativo = false AND i2.status <> 'entregue')::text AS previsao_conclusao
     FROM producao_pedido p
@@ -131,7 +139,10 @@ export async function GET(req: Request) {
       AND EXISTS (
         SELECT 1 FROM producao_itempedido i2
         WHERE i2.pedido_id = p.id AND i2.inativo = false AND i2.status <> 'entregue'
-          AND COALESCE(i2.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE
+          AND COALESCE(
+                CASE WHEN i2.prazo_setor_ref = i2.setor_atual THEN i2.prazo_setor END,
+                CASE WHEN p.prazo_setor_ref  = p.setor_atual  THEN p.prazo_setor  END,
+                i2.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE
       )
     ORDER BY previsao_conclusao ASC NULLS LAST
     LIMIT 10

@@ -67,7 +67,10 @@ export async function GET(req: Request) {
         COUNT(*) FILTER (WHERE p.status != 'entregue' AND EXISTS (
           SELECT 1 FROM producao_itempedido i2
           WHERE i2.pedido_id = p.id AND i2.inativo = false AND i2.status <> 'entregue'
-            AND COALESCE(i2.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE
+            AND COALESCE(
+                  CASE WHEN i2.prazo_setor_ref = i2.setor_atual THEN i2.prazo_setor END,
+                  CASE WHEN p.prazo_setor_ref  = p.setor_atual  THEN p.prazo_setor  END,
+                  i2.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE
         ))                                                                                           AS atrasados,
         COUNT(*)                                                                                     AS total
       FROM producao_pedido p`;
@@ -248,7 +251,10 @@ export async function GET(req: Request) {
     const qAtrasoSetor = sql`
       SELECT i.setor_atual AS setor, COUNT(DISTINCT p.id) AS pedidos, COUNT(*) AS itens
       FROM producao_pedido p JOIN producao_itempedido i ON i.pedido_id = p.id
-      WHERE COALESCE(i.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE AND p.status <> 'entregue'
+      WHERE COALESCE(
+              CASE WHEN i.prazo_setor_ref = i.setor_atual THEN i.prazo_setor END,
+              CASE WHEN p.prazo_setor_ref = p.setor_atual THEN p.prazo_setor END,
+              i.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE AND p.status <> 'entregue'
         AND ${FLANGE} AND i.status <> 'entregue' ${fAtual}
       GROUP BY 1 ORDER BY 2 DESC`;
 

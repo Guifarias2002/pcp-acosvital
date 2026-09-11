@@ -27,6 +27,7 @@ interface ItemKanban {
   pedido_cliente: string;
   pedido_prioridade: string;
   pedido_prazo_iso: string | null;
+  atrasado?: boolean;
   codigo: string;
   quantidade_pendente: string;
   unidade: string;
@@ -231,8 +232,9 @@ export default function KanbanPage() {
                     const p0 = grupo[0];
                     const key = `${s.cod}-${p0.pedido_numero || p0.pedido_id}`;
                     const aberto = expandidos.has(key);
+                    const atrasadoGrupo = grupo.some(it => it.atrasado);
                     return (
-                      <div key={key} className="rounded-lg border shadow-sm overflow-hidden" style={{ background: '#fff' }}>
+                      <div key={key} className="rounded-lg border shadow-sm overflow-hidden" style={{ background: '#fff', borderLeft: atrasadoGrupo ? '3px solid #dc2626' : undefined }}>
                         {/* Cabeçalho do grupo — clicável */}
                         <div
                           onClick={() => toggleGrupo(key)}
@@ -245,6 +247,11 @@ export default function KanbanPage() {
                               <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${PRIORIDADE_COR[p0.pedido_prioridade]}`}>
                                 {p0.pedido_prioridade?.charAt(0).toUpperCase() + p0.pedido_prioridade?.slice(1)}
                               </span>
+                              {atrasadoGrupo && (
+                                <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: '#fee2e2', color: '#dc2626' }} title="Atrasado pelo prazo do setor">
+                                  <i className="bi bi-clock-history" /> Atrasado
+                                </span>
+                              )}
                             </div>
                             <p className="text-xs text-gray-400 truncate mt-0.5">{p0.pedido_cliente}</p>
                           </div>

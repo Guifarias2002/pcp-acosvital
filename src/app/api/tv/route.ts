@@ -19,7 +19,10 @@ export async function GET(req: Request) {
         COUNT(*) FILTER (WHERE p.status != 'entregue' AND EXISTS (
           SELECT 1 FROM producao_itempedido i2
           WHERE i2.pedido_id = p.id AND i2.inativo = false AND i2.status <> 'entregue'
-            AND COALESCE(i2.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE
+            AND COALESCE(
+                  CASE WHEN i2.prazo_setor_ref = i2.setor_atual THEN i2.prazo_setor END,
+                  CASE WHEN p.prazo_setor_ref  = p.setor_atual  THEN p.prazo_setor  END,
+                  i2.previsao_conclusao, p.previsao_conclusao) < CURRENT_DATE
         ))                                                                             AS atrasados,
         COUNT(*) FILTER (WHERE prioridade = 'urgente' AND status != 'entregue')        AS urgentes
       FROM producao_pedido p
