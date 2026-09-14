@@ -28,7 +28,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 45;
+const SCHEMA_VERSION = 46;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -679,4 +679,10 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
     )
   `).catch(() => {});
   await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_encaminhamento_setor ON producao_encaminhamento (setor, encaminhado_em DESC)`).catch(() => {});
+
+  // M46 (14/09): FIXAR no topo — o Reginaldo (ou admin) escolhe se o pedido
+  // encaminhado fica FIXO/destacado no topo da Usinagem (fixo=true) ou aparece
+  // só como "encaminhado" sem pinar (fixo=false). Default true (comportamento
+  // atual). Ver /api/encaminhamentos e o componente EncaminhadosSetor.
+  await sql.unsafe(`ALTER TABLE producao_encaminhamento ADD COLUMN IF NOT EXISTS fixo BOOLEAN NOT NULL DEFAULT true`).catch(() => {});
 }

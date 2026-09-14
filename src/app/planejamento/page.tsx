@@ -91,18 +91,21 @@ export default function PlanejamentoPage() {
   // "Avisado ✓" no botão em vez de deixar avisar de novo à toa).
   const [avisados, setAvisados] = useState<Set<number>>(new Set());
   const [avisando, setAvisando] = useState<number | null>(null);
-  // Encaminhados: comando FIXO do Reginaldo (pedido_id -> observação). Persistente.
-  const [encaminhados, setEncaminhados] = useState<Map<number, string>>(new Map());
+  // Encaminhados: comando do Reginaldo (pedido_id -> {observação, fixo}). Persistente.
+  const [encaminhados, setEncaminhados] = useState<Map<number, { observacao: string; fixo: boolean }>>(new Map());
   const [processando, setProcessando] = useState<number | null>(null);
-  // Modal de ação (avisar OU encaminhar) — permite escrever uma observação.
+  // Modal de ação (avisar OU encaminhar) — observação + (encaminhar) fixar no topo.
   const [modalAcao, setModalAcao] = useState<{ tipo: 'avisar' | 'encaminhar'; pedidoId: number; numero: string } | null>(null);
   const [modalObs, setModalObs] = useState('');
+  const [modalFixo, setModalFixo] = useState(true);
   // Aba ativa: a Fila ou o Painel de Máquinas (abre ao clicar lá em cima).
   const [aba, setAba] = useState<'fila' | 'maquinas'>('fila');
   // Tile do resumo aberto (mostra a lista por trás do número). null = nenhum.
   const [detalheResumo, setDetalheResumo] = useState<'pedidos' | 'pecas' | 'qtd' | 'uso' | 'livres' | null>(null);
   // Máquina clicada no painel — abre modal com os pedidos dela. null = nenhum.
   const [maquinaModal, setMaquinaModal] = useState<PainelMaquina | null>(null);
+  // Busca do Painel de Máquinas — filtra por máquina, pedido, código ou operador.
+  const [buscaPainel, setBuscaPainel] = useState('');
   const podeVerCli = podeVerCliente();
 
   const carregar = useCallback(async (silencioso = false) => {
@@ -123,7 +126,7 @@ export default function PlanejamentoPage() {
       }
       if (rE.ok) {
         const de = await rE.json();
-        setEncaminhados(new Map((de.encaminhados || []).map((e: { pedido_id: number; observacao: string | null }) => [e.pedido_id, e.observacao || ''])));
+        setEncaminhados(new Map((de.encaminhados || []).map((e: { pedido_id: number; observacao: string | null; fixo?: boolean }) => [e.pedido_id, { observacao: e.observacao || '', fixo: e.fixo !== false }])));
       }
     } catch {
       setErro('Falha de conexão ao carregar o planejamento.');
@@ -155,16 +158,17 @@ export default function PlanejamentoPage() {
     finally { setAvisando(null); setModalAcao(null); setModalObs(''); }
   }
 
-  // Encaminha (ou edita) — comando FIXO pra Usinagem. Persistente até desfazer.
-  async function encaminhar(pedidoId: number, observacao?: string) {
+  // Encaminha (ou edita) — comando pra Usinagem. Persistente até desfazer.
+  // `fixo` = fica destacado/fixo no topo da Usinagem.
+  async function encaminhar(pedidoId: number, observacao?: string, fixo = true) {
     setProcessando(pedidoId);
     try {
       const r = await fetch('/api/encaminhamentos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
-        body: JSON.stringify({ pedido_id: pedidoId, setor: 'usinagem', observacao: observacao || '' }),
+        body: JSON.stringify({ pedido_id: pedidoId, setor: 'usinagem', observacao: observacao || '', fixo }),
       });
-      if (r.ok) setEncaminhados(prev => new Map(prev).set(pedidoId, observacao || ''));
+      if (r.ok) setEncaminhados(prev => new Map(prev).set(pedidoId, { observacao: observacao || '', fixo }));
     } catch { /* silencioso */ }
     finally { setProcessando(null); setModalAcao(null); setModalObs(''); }
   }
@@ -182,7 +186,9 @@ export default function PlanejamentoPage() {
   // Abre o modal de ação (avisar/encaminhar). Pré-preenche a observação quando
   // for EDITAR um encaminhamento existente.
   function abrirModal(tipo: 'avisar' | 'encaminhar', pedidoId: number, numero: string) {
-    setModalObs(tipo === 'encaminhar' ? (encaminhados.get(pedidoId) || '') : '');
+    const enc = encaminhados.get(pedidoId);
+    setModalObs(tipo === 'encaminhar' ? (enc?.observacao || '') : '');
+    setModalFixo(tipo === 'encaminhar' ? (enc ? enc.fixo : true) : true);
     setModalAcao({ tipo, pedidoId, numero });
   }
 
@@ -311,8 +317,8 @@ export default function PlanejamentoPage() {
           <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {jaEncaminhado ? (
               <>
-                <span title="Encaminhado pelo Planejamento — fixo na Usinagem" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 800, borderRadius: 8, padding: '5px 10px', background: '#16a34a', color: '#fff', whiteSpace: 'nowrap' }}>
-                  <i className="bi bi-check2-circle" />Encaminhado
+                <span title={encaminhados.get(ped.pedido_id)?.fixo ? 'Encaminhado e FIXO no topo da Usinagem' : 'Encaminhado (sem fixar no topo)'} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 800, borderRadius: 8, padding: '5px 10px', background: '#16a34a', color: '#fff', whiteSpace: 'nowrap' }}>
+                  <i className={`bi ${encaminhados.get(ped.pedido_id)?.fixo ? 'bi-pin-angle-fill' : 'bi-check2-circle'}`} />Encaminhado{encaminhados.get(ped.pedido_id)?.fixo ? ' · fixo' : ''}
                 </span>
                 <button
                   onClick={e => { e.stopPropagation(); abrirModal('encaminhar', ped.pedido_id, ped.numero_pedido_venda); }}
@@ -446,6 +452,14 @@ export default function PlanejamentoPage() {
   ];
   const maquinasUso = (dados?.painel || []).filter(m => m.pecas.length > 0);
   const maquinasLivres = (dados?.painel || []).filter(m => m.pecas.length === 0);
+
+  // Busca do painel: casa por nome da máquina OU por alguma peça (código, nº do
+  // pedido, operador). Sem acento, sem caixa. Termo vazio = passa tudo.
+  const norm = (s: string) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const termoPainel = norm(buscaPainel.trim());
+  const maquinaCasa = (m: PainelMaquina) => !termoPainel
+    || norm(m.maquina).includes(termoPainel)
+    || m.pecas.some(p => norm(p.item_codigo).includes(termoPainel) || norm(p.numero_pedido_venda).includes(termoPainel) || norm(p.operador || '').includes(termoPainel));
 
   const renderMaquina = (mq: PainelMaquina) => {
     const ocupada = mq.pecas.length > 0;
@@ -688,9 +702,27 @@ export default function PlanejamentoPage() {
             </div>
           )}
 
+          {/* Busca — filtra o painel inteiro (máquina, pedido, código, operador) */}
+          <div style={{ position: 'relative', maxWidth: 420, marginBottom: 14 }}>
+            <i className="bi bi-search" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 13 }} />
+            <input
+              type="text"
+              value={buscaPainel}
+              onChange={e => setBuscaPainel(e.target.value)}
+              placeholder="Buscar máquina, pedido, código ou operador…"
+              style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 30px 8px 30px', fontSize: 13, boxSizing: 'border-box' }}
+            />
+            {buscaPainel && (
+              <button onClick={() => setBuscaPainel('')} title="Limpar busca" style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 14, lineHeight: 1, padding: 2 }}>
+                <i className="bi bi-x-lg" />
+              </button>
+            )}
+          </div>
+
           {/* Agrupado por CATEGORIA (Tornos Manuais / CNC / Verticais) */}
           {grupos.map(g => {
-            const maquinas = g.maquinas.map(nome => painelMap.get(nome) ?? { maquina: nome, pecas: [] });
+            const maquinas = g.maquinas.map(nome => painelMap.get(nome) ?? { maquina: nome, pecas: [] }).filter(maquinaCasa);
+            if (maquinas.length === 0) return null;
             const emUso = maquinas.filter(m => m.pecas.length > 0).length;
             return (
               <div key={g.categoria} style={{ marginBottom: 18 }}>
@@ -702,12 +734,17 @@ export default function PlanejamentoPage() {
               </div>
             );
           })}
-          {painelOutras.length > 0 && (
+          {painelOutras.filter(maquinaCasa).length > 0 && (
             <div style={{ marginBottom: 18 }}>
               <div style={{ fontSize: 11.5, fontWeight: 800, color: C.azul, margin: '0 0 8px' }}>
                 <i className="bi bi-diagram-2-fill" style={{ color: C.roxo, marginRight: 6 }} />Outras
               </div>
-              {gridMaquinas(painelOutras)}
+              {gridMaquinas(painelOutras.filter(maquinaCasa))}
+            </div>
+          )}
+          {termoPainel && grupos.every(g => g.maquinas.map(nome => painelMap.get(nome) ?? { maquina: nome, pecas: [] }).filter(maquinaCasa).length === 0) && painelOutras.filter(maquinaCasa).length === 0 && (
+            <div style={{ padding: 20, textAlign: 'center', color: C.cinza, fontSize: 12.5, background: '#f8fafc', borderRadius: 10, border: '1px dashed #e2e8f0' }}>
+              Nada encontrado para “{buscaPainel}”.
             </div>
           )}
 
@@ -783,9 +820,24 @@ export default function PlanejamentoPage() {
                 );
               })}
             </div>
+            {enc && (
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '9px 11px', marginBottom: 10 }}>
+                <input type="checkbox" checked={modalFixo} onChange={e => setModalFixo(e.target.checked)} style={{ marginTop: 2, cursor: 'pointer' }} />
+                <span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>
+                    <i className="bi bi-pin-angle-fill" style={{ marginRight: 5 }} />Fixar no topo da Usinagem
+                  </span>
+                  <span style={{ display: 'block', fontSize: 11.5, color: '#15803d', marginTop: 2 }}>
+                    {modalFixo
+                      ? 'Vai ficar destacado e FIXO no topo da tela deles até você desfazer.'
+                      : 'Só marca como encaminhado (não fixa no topo) — aparece numa lista à parte.'}
+                  </span>
+                </span>
+              </label>
+            )}
             <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 16 }}>
               {enc
-                ? 'Fica FIXO no topo da tela da Usinagem até você desfazer — o operador não tira.'
+                ? 'O operador não tira — só você (ou um administrador) desfaz.'
                 : 'Aparece na caixa de mensagens da Usinagem; some quando o operador dá "Visto".'}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -793,7 +845,7 @@ export default function PlanejamentoPage() {
                 Cancelar
               </button>
               <button
-                onClick={() => (enc ? encaminhar(modalAcao.pedidoId, modalObs) : avisarProducao(modalAcao.pedidoId, modalObs))}
+                onClick={() => (enc ? encaminhar(modalAcao.pedidoId, modalObs, modalFixo) : avisarProducao(modalAcao.pedidoId, modalObs))}
                 disabled={emAndamento}
                 style={{ flex: 2, background: cor, color: '#fff', border: 'none', borderRadius: 8, padding: '11px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: emAndamento ? .6 : 1 }}
               >

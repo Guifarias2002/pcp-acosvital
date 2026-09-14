@@ -24,7 +24,7 @@ export async function GET(req: Request) {
 
   try {
     const rows = await sql`
-      SELECT e.pedido_id, e.setor, e.observacao, e.encaminhado_por_nome, e.encaminhado_em::text AS encaminhado_em,
+      SELECT e.pedido_id, e.setor, e.observacao, e.fixo, e.encaminhado_por_nome, e.encaminhado_em::text AS encaminhado_em,
              p.numero_pedido_venda, p.cliente, p.prioridade,
              (p.ordem_producao_url IS NOT NULL) AS tem_op
       FROM producao_encaminhamento e
@@ -52,16 +52,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: 'Pedido inválido' }, { status: 400 });
     const setor = typeof body.setor === 'string' && body.setor.trim() ? body.setor.trim() : 'usinagem';
     const observacao = typeof body.observacao === 'string' ? body.observacao.trim().slice(0, 500) : '';
+    // Fixar no topo (default true). Só false quando explicitamente desmarcado.
+    const fixo = body.fixo === false ? false : true;
 
     const [pedido] = await sql`SELECT id FROM producao_pedido WHERE id = ${pedidoId}`;
     if (!pedido) return NextResponse.json({ erro: 'Pedido não encontrado' }, { status: 404 });
 
     await sql`
-      INSERT INTO producao_encaminhamento (pedido_id, setor, observacao, encaminhado_por_id, encaminhado_por_nome, encaminhado_em, atualizado_em)
-      VALUES (${pedidoId}, ${setor}, ${observacao || null}, ${user.id}, ${user.nome || user.username}, NOW(), NOW())
+      INSERT INTO producao_encaminhamento (pedido_id, setor, observacao, fixo, encaminhado_por_id, encaminhado_por_nome, encaminhado_em, atualizado_em)
+      VALUES (${pedidoId}, ${setor}, ${observacao || null}, ${fixo}, ${user.id}, ${user.nome || user.username}, NOW(), NOW())
       ON CONFLICT (pedido_id) DO UPDATE SET
         setor = EXCLUDED.setor,
         observacao = EXCLUDED.observacao,
+        fixo = EXCLUDED.fixo,
         atualizado_em = NOW()
     `;
     return NextResponse.json({ ok: true, pedido_id: pedidoId });
