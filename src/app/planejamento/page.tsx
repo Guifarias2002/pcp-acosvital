@@ -277,6 +277,8 @@ export default function PlanejamentoPage() {
   // Separa a fila: pedidos que JÁ têm peça na Usinagem × os que vão CHEGAR.
   const pedidosNa = (dados?.pedidos || []).filter(p => p.pecas.some(pc => pc.situacao === 'na_usinagem'));
   const pedidosCheg = (dados?.pedidos || []).filter(p => !p.pecas.some(pc => pc.situacao === 'na_usinagem'));
+  // Quantos dos "na usinagem" já estão sendo PRODUZIDOS (peça produzindo).
+  const produzindoNa = pedidosNa.filter(p => p.pecas.some(pc => pc.status_prod === 'produzindo')).length;
 
   // Card de um pedido na fila. `idx` é a posição DENTRO do grupo (numeração).
   const renderPedido = (ped: PedidoPlan, idx: number) => {
@@ -631,8 +633,13 @@ export default function PlanejamentoPage() {
           ) : (
             <>
               {/* Grupo 1 — pedidos que JA estao na Usinagem */}
-              <div style={{ fontSize: 11, fontWeight: 800, color: C.verde, textTransform: 'uppercase', letterSpacing: .5, margin: '4px 0 8px' }}>
-                <i className="bi bi-gear-fill" style={{ marginRight: 5 }} />Na Usinagem ({pedidosNa.length})
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 8px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: C.verde, textTransform: 'uppercase', letterSpacing: .5 }}>
+                  <i className="bi bi-gear-fill" style={{ marginRight: 5 }} />Na Usinagem ({pedidosNa.length})
+                </span>
+                <span title="Pedidos sendo produzidos / total na usinagem" style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 800, color: '#fff', background: C.verde, borderRadius: 10, padding: '2px 10px' }}>
+                  <i className="bi bi-gear-fill" style={{ marginRight: 4 }} />{produzindoNa} / {pedidosNa.length} em produção
+                </span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 22 }}>
                 {pedidosNa.length ? pedidosNa.map((ped, idx) => renderPedido(ped, idx)) : grupoVazio('Nenhum pedido na Usinagem agora.')}
