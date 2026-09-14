@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { useRealtime } from '@/hooks/useRealtime';
 import { getToken, podePlanejar, podeVerCliente } from '@/lib/auth';
@@ -91,6 +92,7 @@ const MENSAGENS_PRONTAS = [
 ];
 
 export default function PlanejamentoPage() {
+  const router = useRouter();
   const [dados, setDados] = useState<Dados | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -406,9 +408,7 @@ export default function PlanejamentoPage() {
             )}
             <a
               href={`/pedidos/${ped.pedido_id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={e => e.stopPropagation()}
+              onClick={e => { e.preventDefault(); e.stopPropagation(); router.push(`/pedidos/${ped.pedido_id}`); }}
               title="Abrir o pedido completo"
               style={{ color: '#fff', opacity: 0.85, fontSize: 15, lineHeight: 1, textDecoration: 'none' }}
             >
@@ -965,7 +965,8 @@ export default function PlanejamentoPage() {
                           <i className="bi bi-file-earmark-text" />OP
                         </a>
                       )}
-                      <a href={`/pedidos/${p.pedido_id}`} target="_blank" rel="noopener noreferrer"
+                      <a href={`/pedidos/${p.pedido_id}`}
+                        onClick={e => { e.preventDefault(); router.push(`/pedidos/${p.pedido_id}`); }}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', borderRadius: 7, padding: '4px 9px', textDecoration: 'none' }}>
                         <i className="bi bi-box-arrow-up-right" />Abrir pedido
                       </a>
