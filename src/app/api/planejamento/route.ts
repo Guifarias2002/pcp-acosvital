@@ -67,6 +67,11 @@ export async function GET(req: Request) {
           WHERE pa.item_pedido_id = i.id AND pa.setor_atual = 'usinagem'
             AND pa.status NOT IN ('cancelada', 'concluida', 'em_transito')
         ) AS status_usinagem,
+        -- Máquina em que a peça JÁ está rodando (parcial em produção), se houver.
+        (SELECT pa.maquina FROM producao_itemparcial pa
+           WHERE pa.item_pedido_id = i.id AND pa.setor_atual = 'usinagem'
+             AND pa.status = 'em_andamento' AND pa.maquina IS NOT NULL AND pa.maquina <> ''
+           ORDER BY pa.iniciado_em DESC LIMIT 1) AS maquina_em_producao,
         pu.maquina AS maquina_planejada
       FROM producao_itempedido i
       JOIN producao_pedido p ON p.id = i.pedido_id
@@ -115,6 +120,7 @@ export async function GET(req: Request) {
         status: it.status,
         situacao: sit,
         status_prod: statusProducao(it.status_usinagem as string[]),
+        maquina_em_producao: (it.maquina_em_producao as string) || null,
         maquina_planejada: (it.maquina_planejada as string) || null,
         previsao: (it.item_previsao as string) || (it.pedido_previsao as string) || null,
       });

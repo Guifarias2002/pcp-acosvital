@@ -138,11 +138,13 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         (p.ordem_producao_url IS NOT NULL) AS tem_ordem_producao,
         pa.pesos_pallets,
         pa.nomes_pallets,
-        pa.fotos
+        pa.fotos,
+        pu.maquina AS maquina_planejada
       FROM producao_itemparcial pa
       JOIN producao_itempedido i ON i.id = pa.item_pedido_id
       JOIN producao_pedido p ON p.id = pa.pedido_id
       LEFT JOIN producao_itemparcial origem ON origem.id = pa.parcial_origem_id
+      LEFT JOIN producao_plano_usinagem pu ON pu.item_pedido_id = pa.item_pedido_id
       WHERE pa.setor_atual = ${setor}
         AND pa.status = ANY(${statusParciais})
         AND i.status != 'entregue'
@@ -390,6 +392,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       status: p.status,
       observacao: p.observacao ?? null,
       maquina: p.maquina ?? null,
+      maquina_planejada: p.maquina_planejada ?? null,
       operador: p.operador ?? null,
       motivo_pausa: p.motivo_pausa ?? null,
       item_codigo: p.item_codigo,

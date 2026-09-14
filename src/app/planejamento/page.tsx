@@ -16,6 +16,7 @@ interface Peca {
   status: string;
   situacao: 'na_usinagem' | 'chegando';
   status_prod: 'produzindo' | 'recebido' | 'nao_recebido' | 'pausado' | 'finalizado' | null;
+  maquina_em_producao: string | null;
   maquina_planejada: string | null;
   previsao: string | null;
 }
@@ -94,6 +95,7 @@ export default function PlanejamentoPage() {
   const [erro, setErro] = useState('');
   const [dragPedido, setDragPedido] = useState<number | null>(null);
   const [salvandoMaq, setSalvandoMaq] = useState<number | null>(null);
+  const [salvoMaq, setSalvoMaq] = useState<number | null>(null); // item que acabou de salvar (mostra ✓)
   // Pedidos com o card ABERTO (mostrando as peças). Começam fechados: clicar
   // no cabeçalho abre e mostra "quais são".
   const [abertos, setAbertos] = useState<Set<number>>(new Set());
@@ -250,11 +252,15 @@ export default function PlanejamentoPage() {
       return { ...d, pedidos };
     });
     try {
-      await fetch('/api/planejamento', {
+      const r = await fetch('/api/planejamento', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
         body: JSON.stringify({ item_pedido_id: itemId, maquina }),
       });
+      if (r.ok) {
+        setSalvoMaq(itemId);
+        setTimeout(() => setSalvoMaq(s => (s === itemId ? null : s)), 1800);
+      }
     } catch { /* próximo refresh reconcilia */ }
     finally { setSalvandoMaq(null); }
   }
@@ -432,20 +438,34 @@ export default function PlanejamentoPage() {
                 <span style={{ fontSize: 12, fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
                   {Number(pc.quantidade).toLocaleString('pt-BR')} {pc.unidade}
                 </span>
-                <select
-                  className={`pl-sel${pc.maquina_planejada ? ' on' : ''}`}
-                  value={pc.maquina_planejada || ''}
-                  disabled={salvandoMaq === pc.item_id}
-                  onChange={e => definirMaquina(pc.item_id, e.target.value)}
-                  title="Máquina planejada para esta peça"
-                >
-                  <option value="">— sem máquina —</option>
-                  {grupos.map(g => (
-                    <optgroup key={g.categoria} label={g.categoria}>
-                      {g.maquinas.map(m => <option key={m} value={m}>{m}</option>)}
-                    </optgroup>
-                  ))}
-                </select>
+                {pc.maquina_em_producao ? (
+                  // Já rodando: mostra a máquina REAL (não editável — o operador iniciou).
+                  <span title="Já está rodando nesta máquina" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: '#166534', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 7, padding: '6px 10px', whiteSpace: 'nowrap', maxWidth: 220 }}>
+                    <i className="bi bi-gear-fill" />{pc.maquina_em_producao}
+                  </span>
+                ) : (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <select
+                      className={`pl-sel${pc.maquina_planejada ? ' on' : ''}`}
+                      value={pc.maquina_planejada || ''}
+                      disabled={salvandoMaq === pc.item_id}
+                      onChange={e => definirMaquina(pc.item_id, e.target.value)}
+                      title="Máquina planejada para esta peça — salva na hora"
+                    >
+                      <option value="">— sem máquina —</option>
+                      {grupos.map(g => (
+                        <optgroup key={g.categoria} label={g.categoria}>
+                          {g.maquinas.map(m => <option key={m} value={m}>{m}</option>)}
+                        </optgroup>
+                      ))}
+                    </select>
+                    {salvandoMaq === pc.item_id
+                      ? <i className="bi bi-arrow-repeat" style={{ color: '#94a3b8', fontSize: 14 }} title="Salvando…" />
+                      : salvoMaq === pc.item_id
+                        ? <i className="bi bi-check-circle-fill" style={{ color: C.verde, fontSize: 14 }} title="Salvo!" />
+                        : null}
+                  </span>
+                )}
               </div>
             );
           })}

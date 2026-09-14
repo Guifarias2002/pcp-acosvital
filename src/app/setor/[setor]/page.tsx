@@ -1194,6 +1194,11 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
               🔧 {parcial.maquina}{parcial.operador ? ` · ${parcial.operador}` : ''}
             </span>
           )}
+          {parcial.setor_atual === 'usinagem' && !parcial.maquina && parcial.maquina_planejada && (
+            <span title="Máquina definida pelo Planejamento" style={{ fontSize: 11, color: '#6b21a8', fontWeight: 700, background: '#f3e8ff', border: '1px solid #e9d5ff', borderRadius: 6, padding: '1px 7px' }}>
+              <i className="bi bi-pin-map-fill" style={{ marginRight: 3 }} />Fazer em: {parcial.maquina_planejada}
+            </span>
+          )}
           <Link href={`/parcial/${parcial.id}`} title="Ver detalhe" style={{ color: '#0d6efd', fontSize: 14, textDecoration: 'none' }}>
             <i className="bi bi-eye" />
           </Link>
@@ -1229,6 +1234,11 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           {parcial.maquina && (
             <span style={{ fontSize: 11, color: '#475569', fontWeight: 600 }}>
               🔧 {parcial.maquina}{parcial.operador ? ` · ${parcial.operador}` : ''}
+            </span>
+          )}
+          {parcial.setor_atual === 'usinagem' && !parcial.maquina && parcial.maquina_planejada && (
+            <span title="Máquina definida pelo Planejamento" style={{ fontSize: 11, color: '#6b21a8', fontWeight: 700, background: '#f3e8ff', border: '1px solid #e9d5ff', borderRadius: 6, padding: '1px 7px' }}>
+              <i className="bi bi-pin-map-fill" style={{ marginRight: 3 }} />Fazer em: {parcial.maquina_planejada}
             </span>
           )}
           <Link href={`/parcial/${parcial.id}`} title="Ver detalhe" style={{ color: '#0d6efd', fontSize: 13, textDecoration: 'none', marginLeft: 'auto' }}>
@@ -2420,6 +2430,11 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
           {temMaquinas(p0.setor_atual) && p0.maquina && (
             <div style={{ fontSize: 12, color: '#0d6efd', fontWeight: 600, marginTop: 2 }}>
               🔧 {p0.maquina}{p0.operador ? ` · ${p0.operador}` : ''}
+            </div>
+          )}
+          {p0.setor_atual === 'usinagem' && !p0.maquina && p0.maquina_planejada && (
+            <div title="Máquina definida pelo Planejamento" style={{ fontSize: 12, color: '#6b21a8', fontWeight: 700, marginTop: 2 }}>
+              <i className="bi bi-pin-map-fill" style={{ marginRight: 3 }} />Fazer em: {p0.maquina_planejada}
             </div>
           )}
         </div>

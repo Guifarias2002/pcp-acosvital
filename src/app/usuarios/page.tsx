@@ -126,6 +126,10 @@ export default function UsuariosPage() {
   // Edição de usuário existente
   const [editUser, setEditUser] = useState<Usuario | null>(null);
   const [editForm, setEditForm] = useState({ nome: '', perfil: 'operador', setores: [] as string[], is_active: true, senha: '', somente_leitura: false, ve_todos_pedidos: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false, oculta_valores: false, acesso_planejamento: false });
+  // "Olho" pra ver a senha digitada (admin). Só revela o que está sendo digitado
+  // — a senha salva fica criptografada no banco e não dá pra recuperar.
+  const [verSenhaForm, setVerSenhaForm] = useState(false);
+  const [verSenhaEdit, setVerSenhaEdit] = useState(false);
   const [editMsg, setEditMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [editSalvando, setEditSalvando] = useState(false);
   const isAdmin = getUser()?.is_staff;
@@ -310,14 +314,21 @@ export default function UsuariosPage() {
 
               <div style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>Senha *</label>
-                <input
-                  type="password"
-                  value={form.senha}
-                  onChange={e => setForm(f => ({ ...f, senha: e.target.value }))}
-                  placeholder="Mínimo 8 caracteres"
-                  required
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13, boxSizing: 'border-box' }}
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={verSenhaForm ? 'text' : 'password'}
+                    value={form.senha}
+                    onChange={e => setForm(f => ({ ...f, senha: e.target.value }))}
+                    placeholder="Mínimo 8 caracteres"
+                    autoComplete="new-password"
+                    required
+                    style={{ width: '100%', padding: '8px 38px 8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13, boxSizing: 'border-box' }}
+                  />
+                  <button type="button" onClick={() => setVerSenhaForm(v => !v)} title={verSenhaForm ? 'Ocultar senha' : 'Ver senha'}
+                    style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 15, lineHeight: 1, padding: 4 }}>
+                    <i className={`bi ${verSenhaForm ? 'bi-eye-slash' : 'bi-eye'}`} />
+                  </button>
+                </div>
               </div>
 
               <div style={{ marginBottom: 14 }}>
@@ -524,13 +535,20 @@ export default function UsuariosPage() {
 
               <div style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 }}>Nova senha (deixe em branco para manter)</label>
-                <input
-                  type="password"
-                  value={editForm.senha}
-                  onChange={e => setEditForm(f => ({ ...f, senha: e.target.value }))}
-                  placeholder="Mínimo 8 caracteres"
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13, boxSizing: 'border-box' }}
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={verSenhaEdit ? 'text' : 'password'}
+                    value={editForm.senha}
+                    onChange={e => setEditForm(f => ({ ...f, senha: e.target.value }))}
+                    placeholder="Deixe em branco para manter a atual"
+                    autoComplete="new-password"
+                    style={{ width: '100%', padding: '8px 38px 8px 12px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13, boxSizing: 'border-box' }}
+                  />
+                  <button type="button" onClick={() => setVerSenhaEdit(v => !v)} title={verSenhaEdit ? 'Ocultar senha' : 'Ver senha'}
+                    style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: 15, lineHeight: 1, padding: 4 }}>
+                    <i className={`bi ${verSenhaEdit ? 'bi-eye-slash' : 'bi-eye'}`} />
+                  </button>
+                </div>
               </div>
 
               <div style={{ marginBottom: 14 }}>

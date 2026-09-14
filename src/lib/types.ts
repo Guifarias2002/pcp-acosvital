@@ -700,6 +700,7 @@ export interface ItemParcial {
   status: 'em_aberto' | 'recebido' | 'em_andamento' | 'em_transito' | 'concluida' | 'cancelada' | 'pausado' | 'finalizado_setor';
   observacao: string | null;
   maquina?: string | null;
+  maquina_planejada?: string | null;
   operador?: string | null;
   /** Código do motivo da pausa (ver MOTIVOS_PAUSA em src/lib/maquinas.ts). Só preenchido quando status = 'pausado'. */
   motivo_pausa?: string | null;
