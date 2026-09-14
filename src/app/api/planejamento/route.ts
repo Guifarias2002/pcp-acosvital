@@ -20,6 +20,18 @@ export const dynamic = 'force-dynamic';
 // (antes) de "na usinagem". Setor fora da lista (ex.: emissão) não tem posição.
 const POS_USINAGEM = ORDEM_SETORES.indexOf('usinagem');
 
+// Situação REAL na usinagem, derivada das parciais (prioridade: produzindo >
+// na fila > não recebido > pausado > finalizado). null = sem parcial ativa lá.
+function statusProducao(statusSet: string[]): 'produzindo' | 'recebido' | 'nao_recebido' | 'pausado' | 'finalizado' | null {
+  const s = new Set(statusSet || []);
+  if (s.has('em_andamento')) return 'produzindo';
+  if (s.has('recebido')) return 'recebido';
+  if (s.has('em_aberto')) return 'nao_recebido';
+  if (s.has('pausado')) return 'pausado';
+  if (s.has('finalizado_setor')) return 'finalizado';
+  return null;
+}
+
 // Classifica a peça em relação à usinagem. null = já passou ou não se aplica.
 function situacao(setorAtual: string, status: string): 'na_usinagem' | 'chegando' | null {
   if (setorAtual === 'usinagem') return 'na_usinagem';
@@ -48,6 +60,13 @@ export async function GET(req: Request) {
         i.previsao_conclusao::text AS item_previsao,
         p.previsao_conclusao::text AS pedido_previsao,
         (p.ordem_producao_url IS NOT NULL) AS tem_op,
+        -- Situação REAL das parciais desta peça JÁ na usinagem (produzindo/na
+        -- fila/não recebido) — pro Planejamento saber se iniciou/recebeu.
+        ARRAY(
+          SELECT DISTINCT pa.status FROM producao_itemparcial pa
+          WHERE pa.item_pedido_id = i.id AND pa.setor_atual = 'usinagem'
+            AND pa.status NOT IN ('cancelada', 'concluida', 'em_transito')
+        ) AS status_usinagem,
         pu.maquina AS maquina_planejada
       FROM producao_itempedido i
       JOIN producao_pedido p ON p.id = i.pedido_id
@@ -95,6 +114,7 @@ export async function GET(req: Request) {
         setor_atual_nome: NOMES[it.setor_atual as string] || it.setor_atual,
         status: it.status,
         situacao: sit,
+        status_prod: statusProducao(it.status_usinagem as string[]),
         maquina_planejada: (it.maquina_planejada as string) || null,
         previsao: (it.item_previsao as string) || (it.pedido_previsao as string) || null,
       });

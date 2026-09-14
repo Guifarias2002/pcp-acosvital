@@ -15,9 +15,19 @@ interface Peca {
   setor_atual_nome: string;
   status: string;
   situacao: 'na_usinagem' | 'chegando';
+  status_prod: 'produzindo' | 'recebido' | 'nao_recebido' | 'pausado' | 'finalizado' | null;
   maquina_planejada: string | null;
   previsao: string | null;
 }
+
+// Rótulo/cor da situação de produção na usinagem.
+const STATUS_PROD: Record<string, { txt: string; bg: string; cor: string; icon: string }> = {
+  produzindo:   { txt: 'Produzindo',    bg: '#dcfce7', cor: '#166534', icon: 'bi-gear-fill' },
+  recebido:     { txt: 'Na fila',       bg: '#dbeafe', cor: '#1d4ed8', icon: 'bi-inbox-fill' },
+  nao_recebido: { txt: 'Não recebido',  bg: '#fef3c7', cor: '#92400e', icon: 'bi-hourglass-split' },
+  pausado:      { txt: 'Pausado',       bg: '#fde68a', cor: '#854d0e', icon: 'bi-pause-circle-fill' },
+  finalizado:   { txt: 'Finalizado',    bg: '#e2e8f0', cor: '#334155', icon: 'bi-check2-all' },
+};
 interface PedidoPlan {
   pedido_id: number;
   numero_pedido_venda: string;
@@ -270,6 +280,11 @@ export default function PlanejamentoPage() {
     const aberto = abertos.has(ped.pedido_id);
     const jaAvisado = avisados.has(ped.pedido_id);
     const jaEncaminhado = encaminhados.has(ped.pedido_id);
+    // Resumo de status das peças JÁ na usinagem (produzindo/na fila/não recebido).
+    const contStatus: Record<string, number> = {};
+    for (const pc of ped.pecas) {
+      if (pc.situacao === 'na_usinagem' && pc.status_prod) contStatus[pc.status_prod] = (contStatus[pc.status_prod] || 0) + 1;
+    }
     return (
       <div
         key={ped.pedido_id}
@@ -303,6 +318,12 @@ export default function PlanejamentoPage() {
           <span style={{ fontSize: 11, opacity: 0.75 }}>
             {ped.pecas.length} peça{ped.pecas.length !== 1 ? 's' : ''}
           </span>
+          {/* Situação das peças na usinagem (produzindo / na fila / não recebido) */}
+          {(['produzindo', 'recebido', 'nao_recebido', 'pausado', 'finalizado'] as const).map(k => contStatus[k] ? (
+            <span key={k} title={STATUS_PROD[k].txt} style={{ fontSize: 10, fontWeight: 800, color: STATUS_PROD[k].cor, background: STATUS_PROD[k].bg, borderRadius: 8, padding: '1px 7px', whiteSpace: 'nowrap' }}>
+              <i className={`bi ${STATUS_PROD[k].icon}`} style={{ marginRight: 3 }} />{contStatus[k]} {STATUS_PROD[k].txt.toLowerCase()}
+            </span>
+          ) : null)}
           {prio && (
             <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: .4, background: PRIO_COR[prio] || C.cinza, borderRadius: 10, padding: '2px 8px' }}>
               {prio}
@@ -392,11 +413,18 @@ export default function PlanejamentoPage() {
         <div style={{ padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
           {ped.pecas.map(pc => {
             const naUsinagem = pc.situacao === 'na_usinagem';
+            const sp = naUsinagem && pc.status_prod ? STATUS_PROD[pc.status_prod] : null;
             return (
               <div key={pc.item_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', borderRadius: 8, background: '#f8fafc', flexWrap: 'wrap' }}>
-                <span title={naUsinagem ? 'Peça já está na Usinagem' : `Vindo do setor: ${pc.setor_atual_nome}`} style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: .3, color: naUsinagem ? C.verde : C.laranja, background: naUsinagem ? '#dcfce7' : '#fef3c7', borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap' }}>
-                  {naUsinagem ? 'Na usinagem' : `Chegando de ${pc.setor_atual_nome}`}
-                </span>
+                {sp ? (
+                  <span title="Situação na Usinagem" style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: .3, color: sp.cor, background: sp.bg, borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap' }}>
+                    <i className={`bi ${sp.icon}`} style={{ marginRight: 3 }} />{sp.txt}
+                  </span>
+                ) : (
+                  <span title={naUsinagem ? 'Peça já está na Usinagem' : `Vindo do setor: ${pc.setor_atual_nome}`} style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: .3, color: naUsinagem ? C.verde : C.laranja, background: naUsinagem ? '#dcfce7' : '#fef3c7', borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap' }}>
+                    {naUsinagem ? 'Na usinagem' : `Chegando de ${pc.setor_atual_nome}`}
+                  </span>
+                )}
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: C.azul }}>{pc.codigo}</div>
                   <div style={{ fontSize: 11.5, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pc.descricao}</div>
