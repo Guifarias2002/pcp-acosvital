@@ -65,6 +65,17 @@ function diasPrevisao(iso: string | null): { txt: string; cor: string } | null {
   };
 }
 
+// Mensagens prontas pro aviso de produção — clicar adiciona à observação.
+const MENSAGENS_PRONTAS = [
+  'Urgente — prioridade máxima',
+  'Prioridade do cliente',
+  'Começar por esta peça',
+  'Atenção à medida / tolerância',
+  'Conferir o desenho antes',
+  'Material já disponível',
+  'Cliente aguardando',
+];
+
 export default function PlanejamentoPage() {
   const [dados, setDados] = useState<Dados | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -377,7 +388,7 @@ export default function PlanejamentoPage() {
         .pl-btn{border:1.5px solid #e2e8f0;background:#fff;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;color:#334155;cursor:pointer}
         .pl-btn:hover{border-color:${C.azul}}
       `}</style>
-      <div style={{ maxWidth: 1160, margin: '0 auto' }}>
+      <div style={{ width: '100%' }}>
         {/* Cabeçalho */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 14, flexWrap: 'wrap' }}>
           <div>
@@ -506,10 +517,35 @@ export default function PlanejamentoPage() {
               autoFocus
               rows={3}
               placeholder="Ex.: prioridade do cliente, cuidado com a medida, começar pela peça X…"
-              style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 8, padding: '9px 10px', fontSize: 13.5, boxSizing: 'border-box', resize: 'vertical', marginBottom: 6 }}
+              style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 8, padding: '9px 10px', fontSize: 13.5, boxSizing: 'border-box', resize: 'vertical', marginBottom: 8 }}
             />
+            {/* Mensagens prontas — clicar adiciona à observação */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+              {MENSAGENS_PRONTAS.map(m => {
+                const jaTem = avisarObs.includes(m);
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setAvisarObs(prev => {
+                      if (prev.includes(m)) return prev; // não repete
+                      const base = prev.trim();
+                      return (base ? `${base}; ${m}` : m).slice(0, 500);
+                    })}
+                    style={{
+                      fontSize: 11.5, fontWeight: 600, borderRadius: 999, padding: '4px 10px', cursor: 'pointer',
+                      border: `1px solid ${jaTem ? C.laranja : '#e2e8f0'}`,
+                      background: jaTem ? '#fff7ed' : '#fff',
+                      color: jaTem ? '#c2410c' : '#475569',
+                    }}
+                  >
+                    {jaTem ? <i className="bi bi-check2" style={{ marginRight: 4 }} /> : <i className="bi bi-plus" style={{ marginRight: 2 }} />}{m}
+                  </button>
+                );
+              })}
+            </div>
             <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 16 }}>
-              O aviso aparece na caixa de mensagens da Usinagem, no topo da tela deles.
+              Clique numa sugestão pra adicionar · o aviso aparece na caixa de mensagens da Usinagem, no topo da tela deles.
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
