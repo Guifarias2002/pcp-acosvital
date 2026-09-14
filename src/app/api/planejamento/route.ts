@@ -114,6 +114,10 @@ export async function GET(req: Request) {
         });
       }
       const grupo = porPedido.get(pid)!;
+      // Conclusão efetiva do grupo = a MAIS CEDO entre pedido e itens (bate com a
+      // "definir conclusão", que pode ser por pedido ou por peça). Sequencia a fila.
+      const pcPrev = (it.item_previsao as string) || (it.pedido_previsao as string) || null;
+      if (pcPrev && (!grupo.previsao || pcPrev < grupo.previsao)) grupo.previsao = pcPrev;
       grupo.pecas.push({
         item_id: it.item_id,
         codigo: it.codigo,
@@ -135,12 +139,19 @@ export async function GET(req: Request) {
     const [ordemRow] = await sql`SELECT ordem FROM producao_setor_ordem WHERE setor = 'usinagem'`;
     const ordem = (ordemRow?.ordem as number[]) ?? [];
 
-    // Ordena os pedidos: a ordem manual manda; o resto cai depois por nº do pedido.
+    // Ordena os pedidos: 1º a ordem MANUAL ("furar a fila"); depois, pedidos COM
+    // data de CONCLUSÃO definida vêm primeiro, em SEQUÊNCIA por essa data; os SEM
+    // data caem depois, por nº do pedido. (Mesma lógica da tela da Usinagem.)
     const pos = new Map(ordem.map((id, i) => [id, i]));
+    const conclusaoMs = (v: string | null) => v ? new Date(v + 'T12:00:00').getTime() : Infinity;
     const pedidos = Array.from(porPedido.values()).sort((a, b) => {
       const pa = pos.has(a.pedido_id) ? pos.get(a.pedido_id)! : Infinity;
       const pb = pos.has(b.pedido_id) ? pos.get(b.pedido_id)! : Infinity;
       if (pa !== pb) return pa - pb;
+      const ta = a.previsao ? 0 : 1, tb = b.previsao ? 0 : 1;
+      if (ta !== tb) return ta - tb;                                  // definidos primeiro
+      const ca = conclusaoMs(a.previsao), cb = conclusaoMs(b.previsao);
+      if (ca !== cb) return ca - cb;                                  // sequência por data
       return String(a.numero_pedido_venda).localeCompare(String(b.numero_pedido_venda));
     });
 
