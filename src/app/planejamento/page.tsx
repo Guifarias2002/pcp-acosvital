@@ -90,9 +90,12 @@ export default function PlanejamentoPage() {
   // "Avisado ✓" no botão em vez de deixar avisar de novo à toa).
   const [avisados, setAvisados] = useState<Set<number>>(new Set());
   const [avisando, setAvisando] = useState<number | null>(null);
-  // Modal de "Avisar produção" — permite escrever uma observação junto ao aviso.
-  const [avisarModal, setAvisarModal] = useState<{ pedidoId: number; numero: string } | null>(null);
-  const [avisarObs, setAvisarObs] = useState('');
+  // Encaminhados: comando FIXO do Reginaldo (pedido_id -> observação). Persistente.
+  const [encaminhados, setEncaminhados] = useState<Map<number, string>>(new Map());
+  const [processando, setProcessando] = useState<number | null>(null);
+  // Modal de ação (avisar OU encaminhar) — permite escrever uma observação.
+  const [modalAcao, setModalAcao] = useState<{ tipo: 'avisar' | 'encaminhar'; pedidoId: number; numero: string } | null>(null);
+  const [modalObs, setModalObs] = useState('');
   // Aba ativa: a Fila ou o Painel de Máquinas (abre ao clicar lá em cima).
   const [aba, setAba] = useState<'fila' | 'maquinas'>('fila');
   // Tile do resumo aberto (mostra a lista por trás do número). null = nenhum.
@@ -102,9 +105,10 @@ export default function PlanejamentoPage() {
   const carregar = useCallback(async (silencioso = false) => {
     if (!silencioso) setCarregando(true);
     try {
-      const [rP, rA] = await Promise.all([
+      const [rP, rA, rE] = await Promise.all([
         fetch('/api/planejamento', { headers: { Authorization: `Bearer ${getToken() || ''}` } }),
         fetch('/api/avisos?setor=usinagem', { headers: { Authorization: `Bearer ${getToken() || ''}` } }),
+        fetch('/api/encaminhamentos?setor=usinagem', { headers: { Authorization: `Bearer ${getToken() || ''}` } }),
       ]);
       if (!rP.ok) { setErro('Não foi possível carregar o planejamento.'); return; }
       const d = await rP.json();
@@ -113,6 +117,10 @@ export default function PlanejamentoPage() {
       if (rA.ok) {
         const da = await rA.json();
         setAvisados(new Set((da.avisos || []).map((a: { pedido_id: number }) => a.pedido_id)));
+      }
+      if (rE.ok) {
+        const de = await rE.json();
+        setEncaminhados(new Map((de.encaminhados || []).map((e: { pedido_id: number; observacao: string | null }) => [e.pedido_id, e.observacao || ''])));
       }
     } catch {
       setErro('Falha de conexão ao carregar o planejamento.');
@@ -141,7 +149,38 @@ export default function PlanejamentoPage() {
       });
       if (r.ok) setAvisados(prev => new Set(prev).add(pedidoId));
     } catch { /* silencioso */ }
-    finally { setAvisando(null); setAvisarModal(null); setAvisarObs(''); }
+    finally { setAvisando(null); setModalAcao(null); setModalObs(''); }
+  }
+
+  // Encaminha (ou edita) — comando FIXO pra Usinagem. Persistente até desfazer.
+  async function encaminhar(pedidoId: number, observacao?: string) {
+    setProcessando(pedidoId);
+    try {
+      const r = await fetch('/api/encaminhamentos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
+        body: JSON.stringify({ pedido_id: pedidoId, setor: 'usinagem', observacao: observacao || '' }),
+      });
+      if (r.ok) setEncaminhados(prev => new Map(prev).set(pedidoId, observacao || ''));
+    } catch { /* silencioso */ }
+    finally { setProcessando(null); setModalAcao(null); setModalObs(''); }
+  }
+
+  // Desfaz o encaminhamento (caso de engano) — só o Reginaldo.
+  async function desfazerEncaminhamento(pedidoId: number) {
+    setProcessando(pedidoId);
+    setEncaminhados(prev => { const n = new Map(prev); n.delete(pedidoId); return n; }); // otimista
+    try {
+      await fetch(`/api/encaminhamentos/${pedidoId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${getToken() || ''}` } });
+    } catch { carregar(true); }
+    finally { setProcessando(null); }
+  }
+
+  // Abre o modal de ação (avisar/encaminhar). Pré-preenche a observação quando
+  // for EDITAR um encaminhamento existente.
+  function abrirModal(tipo: 'avisar' | 'encaminhar', pedidoId: number, numero: string) {
+    setModalObs(tipo === 'encaminhar' ? (encaminhados.get(pedidoId) || '') : '');
+    setModalAcao({ tipo, pedidoId, numero });
   }
 
   useEffect(() => { carregar(); }, [carregar]);
@@ -221,6 +260,7 @@ export default function PlanejamentoPage() {
     const arrastando = dragPedido === ped.pedido_id;
     const aberto = abertos.has(ped.pedido_id);
     const jaAvisado = avisados.has(ped.pedido_id);
+    const jaEncaminhado = encaminhados.has(ped.pedido_id);
     return (
       <div
         key={ped.pedido_id}
@@ -264,12 +304,44 @@ export default function PlanejamentoPage() {
               {prev.txt}
             </span>
           )}
-          {/* Ações à direita: avisar produção + abrir o pedido */}
-          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Ações à direita: encaminhar (fixo) + avisar (mensagem) + abrir */}
+          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {jaEncaminhado ? (
+              <>
+                <span title="Encaminhado pelo Planejamento — fixo na Usinagem" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 800, borderRadius: 8, padding: '5px 10px', background: '#16a34a', color: '#fff', whiteSpace: 'nowrap' }}>
+                  <i className="bi bi-check2-circle" />Encaminhado
+                </span>
+                <button
+                  onClick={e => { e.stopPropagation(); abrirModal('encaminhar', ped.pedido_id, ped.numero_pedido_venda); }}
+                  disabled={processando === ped.pedido_id}
+                  title="Editar a observação do encaminhamento"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, border: '1px solid rgba(255,255,255,.4)', borderRadius: 8, padding: '5px 9px', cursor: 'pointer', background: 'transparent', color: '#fff', whiteSpace: 'nowrap' }}
+                >
+                  <i className="bi bi-pencil" />Editar
+                </button>
+                <button
+                  onClick={e => { e.stopPropagation(); desfazerEncaminhamento(ped.pedido_id); }}
+                  disabled={processando === ped.pedido_id}
+                  title="Desfazer o encaminhamento (caso de engano)"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, border: '1px solid rgba(255,255,255,.4)', borderRadius: 8, padding: '5px 9px', cursor: 'pointer', background: 'transparent', color: '#fecaca', whiteSpace: 'nowrap' }}
+                >
+                  <i className="bi bi-arrow-counterclockwise" />Desfazer
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={e => { e.stopPropagation(); abrirModal('encaminhar', ped.pedido_id, ped.numero_pedido_venda); }}
+                disabled={processando === ped.pedido_id}
+                title="Encaminhar este pedido pra Usinagem — fica FIXO até você desfazer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 8, padding: '5px 11px', cursor: 'pointer', background: '#16a34a', color: '#fff', whiteSpace: 'nowrap', opacity: processando === ped.pedido_id ? .6 : 1 }}
+              >
+                <i className="bi bi-send-check-fill" />{processando === ped.pedido_id ? 'Encaminhando…' : 'Encaminhar produção'}
+              </button>
+            )}
             <button
-              onClick={e => { e.stopPropagation(); setAvisarObs(''); setAvisarModal({ pedidoId: ped.pedido_id, numero: ped.numero_pedido_venda }); }}
+              onClick={e => { e.stopPropagation(); abrirModal('avisar', ped.pedido_id, ped.numero_pedido_venda); }}
               disabled={avisando === ped.pedido_id}
-              title="Avisar a Usinagem que este pedido deve ser produzido (com observação opcional)"
+              title="Avisar a Usinagem (mensagem que some quando o operador vê)"
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700,
                 border: 'none', borderRadius: 8, padding: '5px 11px', cursor: 'pointer',
@@ -278,7 +350,7 @@ export default function PlanejamentoPage() {
               }}
             >
               <i className={`bi ${jaAvisado ? 'bi-check2-circle' : 'bi-megaphone-fill'}`} />
-              {jaAvisado ? 'Avisado' : (avisando === ped.pedido_id ? 'Avisando…' : 'Avisar produção')}
+              {jaAvisado ? 'Avisado' : (avisando === ped.pedido_id ? 'Avisando…' : 'Avisar')}
             </button>
             {ped.tem_op && (
               <a
@@ -477,7 +549,7 @@ export default function PlanejamentoPage() {
             <i className="bi bi-list-ol" style={{ marginRight: 6 }} />Fila da Usinagem
           </div>
           <div style={{ fontSize: 11.5, color: '#94a3b8', marginBottom: 12 }}>
-            Clique no pedido pra ver as peças · arraste a alça <i className="bi bi-grip-vertical" /> pra reordenar · <i className="bi bi-megaphone-fill" style={{ color: C.laranja }} /> <b>Avisar produção</b> manda o pedido pra caixa da Usinagem · {totalPecas} peça(s)
+            Clique no pedido pra ver as peças · arraste a alça <i className="bi bi-grip-vertical" /> pra reordenar · <i className="bi bi-send-check-fill" style={{ color: C.verde }} /> <b>Encaminhar</b> deixa o pedido FIXO na Usinagem · <i className="bi bi-megaphone-fill" style={{ color: C.laranja }} /> <b>Avisar</b> manda uma mensagem que some · {totalPecas} peça(s)
           </div>
 
           {carregando && !dados ? (
@@ -650,25 +722,29 @@ export default function PlanejamentoPage() {
         )}
       </div>
 
-      {/* Modal — avisar produção com observação opcional */}
-      {avisarModal && (
-        <div
-          onClick={() => { setAvisarModal(null); setAvisarObs(''); }}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
-        >
+      {/* Modal — avisar OU encaminhar produção, com observação */}
+      {modalAcao && (() => {
+        const enc = modalAcao.tipo === 'encaminhar';
+        const editando = enc && encaminhados.has(modalAcao.pedidoId);
+        const cor = enc ? C.verde : C.laranja;
+        const emAndamento = enc ? processando === modalAcao.pedidoId : avisando === modalAcao.pedidoId;
+        const fechar = () => { setModalAcao(null); setModalObs(''); };
+        return (
+        <div onClick={fechar} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: 24, width: 440, maxWidth: '94vw', boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
-              <i className="bi bi-megaphone-fill" style={{ marginRight: 5, color: C.laranja }} />Avisar Usinagem
+              <i className={`bi ${enc ? 'bi-send-check-fill' : 'bi-megaphone-fill'}`} style={{ marginRight: 5, color: cor }} />
+              {enc ? (editando ? 'Editar encaminhamento' : 'Encaminhar pra Usinagem') : 'Avisar Usinagem'}
             </div>
             <div style={{ fontSize: 18, fontWeight: 800, color: C.azul, marginBottom: 14 }}>
-              Produzir pedido {avisarModal.numero}
+              Produzir pedido {modalAcao.numero}
             </div>
             <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 6 }}>
               Observação <span style={{ fontWeight: 400, color: '#94a3b8' }}>(opcional)</span>
             </label>
             <textarea
-              value={avisarObs}
-              onChange={e => setAvisarObs(e.target.value.slice(0, 500))}
+              value={modalObs}
+              onChange={e => setModalObs(e.target.value.slice(0, 500))}
               autoFocus
               rows={3}
               placeholder="Ex.: prioridade do cliente, cuidado com a medida, começar pela peça X…"
@@ -677,21 +753,21 @@ export default function PlanejamentoPage() {
             {/* Mensagens prontas — clicar adiciona à observação */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
               {MENSAGENS_PRONTAS.map(m => {
-                const jaTem = avisarObs.includes(m);
+                const jaTem = modalObs.includes(m);
                 return (
                   <button
                     key={m}
                     type="button"
-                    onClick={() => setAvisarObs(prev => {
-                      if (prev.includes(m)) return prev; // não repete
+                    onClick={() => setModalObs(prev => {
+                      if (prev.includes(m)) return prev;
                       const base = prev.trim();
                       return (base ? `${base}; ${m}` : m).slice(0, 500);
                     })}
                     style={{
                       fontSize: 11.5, fontWeight: 600, borderRadius: 999, padding: '4px 10px', cursor: 'pointer',
-                      border: `1px solid ${jaTem ? C.laranja : '#e2e8f0'}`,
-                      background: jaTem ? '#fff7ed' : '#fff',
-                      color: jaTem ? '#c2410c' : '#475569',
+                      border: `1px solid ${jaTem ? cor : '#e2e8f0'}`,
+                      background: jaTem ? (enc ? '#f0fdf4' : '#fff7ed') : '#fff',
+                      color: jaTem ? (enc ? '#15803d' : '#c2410c') : '#475569',
                     }}
                   >
                     {jaTem ? <i className="bi bi-check2" style={{ marginRight: 4 }} /> : <i className="bi bi-plus" style={{ marginRight: 2 }} />}{m}
@@ -700,27 +776,27 @@ export default function PlanejamentoPage() {
               })}
             </div>
             <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 16 }}>
-              Clique numa sugestão pra adicionar · o aviso aparece na caixa de mensagens da Usinagem, no topo da tela deles.
+              {enc
+                ? 'Fica FIXO no topo da tela da Usinagem até você desfazer — o operador não tira.'
+                : 'Aparece na caixa de mensagens da Usinagem; some quando o operador dá "Visto".'}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => { setAvisarModal(null); setAvisarObs(''); }}
-                style={{ flex: 1, background: '#f3f4f6', color: '#555', border: 'none', borderRadius: 8, padding: '11px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-              >
+              <button onClick={fechar} style={{ flex: 1, background: '#f3f4f6', color: '#555', border: 'none', borderRadius: 8, padding: '11px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Cancelar
               </button>
               <button
-                onClick={() => avisarProducao(avisarModal.pedidoId, avisarObs)}
-                disabled={avisando === avisarModal.pedidoId}
-                style={{ flex: 2, background: C.laranja, color: '#fff', border: 'none', borderRadius: 8, padding: '11px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: avisando === avisarModal.pedidoId ? .6 : 1 }}
+                onClick={() => (enc ? encaminhar(modalAcao.pedidoId, modalObs) : avisarProducao(modalAcao.pedidoId, modalObs))}
+                disabled={emAndamento}
+                style={{ flex: 2, background: cor, color: '#fff', border: 'none', borderRadius: 8, padding: '11px 0', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: emAndamento ? .6 : 1 }}
               >
-                <i className="bi bi-send-fill" style={{ marginRight: 6 }} />
-                {avisando === avisarModal.pedidoId ? 'Enviando…' : 'Enviar aviso'}
+                <i className={`bi ${enc ? 'bi-send-check-fill' : 'bi-send-fill'}`} style={{ marginRight: 6 }} />
+                {emAndamento ? 'Enviando…' : (enc ? (editando ? 'Salvar' : 'Encaminhar') : 'Enviar aviso')}
               </button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </AuthGuard>
   );
 }

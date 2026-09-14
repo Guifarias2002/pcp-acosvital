@@ -28,7 +28,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 44;
+const SCHEMA_VERSION = 45;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -660,4 +660,23 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
     )
   `).catch(() => {});
   await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_aviso_setor_visto ON producao_aviso (setor, visto, criado_em DESC)`).catch(() => {});
+
+  // M45 (14/09): ENCAMINHAR PRODUÇÃO — comando FIXO e persistente do Planejamento
+  // (Reginaldo) pra Usinagem: "este pedido deve ser feito". Diferente do aviso
+  // (producao_aviso), que some quando o operador dá "Visto" — o encaminhamento
+  // fica FIXO no topo da Usinagem até o REGINALDO desfazer (o operador não tira).
+  // 1 linha por pedido (só usinagem por enquanto). Reginaldo pode editar a
+  // observação ou desfazer (caso de engano). Ver /api/encaminhamentos.
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS producao_encaminhamento (
+      pedido_id           INTEGER PRIMARY KEY REFERENCES producao_pedido(id) ON DELETE CASCADE,
+      setor               TEXT NOT NULL DEFAULT 'usinagem',
+      observacao          TEXT,
+      encaminhado_por_id  INTEGER,
+      encaminhado_por_nome TEXT,
+      encaminhado_em      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_em       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `).catch(() => {});
+  await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_encaminhamento_setor ON producao_encaminhamento (setor, encaminhado_em DESC)`).catch(() => {});
 }
