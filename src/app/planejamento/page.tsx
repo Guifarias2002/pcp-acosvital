@@ -118,6 +118,8 @@ export default function PlanejamentoPage() {
   const [maquinaModal, setMaquinaModal] = useState<PainelMaquina | null>(null);
   // Busca do Painel de Máquinas — filtra por máquina, pedido, código ou operador.
   const [buscaPainel, setBuscaPainel] = useState('');
+  // Busca da Fila — filtra por nº do pedido, cliente, código ou descrição.
+  const [buscaFila, setBuscaFila] = useState('');
   const podeVerCli = podeVerCliente();
 
   const carregar = useCallback(async (silencioso = false) => {
@@ -511,6 +513,15 @@ export default function PlanejamentoPage() {
     || norm(m.maquina).includes(termoPainel)
     || m.pecas.some(p => norm(p.item_codigo).includes(termoPainel) || norm(p.numero_pedido_venda).includes(termoPainel) || norm(p.operador || '').includes(termoPainel));
 
+  // Filtro da fila: nº do pedido, cliente, código ou descrição da peça.
+  const termoFila = norm(buscaFila.trim());
+  const pedidoCasa = (p: PedidoPlan) => !termoFila
+    || norm(p.numero_pedido_venda).includes(termoFila)
+    || (podeVerCli && norm(p.cliente || '').includes(termoFila))
+    || p.pecas.some(pc => norm(pc.codigo).includes(termoFila) || norm(pc.descricao).includes(termoFila));
+  const pedidosNaVis = pedidosNa.filter(pedidoCasa);
+  const pedidosChegVis = pedidosCheg.filter(pedidoCasa);
+
   const renderMaquina = (mq: PainelMaquina) => {
     const ocupada = mq.pecas.length > 0;
     return (
@@ -624,6 +635,23 @@ export default function PlanejamentoPage() {
             Clique no pedido pra ver as peças · arraste a alça <i className="bi bi-grip-vertical" /> pra reordenar · <i className="bi bi-send-check-fill" style={{ color: C.verde }} /> <b>Encaminhar</b> deixa o pedido FIXO na Usinagem · <i className="bi bi-megaphone-fill" style={{ color: C.laranja }} /> <b>Avisar</b> manda uma mensagem que some · {totalPecas} peça(s)
           </div>
 
+          {/* Busca da fila — nº do pedido, cliente, código ou descrição */}
+          <div style={{ position: 'relative', maxWidth: 420, marginBottom: 14 }}>
+            <i className="bi bi-search" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 13 }} />
+            <input
+              type="text"
+              value={buscaFila}
+              onChange={e => setBuscaFila(e.target.value)}
+              placeholder="Filtrar pedido (nº, cliente, código ou descrição)…"
+              style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 30px 8px 30px', fontSize: 13, boxSizing: 'border-box' }}
+            />
+            {buscaFila && (
+              <button onClick={() => setBuscaFila('')} title="Limpar filtro" style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 14, lineHeight: 1, padding: 2 }}>
+                <i className="bi bi-x-lg" />
+              </button>
+            )}
+          </div>
+
           {carregando && !dados ? (
             <div style={{ padding: 30, textAlign: 'center', color: C.cinza, fontSize: 13 }}>Carregando…</div>
           ) : (dados?.pedidos.length ?? 0) === 0 ? (
@@ -635,21 +663,21 @@ export default function PlanejamentoPage() {
               {/* Grupo 1 — pedidos que JA estao na Usinagem */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 8px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 11, fontWeight: 800, color: C.verde, textTransform: 'uppercase', letterSpacing: .5 }}>
-                  <i className="bi bi-gear-fill" style={{ marginRight: 5 }} />Na Usinagem ({pedidosNa.length})
+                  <i className="bi bi-gear-fill" style={{ marginRight: 5 }} />Na Usinagem ({termoFila ? `${pedidosNaVis.length} de ${pedidosNa.length}` : pedidosNa.length})
                 </span>
                 <span title="Pedidos sendo produzidos / total na usinagem" style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 800, color: '#fff', background: C.verde, borderRadius: 10, padding: '2px 10px' }}>
                   <i className="bi bi-gear-fill" style={{ marginRight: 4 }} />{produzindoNa} / {pedidosNa.length} em produção
                 </span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 22 }}>
-                {pedidosNa.length ? pedidosNa.map((ped, idx) => renderPedido(ped, idx)) : grupoVazio('Nenhum pedido na Usinagem agora.')}
+                {pedidosNaVis.length ? pedidosNaVis.map((ped, idx) => renderPedido(ped, idx)) : grupoVazio(termoFila ? 'Nenhum pedido bate com a busca.' : 'Nenhum pedido na Usinagem agora.')}
               </div>
               {/* Grupo 2 — pedidos que vao CHEGAR na Usinagem */}
               <div style={{ fontSize: 11, fontWeight: 800, color: C.laranja, textTransform: 'uppercase', letterSpacing: .5, margin: '4px 0 8px' }}>
-                <i className="bi bi-truck" style={{ marginRight: 5 }} />Vão chegar na Usinagem ({pedidosCheg.length})
+                <i className="bi bi-truck" style={{ marginRight: 5 }} />Vão chegar na Usinagem ({termoFila ? `${pedidosChegVis.length} de ${pedidosCheg.length}` : pedidosCheg.length})
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {pedidosCheg.length ? pedidosCheg.map((ped, idx) => renderPedido(ped, idx)) : grupoVazio('Nada a caminho da Usinagem agora.')}
+                {pedidosChegVis.length ? pedidosChegVis.map((ped, idx) => renderPedido(ped, idx)) : grupoVazio(termoFila ? 'Nenhum pedido bate com a busca.' : 'Nada a caminho da Usinagem agora.')}
               </div>
             </>
           )}
