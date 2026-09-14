@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
-import { podeDefinirPrevisao, podePlanejar } from '@/lib/auth';
+import { podeDefinirPrevisao } from '@/lib/auth';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
@@ -12,9 +12,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
-  // Quem pode definir a previsão: PCP/Gilmar (podeDefinirPrevisao) OU o
-  // Planejamento (Reginaldo), que define a conclusão direto na tela dele.
-  if (!podeDefinirPrevisao(user) && !podePlanejar(user))
+  if (!podeDefinirPrevisao(user))
     return NextResponse.json({ erro: 'Sem permissao para definir previsao' }, { status: 403 });
   if (!checkMutationRateLimit(getClientIp(req)))
     return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });

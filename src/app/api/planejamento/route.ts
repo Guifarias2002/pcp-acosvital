@@ -57,6 +57,10 @@ export async function GET(req: Request) {
         i.unidade, i.setor_atual, i.status, i.pedido_id,
         p.numero_pedido_venda, p.cliente, p.prioridade,
         p.prazo_entrega::text AS prazo,
+        -- Prazo AUTOMÁTICO do Planejamento: data de lançamento (emissão, ou a
+        -- criação como reserva) + 7 dias. É só do painel do Reginaldo — não mexe
+        -- na previsão de conclusão do sistema (atraso do dashboard/setores).
+        (COALESCE(p.data_emissao, p.criado_em::date) + 7)::text AS prazo_auto,
         i.previsao_conclusao::text AS item_previsao,
         p.previsao_conclusao::text AS pedido_previsao,
         (p.ordem_producao_url IS NOT NULL) AS tem_op,
@@ -108,16 +112,13 @@ export async function GET(req: Request) {
           cliente: it.cliente,
           prioridade: it.prioridade,
           prazo: it.prazo,
-          previsao: (it.pedido_previsao as string) || null,
+          // Prazo do Planejamento = lançamento + 7 dias corridos (automático).
+          previsao: (it.prazo_auto as string) || null,
           tem_op: it.tem_op === true,
           pecas: [],
         });
       }
       const grupo = porPedido.get(pid)!;
-      // Conclusão efetiva do grupo = a MAIS CEDO entre pedido e itens (bate com a
-      // "definir conclusão", que pode ser por pedido ou por peça). Sequencia a fila.
-      const pcPrev = (it.item_previsao as string) || (it.pedido_previsao as string) || null;
-      if (pcPrev && (!grupo.previsao || pcPrev < grupo.previsao)) grupo.previsao = pcPrev;
       grupo.pecas.push({
         item_id: it.item_id,
         codigo: it.codigo,

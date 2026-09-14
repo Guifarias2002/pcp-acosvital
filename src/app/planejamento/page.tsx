@@ -77,7 +77,7 @@ function diasPrevisao(iso: string | null): { txt: string; cor: string; rel: stri
   // Mostra a DATA da conclusão (DD/MM) + a folga, sempre em AZUL.
   const data = `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
   const rel = dias < 0 ? `${Math.abs(dias)}d atraso` : dias === 0 ? 'hoje' : `faltam ${dias}d`;
-  return { cor: C.azul2, txt: `Conclusão: ${data} · ${rel}`, rel };
+  return { cor: C.azul2, txt: `Prazo: ${data} · ${rel}`, rel };
 }
 
 // Mensagens prontas pro aviso de produção — clicar adiciona à observação.
@@ -99,7 +99,6 @@ export default function PlanejamentoPage() {
   const [dragPedido, setDragPedido] = useState<number | null>(null);
   const [salvandoMaq, setSalvandoMaq] = useState<number | null>(null);
   const [salvoMaq, setSalvoMaq] = useState<number | null>(null); // item que acabou de salvar (mostra ✓)
-  const [salvandoData, setSalvandoData] = useState<number | null>(null);
   // Pedidos com o card ABERTO (mostrando as peças). Começam fechados: clicar
   // no cabeçalho abre e mostra "quais são".
   const [abertos, setAbertos] = useState<Set<number>>(new Set());
@@ -152,23 +151,6 @@ export default function PlanejamentoPage() {
       setCarregando(false);
     }
   }, []);
-
-  // Reginaldo define a DATA de conclusão do pedido direto aqui — vira a base da
-  // sequência da fila. Vazio limpa. Salva no pedido (peças sem data herdam).
-  async function definirConclusao(pedidoId: number, data: string) {
-    setSalvandoData(pedidoId);
-    // Otimista: atualiza a data no card já.
-    setDados(d => d ? { ...d, pedidos: d.pedidos.map(p => p.pedido_id === pedidoId ? { ...p, previsao: data || null } : p) } : d);
-    try {
-      await fetch(`/api/pedidos/${pedidoId}/previsao`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
-        body: JSON.stringify({ previsao: data }),
-      });
-      carregar(true); // re-ordena a fila pela nova data
-    } catch { /* próximo refresh reconcilia */ }
-    finally { setSalvandoData(null); }
-  }
 
   function toggleAberto(pedidoId: number) {
     setAbertos(prev => {
@@ -359,23 +341,12 @@ export default function PlanejamentoPage() {
               {prio}
             </span>
           )}
-          {/* Data de CONCLUSÃO — o Reginaldo define aqui (base da sequência da fila) */}
-          <span onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-            <i className="bi bi-calendar-event" style={{ fontSize: 12, opacity: 0.8 }} />
-            <input
-              type="date"
-              value={ped.previsao ? String(ped.previsao).slice(0, 10) : ''}
-              disabled={salvandoData === ped.pedido_id}
-              onChange={e => definirConclusao(ped.pedido_id, e.target.value)}
-              title="Definir a data de conclusão deste pedido"
-              style={{ fontSize: 11.5, fontWeight: 600, border: '1px solid rgba(255,255,255,.35)', background: '#fff', color: C.azul, borderRadius: 6, padding: '2px 6px', cursor: 'pointer' }}
-            />
-            {prev && (
-              <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fff', background: prev.cor, borderRadius: 8, padding: '1px 7px', whiteSpace: 'nowrap' }}>
-                {prev.rel}
-              </span>
-            )}
-          </span>
+          {/* Prazo AUTOMÁTICO = lançamento + 7 dias corridos (só leitura) */}
+          {prev && (
+            <span title="Prazo automático: lançamento + 7 dias" style={{ fontSize: 11.5, fontWeight: 700, color: '#fff', background: prev.cor, borderRadius: 10, padding: '2px 9px', whiteSpace: 'nowrap' }}>
+              <i className="bi bi-calendar-event" style={{ marginRight: 4 }} />{prev.txt}
+            </span>
+          )}
           {/* Ações à direita: encaminhar (fixo) + avisar (mensagem) + abrir */}
           <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {jaEncaminhado ? (
