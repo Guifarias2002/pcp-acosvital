@@ -3872,6 +3872,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   // Encaminhados pelo Planejamento (Reginaldo): pedido_id -> {observação, fixo}.
   // Os FIXOS fixam o próprio card no topo da fila; o operador não tira.
   const [encaminhados, setEncaminhados] = useState<Map<number, { observacao: string; fixo: boolean; por: string }>>(new Map());
+  // Avisos (mensagens) do Planejamento: pedido_id -> lista de {mensagem, por}.
+  // Aparecem numa faixa amarela NO card (sem fixar) + na caixa de mensagens.
+  const [avisosMap, setAvisosMap] = useState<Map<number, { mensagem: string; por: string }[]>>(new Map());
   const podeDesfazer = podeDesfazerRecebimento();
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
   const [modalRastreio, setModalRastreio] = useState<{ pedidoId: number; numero: string } | null>(null);
@@ -3929,13 +3932,29 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
       .catch(() => {});
   }, [setor]);
 
-  // Carrega os encaminhados do Planejamento (só na Usinagem) e atualiza a cada 20s.
+  // Carrega encaminhados (fixo no card) + avisos (faixa amarela no card) do
+  // Planejamento — só na Usinagem — e atualiza a cada 20s.
   useEffect(() => {
     if (setor !== 'usinagem') return;
-    const load = () => fetch(`/api/encaminhamentos?setor=usinagem`, { headers: { Authorization: `Bearer ${getToken() || ''}` } })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setEncaminhados(new Map((d.encaminhados || []).map((e: { pedido_id: number; observacao: string | null; fixo?: boolean; encaminhado_por_nome: string | null }) => [e.pedido_id, { observacao: e.observacao || '', fixo: e.fixo !== false, por: e.encaminhado_por_nome || '' }]))); })
-      .catch(() => {});
+    const hdr = { headers: { Authorization: `Bearer ${getToken() || ''}` } };
+    const load = () => {
+      fetch(`/api/encaminhamentos?setor=usinagem`, hdr)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setEncaminhados(new Map((d.encaminhados || []).map((e: { pedido_id: number; observacao: string | null; fixo?: boolean; encaminhado_por_nome: string | null }) => [e.pedido_id, { observacao: e.observacao || '', fixo: e.fixo !== false, por: e.encaminhado_por_nome || '' }]))); })
+        .catch(() => {});
+      fetch(`/api/avisos?setor=usinagem`, hdr)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (!d) return;
+          const m = new Map<number, { mensagem: string; por: string }[]>();
+          for (const a of (d.avisos || []) as { pedido_id: number; mensagem: string | null; criado_por_nome: string | null }[]) {
+            if (!m.has(a.pedido_id)) m.set(a.pedido_id, []);
+            m.get(a.pedido_id)!.push({ mensagem: a.mensagem || '', por: a.criado_por_nome || '' });
+          }
+          setAvisosMap(m);
+        })
+        .catch(() => {});
+    };
     load();
     const t = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 20000);
     return () => clearInterval(t);
@@ -4474,6 +4493,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                     // topo, com borda verde e faixa "Encaminhado" (o operador não tira).
                     const enc = encaminhados.get(pedido_id);
                     const encFixo = !!enc?.fixo;
+                    // Avisos (amarelo) — aparecem NO card, sem fixar; some quando o
+                    // operador dá "Visto" na caixa de mensagens.
+                    const avisosDoPedido = avisosMap.get(pedido_id) || [];
 
                     return (
                       <div key={pedido_id} className={`setor-pedido-grupo${destaqueVermelho ? ' pcp-pulse' : ''}`}
@@ -4495,6 +4517,16 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             {encFixo ? 'Encaminhado pelo Planejamento — deve ser feito' : 'Encaminhado pelo Planejamento'}
                             {enc.observacao && <span style={{ fontWeight: 400, opacity: 0.95 }}>· {enc.observacao}</span>}
                             {enc.por && <span style={{ fontWeight: 400, opacity: 0.8 }}>· {enc.por}</span>}
+                          </div>
+                        )}
+                        {/* Faixa de AVISO (amarelo) do Planejamento — no card, sem fixar */}
+                        {avisosDoPedido.length > 0 && (
+                          <div style={{ background: '#f59e0b', color: '#fff', padding: '5px 14px', fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <i className="bi bi-megaphone-fill" />
+                            Aviso do Planejamento
+                            {avisosDoPedido.map((a, ai) => (
+                              <span key={ai} style={{ fontWeight: 400, opacity: 0.95 }}>· {a.mensagem || 'Produzir este pedido'}{a.por ? ` (${a.por})` : ''}</span>
+                            ))}
                           </div>
                         )}
                         {/* Cabeçalho do pedido — clicável para colapsar/expandir */}
