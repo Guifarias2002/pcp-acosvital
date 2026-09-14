@@ -67,7 +67,6 @@ import IniciarEntregaModal from '@/components/IniciarEntregaModal';
 import DivergenciaResolucaoModal from '@/components/DivergenciaResolucaoModal';
 import IniciarProducaoModal from '@/components/IniciarProducaoModal';
 import AvisosSetor from '@/components/AvisosSetor';
-import EncaminhadosSetor from '@/components/EncaminhadosSetor';
 import PausarModal from '@/components/PausarModal';
 import { temMaquinas, retomarPedeMaquina, labelMotivoPausa, type MotivoPausa } from '@/lib/maquinas';
 import AdicionarItemPedidoModal from '@/components/AdicionarItemPedidoModal';
@@ -3870,6 +3869,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
   // dela caem depois, auto-ordenados. dragPedidoId = card sendo arrastado agora.
   const [ordemManual, setOrdemManual] = useState<number[]>([]);
   const [dragPedidoId, setDragPedidoId] = useState<number | null>(null);
+  // Encaminhados pelo Planejamento (Reginaldo): pedido_id -> {observação, fixo}.
+  // Os FIXOS fixam o próprio card no topo da fila; o operador não tira.
+  const [encaminhados, setEncaminhados] = useState<Map<number, { observacao: string; fixo: boolean; por: string }>>(new Map());
   const podeDesfazer = podeDesfazerRecebimento();
   const [confirm, setConfirm] = useState<{ titulo: string; mensagem: string; acao: () => void } | null>(null);
   const [modalRastreio, setModalRastreio] = useState<{ pedidoId: number; numero: string } | null>(null);
@@ -3925,6 +3927,18 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
       // sort por pedido_id (número) não casava e a ordem salva sumia ao voltar.
       .then(d => setOrdemManual(Array.isArray(d.ordem) ? d.ordem.map(Number).filter((n: number) => Number.isFinite(n)) : []))
       .catch(() => {});
+  }, [setor]);
+
+  // Carrega os encaminhados do Planejamento (só na Usinagem) e atualiza a cada 20s.
+  useEffect(() => {
+    if (setor !== 'usinagem') return;
+    const load = () => fetch(`/api/encaminhamentos?setor=usinagem`, { headers: { Authorization: `Bearer ${getToken() || ''}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setEncaminhados(new Map((d.encaminhados || []).map((e: { pedido_id: number; observacao: string | null; fixo?: boolean; encaminhado_por_nome: string | null }) => [e.pedido_id, { observacao: e.observacao || '', fixo: e.fixo !== false, por: e.encaminhado_por_nome || '' }]))); })
+      .catch(() => {});
+    load();
+    const t = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 20000);
+    return () => clearInterval(t);
   }, [setor]);
 
   // Salva a nova ordem manual (otimista + POST).
@@ -4169,8 +4183,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
         </div>
       </div>
 
-      {/* Comandos fixos do Planejamento + caixa de avisos — só na Usinagem */}
-      {setor === 'usinagem' && <EncaminhadosSetor setor={setor} />}
+      {/* Caixa de avisos (mensagens) do Planejamento — só na Usinagem.
+          Os ENCAMINHADOS agora fixam o próprio card do pedido no topo da fila
+          (ver o sort + a faixa verde no card), sem caixa separada. */}
       {setor === 'usinagem' && <AvisosSetor setor={setor} />}
 
       {/* Filtro de pedido — todos os setores (busca por PV/código/descrição) */}
@@ -4352,6 +4367,16 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
               });
             }
 
+            // Encaminhados FIXOS pelo Planejamento (Reginaldo) vêm SEMPRE no topo,
+            // na frente de tudo (sort estável preserva a ordem entre eles).
+            if (encaminhados.size) {
+              pedidos.sort((a, b) => {
+                const fa = encaminhados.get(a.pedido_id)?.fixo ? 0 : 1;
+                const fb = encaminhados.get(b.pedido_id)?.fixo ? 0 : 1;
+                return fa - fb;
+              });
+            }
+
             // Filtro de busca (client-side): esconde os pedidos que não batem
             // com a busca. Vazio/fora da Usinagem => mostra todos.
             const pedidosVis = termoUsinagem
@@ -4445,6 +4470,10 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                     const atrasadoPed = !!previsaoPed &&
                       Math.ceil((new Date(previsaoPed + 'T12:00:00').getTime() - Date.now()) / 86400000) < 0;
                     const destaqueVermelho = prioUrgente || atrasadoPed;
+                    // Encaminhado pelo Planejamento (Reginaldo). FIXO = card fica no
+                    // topo, com borda verde e faixa "Encaminhado" (o operador não tira).
+                    const enc = encaminhados.get(pedido_id);
+                    const encFixo = !!enc?.fixo;
 
                     return (
                       <div key={pedido_id} className={`setor-pedido-grupo${destaqueVermelho ? ' pcp-pulse' : ''}`}
@@ -4458,7 +4487,16 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                           salvarOrdem(ids);
                           setDragPedidoId(null);
                         } : undefined}
-                        style={{ border: `2px solid ${dragPedidoId === pedido_id ? '#0d6efd' : (destaqueVermelho ? '#ef4444' : '#dde3f0')}`, borderRadius: 12, overflow: 'hidden', background: '#fff', opacity: dragPedidoId === pedido_id ? 0.45 : 1, transition: 'opacity .12s' }}>
+                        style={{ border: `${encFixo ? 3 : 2}px solid ${encFixo ? '#16a34a' : (dragPedidoId === pedido_id ? '#0d6efd' : (destaqueVermelho ? '#ef4444' : '#dde3f0'))}`, borderRadius: 12, overflow: 'hidden', background: '#fff', opacity: dragPedidoId === pedido_id ? 0.45 : 1, transition: 'opacity .12s', boxShadow: encFixo ? '0 0 0 3px rgba(22,163,74,.15)' : undefined }}>
+                        {/* Faixa de encaminhamento do Planejamento (Reginaldo) */}
+                        {enc && (
+                          <div style={{ background: encFixo ? '#16a34a' : '#64748b', color: '#fff', padding: '5px 14px', fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <i className={`bi ${encFixo ? 'bi-pin-angle-fill' : 'bi-arrow-return-right'}`} />
+                            {encFixo ? 'Encaminhado pelo Planejamento — deve ser feito' : 'Encaminhado pelo Planejamento'}
+                            {enc.observacao && <span style={{ fontWeight: 400, opacity: 0.95 }}>· {enc.observacao}</span>}
+                            {enc.por && <span style={{ fontWeight: 400, opacity: 0.8 }}>· {enc.por}</span>}
+                          </div>
+                        )}
                         {/* Cabeçalho do pedido — clicável para colapsar/expandir */}
                         <div
                           className="setor-pedido-header"
