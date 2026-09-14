@@ -95,6 +95,11 @@ export async function GET(req: Request) {
     for (const it of itens) {
       const sit = situacao(it.setor_atual as string, it.status as string);
       if (!sit) continue;
+      const sp = statusProducao(it.status_usinagem as string[]);
+      // Peça FINALIZADA na usinagem some do Planejamento (produção concluída
+      // no setor): só finalizado_setor entre as parciais, ou nenhuma parcial
+      // ativa e o item já marcado como finalizado no setor.
+      if (sit === 'na_usinagem' && (sp === 'finalizado' || (sp === null && it.status === 'finalizado_setor'))) continue;
       const pid = it.pedido_id as number;
       if (!porPedido.has(pid)) {
         porPedido.set(pid, {
@@ -119,7 +124,7 @@ export async function GET(req: Request) {
         setor_atual_nome: NOMES[it.setor_atual as string] || it.setor_atual,
         status: it.status,
         situacao: sit,
-        status_prod: statusProducao(it.status_usinagem as string[]),
+        status_prod: sp,
         maquina_em_producao: (it.maquina_em_producao as string) || null,
         maquina_planejada: (it.maquina_planejada as string) || null,
         previsao: (it.item_previsao as string) || (it.pedido_previsao as string) || null,
