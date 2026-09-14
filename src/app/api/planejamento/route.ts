@@ -118,7 +118,8 @@ export async function GET(req: Request) {
       SELECT
         pa.maquina, pa.operador, pa.quantidade::float AS quantidade, i.unidade,
         i.codigo AS item_codigo, i.descricao AS item_descricao,
-        p.numero_pedido_venda, p.cliente, p.prioridade,
+        p.id AS pedido_id, p.numero_pedido_venda, p.cliente, p.prioridade,
+        (p.ordem_producao_url IS NOT NULL) AS tem_op,
         COALESCE(pa.maquina_sessao_iniciada_em, pa.iniciado_em)::text AS desde
       FROM producao_itemparcial pa
       JOIN producao_itempedido i ON i.id = pa.item_pedido_id
@@ -135,6 +136,7 @@ export async function GET(req: Request) {
     const semMaquina: unknown[] = []; // produzindo mas sem máquina registrada
     for (const a of ativas) {
       const reg = {
+        pedido_id: a.pedido_id, tem_op: a.tem_op === true,
         item_codigo: a.item_codigo, item_descricao: a.item_descricao,
         quantidade: a.quantidade, unidade: a.unidade,
         numero_pedido_venda: a.numero_pedido_venda, cliente: a.cliente,

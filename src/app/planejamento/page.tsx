@@ -29,6 +29,7 @@ interface PedidoPlan {
   pecas: Peca[];
 }
 interface MaquinaAtiva {
+  pedido_id: number; tem_op?: boolean;
   item_codigo: string; item_descricao: string; quantidade: number; unidade: string;
   numero_pedido_venda: string; cliente: string; prioridade: string;
   operador: string | null; desde: string | null;
@@ -100,6 +101,8 @@ export default function PlanejamentoPage() {
   const [aba, setAba] = useState<'fila' | 'maquinas'>('fila');
   // Tile do resumo aberto (mostra a lista por trás do número). null = nenhum.
   const [detalheResumo, setDetalheResumo] = useState<'pedidos' | 'pecas' | 'qtd' | 'uso' | 'livres' | null>(null);
+  // Máquina clicada no painel — abre modal com os pedidos dela. null = nenhum.
+  const [maquinaModal, setMaquinaModal] = useState<PainelMaquina | null>(null);
   const podeVerCli = podeVerCliente();
 
   const carregar = useCallback(async (silencioso = false) => {
@@ -447,7 +450,12 @@ export default function PlanejamentoPage() {
   const renderMaquina = (mq: PainelMaquina) => {
     const ocupada = mq.pecas.length > 0;
     return (
-      <div key={mq.maquina} style={{ border: `2px solid ${ocupada ? C.azul2 : '#e2e8f0'}`, borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+      <div
+        key={mq.maquina}
+        onClick={ocupada ? () => setMaquinaModal(mq) : undefined}
+        title={ocupada ? 'Clique para ver os pedidos desta máquina' : undefined}
+        style={{ border: `2px solid ${ocupada ? C.azul2 : '#e2e8f0'}`, borderRadius: 12, overflow: 'hidden', background: '#fff', cursor: ocupada ? 'pointer' : 'default' }}
+      >
         <div style={{ background: ocupada ? C.azul2 : '#f1f5f9', color: ocupada ? '#fff' : '#64748b', padding: '8px 12px', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
           <i className={`bi ${ocupada ? 'bi-gear-fill' : 'bi-gear'}`} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mq.maquina}</span>
@@ -797,6 +805,49 @@ export default function PlanejamentoPage() {
         </div>
         );
       })()}
+
+      {/* Modal — pedidos de uma máquina (clicou no card do painel) */}
+      {maquinaModal && (
+        <div onClick={() => setMaquinaModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: 22, width: 560, maxWidth: '94vw', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <i className="bi bi-gear-fill" style={{ color: C.azul2, fontSize: 18 }} />
+              <div style={{ fontSize: 18, fontWeight: 800, color: C.azul }}>{maquinaModal.maquina}</div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: C.azul2, borderRadius: 10, padding: '1px 8px' }}>{maquinaModal.pecas.length} pedido(s)</span>
+              <button onClick={() => setMaquinaModal(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 18, lineHeight: 1 }}><i className="bi bi-x-lg" /></button>
+            </div>
+            <div style={{ fontSize: 11.5, color: '#94a3b8', marginBottom: 14 }}>Produzindo agora nesta máquina</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {maquinaModal.pecas.map((p, i) => (
+                <div key={i} style={{ border: '1px solid #e2e8f0', borderLeft: `4px solid ${C.verde}`, borderRadius: 10, padding: '10px 12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <b style={{ fontSize: 14, color: C.azul }}>{p.item_codigo}</b>
+                    <span style={{ fontSize: 12.5, color: '#64748b' }}>· {p.numero_pedido_venda}{podeVerCli && p.cliente ? ` · ${p.cliente}` : ''}</span>
+                    <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                      {p.tem_op && (
+                        <a href={`/api/pedidos/${p.pedido_id}/ordem-producao?token=${encodeURIComponent(getToken() || '')}`} target="_blank" rel="noopener noreferrer"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, border: '1px solid #93c5fd', background: '#eff6ff', color: '#1d4ed8', borderRadius: 7, padding: '4px 9px', textDecoration: 'none' }}>
+                          <i className="bi bi-file-earmark-text" />OP
+                        </a>
+                      )}
+                      <a href={`/pedidos/${p.pedido_id}`} target="_blank" rel="noopener noreferrer"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', borderRadius: 7, padding: '4px 9px', textDecoration: 'none' }}>
+                        <i className="bi bi-box-arrow-up-right" />Abrir pedido
+                      </a>
+                    </span>
+                  </div>
+                  {p.item_descricao && <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 3 }}>{p.item_descricao}</div>}
+                  <div style={{ fontSize: 11.5, color: '#475569', marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <span><i className="bi bi-box-seam" style={{ marginRight: 3 }} />{Number(p.quantidade).toLocaleString('pt-BR')} {p.unidade}</span>
+                    {p.operador && <span><i className="bi bi-person" style={{ marginRight: 3 }} />{p.operador}</span>}
+                    {p.desde && <span><i className="bi bi-clock" style={{ marginRight: 3 }} />{tempoDesde(p.desde)}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </AuthGuard>
   );
 }
