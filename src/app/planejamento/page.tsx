@@ -324,6 +324,51 @@ export default function PlanejamentoPage() {
     </div>
   );
 
+  // ── Painel de máquinas: agrupado por CATEGORIA (Tornos Manuais/CNC/Verticais) ──
+  const painelMap = new Map((dados?.painel || []).map(p => [p.maquina, p] as const));
+  const nomesEmGrupos = new Set(grupos.flatMap(g => g.maquinas));
+  const painelOutras = (dados?.painel || []).filter(p => !nomesEmGrupos.has(p.maquina));
+
+  const renderMaquina = (mq: PainelMaquina) => {
+    const ocupada = mq.pecas.length > 0;
+    return (
+      <div key={mq.maquina} style={{ border: `2px solid ${ocupada ? C.azul2 : '#e2e8f0'}`, borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+        <div style={{ background: ocupada ? C.azul2 : '#f1f5f9', color: ocupada ? '#fff' : '#64748b', padding: '8px 12px', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <i className={`bi ${ocupada ? 'bi-gear-fill' : 'bi-gear'}`} />
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mq.maquina}</span>
+          {ocupada && <span style={{ marginLeft: 'auto', fontSize: 10.5, background: 'rgba(255,255,255,.25)', borderRadius: 10, padding: '1px 7px' }}>{mq.pecas.length}</span>}
+        </div>
+        <div style={{ padding: 8 }}>
+          {!ocupada ? (
+            <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '10px 0', fontWeight: 600 }}>Livre</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {mq.pecas.map((p, i) => (
+                <div key={i} style={{ borderLeft: `3px solid ${C.verde}`, padding: '4px 8px', background: '#f8fafc', borderRadius: 6 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: C.azul }}>{p.item_codigo}</div>
+                  <div style={{ fontSize: 11, color: '#64748b' }}>
+                    {p.numero_pedido_venda}{podeVerCli && p.cliente ? ` · ${p.cliente}` : ''}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#475569', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <span><i className="bi bi-box-seam" style={{ marginRight: 3 }} />{Number(p.quantidade).toLocaleString('pt-BR')} {p.unidade}</span>
+                    {p.operador && <span><i className="bi bi-person" style={{ marginRight: 3 }} />{p.operador}</span>}
+                    {p.desde && <span><i className="bi bi-clock" style={{ marginRight: 3 }} />{tempoDesde(p.desde)}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const gridMaquinas = (maquinas: PainelMaquina[]) => (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+      {maquinas.map(renderMaquina)}
+    </div>
+  );
+
   return (
     <AuthGuard>
       <style>{`
@@ -398,41 +443,28 @@ export default function PlanejamentoPage() {
             O que está produzindo agora em cada máquina da Usinagem · atualiza sozinho a cada 30s
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
-            {(dados?.painel || []).map(mq => {
-              const ocupada = mq.pecas.length > 0;
-              return (
-                <div key={mq.maquina} style={{ border: `2px solid ${ocupada ? C.azul2 : '#e2e8f0'}`, borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
-                  <div style={{ background: ocupada ? C.azul2 : '#f1f5f9', color: ocupada ? '#fff' : '#64748b', padding: '8px 12px', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <i className={`bi ${ocupada ? 'bi-gear-fill' : 'bi-gear'}`} />
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mq.maquina}</span>
-                    {ocupada && <span style={{ marginLeft: 'auto', fontSize: 10.5, background: 'rgba(255,255,255,.25)', borderRadius: 10, padding: '1px 7px' }}>{mq.pecas.length}</span>}
-                  </div>
-                  <div style={{ padding: 8 }}>
-                    {!ocupada ? (
-                      <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '10px 0', fontWeight: 600 }}>Livre</div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {mq.pecas.map((p, i) => (
-                          <div key={i} style={{ borderLeft: `3px solid ${C.verde}`, padding: '4px 8px', background: '#f8fafc', borderRadius: 6 }}>
-                            <div style={{ fontSize: 12.5, fontWeight: 700, color: C.azul }}>{p.item_codigo}</div>
-                            <div style={{ fontSize: 11, color: '#64748b' }}>
-                              {p.numero_pedido_venda}{podeVerCli && p.cliente ? ` · ${p.cliente}` : ''}
-                            </div>
-                            <div style={{ fontSize: 11, color: '#475569', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              <span><i className="bi bi-box-seam" style={{ marginRight: 3 }} />{Number(p.quantidade).toLocaleString('pt-BR')} {p.unidade}</span>
-                              {p.operador && <span><i className="bi bi-person" style={{ marginRight: 3 }} />{p.operador}</span>}
-                              {p.desde && <span><i className="bi bi-clock" style={{ marginRight: 3 }} />{tempoDesde(p.desde)}</span>}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+          {/* Agrupado por CATEGORIA (Tornos Manuais / CNC / Verticais) */}
+          {grupos.map(g => {
+            const maquinas = g.maquinas.map(nome => painelMap.get(nome) ?? { maquina: nome, pecas: [] });
+            const emUso = maquinas.filter(m => m.pecas.length > 0).length;
+            return (
+              <div key={g.categoria} style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: C.azul, margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <i className="bi bi-diagram-2-fill" style={{ color: C.roxo }} />{g.categoria}
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: '#94a3b8' }}>· {emUso}/{maquinas.length} em uso</span>
                 </div>
-              );
-            })}
-          </div>
+                {gridMaquinas(maquinas)}
+              </div>
+            );
+          })}
+          {painelOutras.length > 0 && (
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: C.azul, margin: '0 0 8px' }}>
+                <i className="bi bi-diagram-2-fill" style={{ color: C.roxo, marginRight: 6 }} />Outras
+              </div>
+              {gridMaquinas(painelOutras)}
+            </div>
+          )}
 
           {/* Produzindo sem máquina registrada (fica de fora do grid fixo) */}
           {(dados?.sem_maquina?.length ?? 0) > 0 && (
