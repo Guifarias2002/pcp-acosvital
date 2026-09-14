@@ -931,6 +931,18 @@ async function handlePOST(
           AND setor_atual = ${item.setor_atual}
           AND status IN ('em_aberto', 'recebido', 'em_andamento')
       `;
+      // Data de conclusão do Planejamento ZERA quando a usinagem do pedido termina:
+      // se não sobrou nenhuma parcial ATIVA na usinagem, limpa a previsão do pedido.
+      if (item.setor_atual === 'usinagem') {
+        const [{ resta }] = await tx`
+          SELECT EXISTS(
+            SELECT 1 FROM producao_itemparcial pa
+            JOIN producao_itempedido i2 ON i2.id = pa.item_pedido_id
+            WHERE i2.pedido_id = ${item.pedido_id} AND pa.setor_atual = 'usinagem'
+              AND pa.status IN ('em_aberto','recebido','em_andamento','pausado')
+          ) AS resta`;
+        if (!resta) await tx`UPDATE producao_pedido SET previsao_conclusao = NULL, atualizado_em = NOW() WHERE id = ${item.pedido_id}`;
+      }
     });
 
   // ── retomar ───────────────────────────────────────────────────────────────
