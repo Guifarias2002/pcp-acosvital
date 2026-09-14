@@ -95,6 +95,8 @@ export default function PlanejamentoPage() {
   const [avisarObs, setAvisarObs] = useState('');
   // Aba ativa: a Fila ou o Painel de Máquinas (abre ao clicar lá em cima).
   const [aba, setAba] = useState<'fila' | 'maquinas'>('fila');
+  // Tile do resumo aberto (mostra a lista por trás do número). null = nenhum.
+  const [detalheResumo, setDetalheResumo] = useState<'pedidos' | 'pecas' | 'qtd' | 'uso' | 'livres' | null>(null);
   const podeVerCli = podeVerCliente();
 
   const carregar = useCallback(async (silencioso = false) => {
@@ -362,6 +364,13 @@ export default function PlanejamentoPage() {
   const pedidosProduzindo = new Set(pecasAtivas.map(p => p.numero_pedido_venda)).size;
   const pecasProduzindo = pecasAtivas.length;
   const totalUnidades = pecasAtivas.reduce((s, p) => s + (Number(p.quantidade) || 0), 0);
+  // Lista peça a peça COM a máquina (pro detalhe dos tiles do resumo).
+  const producaoFlat = [
+    ...(dados?.painel || []).flatMap(m => m.pecas.map(p => ({ ...p, maquina: m.maquina }))),
+    ...(dados?.sem_maquina || []).map(p => ({ ...p, maquina: '(sem máquina)' })),
+  ];
+  const maquinasUso = (dados?.painel || []).filter(m => m.pecas.length > 0);
+  const maquinasLivres = (dados?.painel || []).filter(m => m.pecas.length === 0);
 
   const renderMaquina = (mq: PainelMaquina) => {
     const ocupada = mq.pecas.length > 0;
@@ -508,23 +517,96 @@ export default function PlanejamentoPage() {
             O que está produzindo agora em cada máquina da Usinagem · atualiza sozinho a cada 30s
           </div>
 
-          {/* Resumo geral — total do que está em produção agora */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
-            {[
-              { rot: 'Pedidos em produção', val: pedidosProduzindo, cor: C.azul2, icon: 'bi-folder-fill' },
-              { rot: 'Peças em produção', val: pecasProduzindo, cor: C.verde, icon: 'bi-diagram-3-fill' },
-              { rot: 'Quantidade total', val: totalUnidades.toLocaleString('pt-BR'), cor: C.roxo, icon: 'bi-box-seam' },
-              { rot: 'Máquinas em uso', val: `${maquinasEmUso} / ${totalMaquinas}`, cor: C.laranja, icon: 'bi-gear-fill' },
-              { rot: 'Máquinas livres', val: totalMaquinas - maquinasEmUso, cor: C.cinza, icon: 'bi-gear' },
-            ].map(t => (
-              <div key={t.rot} style={{ flex: '1 1 150px', minWidth: 140, border: '1px solid #e2e8f0', borderLeft: `4px solid ${t.cor}`, borderRadius: 10, background: '#fff', padding: '10px 14px' }}>
-                <div style={{ fontSize: 10.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: .4, marginBottom: 3 }}>
-                  <i className={`bi ${t.icon}`} style={{ marginRight: 5, color: t.cor }} />{t.rot}
-                </div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: C.azul, lineHeight: 1.1 }}>{t.val}</div>
-              </div>
-            ))}
+          {/* Resumo geral — clicável: abre "quais são" embaixo */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: detalheResumo ? 10 : 16 }}>
+            {([
+              { id: 'pedidos' as const, rot: 'Pedidos em produção', val: pedidosProduzindo, cor: C.azul2, icon: 'bi-folder-fill' },
+              { id: 'pecas' as const, rot: 'Peças em produção', val: pecasProduzindo, cor: C.verde, icon: 'bi-diagram-3-fill' },
+              { id: 'qtd' as const, rot: 'Quantidade total', val: totalUnidades.toLocaleString('pt-BR'), cor: C.roxo, icon: 'bi-box-seam' },
+              { id: 'uso' as const, rot: 'Máquinas em uso', val: `${maquinasEmUso} / ${totalMaquinas}`, cor: C.laranja, icon: 'bi-gear-fill' },
+              { id: 'livres' as const, rot: 'Máquinas livres', val: totalMaquinas - maquinasEmUso, cor: C.cinza, icon: 'bi-gear' },
+            ]).map(t => {
+              const ativo = detalheResumo === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setDetalheResumo(ativo ? null : t.id)}
+                  title="Clique para ver quais são"
+                  style={{ flex: '1 1 150px', minWidth: 140, textAlign: 'left', cursor: 'pointer', border: `1px solid ${ativo ? t.cor : '#e2e8f0'}`, borderLeft: `4px solid ${t.cor}`, borderRadius: 10, background: ativo ? '#f8fafc' : '#fff', padding: '10px 14px' }}
+                >
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: .4, marginBottom: 3, display: 'flex', alignItems: 'center' }}>
+                    <i className={`bi ${t.icon}`} style={{ marginRight: 5, color: t.cor }} />{t.rot}
+                    <i className={`bi ${ativo ? 'bi-chevron-up' : 'bi-chevron-down'}`} style={{ marginLeft: 'auto', fontSize: 10, opacity: .6 }} />
+                  </div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: C.azul, lineHeight: 1.1 }}>{t.val}</div>
+                </button>
+              );
+            })}
           </div>
+
+          {/* Detalhe do tile clicado — "quais são" */}
+          {detalheResumo && (
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, background: '#fff', padding: 12, marginBottom: 16 }}>
+              {(detalheResumo === 'pedidos') && (() => {
+                const porPed = new Map<string, typeof producaoFlat>();
+                for (const p of producaoFlat) {
+                  const k = p.numero_pedido_venda || '—';
+                  if (!porPed.has(k)) porPed.set(k, []);
+                  porPed.get(k)!.push(p);
+                }
+                return porPed.size === 0 ? <div style={{ fontSize: 12.5, color: C.cinza }}>Nada em produção agora.</div> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {Array.from(porPed.entries()).map(([num, pcs]) => (
+                      <div key={num} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12.5, borderBottom: '1px solid #f1f5f9', paddingBottom: 5 }}>
+                        <b style={{ color: C.azul }}>{num}</b>
+                        {podeVerCli && pcs[0]?.cliente && <span style={{ color: '#64748b' }}>· {pcs[0].cliente}</span>}
+                        <span style={{ color: '#94a3b8' }}>· {pcs.length} peça(s)</span>
+                        <span style={{ marginLeft: 'auto', color: '#475569' }}>{Array.from(new Set(pcs.map(x => x.maquina))).join(', ')}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+              {(detalheResumo === 'pecas' || detalheResumo === 'qtd') && (
+                producaoFlat.length === 0 ? <div style={{ fontSize: 12.5, color: C.cinza }}>Nada em produção agora.</div> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {producaoFlat.map((p, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12.5, borderBottom: '1px solid #f1f5f9', paddingBottom: 5 }}>
+                        <b style={{ color: C.azul }}>{p.item_codigo}</b>
+                        <span style={{ color: '#64748b' }}>· {p.numero_pedido_venda}</span>
+                        <span style={{ fontWeight: 700, color: '#475569' }}>· {Number(p.quantidade).toLocaleString('pt-BR')} {p.unidade}</span>
+                        <span style={{ marginLeft: 'auto', color: '#475569' }}><i className="bi bi-gear-fill" style={{ marginRight: 4, color: C.laranja }} />{p.maquina}{p.operador ? ` · ${p.operador}` : ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+              {(detalheResumo === 'uso') && (
+                maquinasUso.length === 0 ? <div style={{ fontSize: 12.5, color: C.cinza }}>Nenhuma máquina em uso.</div> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {maquinasUso.map(m => (
+                      <div key={m.maquina} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12.5, borderBottom: '1px solid #f1f5f9', paddingBottom: 5 }}>
+                        <b style={{ color: C.azul }}><i className="bi bi-gear-fill" style={{ marginRight: 4, color: C.laranja }} />{m.maquina}</b>
+                        <span style={{ color: '#94a3b8' }}>· {m.pecas.length} peça(s)</span>
+                        <span style={{ marginLeft: 'auto', color: '#475569' }}>{m.pecas.map(x => x.item_codigo).join(', ')}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+              {(detalheResumo === 'livres') && (
+                maquinasLivres.length === 0 ? <div style={{ fontSize: 12.5, color: C.cinza }}>Nenhuma máquina livre.</div> : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {maquinasLivres.map(m => (
+                      <span key={m.maquina} style={{ fontSize: 12.5, fontWeight: 600, color: '#475569', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, padding: '4px 10px' }}>
+                        <i className="bi bi-gear" style={{ marginRight: 4, color: '#94a3b8' }} />{m.maquina}
+                      </span>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
+          )}
 
           {/* Agrupado por CATEGORIA (Tornos Manuais / CNC / Verticais) */}
           {grupos.map(g => {
