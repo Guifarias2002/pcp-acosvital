@@ -11,6 +11,7 @@ interface Aviso {
   mensagem: string | null;
   criado_por_nome: string | null;
   criado_em: string;
+  tem_op?: boolean;
 }
 
 function tempoDesde(iso: string): string {
@@ -86,6 +87,17 @@ export default function AvisosSetor({ setor }: { setor: string }) {
                   {a.criado_por_nome || 'Planejamento'} · {tempoDesde(a.criado_em)}
                 </div>
               </div>
+              {a.tem_op && a.pedido_id && (
+                <a
+                  href={`/api/pedidos/${a.pedido_id}/ordem-producao?token=${encodeURIComponent(getToken() || '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Abrir a Ordem de Produção (OP)"
+                  style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid #93c5fd', background: '#eff6ff', color: '#1d4ed8', borderRadius: 7, padding: '6px 10px', fontSize: 12, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}
+                >
+                  <i className="bi bi-file-earmark-text" />OP
+                </a>
+              )}
               {podeMarcar && (
                 <button
                   onClick={() => marcarVisto(a.id)}

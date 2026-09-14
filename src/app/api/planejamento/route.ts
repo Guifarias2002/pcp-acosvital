@@ -47,6 +47,7 @@ export async function GET(req: Request) {
         p.prazo_entrega::text AS prazo,
         i.previsao_conclusao::text AS item_previsao,
         p.previsao_conclusao::text AS pedido_previsao,
+        (p.ordem_producao_url IS NOT NULL) AS tem_op,
         pu.maquina AS maquina_planejada
       FROM producao_itempedido i
       JOIN producao_pedido p ON p.id = i.pedido_id
@@ -64,7 +65,7 @@ export async function GET(req: Request) {
     const porPedido = new Map<number, {
       pedido_id: number; numero_pedido_venda: string; cliente: string;
       prioridade: string; prazo: string | null;
-      previsao: string | null; pecas: unknown[];
+      previsao: string | null; tem_op: boolean; pecas: unknown[];
     }>();
 
     for (const it of itens) {
@@ -79,6 +80,7 @@ export async function GET(req: Request) {
           prioridade: it.prioridade,
           prazo: it.prazo,
           previsao: (it.pedido_previsao as string) || null,
+          tem_op: it.tem_op === true,
           pecas: [],
         });
       }

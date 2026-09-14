@@ -25,6 +25,7 @@ interface PedidoPlan {
   prioridade: string;
   prazo: string | null;
   previsao: string | null;
+  tem_op: boolean;
   pecas: Peca[];
 }
 interface MaquinaAtiva {
@@ -277,6 +278,18 @@ export default function PlanejamentoPage() {
               <i className={`bi ${jaAvisado ? 'bi-check2-circle' : 'bi-megaphone-fill'}`} />
               {jaAvisado ? 'Avisado' : (avisando === ped.pedido_id ? 'Avisando…' : 'Avisar produção')}
             </button>
+            {ped.tem_op && (
+              <a
+                href={`/api/pedidos/${ped.pedido_id}/ordem-producao?token=${encodeURIComponent(getToken() || '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                title="Abrir a Ordem de Produção (OP)"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, border: '1px solid rgba(255,255,255,.4)', borderRadius: 8, padding: '4px 9px', color: '#fff', textDecoration: 'none', whiteSpace: 'nowrap' }}
+              >
+                <i className="bi bi-file-earmark-text" />OP
+              </a>
+            )}
             <a
               href={`/pedidos/${ped.pedido_id}`}
               target="_blank"

@@ -25,7 +25,8 @@ export async function GET(req: Request) {
   try {
     const rows = await sql`
       SELECT a.id, a.pedido_id, a.setor, a.mensagem, a.criado_por_nome, a.criado_em::text AS criado_em,
-             p.numero_pedido_venda, p.cliente, p.prioridade
+             p.numero_pedido_venda, p.cliente, p.prioridade,
+             (p.ordem_producao_url IS NOT NULL) AS tem_op
       FROM producao_aviso a
       LEFT JOIN producao_pedido p ON p.id = a.pedido_id
       WHERE a.setor = ${setor} AND a.visto = false
