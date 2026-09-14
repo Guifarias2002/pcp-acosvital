@@ -885,7 +885,7 @@ export default function PlanejamentoPage() {
             )}
             <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 16 }}>
               {enc
-                ? 'O operador não tira — só você (ou um administrador) desfaz.'
+                ? 'Deixa o pedido FIXO/destacado na tela da Usinagem até você desfazer. Não empurra o pedido no fluxo — quem recebe e movimenta continua sendo o operador.'
                 : 'Aparece na caixa de mensagens da Usinagem; some quando o operador dá "Visto".'}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
