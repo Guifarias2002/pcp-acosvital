@@ -1,14 +1,18 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
-import { podeAcessarSetor } from '@/lib/auth';
+import { podeAcessarSetor, podePlanejar, type JWTPayload } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 // Ordem MANUAL de produção por setor ("furar a fila"). GET devolve o array de
 // pedido_id salvo; POST regrava. Quem pode mexer: staff ou quem tem o setor.
-function podeMexer(user: { is_staff?: boolean; setor?: string; setores?: string[]; somente_leitura?: boolean }, setor: string) {
+// EXCEÇÃO Usinagem: a fila é definida pelo PLANEJAMENTO (Reginaldo) e o operador
+// NÃO pode reverter — então só admin/planejador reordena a Usinagem, mesmo que
+// o operador tenha o setor. Ver podePlanejar e a tela /planejamento.
+function podeMexer(user: JWTPayload, setor: string) {
   if (user.somente_leitura) return false;
+  if (setor === 'usinagem') return podePlanejar(user);
   return !!user.is_staff || podeAcessarSetor(user, setor);
 }
 

@@ -51,7 +51,7 @@ function Cronometro({ desde }: { desde: string }) {
   );
 }
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, registrarSinetePedido, setPesosPallets, setEmbalagemResumo, inativarItem, editarPedido, solicitarInspecao } from '@/lib/api';
-import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento, podeDefinirPrevisao, podeVerNaoLocalizados, podeDefinirPrazoSetor } from '@/lib/auth';
+import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento, podeDefinirPrevisao, podeVerNaoLocalizados, podeDefinirPrazoSetor, podePlanejar } from '@/lib/auth';
 import { definirPrazoSetor } from '@/lib/api';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA, TIPOS_INSPECAO, SETOR_NAO_LOCALIZADO } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
@@ -638,6 +638,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
       {item.status === 'recebido' && showIniciarProducao && (
         <IniciarProducaoModal
           setor={item.setor_atual}
+          itemPedidoId={item.id}
           loading={loading}
           onCancel={() => setShowIniciarProducao(false)}
           onConfirm={(maquina, operador) => {
@@ -1923,6 +1924,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
       {isRecebido && showIniciarProducao && (
         <IniciarProducaoModal
           setor={parcial.setor_atual}
+          itemPedidoId={parcial.item_pedido_id}
           loading={loading}
           onCancel={() => setShowIniciarProducao(false)}
           onConfirm={(maquina, operador) => {
@@ -3933,6 +3935,11 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
     salvarOrdem(nova);
   }, [salvarOrdem]);
 
+  // Reordenar a fila ("furar a fila"): em qualquer setor quem edita pode; na
+  // USINAGEM a ordem é do Planejamento (Reginaldo) e o operador NÃO reverte —
+  // então só planejador/admin mexe. A trava real está no POST da ordem.
+  const podeReordenar = podeEditar() && (setor !== 'usinagem' || podePlanejar());
+
   // Folha de CONFERÊNCIA FÍSICA do setor: imprime SÓ os números dos pedidos que
   // estão nesta área (parciais + itens recebidos), cada um com um quadradinho
   // pra marcar se está fisicamente presente ou não. Tudo client-side, com os
@@ -4344,7 +4351,7 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                   <span style={{ marginLeft: 8, fontWeight: 400, textTransform: 'none', fontSize: 10, color: '#64748b' }}>
                     peças enviadas parcialmente para este setor · <b>ordem sugerida (nº no card)</b>: prazo → urgência → menores → chegada
                   </span>
-                  {podeEditar() && (
+                  {podeReordenar && (
                     ordemManual.length > 0 ? (
                       <button onClick={() => salvarOrdem([])}
                         title="Descartar a ordem manual e voltar à programação automática"
@@ -4443,8 +4450,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                         >
                           {/* Furar a fila — jeito FÁCIL (funciona no tablet): botões
                               ▲/▼ sobem/descem o pedido uma posição e salvam na hora.
-                              A alça de arrastar (ao lado) continua pra quem usa mouse. */}
-                          {podeEditar() && (() => {
+                              A alça de arrastar (ao lado) continua pra quem usa mouse.
+                              Na Usinagem, só o Planejamento (não o operador). */}
+                          {podeReordenar && (() => {
                             const posFila = ordemIds.indexOf(pedido_id);
                             const ehPrimeiro = posFila <= 0;
                             const ehUltimo = posFila < 0 || posFila >= ordemIds.length - 1;

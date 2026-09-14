@@ -28,7 +28,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 42;
+const SCHEMA_VERSION = 43;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -613,4 +613,30 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   // setores, mas sem o financeiro. Mesmo padrão das outras flags (default false,
   // marcado no cadastro). A ocultação é de EXIBIÇÃO (client) — ver podeVerValores.
   await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS oculta_valores BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
+
+  // M43 (14/09): PLANEJAMENTO da Usinagem (ex.: Reginaldo). Mesmo padrão das
+  // outras flags (default false, marcado no cadastro). Libera a tela
+  // /planejamento (fila + painel de máquinas) e o poder de definir máquina/ordem
+  // da Usinagem — que o operador não reverte. Ver podePlanejar.
+  await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS acesso_planejamento BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
+  // Plano de máquina da Usinagem: 1 linha por ITEM (peça) = a máquina em que ela
+  // DEVE rodar. Quando existe, o "iniciar" na Usinagem FORÇA essa máquina. A
+  // ORDEM da fila reaproveita producao_setor_ordem (setor 'usinagem').
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS producao_plano_usinagem (
+      item_pedido_id INTEGER PRIMARY KEY REFERENCES producao_itempedido(id) ON DELETE CASCADE,
+      maquina        VARCHAR(60),
+      definido_por_id INTEGER,
+      atualizado_em  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `).catch(() => {});
+  // SEED: o Reginaldo já nasce com o acesso ligado (não depende de marcar à mão).
+  // Guarda NOT EXISTS: só roda enquanto NINGUÉM tem a flag (primeiro deploy) — não
+  // re-liga se desmarcarem depois. Username que não bate = no-op inofensivo.
+  await sql`
+    UPDATE usuarios_usuario SET acesso_planejamento = true
+    WHERE username IN ('reginaldo.negri', 'reginaldo')
+      AND acesso_planejamento = false
+      AND NOT EXISTS (SELECT 1 FROM usuarios_usuario WHERE acesso_planejamento = true)
+  `.catch(() => {});
 }

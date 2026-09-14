@@ -21,6 +21,7 @@ interface Usuario {
   acesso_hrm: boolean;
   pode_definir_previsao: boolean;
   oculta_valores: boolean;
+  acesso_planejamento: boolean;
 }
 
 const PERFIL_BADGE: Record<string, { bg: string; cor: string }> = {
@@ -54,11 +55,21 @@ const GRUPOS_FABRICA: { titulo: string; setores: [string, string][] }[] = [
   },
 ];
 
+// Faixa de diacríticos combinantes (U+0300–U+036F) — evita a flag /u (target TS).
+const normaliza = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
 // Seletor de múltiplos setores (checkboxes), separado por fábrica. Usado no criar e no editar.
 function SetoresSelector({ valor, onChange }: { valor: string[]; onChange: (s: string[]) => void }) {
+  const [busca, setBusca] = useState('');
   function toggle(cod: string) {
     onChange(valor.includes(cod) ? valor.filter(s => s !== cod) : [...valor, cod]);
   }
+  // Filtra por nome exibido OU código (ex.: "maçarico"/"macarico"). Vazio = tudo.
+  const termo = normaliza(busca.trim());
+  const casa = ([cod, nome]: [string, string]) => !termo || normaliza(nome).includes(termo) || normaliza(cod).includes(termo);
+  const grupos = GRUPOS_FABRICA
+    .map(g => ({ ...g, setores: g.setores.filter(casa) }))
+    .filter(g => g.setores.length > 0);
   const checkbox = ([cod, nome]: [string, string]) => {
     const marcado = valor.includes(cod);
     return (
@@ -73,15 +84,32 @@ function SetoresSelector({ valor, onChange }: { valor: string[]; onChange: (s: s
     );
   };
   return (
-    <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 6, padding: 10 }}>
-      {GRUPOS_FABRICA.map(g => g.setores.length === 0 ? null : (
-        <div key={g.titulo} style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>{g.titulo}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-            {g.setores.map(checkbox)}
+    <div style={{ border: '1px solid #e5e7eb', borderRadius: 6 }}>
+      {/* Busca — filtra os setores por nome ou código (tem muito setor hoje). */}
+      <div style={{ position: 'relative', padding: 8, borderBottom: '1px solid #f1f5f9' }}>
+        <i className="bi bi-search" style={{ position: 'absolute', left: 18, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#94a3b8' }} />
+        <input
+          type="text"
+          value={busca}
+          onChange={e => setBusca(e.target.value)}
+          placeholder="Buscar setor..."
+          style={{ width: '100%', border: '1px solid #e5e7eb', borderRadius: 6, padding: '7px 10px 7px 30px', fontSize: 13, boxSizing: 'border-box' }}
+        />
+      </div>
+      <div style={{ maxHeight: 240, overflowY: 'auto', padding: 10 }}>
+        {grupos.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: '#94a3b8', textAlign: 'center', padding: '14px 0' }}>
+            Nenhum setor encontrado para “{busca}”.
           </div>
-        </div>
-      ))}
+        ) : grupos.map(g => (
+          <div key={g.titulo} style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>{g.titulo}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              {g.setores.map(checkbox)}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -92,12 +120,12 @@ export default function UsuariosPage() {
   const [copiadoId, setCopiadoId] = useState<number | null>(null);
   const [copiadoLogin, setCopiadoLogin] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] as string[], somente_leitura: false, ve_todos_pedidos: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false, oculta_valores: false });
+  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] as string[], somente_leitura: false, ve_todos_pedidos: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false, oculta_valores: false, acesso_planejamento: false });
   const [salvando, setSalvando] = useState(false);
   const [formMsg, setFormMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   // Edição de usuário existente
   const [editUser, setEditUser] = useState<Usuario | null>(null);
-  const [editForm, setEditForm] = useState({ nome: '', perfil: 'operador', setores: [] as string[], is_active: true, senha: '', somente_leitura: false, ve_todos_pedidos: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false, oculta_valores: false });
+  const [editForm, setEditForm] = useState({ nome: '', perfil: 'operador', setores: [] as string[], is_active: true, senha: '', somente_leitura: false, ve_todos_pedidos: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false, oculta_valores: false, acesso_planejamento: false });
   const [editMsg, setEditMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [editSalvando, setEditSalvando] = useState(false);
   const isAdmin = getUser()?.is_staff;
@@ -146,7 +174,7 @@ export default function UsuariosPage() {
         setFormMsg({ tipo: 'erro', texto: data.erro || 'Erro ao criar usuário.' });
       } else {
         setFormMsg({ tipo: 'ok', texto: 'Usuário criado com sucesso!' });
-        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setores: [], somente_leitura: false, ve_todos_pedidos: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false, oculta_valores: false });
+        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setores: [], somente_leitura: false, ve_todos_pedidos: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false, oculta_valores: false, acesso_planejamento: false });
         setShowForm(false);
         carregarUsuarios();
       }
@@ -171,6 +199,7 @@ export default function UsuariosPage() {
       acesso_hrm: u.acesso_hrm || false,
       pode_definir_previsao: u.pode_definir_previsao || false,
       oculta_valores: u.oculta_valores || false,
+      acesso_planejamento: u.acesso_planejamento || false,
     });
     setEditMsg(null);
   }
@@ -192,6 +221,7 @@ export default function UsuariosPage() {
         acesso_hrm: editForm.acesso_hrm,
         pode_definir_previsao: editForm.pode_definir_previsao,
         oculta_valores: editForm.oculta_valores,
+        acesso_planejamento: editForm.acesso_planejamento,
       };
       if (editForm.senha) body.senha = editForm.senha;
       const res = await fetch(`/api/usuarios/${editUser.id}`, {
@@ -384,6 +414,16 @@ export default function UsuariosPage() {
                 </div>
               </div>
 
+              <div style={{ marginBottom: 20, background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 6, padding: '10px 12px' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#4338ca', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={form.acesso_planejamento} onChange={e => setForm(f => ({ ...f, acesso_planejamento: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                  <span><i className="bi bi-diagram-3" style={{ marginRight: 6 }}></i>Planejamento da Usinagem</span>
+                </label>
+                <div style={{ fontSize: 12, color: '#4f46e5', marginTop: 4, paddingLeft: 24 }}>
+                  Libera a tela de Planejamento (fila + painel de máquinas) e o poder de definir máquina/ordem da Usinagem — que o operador não reverte.
+                </div>
+              </div>
+
               {formMsg && (
                 <div style={{
                   marginBottom: 14, padding: '8px 12px', borderRadius: 6, fontSize: 13,
@@ -551,6 +591,16 @@ export default function UsuariosPage() {
                 </label>
                 <div style={{ fontSize: 12, color: '#be123c', marginTop: 4, paddingLeft: 24 }}>
                   Esconde todos os valores monetários (total do pedido, valor unitário, valor em produção). Pensado pro acesso de vendas / visualização.
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 20, background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 6, padding: '10px 12px' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#4338ca', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={editForm.acesso_planejamento} onChange={e => setEditForm(f => ({ ...f, acesso_planejamento: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                  <span><i className="bi bi-diagram-3" style={{ marginRight: 6 }}></i>Planejamento da Usinagem</span>
+                </label>
+                <div style={{ fontSize: 12, color: '#4f46e5', marginTop: 4, paddingLeft: 24 }}>
+                  Libera a tela de Planejamento (fila + painel de máquinas) e o poder de definir máquina/ordem da Usinagem — que o operador não reverte.
                 </div>
               </div>
 

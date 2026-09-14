@@ -77,7 +77,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: 'Usuario e senha obrigatorios' }, { status: 400 });
 
     const buscarUsuario = () => sql`
-      SELECT id, username, password, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, ve_todos_pedidos, pode_desfazer_recebimento, pode_ver_analise, acesso_hrm, pode_definir_previsao, pode_ver_nao_localizados, oculta_valores
+      SELECT id, username, password, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, ve_todos_pedidos, pode_desfazer_recebimento, pode_ver_analise, acesso_hrm, pode_definir_previsao, pode_ver_nao_localizados, oculta_valores, acesso_planejamento
       FROM usuarios_usuario
       WHERE username = ${String(username).slice(0, 150)}
     `;
@@ -133,6 +133,7 @@ export async function POST(req: Request) {
     const podeDefinirPrevisao = user.pode_definir_previsao === true;
     const podeVerNaoLocalizados = user.pode_ver_nao_localizados === true;
     const ocultaValores = user.oculta_valores === true;
+    const acessoPlanejamento = user.acesso_planejamento === true;
     const token = await signToken({
       id: user.id,
       username: user.username,
@@ -149,6 +150,7 @@ export async function POST(req: Request) {
       pode_definir_previsao: podeDefinirPrevisao,
       pode_ver_nao_localizados: podeVerNaoLocalizados,
       oculta_valores: ocultaValores,
+      acesso_planejamento: acessoPlanejamento,
     });
 
     const isProd = process.env.NODE_ENV === 'production';
@@ -169,6 +171,7 @@ export async function POST(req: Request) {
       pode_definir_previsao: podeDefinirPrevisao,
       pode_ver_nao_localizados: podeVerNaoLocalizados,
       oculta_valores: ocultaValores,
+      acesso_planejamento: acessoPlanejamento,
     };
 
     // Retorna o token (para localStorage) e os dados do usuário (para exibição)

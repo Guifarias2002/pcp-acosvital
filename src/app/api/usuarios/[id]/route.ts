@@ -59,6 +59,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (typeof body.acesso_hrm === 'boolean') campos.acesso_hrm = body.acesso_hrm;
   if (typeof body.pode_definir_previsao === 'boolean') campos.pode_definir_previsao = body.pode_definir_previsao;
   if (typeof body.oculta_valores === 'boolean') campos.oculta_valores = body.oculta_valores;
+  if (typeof body.acesso_planejamento === 'boolean') campos.acesso_planejamento = body.acesso_planejamento;
 
   // Perfil vendedor: sempre não-staff e sempre somente leitura, independente
   // do que vier no corpo (defesa em profundidade — o front já não manda esses
@@ -119,6 +120,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       }
       if (campos.oculta_valores !== undefined) {
         await tx`UPDATE usuarios_usuario SET oculta_valores = ${campos.oculta_valores as boolean} WHERE id = ${targetId}`;
+      }
+      if (campos.acesso_planejamento !== undefined) {
+        await tx`UPDATE usuarios_usuario SET acesso_planejamento = ${campos.acesso_planejamento as boolean} WHERE id = ${targetId}`;
       }
       if (campos.senha !== undefined) {
         const hashed = await hashPassword(campos.senha as string);

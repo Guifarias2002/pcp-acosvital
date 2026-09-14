@@ -27,7 +27,7 @@ export async function GET(req: Request) {
   if (user.somente_leitura === true) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   const users = await sql`
-    SELECT id, username, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, ve_todos_pedidos, pode_desfazer_recebimento, acesso_hrm, pode_definir_previsao, oculta_valores
+    SELECT id, username, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, ve_todos_pedidos, pode_desfazer_recebimento, acesso_hrm, pode_definir_previsao, oculta_valores, acesso_planejamento
     FROM usuarios_usuario
     ORDER BY is_active DESC, nome
   `;
@@ -54,6 +54,7 @@ export async function GET(req: Request) {
       acesso_hrm: u.acesso_hrm === true,
       pode_definir_previsao: u.pode_definir_previsao === true,
       oculta_valores: u.oculta_valores === true,
+      acesso_planejamento: u.acesso_planejamento === true,
     };
   }));
 }
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
   if (!checkMutationRateLimit(getClientIp(req)))
     return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
-  const { username, nome, senha, perfil, setor, setores, somente_leitura, ve_todos_pedidos, pode_desfazer_recebimento, acesso_hrm, pode_definir_previsao, oculta_valores } = await req.json();
+  const { username, nome, senha, perfil, setor, setores, somente_leitura, ve_todos_pedidos, pode_desfazer_recebimento, acesso_hrm, pode_definir_previsao, oculta_valores, acesso_planejamento } = await req.json();
 
   if (!username || !nome || !senha || !perfil)
     return NextResponse.json({ erro: 'Preencha todos os campos obrigatórios.' }, { status: 400 });
@@ -112,6 +113,7 @@ export async function POST(req: Request) {
   const acessoHrm = acesso_hrm === true;
   const podeDefinirPrevisao = pode_definir_previsao === true;
   const ocultaValores = oculta_valores === true;
+  const acessoPlanejamento = acesso_planejamento === true;
 
   // A tabela usuarios_usuario veio do Django e as migrations só ACRESCENTAM
   // colunas — dependendo do banco ela ainda tem colunas NOT NULL herdadas
@@ -128,6 +130,7 @@ export async function POST(req: Request) {
     acesso_hrm: acessoHrm,
     pode_definir_previsao: podeDefinirPrevisao,
     oculta_valores: ocultaValores,
+    acesso_planejamento: acessoPlanejamento,
     date_joined: new Date(),
   };
   try {

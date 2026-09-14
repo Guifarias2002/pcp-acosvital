@@ -41,6 +41,10 @@ export interface JWTPayload {
   // valor em produção, etc. Pensado pro acesso de VENDAS (visualização): vê
   // pedidos e setores, mas sem o financeiro. Ver `podeVerValores` abaixo.
   oculta_valores?: boolean;
+  // Acesso ao PLANEJAMENTO da Usinagem (tela /planejamento: fila + painel de
+  // máquinas) e poder de definir máquina/ordem que o operador não reverte.
+  // Ver `podePlanejar` abaixo.
+  acesso_planejamento?: boolean;
 }
 
 // Um vendedor "restrito" só pode ver/filtrar os próprios pedidos (por nome).
@@ -215,6 +219,15 @@ export function podeVerRomaneios(u?: JWTPayload | null): boolean {
 export function podeAcessarHrm(u?: JWTPayload | null): boolean {
   const user = u ?? getUser();
   return !!user && (!!user.is_staff || user.acesso_hrm === true);
+}
+
+// Pode PLANEJAR a Usinagem? Administrador sempre; além dele, usuários com a
+// flag `acesso_planejamento` marcada no cadastro (ex.: Reginaldo). Libera a tela
+// /planejamento e o poder de definir máquina/ordem da fila da Usinagem — que o
+// operador NÃO pode reverter. Mesma regra usada na página, na API e no menu.
+export function podePlanejar(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return isAdministrador(user) || user?.acesso_planejamento === true;
 }
 
 // Pode editar/agir no sistema? Falso apenas para usuários somente-leitura.

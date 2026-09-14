@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerNaoLocalizados, podeVerRomaneios } from '@/lib/auth';
+import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerNaoLocalizados, podeVerRomaneios, podePlanejar } from '@/lib/auth';
 import { SETOR_CHOICES, NOMES, SETORES_CALDEIRARIA_MENU, SETORES_EXCLUSIVOS_CALDEIRARIA } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { JWTPayload } from '@/lib/auth';
@@ -132,6 +132,8 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
   const podeVerNaoLoc = podeVerNaoLocalizados(user);
   // Aba Logística (romaneios de carga): admin OU setor logística.
   const podeRomaneios = podeVerRomaneios(user);
+  // Planejamento da Usinagem: admin OU flag acesso_planejamento (ex.: Reginaldo).
+  const podePlan = podePlanejar(user);
   const isVendedor = !isAdmin && user?.perfil === 'vendedor';
   // Conta de VENDAS (visualização): vendedor com ve_todos_pedidos vê TODOS os
   // pedidos E as ÁREAS/setores no menu (pra saber onde cada pedido está), mas
@@ -227,6 +229,9 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
               {/* Análise PCP — liberada por is_staff/admin OU pela flag pode_ver_analise
                   (fora do bloco só-admin abaixo, pra aparecer também pra não-admin). */}
               {podeVer && <NavItem href="/analise" label="Análise PCP" icon="bi-graph-up-arrow" onNav={fechar} />}
+              {/* Planejamento da Usinagem — admin OU flag acesso_planejamento
+                  (fora do bloco só-admin, pra aparecer pro operador-líder Reginaldo). */}
+              {podePlan && <NavItem href="/planejamento" label="Planejamento" icon="bi-diagram-3" onNav={fechar} />}
               {/* "Paradas de Pedidos" saiu do menu — agora é atalho no topo da
                   Análise PCP. "Não Localizados" continua aqui (quem usa pode não
                   ter acesso à Análise). */}

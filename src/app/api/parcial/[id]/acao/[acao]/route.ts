@@ -425,8 +425,15 @@ async function handlePOST(
 
   // ── iniciar ───────────────────────────────────────────────────────────────
   } else if (acao === 'iniciar') {
-    const maquina = typeof body.maquina === 'string' ? body.maquina.trim() : '';
+    let maquina = typeof body.maquina === 'string' ? body.maquina.trim() : '';
     const operador = typeof body.operador === 'string' ? body.operador.trim() : '';
+    // Plano da Usinagem (Reginaldo): se a peça tem máquina planejada, ELA manda —
+    // o operador não escolhe/troca. Sobrescreve o que veio do cliente. Ver
+    // producao_plano_usinagem e a tela /planejamento.
+    if (parcial.setor_atual === 'usinagem') {
+      const [plano] = await sql`SELECT maquina FROM producao_plano_usinagem WHERE item_pedido_id = ${parcial.item_id} AND maquina IS NOT NULL AND maquina <> ''`;
+      if (plano?.maquina) maquina = String(plano.maquina);
+    }
     if (temMaquinas(parcial.setor_atual) && (!maquina || !operador))
       return NextResponse.json({ erro: 'Informe a máquina e o operador para iniciar a produção.' }, { status: 400 });
 
