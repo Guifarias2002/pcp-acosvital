@@ -74,10 +74,10 @@ function tempoDesde(iso: string | null): string {
 function diasPrevisao(iso: string | null): { txt: string; cor: string } | null {
   if (!iso) return null;
   const dias = Math.ceil((new Date(iso + 'T12:00:00').getTime() - Date.now()) / 86400000);
-  return {
-    cor: dias < 0 ? C.vermelho : dias <= 3 ? C.laranja : C.verde,
-    txt: dias < 0 ? `Atrasado ${Math.abs(dias)}d` : dias === 0 ? 'Conclui hoje' : `Conclusão em ${dias}d`,
-  };
+  // Mostra a DATA da conclusão (DD/MM) + a folga, sempre em AZUL.
+  const data = `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  const rel = dias < 0 ? `${Math.abs(dias)}d atraso` : dias === 0 ? 'hoje' : `faltam ${dias}d`;
+  return { cor: C.azul2, txt: `Conclusão: ${data} · ${rel}` };
 }
 
 // Mensagens prontas pro aviso de produção — clicar adiciona à observação.
