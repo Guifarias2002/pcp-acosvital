@@ -207,9 +207,10 @@ export default function PlanejamentoPage() {
   }
 
   useEffect(() => { carregar(); }, [carregar]);
-  // Atualiza o painel ao vivo a cada 30s (só quando a aba está visível).
+  // Atualiza ao vivo a cada 12s (só com a aba visível) — reflete as ações do
+  // operador (receber/iniciar/finalizar) quase na hora no painel do Planejamento.
   useEffect(() => {
-    const id = setInterval(() => { if (document.visibilityState === 'visible') carregar(true); }, 30000);
+    const id = setInterval(() => { if (document.visibilityState === 'visible') carregar(true); }, 12000);
     return () => clearInterval(id);
   }, [carregar]);
 
@@ -691,7 +692,7 @@ export default function PlanejamentoPage() {
             <i className="bi bi-cpu" style={{ marginRight: 6 }} />Painel de Máquinas — ao vivo
           </div>
           <div style={{ fontSize: 11.5, color: '#94a3b8', marginBottom: 12 }}>
-            O que está produzindo agora em cada máquina da Usinagem · atualiza sozinho a cada 30s
+            O que está produzindo agora em cada máquina da Usinagem · atualiza sozinho a cada 12s
           </div>
 
           {/* Resumo geral — clicável: abre "quais são" embaixo */}
