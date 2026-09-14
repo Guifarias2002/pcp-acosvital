@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import AuthGuard from '@/components/AuthGuard';
+import { useRealtime } from '@/hooks/useRealtime';
 import { getToken, podePlanejar, podeVerCliente } from '@/lib/auth';
 
 const C = { azul: '#1a3a5c', azul2: '#1d4ed8', verde: '#16a34a', laranja: '#d97706', vermelho: '#dc2626', roxo: '#7c3aed', cinza: '#64748b' };
@@ -207,12 +208,10 @@ export default function PlanejamentoPage() {
   }
 
   useEffect(() => { carregar(); }, [carregar]);
-  // Atualiza ao vivo a cada 12s (só com a aba visível) — reflete as ações do
-  // operador (receber/iniciar/finalizar) quase na hora no painel do Planejamento.
-  useEffect(() => {
-    const id = setInterval(() => { if (document.visibilityState === 'visible') carregar(true); }, 12000);
-    return () => clearInterval(id);
-  }, [carregar]);
+  // Tempo REAL: reflete na hora as ações do operador (receber/iniciar/finalizar/
+  // trocar máquina) e o que outro admin mudar. WebSocket via Supabase + fallback
+  // de 15s embutido no hook. Ver useRealtime.
+  useRealtime(['producao_itemparcial', 'producao_itempedido'], () => carregar(true));
 
   // Salva a nova ordem dos pedidos (reaproveita o endpoint do "furar a fila").
   async function salvarOrdem(idsOrdenados: number[]) {
@@ -692,7 +691,7 @@ export default function PlanejamentoPage() {
             <i className="bi bi-cpu" style={{ marginRight: 6 }} />Painel de Máquinas — ao vivo
           </div>
           <div style={{ fontSize: 11.5, color: '#94a3b8', marginBottom: 12 }}>
-            O que está produzindo agora em cada máquina da Usinagem · atualiza sozinho a cada 12s
+            O que está produzindo agora em cada máquina da Usinagem · atualiza em tempo real
           </div>
 
           {/* Resumo geral — clicável: abre "quais são" embaixo */}
