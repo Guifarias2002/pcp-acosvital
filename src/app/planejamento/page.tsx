@@ -71,22 +71,58 @@ export default function PlanejamentoPage() {
   const [erro, setErro] = useState('');
   const [dragPedido, setDragPedido] = useState<number | null>(null);
   const [salvandoMaq, setSalvandoMaq] = useState<number | null>(null);
+  // Pedidos com o card ABERTO (mostrando as peças). Começam fechados: clicar
+  // no cabeçalho abre e mostra "quais são".
+  const [abertos, setAbertos] = useState<Set<number>>(new Set());
+  // Pedidos que já têm um aviso PENDENTE na caixa da Usinagem (pra mostrar
+  // "Avisado ✓" no botão em vez de deixar avisar de novo à toa).
+  const [avisados, setAvisados] = useState<Set<number>>(new Set());
+  const [avisando, setAvisando] = useState<number | null>(null);
   const podeVerCli = podeVerCliente();
 
   const carregar = useCallback(async (silencioso = false) => {
     if (!silencioso) setCarregando(true);
     try {
-      const r = await fetch('/api/planejamento', { headers: { Authorization: `Bearer ${getToken() || ''}` } });
-      if (!r.ok) { setErro('Não foi possível carregar o planejamento.'); return; }
-      const d = await r.json();
+      const [rP, rA] = await Promise.all([
+        fetch('/api/planejamento', { headers: { Authorization: `Bearer ${getToken() || ''}` } }),
+        fetch('/api/avisos?setor=usinagem', { headers: { Authorization: `Bearer ${getToken() || ''}` } }),
+      ]);
+      if (!rP.ok) { setErro('Não foi possível carregar o planejamento.'); return; }
+      const d = await rP.json();
       setDados(d);
       setErro('');
+      if (rA.ok) {
+        const da = await rA.json();
+        setAvisados(new Set((da.avisos || []).map((a: { pedido_id: number }) => a.pedido_id)));
+      }
     } catch {
       setErro('Falha de conexão ao carregar o planejamento.');
     } finally {
       setCarregando(false);
     }
   }, []);
+
+  function toggleAberto(pedidoId: number) {
+    setAbertos(prev => {
+      const next = new Set(prev);
+      if (next.has(pedidoId)) next.delete(pedidoId); else next.add(pedidoId);
+      return next;
+    });
+  }
+
+  // Avisa a produção (Usinagem) sobre um pedido — cria o aviso na caixa deles.
+  async function avisarProducao(pedidoId: number) {
+    setAvisando(pedidoId);
+    try {
+      const r = await fetch('/api/avisos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
+        body: JSON.stringify({ pedido_id: pedidoId, setor: 'usinagem' }),
+      });
+      if (r.ok) setAvisados(prev => new Set(prev).add(pedidoId));
+    } catch { /* silencioso */ }
+    finally { setAvisando(null); }
+  }
 
   useEffect(() => { carregar(); }, [carregar]);
   // Atualiza o painel ao vivo a cada 30s (só quando a aba está visível).
@@ -191,7 +227,7 @@ export default function PlanejamentoPage() {
             <i className="bi bi-list-ol" style={{ marginRight: 6 }} />Fila da Usinagem
           </div>
           <div style={{ fontSize: 11.5, color: '#94a3b8', marginBottom: 12 }}>
-            Peças que já estão na Usinagem e as que estão chegando · arraste a alça <i className="bi bi-grip-vertical" /> pra reordenar os pedidos · {totalPecas} peça(s)
+            Clique no pedido pra ver as peças · arraste a alça <i className="bi bi-grip-vertical" /> pra reordenar · <i className="bi bi-megaphone-fill" style={{ color: C.laranja }} /> <b>Avisar produção</b> manda o pedido pra caixa da Usinagem · {totalPecas} peça(s)
           </div>
 
           {carregando && !dados ? (
@@ -206,6 +242,8 @@ export default function PlanejamentoPage() {
                 const prio = (ped.prioridade || '').toLowerCase();
                 const prev = diasPrevisao(ped.previsao);
                 const arrastando = dragPedido === ped.pedido_id;
+                const aberto = abertos.has(ped.pedido_id);
+                const jaAvisado = avisados.has(ped.pedido_id);
                 return (
                   <div
                     key={ped.pedido_id}
@@ -213,11 +251,15 @@ export default function PlanejamentoPage() {
                     onDrop={dragPedido != null ? e => { e.preventDefault(); soltarSobre(ped.pedido_id); } : undefined}
                     style={{ border: `2px solid ${arrastando ? C.azul2 : '#e2e8f0'}`, borderRadius: 12, overflow: 'hidden', background: '#fff', opacity: arrastando ? 0.5 : 1, transition: 'opacity .12s' }}
                   >
-                    {/* Cabeçalho do pedido */}
-                    <div style={{ background: C.azul, color: '#fff', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    {/* Cabeçalho do pedido — clicável pra abrir/fechar as peças */}
+                    <div
+                      onClick={() => toggleAberto(ped.pedido_id)}
+                      style={{ background: C.azul, color: '#fff', padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', cursor: 'pointer', userSelect: 'none' }}
+                    >
                       <span
                         draggable
-                        onDragStart={e => { setDragPedido(ped.pedido_id); e.dataTransfer.effectAllowed = 'move'; }}
+                        onClick={e => e.stopPropagation()}
+                        onDragStart={e => { e.stopPropagation(); setDragPedido(ped.pedido_id); e.dataTransfer.effectAllowed = 'move'; }}
                         onDragEnd={() => setDragPedido(null)}
                         title="Arraste para reordenar a fila"
                         style={{ cursor: 'grab', color: 'rgba(255,255,255,.6)', fontSize: 16, lineHeight: 1 }}
@@ -227,24 +269,56 @@ export default function PlanejamentoPage() {
                       <span title="Ordem na fila" style={{ minWidth: 24, height: 24, padding: '0 6px', borderRadius: 12, background: '#fff', color: C.azul, fontWeight: 800, fontSize: 13, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                         {idx + 1}
                       </span>
-                      <i className="bi bi-folder2-open" />
+                      <i className={`bi ${aberto ? 'bi-folder2-open' : 'bi-folder2'}`} />
                       <b style={{ fontSize: 14 }}>{ped.numero_pedido_venda}</b>
                       {podeVerCli && ped.cliente && (
                         <span style={{ fontSize: 12.5, opacity: 0.9 }}>· {ped.cliente}</span>
                       )}
+                      <span style={{ fontSize: 11, opacity: 0.75 }}>
+                        {ped.pecas.length} peça{ped.pecas.length !== 1 ? 's' : ''}
+                      </span>
                       {prio && (
                         <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: .4, background: PRIO_COR[prio] || C.cinza, borderRadius: 10, padding: '2px 8px' }}>
                           {prio}
                         </span>
                       )}
                       {prev && (
-                        <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 700, background: prev.cor, borderRadius: 10, padding: '2px 9px' }}>
+                        <span style={{ fontSize: 11.5, fontWeight: 700, background: prev.cor, borderRadius: 10, padding: '2px 9px' }}>
                           {prev.txt}
                         </span>
                       )}
+                      {/* Ações à direita: avisar produção + abrir o pedido */}
+                      <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button
+                          onClick={e => { e.stopPropagation(); avisarProducao(ped.pedido_id); }}
+                          disabled={avisando === ped.pedido_id}
+                          title="Avisar a Usinagem que este pedido deve ser produzido"
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700,
+                            border: 'none', borderRadius: 8, padding: '5px 11px', cursor: 'pointer',
+                            background: jaAvisado ? 'rgba(255,255,255,.18)' : '#f59e0b',
+                            color: '#fff', whiteSpace: 'nowrap', opacity: avisando === ped.pedido_id ? .6 : 1,
+                          }}
+                        >
+                          <i className={`bi ${jaAvisado ? 'bi-check2-circle' : 'bi-megaphone-fill'}`} />
+                          {jaAvisado ? 'Avisado' : (avisando === ped.pedido_id ? 'Avisando…' : 'Avisar produção')}
+                        </button>
+                        <a
+                          href={`/pedidos/${ped.pedido_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          title="Abrir o pedido completo"
+                          style={{ color: '#fff', opacity: 0.85, fontSize: 15, lineHeight: 1, textDecoration: 'none' }}
+                        >
+                          <i className="bi bi-box-arrow-up-right" />
+                        </a>
+                        <i className={`bi ${aberto ? 'bi-chevron-up' : 'bi-chevron-down'}`} style={{ fontSize: 12, opacity: 0.7 }} />
+                      </span>
                     </div>
 
-                    {/* Peças do pedido */}
+                    {/* Peças do pedido — só quando o card está aberto */}
+                    {aberto && (
                     <div style={{ padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {ped.pecas.map(pc => {
                         const naUsinagem = pc.situacao === 'na_usinagem';
@@ -278,6 +352,7 @@ export default function PlanejamentoPage() {
                         );
                       })}
                     </div>
+                    )}
                   </div>
                 );
               })}

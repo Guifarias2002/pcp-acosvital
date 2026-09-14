@@ -120,7 +120,12 @@ export default function KanbanPage() {
   // do Flange) — no menu já aparece como "Recebimento", o kanban segue igual.
   const setoresDaFabrica = setoresFiltrados
     .filter(s => codsFabrica.includes(s.cod))
-    .map(s => s.cod === 'caldeiraria' ? { ...s, nome: 'Recebimento' } : s);
+    // Nomes atualizados no kanban: 'caldeiraria' = Recebimento (entrada da
+    // fábrica); 'quarentena' virou o passo TERMINAL do Flange (09/09) e se chama
+    // "Pedidos Finalizados" em todo o sistema — o kanban seguia com "Quarentena".
+    .map(s => s.cod === 'caldeiraria' ? { ...s, nome: 'Recebimento' }
+            : s.cod === 'quarentena' ? { ...s, nome: 'Pedidos Finalizados' }
+            : s);
 
   const todasParciais = setoresDaFabrica.flatMap(x => x.itens);
   const totalParciais = todasParciais.length;

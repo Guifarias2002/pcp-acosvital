@@ -66,6 +66,7 @@ import DespacharModal from '@/components/DespacharModal';
 import IniciarEntregaModal from '@/components/IniciarEntregaModal';
 import DivergenciaResolucaoModal from '@/components/DivergenciaResolucaoModal';
 import IniciarProducaoModal from '@/components/IniciarProducaoModal';
+import AvisosSetor from '@/components/AvisosSetor';
 import PausarModal from '@/components/PausarModal';
 import { temMaquinas, retomarPedeMaquina, labelMotivoPausa, type MotivoPausa } from '@/lib/maquinas';
 import AdicionarItemPedidoModal from '@/components/AdicionarItemPedidoModal';
@@ -4151,6 +4152,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
           </button>
         </div>
       </div>
+
+      {/* Caixa de avisos do Planejamento — só na Usinagem (por enquanto) */}
+      {setor === 'usinagem' && <AvisosSetor setor={setor} />}
 
       {/* Filtro de pedido — todos os setores (busca por PV/código/descrição) */}
       {data && (

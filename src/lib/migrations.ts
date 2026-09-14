@@ -28,7 +28,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 43;
+const SCHEMA_VERSION = 44;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -639,4 +639,25 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
       AND acesso_planejamento = false
       AND NOT EXISTS (SELECT 1 FROM usuarios_usuario WHERE acesso_planejamento = true)
   `.catch(() => {});
+
+  // M44 (14/09): AVISOS DE PRODUÇÃO — "caixa de mensagens" do Planejamento pra
+  // Usinagem. O planejador aperta "Avisar Produção" num pedido e cria um aviso
+  // que o pessoal do setor destino (hoje 'usinagem') vê numa caixa de entrada no
+  // topo da tela do setor, pra não se perderem. `visto` marca lido (some da
+  // caixa). Ver /api/avisos e o componente AvisosSetor.
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS producao_aviso (
+      id             SERIAL PRIMARY KEY,
+      pedido_id      INTEGER REFERENCES producao_pedido(id) ON DELETE CASCADE,
+      setor          TEXT NOT NULL,
+      mensagem       TEXT,
+      criado_por_id  INTEGER,
+      criado_por_nome TEXT,
+      criado_em      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      visto          BOOLEAN NOT NULL DEFAULT false,
+      visto_por_nome TEXT,
+      visto_em       TIMESTAMPTZ
+    )
+  `).catch(() => {});
+  await sql.unsafe(`CREATE INDEX IF NOT EXISTS idx_aviso_setor_visto ON producao_aviso (setor, visto, criado_em DESC)`).catch(() => {});
 }
