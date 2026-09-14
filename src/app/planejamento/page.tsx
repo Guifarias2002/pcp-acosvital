@@ -92,6 +92,8 @@ export default function PlanejamentoPage() {
   // Modal de "Avisar produção" — permite escrever uma observação junto ao aviso.
   const [avisarModal, setAvisarModal] = useState<{ pedidoId: number; numero: string } | null>(null);
   const [avisarObs, setAvisarObs] = useState('');
+  // Aba ativa: a Fila ou o Painel de Máquinas (abre ao clicar lá em cima).
+  const [aba, setAba] = useState<'fila' | 'maquinas'>('fila');
   const podeVerCli = podeVerCliente();
 
   const carregar = useCallback(async (silencioso = false) => {
@@ -340,6 +342,14 @@ export default function PlanejamentoPage() {
   const nomesEmGrupos = new Set(grupos.flatMap(g => g.maquinas));
   const painelOutras = (dados?.painel || []).filter(p => !nomesEmGrupos.has(p.maquina));
 
+  // Resumo geral do que está em produção AGORA na Usinagem.
+  const pecasAtivas = [...(dados?.painel || []).flatMap(m => m.pecas), ...(dados?.sem_maquina || [])];
+  const totalMaquinas = (dados?.painel || []).length;
+  const maquinasEmUso = (dados?.painel || []).filter(m => m.pecas.length > 0).length;
+  const pedidosProduzindo = new Set(pecasAtivas.map(p => p.numero_pedido_venda)).size;
+  const pecasProduzindo = pecasAtivas.length;
+  const totalUnidades = pecasAtivas.reduce((s, p) => s + (Number(p.quantidade) || 0), 0);
+
   const renderMaquina = (mq: PainelMaquina) => {
     const ocupada = mq.pecas.length > 0;
     return (
@@ -404,13 +414,42 @@ export default function PlanejamentoPage() {
           </button>
         </div>
 
+        {/* Abas — Fila × Painel de Máquinas (clica pra abrir) */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+          {([
+            { id: 'fila' as const, rot: 'Fila da Usinagem', icon: 'bi-list-ol' },
+            { id: 'maquinas' as const, rot: 'Painel de Máquinas', icon: 'bi-cpu' },
+          ]).map(t => {
+            const ativa = aba === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setAba(t.id)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700,
+                  border: `1.5px solid ${ativa ? C.azul : '#e2e8f0'}`, borderRadius: 10, padding: '8px 16px', cursor: 'pointer',
+                  background: ativa ? C.azul : '#fff', color: ativa ? '#fff' : '#475569',
+                }}
+              >
+                <i className={`bi ${t.icon}`} />{t.rot}
+                {t.id === 'maquinas' && maquinasEmUso > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 800, background: ativa ? 'rgba(255,255,255,.22)' : '#eef2ff', color: ativa ? '#fff' : C.azul2, borderRadius: 10, padding: '1px 8px' }}>
+                    {maquinasEmUso} em uso
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         {erro && (
           <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 14 }}>
             {erro}
           </div>
         )}
 
-        {/* ── SEÇÃO 1 — FILA ─────────────────────────────────────────────── */}
+        {/* ── SEÇÃO 1 — FILA (aba) ───────────────────────────────────────── */}
+        {aba === 'fila' && (
         <section style={{ marginBottom: 30 }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: C.azul2, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
             <i className="bi bi-list-ol" style={{ marginRight: 6 }} />Fila da Usinagem
@@ -444,14 +483,34 @@ export default function PlanejamentoPage() {
             </>
           )}
         </section>
+        )}
 
-        {/* ── SEÇÃO 2 — PAINEL DE MÁQUINAS (AO VIVO) ─────────────────────── */}
+        {/* ── SEÇÃO 2 — PAINEL DE MÁQUINAS (aba) ─────────────────────────── */}
+        {aba === 'maquinas' && (
         <section>
           <div style={{ fontSize: 12, fontWeight: 800, color: C.roxo, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
             <i className="bi bi-cpu" style={{ marginRight: 6 }} />Painel de Máquinas — ao vivo
           </div>
           <div style={{ fontSize: 11.5, color: '#94a3b8', marginBottom: 12 }}>
             O que está produzindo agora em cada máquina da Usinagem · atualiza sozinho a cada 30s
+          </div>
+
+          {/* Resumo geral — total do que está em produção agora */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+            {[
+              { rot: 'Pedidos em produção', val: pedidosProduzindo, cor: C.azul2, icon: 'bi-folder-fill' },
+              { rot: 'Peças em produção', val: pecasProduzindo, cor: C.verde, icon: 'bi-diagram-3-fill' },
+              { rot: 'Quantidade total', val: totalUnidades.toLocaleString('pt-BR'), cor: C.roxo, icon: 'bi-box-seam' },
+              { rot: 'Máquinas em uso', val: `${maquinasEmUso} / ${totalMaquinas}`, cor: C.laranja, icon: 'bi-gear-fill' },
+              { rot: 'Máquinas livres', val: totalMaquinas - maquinasEmUso, cor: C.cinza, icon: 'bi-gear' },
+            ].map(t => (
+              <div key={t.rot} style={{ flex: '1 1 150px', minWidth: 140, border: '1px solid #e2e8f0', borderLeft: `4px solid ${t.cor}`, borderRadius: 10, background: '#fff', padding: '10px 14px' }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: .4, marginBottom: 3 }}>
+                  <i className={`bi ${t.icon}`} style={{ marginRight: 5, color: t.cor }} />{t.rot}
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: C.azul, lineHeight: 1.1 }}>{t.val}</div>
+              </div>
+            ))}
           </div>
 
           {/* Agrupado por CATEGORIA (Tornos Manuais / CNC / Verticais) */}
@@ -493,6 +552,7 @@ export default function PlanejamentoPage() {
             </div>
           )}
         </section>
+        )}
       </div>
 
       {/* Modal — avisar produção com observação opcional */}
