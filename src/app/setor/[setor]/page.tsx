@@ -3800,6 +3800,15 @@ function FotosParcial({ parcialId, inicial, editavel }: { parcialId: number; ini
 // Aqui o arquivo abre num overlay com um botão grande "← Voltar" no topo, então
 // ele fecha e volta pro sistema na hora, sem sair de lugar nenhum.
 function VisualizadorDoc({ url, titulo, onClose }: { url: string; titulo: string; onClose: () => void }) {
+  // ⚠️ Tablet/celular: o Chrome de aparelho de TOQUE não renderiza PDF dentro de um
+  // <iframe> (mostra só um ícone de "documento quebrado"). Por isso, em tela de
+  // toque (pointer: coarse) trocamos o <iframe> por um botão grande que abre a OP no
+  // visualizador NATIVO do navegador (nova aba), que sabe mostrar PDF. No desktop o
+  // <iframe> funciona e mantém tudo dentro do sistema com o botão Voltar.
+  const [toque, setToque] = useState(false);
+  useEffect(() => {
+    setToque(typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches);
+  }, []);
   // ESC também fecha (quem usa teclado/mouse).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -3819,7 +3828,18 @@ function VisualizadorDoc({ url, titulo, onClose }: { url: string; titulo: string
           Abrir em nova aba <i className="bi bi-box-arrow-up-right" />
         </a>
       </div>
-      <iframe src={url} title={titulo} style={{ flex: 1, width: '100%', border: 'none', background: '#fff' }} />
+      {toque ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: 24, textAlign: 'center', color: '#fff' }}>
+          <i className="bi bi-file-earmark-text" style={{ fontSize: 72, opacity: 0.9 }} />
+          <div style={{ fontSize: 16, maxWidth: 400, lineHeight: 1.4 }}>Toque no botão abaixo para abrir <b>{titulo}</b>.</div>
+          <a href={url} target="_blank" rel="noopener noreferrer"
+            style={{ background: '#fff', color: '#1a3a5c', borderRadius: 12, padding: '18px 32px', fontSize: 19, fontWeight: 800, textDecoration: 'none', boxShadow: '0 3px 10px rgba(0,0,0,.35)', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+            <i className="bi bi-box-arrow-up-right" /> Abrir {titulo}
+          </a>
+        </div>
+      ) : (
+        <iframe src={url} title={titulo} style={{ flex: 1, width: '100%', border: 'none', background: '#fff' }} />
+      )}
     </div>
   );
 }
