@@ -14,7 +14,11 @@ const securityHeaders = [
       "font-src 'self' https://cdn.jsdelivr.net",
       "img-src 'self' data: blob: https:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
-      "frame-ancestors 'none'",
+      // 'self' (não 'none') pra o app conseguir embutir as PRÓPRIAS páginas num
+      // iframe — ex.: o visualizador da OP/PV/Desenho em tela cheia (com botão
+      // Voltar) na Usinagem e no Planejamento. Sites externos continuam bloqueados
+      // (clickjacking), igual ao X-Frame-Options: SAMEORIGIN acima.
+      "frame-ancestors 'self'",
     ].join('; '),
   },
   // HSTS: força HTTPS por 2 anos
