@@ -14,6 +14,10 @@ const securityHeaders = [
       "font-src 'self' https://cdn.jsdelivr.net",
       "img-src 'self' data: blob: https:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+      // worker do PDF.js (leitor de OP em tablet/celular, ver VisualizadorDoc):
+      // servido do próprio domínio (/pdfjs/pdf.worker.min.js); blob: cobre o caso
+      // de o PDF.js embrulhar o worker num Blob.
+      "worker-src 'self' blob:",
       // 'self' (não 'none') pra o app conseguir embutir as PRÓPRIAS páginas num
       // iframe — ex.: o visualizador da OP/PV/Desenho em tela cheia (com botão
       // Voltar) na Usinagem e no Planejamento. Sites externos continuam bloqueados

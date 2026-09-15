@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
+import VisualizadorDoc from '@/components/VisualizadorDoc';
 import { useRealtime } from '@/hooks/useRealtime';
 import { getToken, podePlanejar, podeVerCliente } from '@/lib/auth';
 
@@ -91,53 +92,9 @@ const MENSAGENS_PRONTAS = [
   'Cliente aguardando',
 ];
 
-// Visualizador de documento EM TELA CHEIA, dentro do próprio sistema. Igual ao
-// da Usinagem: a OP abre num overlay com um botão grande "← Voltar" no topo (ESC
-// também fecha), em vez de uma aba nova com o PDF cru onde o operador ficava preso.
-//
-// ⚠️ Tablet/celular: o Chrome de aparelho de TOQUE não renderiza PDF dentro de um
-// <iframe> (mostra só um ícone de "documento quebrado"). Por isso, em tela de
-// toque (pointer: coarse) trocamos o <iframe> por um botão grande que abre a OP no
-// visualizador NATIVO do navegador (nova aba), que sabe mostrar PDF. No desktop o
-// <iframe> funciona e mantém tudo dentro do sistema com o botão Voltar.
-function VisualizadorDoc({ url, titulo, onClose }: { url: string; titulo: string; onClose: () => void }) {
-  const [toque, setToque] = useState(false);
-  useEffect(() => {
-    setToque(typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches);
-  }, []);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: '#1a3a5c', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#1a3a5c', color: '#fff', flexShrink: 0 }}>
-        <button onClick={onClose} type="button"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#fff', color: '#1a3a5c', border: 'none', borderRadius: 8, padding: '12px 22px', fontSize: 17, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,.3)' }}>
-          <i className="bi bi-arrow-left" /> Voltar
-        </button>
-        <span style={{ fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{titulo}</span>
-        <a href={url} target="_blank" rel="noopener noreferrer"
-          style={{ marginLeft: 'auto', color: '#cfe0ff', fontSize: 13, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-          Abrir em nova aba <i className="bi bi-box-arrow-up-right" />
-        </a>
-      </div>
-      {toque ? (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: 24, textAlign: 'center', color: '#fff' }}>
-          <i className="bi bi-file-earmark-text" style={{ fontSize: 72, opacity: 0.9 }} />
-          <div style={{ fontSize: 16, maxWidth: 400, lineHeight: 1.4 }}>Toque no botão abaixo para abrir <b>{titulo}</b>.</div>
-          <a href={url} target="_blank" rel="noopener noreferrer"
-            style={{ background: '#fff', color: '#1a3a5c', borderRadius: 12, padding: '18px 32px', fontSize: 19, fontWeight: 800, textDecoration: 'none', boxShadow: '0 3px 10px rgba(0,0,0,.35)', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            <i className="bi bi-box-arrow-up-right" /> Abrir {titulo}
-          </a>
-        </div>
-      ) : (
-        <iframe src={url} title={titulo} style={{ flex: 1, width: '100%', border: 'none', background: '#fff' }} />
-      )}
-    </div>
-  );
-}
+// VisualizadorDoc foi para src/components/VisualizadorDoc.tsx (compartilhado com a
+// tela de setor). Em tablet/celular ele desenha o PDF aqui dentro com PDF.js, sem
+// abrir aba; no desktop mantém o <iframe> nativo.
 
 export default function PlanejamentoPage() {
   const router = useRouter();
