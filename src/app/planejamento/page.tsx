@@ -452,52 +452,71 @@ export default function PlanejamentoPage() {
           {ped.pecas.map(pc => {
             const naUsinagem = pc.situacao === 'na_usinagem';
             const sp = naUsinagem && pc.status_prod ? STATUS_PROD[pc.status_prod] : null;
+            // Card MAIS VISUAL da peça (pedido do Guilherme): borda esquerda pela
+            // situação, código destacado, status, quantidade, prazo e a máquina
+            // rotulada — SEM tirar nenhuma opção de planejamento (o dropdown de
+            // máquina continua igual, salva na hora).
+            const prevPc = diasPrevisao(pc.previsao);
+            const accent = sp ? sp.cor : (naUsinagem ? C.verde : C.laranja);
             return (
-              <div key={pc.item_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', borderRadius: 8, background: '#f8fafc', flexWrap: 'wrap' }}>
-                {sp ? (
-                  <span title="Situação na Usinagem" style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: .3, color: sp.cor, background: sp.bg, borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap' }}>
-                    <i className={`bi ${sp.icon}`} style={{ marginRight: 3 }} />{sp.txt}
+              <div key={pc.item_id} style={{ display: 'flex', flexDirection: 'column', gap: 7, padding: '10px 12px', borderRadius: 10, background: '#fff', border: '1px solid #e2e8f0', borderLeft: `4px solid ${accent}` }}>
+                {/* Linha 1: código + situação + quantidade */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 14.5, fontWeight: 800, color: C.azul }}>{pc.codigo}</span>
+                  {sp ? (
+                    <span title="Situação na Usinagem" style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: .3, color: sp.cor, background: sp.bg, borderRadius: 6, padding: '2px 8px', whiteSpace: 'nowrap' }}>
+                      <i className={`bi ${sp.icon}`} style={{ marginRight: 4 }} />{sp.txt}
+                    </span>
+                  ) : (
+                    <span title={naUsinagem ? 'Peça já está na Usinagem' : `Vindo do setor: ${pc.setor_atual_nome}`} style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: .3, color: naUsinagem ? C.verde : C.laranja, background: naUsinagem ? '#dcfce7' : '#fef3c7', borderRadius: 6, padding: '2px 8px', whiteSpace: 'nowrap' }}>
+                      {naUsinagem ? 'Na usinagem' : `Chegando de ${pc.setor_atual_nome}`}
+                    </span>
+                  )}
+                  <span style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 800, color: C.azul2, whiteSpace: 'nowrap' }}>
+                    {Number(pc.quantidade).toLocaleString('pt-BR')} <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>{pc.unidade}</span>
                   </span>
-                ) : (
-                  <span title={naUsinagem ? 'Peça já está na Usinagem' : `Vindo do setor: ${pc.setor_atual_nome}`} style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: .3, color: naUsinagem ? C.verde : C.laranja, background: naUsinagem ? '#dcfce7' : '#fef3c7', borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap' }}>
-                    {naUsinagem ? 'Na usinagem' : `Chegando de ${pc.setor_atual_nome}`}
-                  </span>
-                )}
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.azul }}>{pc.codigo}</div>
-                  <div style={{ fontSize: 11.5, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pc.descricao}</div>
                 </div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>
-                  {Number(pc.quantidade).toLocaleString('pt-BR')} {pc.unidade}
-                </span>
-                {pc.maquina_em_producao ? (
-                  // Já rodando: mostra a máquina REAL (não editável — o operador iniciou).
-                  <span title="Já está rodando nesta máquina" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: '#166534', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 7, padding: '6px 10px', whiteSpace: 'nowrap', maxWidth: 220 }}>
-                    <i className="bi bi-gear-fill" />{pc.maquina_em_producao}
+                {/* Descrição da peça */}
+                {pc.descricao && <div style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.35 }}>{pc.descricao}</div>}
+                {/* Linha 2: prazo (se houver) + máquina planejada (opção do planejamento) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {prevPc && (
+                    <span title="Previsão de conclusão" style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: prevPc.cor, borderRadius: 8, padding: '2px 9px', whiteSpace: 'nowrap' }}>
+                      <i className="bi bi-calendar-event" style={{ marginRight: 4 }} />{prevPc.txt}
+                    </span>
+                  )}
+                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', whiteSpace: 'nowrap' }}><i className="bi bi-gear" style={{ marginRight: 4 }} />Máquina</span>
+                    {pc.maquina_em_producao ? (
+                      // Já rodando: mostra a máquina REAL (não editável — o operador iniciou).
+                      <span title="Já está rodando nesta máquina" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: '#166534', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 7, padding: '6px 10px', whiteSpace: 'nowrap', maxWidth: 220 }}>
+                        <i className="bi bi-gear-fill" />{pc.maquina_em_producao}
+                      </span>
+                    ) : (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <select
+                          className={`pl-sel${pc.maquina_planejada ? ' on' : ''}`}
+                          value={pc.maquina_planejada || ''}
+                          disabled={salvandoMaq === pc.item_id}
+                          onChange={e => definirMaquina(pc.item_id, e.target.value)}
+                          title="Máquina planejada para esta peça — salva na hora"
+                        >
+                          <option value="">— sem máquina —</option>
+                          {grupos.map(g => (
+                            <optgroup key={g.categoria} label={g.categoria}>
+                              {g.maquinas.map(m => <option key={m} value={m}>{m}</option>)}
+                            </optgroup>
+                          ))}
+                        </select>
+                        {salvandoMaq === pc.item_id
+                          ? <i className="bi bi-arrow-repeat" style={{ color: '#94a3b8', fontSize: 14 }} title="Salvando…" />
+                          : salvoMaq === pc.item_id
+                            ? <i className="bi bi-check-circle-fill" style={{ color: C.verde, fontSize: 14 }} title="Salvo!" />
+                            : null}
+                      </span>
+                    )}
                   </span>
-                ) : (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <select
-                      className={`pl-sel${pc.maquina_planejada ? ' on' : ''}`}
-                      value={pc.maquina_planejada || ''}
-                      disabled={salvandoMaq === pc.item_id}
-                      onChange={e => definirMaquina(pc.item_id, e.target.value)}
-                      title="Máquina planejada para esta peça — salva na hora"
-                    >
-                      <option value="">— sem máquina —</option>
-                      {grupos.map(g => (
-                        <optgroup key={g.categoria} label={g.categoria}>
-                          {g.maquinas.map(m => <option key={m} value={m}>{m}</option>)}
-                        </optgroup>
-                      ))}
-                    </select>
-                    {salvandoMaq === pc.item_id
-                      ? <i className="bi bi-arrow-repeat" style={{ color: '#94a3b8', fontSize: 14 }} title="Salvando…" />
-                      : salvoMaq === pc.item_id
-                        ? <i className="bi bi-check-circle-fill" style={{ color: C.verde, fontSize: 14 }} title="Salvo!" />
-                        : null}
-                  </span>
-                )}
+                </div>
               </div>
             );
           })}
