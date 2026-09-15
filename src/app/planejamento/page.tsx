@@ -91,6 +91,33 @@ const MENSAGENS_PRONTAS = [
   'Cliente aguardando',
 ];
 
+// Visualizador de documento EM TELA CHEIA, dentro do próprio sistema. Igual ao
+// da Usinagem: a OP abre num overlay com um botão grande "← Voltar" no topo (ESC
+// também fecha), em vez de uma aba nova com o PDF cru onde o operador ficava preso.
+function VisualizadorDoc({ url, titulo, onClose }: { url: string; titulo: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: '#1a3a5c', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#1a3a5c', color: '#fff', flexShrink: 0 }}>
+        <button onClick={onClose} type="button"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#fff', color: '#1a3a5c', border: 'none', borderRadius: 8, padding: '12px 22px', fontSize: 17, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,.3)' }}>
+          <i className="bi bi-arrow-left" /> Voltar
+        </button>
+        <span style={{ fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{titulo}</span>
+        <a href={url} target="_blank" rel="noopener noreferrer"
+          style={{ marginLeft: 'auto', color: '#cfe0ff', fontSize: 13, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          Abrir em nova aba <i className="bi bi-box-arrow-up-right" />
+        </a>
+      </div>
+      <iframe src={url} title={titulo} style={{ flex: 1, width: '100%', border: 'none', background: '#fff' }} />
+    </div>
+  );
+}
+
 export default function PlanejamentoPage() {
   const router = useRouter();
   const [dados, setDados] = useState<Dados | null>(null);
@@ -119,6 +146,8 @@ export default function PlanejamentoPage() {
   const [detalheResumo, setDetalheResumo] = useState<'pedidos' | 'pecas' | 'qtd' | 'uso' | 'livres' | null>(null);
   // Máquina clicada no painel — abre modal com os pedidos dela. null = nenhum.
   const [maquinaModal, setMaquinaModal] = useState<PainelMaquina | null>(null);
+  // OP aberta no visualizador em tela cheia (com botão Voltar), em vez de aba nova.
+  const [opDoc, setOpDoc] = useState<{ url: string; titulo: string } | null>(null);
   // Busca do Painel de Máquinas — filtra por máquina, pedido, código ou operador.
   const [buscaPainel, setBuscaPainel] = useState('');
   // Busca da Fila — filtra por nº do pedido, cliente, código ou descrição.
@@ -396,16 +425,14 @@ export default function PlanejamentoPage() {
               {jaAvisado ? 'Avisado' : (avisando === ped.pedido_id ? 'Avisando…' : 'Avisar')}
             </button>
             {ped.tem_op && (
-              <a
-                href={`/api/pedidos/${ped.pedido_id}/ordem-producao?token=${encodeURIComponent(getToken() || '')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); setOpDoc({ url: `/api/pedidos/${ped.pedido_id}/ordem-producao?token=${encodeURIComponent(getToken() || '')}`, titulo: `Ordem de Produção · ${ped.numero_pedido_venda}` }); }}
                 title="Abrir a Ordem de Produção (OP)"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, border: '1px solid rgba(255,255,255,.4)', borderRadius: 8, padding: '4px 9px', color: '#fff', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, border: '1px solid rgba(255,255,255,.4)', borderRadius: 8, padding: '4px 9px', color: '#fff', background: 'transparent', cursor: 'pointer', whiteSpace: 'nowrap' }}
               >
                 <i className="bi bi-file-earmark-text" />OP
-              </a>
+              </button>
             )}
             <a
               href={`/pedidos/${ped.pedido_id}`}
@@ -961,10 +988,11 @@ export default function PlanejamentoPage() {
                     <span style={{ fontSize: 12.5, color: '#64748b' }}>· {p.numero_pedido_venda}{podeVerCli && p.cliente ? ` · ${p.cliente}` : ''}</span>
                     <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                       {p.tem_op && (
-                        <a href={`/api/pedidos/${p.pedido_id}/ordem-producao?token=${encodeURIComponent(getToken() || '')}`} target="_blank" rel="noopener noreferrer"
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, border: '1px solid #93c5fd', background: '#eff6ff', color: '#1d4ed8', borderRadius: 7, padding: '4px 9px', textDecoration: 'none' }}>
+                        <button type="button"
+                          onClick={() => setOpDoc({ url: `/api/pedidos/${p.pedido_id}/ordem-producao?token=${encodeURIComponent(getToken() || '')}`, titulo: `Ordem de Produção · ${p.numero_pedido_venda}` })}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, border: '1px solid #93c5fd', background: '#eff6ff', color: '#1d4ed8', borderRadius: 7, padding: '4px 9px', cursor: 'pointer' }}>
                           <i className="bi bi-file-earmark-text" />OP
-                        </a>
+                        </button>
                       )}
                       <a href={`/pedidos/${p.pedido_id}`}
                         onClick={e => { e.preventDefault(); router.push(`/pedidos/${p.pedido_id}`); }}
@@ -985,6 +1013,9 @@ export default function PlanejamentoPage() {
           </div>
         </div>
       )}
+
+      {/* OP em tela cheia com botão Voltar (não sai do sistema) */}
+      {opDoc && <VisualizadorDoc url={opDoc.url} titulo={opDoc.titulo} onClose={() => setOpDoc(null)} />}
     </AuthGuard>
   );
 }
