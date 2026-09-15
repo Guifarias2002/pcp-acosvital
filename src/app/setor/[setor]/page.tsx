@@ -3794,36 +3794,70 @@ function FotosParcial({ parcialId, inicial, editavel }: { parcialId: number; ini
   );
 }
 
+// Visualizador de documento EM TELA CHEIA, dentro do próprio sistema.
+// Antes a OP/PV/Desenho abria numa ABA NOVA (target="_blank") com o PDF cru —
+// no tablet/quiosque o operador ficava "preso" no arquivo, sem botão de voltar.
+// Aqui o arquivo abre num overlay com um botão grande "← Voltar" no topo, então
+// ele fecha e volta pro sistema na hora, sem sair de lugar nenhum.
+function VisualizadorDoc({ url, titulo, onClose }: { url: string; titulo: string; onClose: () => void }) {
+  // ESC também fecha (quem usa teclado/mouse).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: '#1a3a5c', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#1a3a5c', color: '#fff', flexShrink: 0 }}>
+        <button onClick={onClose} type="button"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#fff', color: '#1a3a5c', border: 'none', borderRadius: 8, padding: '12px 22px', fontSize: 17, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,.3)' }}>
+          <i className="bi bi-arrow-left" /> Voltar
+        </button>
+        <span style={{ fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{titulo}</span>
+        <a href={url} target="_blank" rel="noopener noreferrer"
+          style={{ marginLeft: 'auto', color: '#cfe0ff', fontSize: 13, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          Abrir em nova aba <i className="bi bi-box-arrow-up-right" />
+        </a>
+      </div>
+      <iframe src={url} title={titulo} style={{ flex: 1, width: '100%', border: 'none', background: '#fff' }} />
+    </div>
+  );
+}
+
 // Linha de links dos documentos anexados ao pedido (PV / OP / Desenho).
 // Mostrada nos cards do painel de setor para o operador abrir/baixar direto da área.
 // Só renderiza os que existem; se nenhum existir, não aparece nada.
+// Ao clicar, o documento abre no VisualizadorDoc (tela cheia, com "Voltar") em vez
+// de uma aba nova — assim o operador nunca sai do sistema.
 function DocumentosPedidoLinks({ pedidoId, temPedidoVenda, temOrdemProducao, temDesenho, itemId, desenhoViaItem }: {
   pedidoId?: number; temPedidoVenda?: boolean; temOrdemProducao?: boolean; temDesenho?: boolean;
   itemId?: number; desenhoViaItem?: boolean;
 }) {
+  const [doc, setDoc] = useState<{ url: string; titulo: string } | null>(null);
   if (!pedidoId || (!temPedidoVenda && !temOrdemProducao && !temDesenho)) return null;
-  const linkStyle: React.CSSProperties = {
+  const btnStyle: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600,
-    color: '#1d4ed8', textDecoration: 'none', background: '#eff6ff', border: '1px solid #bfdbfe',
-    borderRadius: 5, padding: '4px 10px',
+    color: '#1d4ed8', font: 'inherit', cursor: 'pointer',
+    background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 5, padding: '4px 10px',
   };
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
       {temPedidoVenda && (
-        <a href={getPedidoVendaUrl(pedidoId)} target="_blank" rel="noopener noreferrer" style={linkStyle}>
+        <button type="button" onClick={() => setDoc({ url: getPedidoVendaUrl(pedidoId), titulo: 'Pedido de Venda' })} style={btnStyle}>
           📄 Pedido de Venda
-        </a>
+        </button>
       )}
       {temOrdemProducao && (
-        <a href={getOrdemProducaoUrl(pedidoId)} target="_blank" rel="noopener noreferrer" style={linkStyle}>
+        <button type="button" onClick={() => setDoc({ url: getOrdemProducaoUrl(pedidoId), titulo: 'Ordem de Produção' })} style={btnStyle}>
           🗂 Ordem de Produção
-        </a>
+        </button>
       )}
       {temDesenho && (
-        <a href={desenhoViaItem && itemId ? getDesenhoUrlItem(itemId) : getDesenhoUrl(pedidoId)} target="_blank" rel="noopener noreferrer" style={linkStyle}>
+        <button type="button" onClick={() => setDoc({ url: desenhoViaItem && itemId ? getDesenhoUrlItem(itemId) : getDesenhoUrl(pedidoId), titulo: 'Desenho Técnico' })} style={btnStyle}>
           📐 Desenho Técnico
-        </a>
+        </button>
       )}
+      {doc && <VisualizadorDoc url={doc.url} titulo={doc.titulo} onClose={() => setDoc(null)} />}
     </div>
   );
 }
