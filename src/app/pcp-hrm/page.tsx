@@ -105,6 +105,10 @@ export default function PcpHrmPage() {
   // Persiste no pedido via observações (bloco legível) — o roteiro_base do pedido
   // casca segue mínimo emissao→caldeiraria (ver o submit e a rota /api/pedidos,
   // que detecta o pedido HRM por esse roteiro). O PCP confirma na Conferência.
+  // Modo do caminho: 'mesmo' = um caminho só pra TODOS os componentes; 'cada' =
+  // cada componente (ou grupo) com o seu (seleção na tabela). Se os componentes
+  // se reencontram depois na produção, isso é assunto de APONTAMENTO, não daqui.
+  const [modo, setModo] = useState<'mesmo' | 'cada'>('mesmo');
   const [grupos, setGrupos] = useState<{ comps: string[]; roteiro: string[] }[]>([]);
   const [selComps, setSelComps] = useState<string[]>([]);
   const materiaisLidos = leitura?.ops?.flatMap(o => o.materiais) ?? [];
@@ -137,7 +141,7 @@ export default function PcpHrmPage() {
   async function selecionarArquivo(f: File | null, origemForcada?: Origem) {
     setArquivo(f);
     setLeitura(null); setErroLeitura(''); setComponentesAbertos(new Set()); setNomeEnvio('');
-    setGrupos([]); setSelComps([]); setRoteiroSel([]);
+    setGrupos([]); setSelComps([]); setRoteiroSel([]); setModo('mesmo');
     if (!f) return;
     if (f.type && f.type !== 'application/pdf') return; // leitura automática só p/ PDF
     // A origem escolhida na tela decide o leitor (Totvs=cifra; Omie=texto limpo).
@@ -196,18 +200,29 @@ export default function PcpHrmPage() {
         // que o PCP troca pelo real na conferência.
         const num = numero.trim() || `PCP-HRM-${Date.now()}`;
 
-        // Inclui um grupo ainda não "Salvo" (seleção + caminho montados mas sem
-        // clicar em Salvar) pra não perder o que a pessoa deixou pronto.
-        const gruposFinais = (selComps.length && roteiroSel.length)
-          ? [...grupos, { comps: [...selComps], roteiro: [...roteiroSel] }]
-          : grupos;
+        // Monta os "grupos finais" conforme o modo:
+        //  - 'mesmo': UM caminho pra todos os componentes lidos.
+        //  - 'cada' : os grupos definidos + um grupo ainda não "Salvo" (seleção +
+        //             caminho montados mas sem clicar em Salvar), pra não perder.
+        const todosCods = materiaisLidos.map(m => m.codigo).filter(Boolean);
+        const gruposFinais = modo === 'mesmo'
+          ? (roteiroSel.length && todosCods.length ? [{ comps: todosCods, roteiro: [...roteiroSel] }] : [])
+          : (selComps.length && roteiroSel.length
+              ? [...grupos, { comps: [...selComps], roteiro: [...roteiroSel] }]
+              : grupos);
         const atribFinais = new Set(gruposFinais.flatMap(g => g.comps));
         const pendFinais = materiaisLidos.filter(m => !atribFinais.has(m.codigo));
-        const linhasCaminho = gruposFinais.map(g =>
-          `• ${g.comps.map(nomeComp).join(' + ')}: ${g.roteiro.map(c => NOMES[c] || c).join(' → ')}`);
+        const linhasCaminho = gruposFinais.map(g => {
+          const rota = g.roteiro.map(c => NOMES[c] || c).join(' → ');
+          const alvo = modo === 'mesmo'
+            ? `Todos os componentes (${g.comps.join(', ')})`
+            : g.comps.map(nomeComp).join(' + ');
+          return `• ${alvo}: ${rota}`;
+        });
         const linhasPend = pendFinais.map(m => `• ${m.descricao || m.codigo} (${m.codigo}): (definir na Conferência)`);
         const blocoCaminho = (linhasCaminho.length || linhasPend.length)
-          ? ['Por onde cada peça passa:', ...linhasCaminho, ...linhasPend].join('\n')
+          ? [modo === 'mesmo' ? 'Por onde a peça passa (mesmo caminho pra todos):' : 'Por onde cada peça passa:',
+             ...linhasCaminho, ...linhasPend].join('\n')
           : '';
 
         const linhasObs = [
@@ -266,7 +281,7 @@ export default function PcpHrmPage() {
       }]);
       // reset pra próxima OP
       setNumero(''); setCliente(''); setPrazo(''); setSemPrazo(false); setObs('');
-      setArquivo(null); setRoteiroSel([]); setGrupos([]); setSelComps([]);
+      setArquivo(null); setRoteiroSel([]); setGrupos([]); setSelComps([]); setModo('mesmo');
       setLeitura(null); setErroLeitura(''); setCriadoId(null); setComponentesAbertos(new Set());
       setFileKey(k => k + 1);
     } catch (e: unknown) {
@@ -672,8 +687,10 @@ export default function PcpHrmPage() {
                             <div style={{ overflowX:'auto', marginTop:16 }}>
                               <span className={labelCls}>Componentes</span>
                               <div style={{ fontSize:12, color:'#1f5f8b', margin:'2px 0 4px' }}>
-                                <i className="bi bi-hand-index-thumb" style={{ marginRight:5 }} />
-                                Toque num componente (ou vários) pra selecionar — depois defina o caminho em <b>“Por onde a peça vai passar”</b>.
+                                <i className={modo === 'cada' ? 'bi bi-hand-index-thumb' : 'bi bi-signpost-2'} style={{ marginRight:5 }} />
+                                {modo === 'cada'
+                                  ? <>Toque num componente (ou vários) pra selecionar — depois defina o caminho em <b>“Por onde a peça vai passar”</b>.</>
+                                  : <>Todos seguem o <b>mesmo caminho</b> (definido em “Por onde a peça vai passar”). Pra caminhos diferentes, mude pra <b>“Cada um o seu”</b>.</>}
                               </div>
                               <table style={{ width:'100%', borderCollapse:'collapse', marginTop:6, fontSize:12.5, minWidth:520 }}>
                                 <thead>
@@ -689,17 +706,20 @@ export default function PcpHrmPage() {
                                     // decodificação não recuperou este código). Só dá pra
                                     // SELECIONAR quando o código é coerente (é a chave do grupo).
                                     const codOk = codigoCoerente(m.codigo);
-                                    const sel = codOk && selComps.includes(m.codigo);
-                                    const jaTem = codOk && compsAtribuidos.has(m.codigo);
+                                    // Seleção por linha só no modo 'cada' (no 'mesmo', todos
+                                    // seguem o mesmo caminho — não há o que selecionar).
+                                    const selectable = codOk && modo === 'cada';
+                                    const sel = selectable && selComps.includes(m.codigo);
+                                    const jaTem = selectable && compsAtribuidos.has(m.codigo);
                                     return (
-                                      <tr key={i} onClick={codOk ? () => toggleComp(m.codigo) : undefined}
+                                      <tr key={i} onClick={selectable ? () => toggleComp(m.codigo) : undefined}
                                         style={{
                                           borderBottom:'1px solid #f1f3f5',
-                                          cursor: codOk ? 'pointer' : 'default',
+                                          cursor: selectable ? 'pointer' : 'default',
                                           background: sel ? '#e8f0fb' : jaTem ? '#eefaf2' : 'transparent',
                                         }}>
                                         <td style={{ padding:'5px 8px', textAlign:'center' }}>
-                                          {codOk && <i className={sel ? 'bi bi-check-square-fill' : jaTem ? 'bi bi-check-circle-fill' : 'bi bi-square'}
+                                          {selectable && <i className={sel ? 'bi bi-check-square-fill' : jaTem ? 'bi bi-check-circle-fill' : 'bi bi-square'}
                                             style={{ fontSize:14, color: sel ? '#1a3a5c' : jaTem ? '#2f7d5b' : '#b8c4d4' }} />}
                                         </td>
                                         {codOk
@@ -776,6 +796,78 @@ export default function PcpHrmPage() {
               </div>
             ) : (
               <>
+                {/* Escolha do modo. Se as peças se reencontram depois na produção
+                    pra se juntar, isso é APONTAMENTO — não se define aqui. */}
+                <div style={{ display:'flex', gap:8, marginBottom:14 }}>
+                  {([['mesmo', 'bi-signpost-2', 'Mesmo caminho pra todos'], ['cada', 'bi-diagram-3', 'Cada um o seu']] as const).map(([val, ic, txt]) => (
+                    <button key={val} type="button"
+                      onClick={() => { if (val !== modo) { setModo(val); setRoteiroSel([]); setSelComps([]); setGrupos([]); } }}
+                      style={{
+                        flex:1, display:'inline-flex', alignItems:'center', justifyContent:'center', gap:7,
+                        borderRadius:10, padding:'9px 12px', fontSize:12.5, fontWeight:700, cursor:'pointer',
+                        background: modo === val ? '#1a3a5c' : '#fff',
+                        color: modo === val ? '#fff' : '#1a3a5c',
+                        border: modo === val ? '1px solid #1a3a5c' : '1px solid #cfe0f2',
+                      }}>
+                      <i className={`bi ${ic}`} />{txt}
+                    </button>
+                  ))}
+                </div>
+
+                {/* MODO "mesmo": um caminho único aplicado a TODOS os componentes. */}
+                {modo === 'mesmo' && (
+                  <div style={{ background:'#f8faff', border:'1px solid #e3ecf7', borderRadius:12, padding:'14px 16px' }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, flexWrap:'wrap', marginBottom:10 }}>
+                      <span style={{ fontSize:12.5, fontWeight:700, color:'#1a3a5c' }}>
+                        Caminho de <span style={{ color:'#1f5f8b' }}>todos os {materiaisLidos.length} componente(s)</span>
+                      </span>
+                      <div style={{ display:'flex', gap:8 }}>
+                        <button type="button" onClick={carregarRoteiroPadrao}
+                          style={{ background:'#eef4fb', border:'1px solid #cfe0f2', color:'#1a3a5c', borderRadius:8, padding:'5px 10px', fontSize:11.5, fontWeight:700, cursor:'pointer' }}>
+                          <i className="bi bi-list-check" style={{ marginRight:5 }} />Roteiro padrão
+                        </button>
+                        {roteiroSel.length > 0 && (
+                          <button type="button" onClick={() => setRoteiroSel([])}
+                            style={{ background:'#fff', border:'1px solid #e5e7eb', color:'#94a3b8', borderRadius:8, padding:'5px 10px', fontSize:11.5, fontWeight:700, cursor:'pointer' }}>Limpar</button>
+                        )}
+                      </div>
+                    </div>
+                    {roteiroSel.length === 0 ? (
+                      <div style={{ fontSize:12.5, color:'#7a8aa0', marginBottom:4 }}>Clique nos setores abaixo na ordem do processo, ou use o roteiro padrão.</div>
+                    ) : (
+                      <ol style={{ listStyle:'none', margin:'0 0 10px', padding:0, display:'flex', flexDirection:'column', gap:6 }}>
+                        {roteiroSel.map((cod, i) => (
+                          <li key={i} style={{ display:'flex', alignItems:'center', gap:8, background:'#fff', border:'1px solid #cfe0f2', borderRadius:10, padding:'8px 8px 8px 12px' }}>
+                            <span style={{ flexShrink:0, minWidth:22, height:22, borderRadius:11, background:'#1a3a5c', color:'#fff', fontWeight:800, fontSize:12, display:'inline-flex', alignItems:'center', justifyContent:'center' }}>{i + 1}</span>
+                            <span style={{ flex:1, minWidth:0, fontSize:13.5, fontWeight:700, color:'#1a3a5c' }}>{NOMES[cod] || cod}</span>
+                            <button type="button" onClick={() => moverEtapa(i, -1)} disabled={i === 0} title="Subir" style={{ background:'none', border:'none', cursor:i===0?'default':'pointer', color:i===0?'#d1d5db':'#1a3a5c', fontSize:14, padding:'0 3px' }}><i className="bi bi-arrow-up" /></button>
+                            <button type="button" onClick={() => moverEtapa(i, 1)} disabled={i === roteiroSel.length - 1} title="Descer" style={{ background:'none', border:'none', cursor:i===roteiroSel.length-1?'default':'pointer', color:i===roteiroSel.length-1?'#d1d5db':'#1a3a5c', fontSize:14, padding:'0 3px' }}><i className="bi bi-arrow-down" /></button>
+                            <button type="button" onClick={() => removerEtapa(i)} title="Remover" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:14, padding:'0 3px' }}><i className="bi bi-x-lg" /></button>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                    <span className={labelCls}>Adicionar etapa (clique pra incluir no fim — a Inspeção CQ pode repetir)</span>
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
+                      {SETORES_CALD.map(cod => (
+                        <button key={cod} type="button" onClick={() => addEtapa(cod)}
+                          style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#fff', border:'1px dashed #cfe0f2', color:'#1a3a5c', borderRadius:20, padding:'5px 12px', fontSize:12.5, fontWeight:700, cursor:'pointer' }}>
+                          <i className="bi bi-plus-lg" style={{ fontSize:11 }} />{NOMES[cod] || cod}
+                        </button>
+                      ))}
+                    </div>
+                    {roteiroSel.length > 0 && (
+                      <div style={{ marginTop:12, fontSize:12, color:'#2f7d5b', background:'#e8f2ec', border:'1px solid #bbe0cb', borderRadius:8, padding:'8px 12px' }}>
+                        <i className="bi bi-check2-circle" style={{ marginRight:6 }} />
+                        Pronto — os {materiaisLidos.length} componentes vão por esse caminho. É só <b>Enviar para Emissão</b>.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* MODO "cada": seleção por componente na tabela + grupos. */}
+                {modo === 'cada' && (
+                <>
                 {/* Passo 1 — a seleção é feita na tabela de Componentes (acima); aqui
                     é só o resumo do que está selecionado agora (clicar remove). */}
                 <span className={labelCls}>1. Componentes selecionados</span>
@@ -894,6 +986,8 @@ export default function PcpHrmPage() {
                     <i className="bi bi-exclamation-triangle" style={{ marginRight:6 }} />
                     Sem caminho ainda: <b>{compsPendentes.map(m => m.codigo).join(', ')}</b>. Selecione e defina — ou deixe pro PCP na Conferência.
                   </div>
+                )}
+                </>
                 )}
               </>
             )}
