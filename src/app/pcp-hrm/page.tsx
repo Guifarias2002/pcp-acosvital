@@ -107,7 +107,7 @@ export default function PcpHrmPage() {
   // que detecta o pedido HRM por esse roteiro). O PCP confirma na Conferência.
   const [grupos, setGrupos] = useState<{ comps: string[]; roteiro: string[] }[]>([]);
   const [selComps, setSelComps] = useState<string[]>([]);
-  const materiaisLidos = leitura?.ops?.[0]?.materiais ?? [];
+  const materiaisLidos = leitura?.ops?.flatMap(o => o.materiais) ?? [];
   const compsAtribuidos = new Set(grupos.flatMap(g => g.comps));
   const compsPendentes = materiaisLidos.filter(m => !compsAtribuidos.has(m.codigo));
   const nomeComp = (cod: string) => {
@@ -671,27 +671,49 @@ export default function PcpHrmPage() {
                           {!leituraRuim && op.materiais.length > 0 && (
                             <div style={{ overflowX:'auto', marginTop:16 }}>
                               <span className={labelCls}>Componentes</span>
+                              <div style={{ fontSize:12, color:'#1f5f8b', margin:'2px 0 4px' }}>
+                                <i className="bi bi-hand-index-thumb" style={{ marginRight:5 }} />
+                                Toque num componente (ou vários) pra selecionar — depois defina o caminho em <b>“Por onde a peça vai passar”</b>.
+                              </div>
                               <table style={{ width:'100%', borderCollapse:'collapse', marginTop:6, fontSize:12.5, minWidth:520 }}>
                                 <thead>
                                   <tr style={{ textAlign:'left', color:'#6c757d', borderBottom:'1px solid #e9ecef' }}>
+                                    <th style={{ padding:'5px 8px', width:34 }}></th>
                                     <th style={{ padding:'5px 8px' }}>Código</th><th style={{ padding:'5px 8px' }}>Descrição</th>
                                     <th style={{ padding:'5px 8px' }}>Qtd</th><th style={{ padding:'5px 8px' }}>Un</th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {op.materiais.map((m, i) => (
-                                    <tr key={i} style={{ borderBottom:'1px solid #f1f3f5' }}>
-                                      {/* Código só quando numericamente coerente; senão "—"
-                                          (a decodificação não recuperou este código — não
-                                          mostrar glifo corrompido como se fosse código real). */}
-                                      {codigoCoerente(m.codigo)
-                                        ? <td style={{ padding:'5px 8px', fontWeight:700, color:'#1a3a5c', whiteSpace:'nowrap' }}>{m.codigo}</td>
-                                        : <td style={{ padding:'5px 8px', color:'#b91c1c', whiteSpace:'nowrap' }} title="Código não pôde ser lido com segurança — confira no PDF">—</td>}
-                                      <td style={{ padding:'5px 8px' }}>{m.descricao}</td>
-                                      <td style={{ padding:'5px 8px', whiteSpace:'nowrap' }}>{m.quantidade}</td>
-                                      <td style={{ padding:'5px 8px' }}>{m.unidade}</td>
-                                    </tr>
-                                  ))}
+                                  {op.materiais.map((m, i) => {
+                                    // Código só quando numericamente coerente; senão "—" (a
+                                    // decodificação não recuperou este código). Só dá pra
+                                    // SELECIONAR quando o código é coerente (é a chave do grupo).
+                                    const codOk = codigoCoerente(m.codigo);
+                                    const sel = codOk && selComps.includes(m.codigo);
+                                    const jaTem = codOk && compsAtribuidos.has(m.codigo);
+                                    return (
+                                      <tr key={i} onClick={codOk ? () => toggleComp(m.codigo) : undefined}
+                                        style={{
+                                          borderBottom:'1px solid #f1f3f5',
+                                          cursor: codOk ? 'pointer' : 'default',
+                                          background: sel ? '#e8f0fb' : jaTem ? '#eefaf2' : 'transparent',
+                                        }}>
+                                        <td style={{ padding:'5px 8px', textAlign:'center' }}>
+                                          {codOk && <i className={sel ? 'bi bi-check-square-fill' : jaTem ? 'bi bi-check-circle-fill' : 'bi bi-square'}
+                                            style={{ fontSize:14, color: sel ? '#1a3a5c' : jaTem ? '#2f7d5b' : '#b8c4d4' }} />}
+                                        </td>
+                                        {codOk
+                                          ? <td style={{ padding:'5px 8px', fontWeight:700, color:'#1a3a5c', whiteSpace:'nowrap' }}>{m.codigo}</td>
+                                          : <td style={{ padding:'5px 8px', color:'#b91c1c', whiteSpace:'nowrap' }} title="Código não pôde ser lido com segurança — confira no PDF">—</td>}
+                                        <td style={{ padding:'5px 8px' }}>
+                                          {m.descricao}
+                                          {jaTem && <span style={{ marginLeft:8, fontSize:10.5, fontWeight:700, color:'#2f7d5b', background:'#e8f2ec', border:'1px solid #bbe0cb', borderRadius:6, padding:'1px 6px', whiteSpace:'nowrap' }}>✓ com caminho</span>}
+                                        </td>
+                                        <td style={{ padding:'5px 8px', whiteSpace:'nowrap' }}>{m.quantidade}</td>
+                                        <td style={{ padding:'5px 8px' }}>{m.unidade}</td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </div>
@@ -754,29 +776,29 @@ export default function PcpHrmPage() {
               </div>
             ) : (
               <>
-                {/* Passo 1 — selecionar componentes */}
-                <span className={labelCls}>1. Selecione o(s) componente(s) — pode marcar mais de um</span>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:6, marginBottom:14 }}>
-                  {materiaisLidos.map((m, i) => {
-                    const sel = selComps.includes(m.codigo);
-                    const jaTem = compsAtribuidos.has(m.codigo);
-                    return (
-                      <button key={m.codigo + '-' + i} type="button" onClick={() => toggleComp(m.codigo)} title={m.descricao}
-                        style={{
-                          display:'inline-flex', alignItems:'center', gap:6, borderRadius:10, padding:'7px 12px',
-                          fontSize:12.5, fontWeight:700, cursor:'pointer', maxWidth:'100%',
-                          background: sel ? '#1a3a5c' : jaTem ? '#e8f2ec' : '#fff',
-                          color: sel ? '#fff' : jaTem ? '#2f7d5b' : '#1a3a5c',
-                          border: sel ? '1px solid #1a3a5c' : jaTem ? '1px solid #bbe0cb' : '1px dashed #cfe0f2',
-                        }}>
-                        <i className={sel ? 'bi bi-check-square-fill' : jaTem ? 'bi bi-check-circle-fill' : 'bi bi-square'} style={{ fontSize:12 }} />
-                        <span style={{ whiteSpace:'nowrap' }}>{m.codigo}</span>
-                        <span style={{ fontWeight:500, opacity:.85, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:170 }}>{m.descricao}</span>
-                        {jaTem && !sel && <span style={{ fontSize:10.5, fontWeight:700 }}>✓ com caminho</span>}
-                      </button>
-                    );
-                  })}
-                </div>
+                {/* Passo 1 — a seleção é feita na tabela de Componentes (acima); aqui
+                    é só o resumo do que está selecionado agora (clicar remove). */}
+                <span className={labelCls}>1. Componentes selecionados</span>
+                {selComps.length === 0 ? (
+                  <div style={{ fontSize:12.5, color:'#7a8aa0', background:'#f8faff', border:'1px dashed #cfe0f2', borderRadius:10, padding:'10px 14px', margin:'6px 0 14px' }}>
+                    <i className="bi bi-arrow-up" style={{ marginRight:6 }} />
+                    Toque num componente (ou vários) na tabela <b>Componentes</b> acima pra começar.
+                  </div>
+                ) : (
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:6, marginBottom:14 }}>
+                    {selComps.map(cod => {
+                      const m = materiaisLidos.find(x => x.codigo === cod);
+                      return (
+                        <button key={cod} type="button" onClick={() => toggleComp(cod)} title="Clique pra tirar da seleção"
+                          style={{ display:'inline-flex', alignItems:'center', gap:6, borderRadius:10, padding:'7px 12px', fontSize:12.5, fontWeight:700, cursor:'pointer', maxWidth:'100%', background:'#1a3a5c', color:'#fff', border:'1px solid #1a3a5c' }}>
+                          <span style={{ whiteSpace:'nowrap' }}>{cod}</span>
+                          {m && <span style={{ fontWeight:500, opacity:.85, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:170 }}>{m.descricao}</span>}
+                          <i className="bi bi-x-lg" style={{ fontSize:11 }} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Passo 2 — montar o caminho da seleção */}
                 {selComps.length > 0 && (
