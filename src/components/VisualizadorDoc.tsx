@@ -147,6 +147,22 @@ function DocInline({ url }: { url: string }) {
   );
 }
 
+// Visualizador EMBUTIDO (inline) — mesmo motor do overlay, mas dentro de um card
+// com altura fixa. Desktop usa <iframe> nativo; aparelho de toque desenha o PDF
+// no canvas do PDF.js (o iframe não renderiza PDF no Android). Use pra mostrar a
+// OP já aberta numa tela, sem exigir clique/abrir overlay.
+export function DocEmbed({ url, titulo, height = 560 }: { url: string; titulo: string; height?: number }) {
+  const [toque, setToque] = useState(false);
+  useEffect(() => { setToque(ehToque()); }, []);
+  return (
+    <div style={{ height, borderRadius: 8, overflow: 'hidden', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', background: '#525659' }}>
+      {toque
+        ? <DocInline url={url} />
+        : <iframe src={url} title={titulo} style={{ flex: 1, width: '100%', border: 'none', background: '#fff' }} />}
+    </div>
+  );
+}
+
 export default function VisualizadorDoc({ url, titulo, onClose }: { url: string; titulo: string; onClose: () => void }) {
   const [toque, setToque] = useState(false);
   useEffect(() => { setToque(ehToque()); }, []);

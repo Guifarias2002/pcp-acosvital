@@ -5,7 +5,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { getPedido, lerOpDoPedido, editarPedido, itemAcao, iniciarConferenciaHrm } from '@/lib/api';
 import { getUser, getToken } from '@/lib/auth';
 import { FABRICAS, NOMES } from '@/lib/types';
-import VisualizadorDoc from '@/components/VisualizadorDoc';
+import VisualizadorDoc, { DocEmbed } from '@/components/VisualizadorDoc';
 
 // ── PCP HRM — Conferência ────────────────────────────────────────────────────
 // O PCP (staff) pega uma OP que caiu na Emissão (pedido "casca" sem itens),
@@ -224,6 +224,13 @@ function Conteudo() {
   const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white';
   const lblRo: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block' };
   const roVal: React.CSSProperties = { fontSize: 14, color: '#0f172a', fontWeight: 600, padding: '6px 2px' };
+  const passoChip: React.CSSProperties = { background: '#eef4fb', border: '1px solid #c7d7ee', color: '#1a3a5c', borderRadius: 20, padding: '5px 12px', fontSize: 12.5, fontWeight: 600 };
+  const Chip = (label: string, value: string) => (
+    <div key={label} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#0f172a' }}>
+      <span style={{ fontSize: 10.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: .5, marginRight: 6 }}>{label}</span>
+      <b>{value}</b>
+    </div>
+  );
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto' }}>
@@ -259,6 +266,121 @@ function Conteudo() {
       {!carregando && (
         <>
           {avisoLeitura && <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', color: '#92400e', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16 }}><i className="bi bi-exclamation-triangle" style={{ marginRight: 6 }} />{avisoLeitura}</div>}
+
+          {preview ? (() => {
+            const desenhos: string[] = (pedido?.desenhos as string[]) || [];
+            const clienteNome = op0?.identificacao?.clienteNome || (pedido?.cliente ? String(pedido.cliente) : '');
+            const situacao = op0?.identificacao?.situacao || '';
+            const entregaFmt = entregaContratual ? entregaContratual.split('-').reverse().join('/')
+              : (op0?.identificacao?.entrega ? op0.identificacao.entrega.split('-').reverse().join('/') : '');
+            const temOp = !!(pedido as Record<string, unknown>)?.tem_ordem_producao;
+            const opUrl = `/api/pedidos/${pedidoId}/ordem-producao?token=${encodeURIComponent(token)}`;
+            const opTit = `OP — ${String(pedido?.numero_pedido_venda || pedidoId)}`;
+            return (
+              <>
+                {/* Resumo no topo — dados-chave do pedido/OP */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+                  {Chip('Pedido', String(pedido?.numero_pedido_venda || pedidoId))}
+                  {op0?.numero && Chip('Nº OP', op0.numero)}
+                  {clienteNome && clienteNome !== 'A definir' && Chip('Cliente', clienteNome)}
+                  {entregaFmt && Chip('Entrega', entregaFmt)}
+                  {pedCliente && Chip('Pedido cliente', pedCliente)}
+                  {situacao && Chip('Situação', situacao)}
+                </div>
+
+                {ops.length > 1 && <div style={{ marginBottom: 16, fontSize: 12, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px' }}>Este PDF tem {ops.length} ordens — a conferência lança a 1ª ({op0?.produto?.descricao || op0?.cabecalho.ns}). As demais podem ser lançadas depois.</div>}
+
+                {/* Duas colunas: OP inline (esquerda) + dados (direita) */}
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                  <div style={{ flex: '1.3 1 420px', minWidth: 300 }}>
+                    <div style={card}>
+                      <div style={secTitle}><i className="bi bi-file-earmark-pdf" style={{ marginRight: 6 }} />OP (Ordem de Produção)</div>
+                      {temOp && token
+                        ? <DocEmbed url={opUrl} titulo={opTit} height={640} />
+                        : <div style={{ fontSize: 13, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 12px' }}><i className="bi bi-exclamation-triangle" style={{ marginRight: 6 }} />Nenhuma OP anexada a este pedido.</div>}
+                    </div>
+                  </div>
+
+                  <div style={{ flex: '1 1 320px', minWidth: 280, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {/* Produto */}
+                    <div style={card}>
+                      <div style={secTitle}><i className="bi bi-box-seam" style={{ marginRight: 6 }} />Produto a fabricar</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{descricao || '—'}</div>
+                      <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 3 }}>{codigo && <>Cód. <span style={{ fontFamily: 'monospace' }}>{codigo}</span> · </>}{quantidade} {unidade}</div>
+                    </div>
+
+                    {/* Roteiro */}
+                    <div style={card}>
+                      <div style={secTitle}><i className="bi bi-signpost-split" style={{ marginRight: 6 }} />Roteiro — por onde passa</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        <span style={passoChip}>1. Emissão</span>
+                        {roteiroSel.map((s, i) => <span key={s} style={passoChip}>{i + 2}. {NOMES[s] || s}</span>)}
+                        {roteiroSel.length === 0 && <span style={{ fontSize: 12, color: '#b45309' }}>Roteiro ainda não definido — monte na conferência.</span>}
+                      </div>
+                    </div>
+
+                    {/* Materiais */}
+                    {op0 && op0.materiais.length > 0 && (
+                      <div style={card}>
+                        <div style={secTitle}><i className="bi bi-list-check" style={{ marginRight: 6 }} />Materiais (COMPONENTES) — {op0.materiais.length}</div>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                            <thead><tr style={{ textAlign: 'left', color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>
+                              <th style={{ padding: '6px 8px' }}>Código</th><th style={{ padding: '6px 8px' }}>Descrição</th><th style={{ padding: '6px 8px' }}>Qtde</th><th style={{ padding: '6px 8px' }}>Un</th>
+                            </tr></thead>
+                            <tbody>
+                              {op0.materiais.map((m, i) => {
+                                const codOk = op0.origem === 'omie' ? !!m.codigo.trim() : /^\d{4,}$/.test(m.codigo.replace(/\s/g, ''));
+                                return (
+                                  <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                    <td style={{ padding: '6px 8px', fontFamily: 'monospace', color: codOk ? '#0f172a' : '#b45309' }}>{codOk ? m.codigo : '—'}</td>
+                                    <td style={{ padding: '6px 8px' }}>{m.descricao}</td>
+                                    <td style={{ padding: '6px 8px' }}>{m.quantidade}</td>
+                                    <td style={{ padding: '6px 8px' }}>{m.unidade}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Desenhos — só aparece se tiver algum */}
+                    {desenhos.length > 0 && (
+                      <div style={card}>
+                        <div style={secTitle}><i className="bi bi-rulers" style={{ marginRight: 6 }} />Desenho(s) do projeto — {desenhos.length}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {desenhos.map((path, di) => {
+                            const nome = path.split('/').pop() || `Desenho ${di + 1}`;
+                            return (
+                              <div key={di} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 10px' }}>
+                                <i className="bi bi-file-earmark" style={{ color: '#6b7280', fontSize: 13 }} />
+                                <button onClick={() => setVisualizando({ url: `/api/pedidos/${pedidoId}/desenho?idx=${di}&token=${encodeURIComponent(token)}`, titulo: nome })}
+                                  style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', fontSize: 13, textDecoration: 'underline', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {nome}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Ação */}
+                <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, margin: '20px 0 40px' }}>
+                  <a href="/pcp-hrm/conferencia" style={{ padding: '11px 20px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, color: '#555', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center' }}>Voltar</a>
+                  <button onClick={iniciarDaPrevia} disabled={iniciandoConf}
+                    style={{ padding: '11px 28px', borderRadius: 8, background: '#16a34a', color: '#fff', fontSize: 14, fontWeight: 800, border: 'none', cursor: iniciandoConf ? 'wait' : 'pointer', opacity: iniciandoConf ? .7 : 1 }}>
+                    <i className="bi bi-play-fill" style={{ marginRight: 8 }} />
+                    {iniciandoConf ? 'Iniciando…' : 'Iniciar conferência'}
+                  </button>
+                </div>
+              </>
+            );
+          })() : (<>
 
           {/* Identificação da OP */}
           {op0 && (
@@ -433,6 +555,7 @@ function Conteudo() {
               {!staff && <div className="no-print" style={{ textAlign: 'right', fontSize: 12, color: '#b45309', marginTop: -30, marginBottom: 30 }}>Você pode conferir, mas o lançamento é feito pelo PCP/administrador.</div>}
             </>
           )}
+          </>)}
         </>
       )}
     </div>
