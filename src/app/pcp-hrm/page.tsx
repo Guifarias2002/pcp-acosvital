@@ -906,7 +906,9 @@ export default function PcpHrmPage() {
                     )}
                     <span className={labelCls}>Adicionar etapa (clique pra incluir no fim — a Inspeção CQ pode repetir)</span>
                     <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
-                      {SETORES_CALD.map(cod => (
+                      {/* Setor já escolhido sai da lista de opções. Exceção: a
+                          Inspeção CQ ('qualidade') pode repetir, então continua. */}
+                      {SETORES_CALD.filter(cod => cod === 'qualidade' || !roteiroSel.includes(cod)).map(cod => (
                         <button key={cod} type="button" onClick={() => addEtapa(cod)}
                           style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#fff', border:'1px dashed #cfe0f2', color:'#1a3a5c', borderRadius:20, padding:'5px 12px', fontSize:12.5, fontWeight:700, cursor:'pointer' }}>
                           <i className="bi bi-plus-lg" style={{ fontSize:11 }} />{NOMES[cod] || cod}
@@ -990,7 +992,9 @@ export default function PcpHrmPage() {
 
                     <span className={labelCls}>Adicionar etapa (clique pra incluir no fim — a Inspeção CQ pode repetir)</span>
                     <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6, marginBottom:12 }}>
-                      {SETORES_CALD.map(cod => (
+                      {/* Setor já escolhido sai da lista de opções. Exceção: a
+                          Inspeção CQ ('qualidade') pode repetir, então continua. */}
+                      {SETORES_CALD.filter(cod => cod === 'qualidade' || !roteiroSel.includes(cod)).map(cod => (
                         <button key={cod} type="button" onClick={() => addEtapa(cod)}
                           style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#fff', border:'1px dashed #cfe0f2', color:'#1a3a5c', borderRadius:20, padding:'5px 12px', fontSize:12.5, fontWeight:700, cursor:'pointer' }}>
                           <i className="bi bi-plus-lg" style={{ fontSize:11 }} />{NOMES[cod] || cod}
