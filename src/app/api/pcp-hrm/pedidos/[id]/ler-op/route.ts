@@ -3,7 +3,7 @@ import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { podeAcessarHrm } from '@/lib/auth';
 import { b2Download } from '@/lib/b2';
-import { lerOP } from '@/lib/opReader';
+import { lerOP, lerOpOmie } from '@/lib/opReader';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -26,9 +26,12 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     if (!Number.isInteger(pedidoId) || pedidoId <= 0)
       return NextResponse.json({ erro: 'ID inválido' }, { status: 400 });
 
-    const rows = await sql`SELECT ordem_producao_url FROM producao_pedido WHERE id = ${pedidoId}`;
+    const rows = await sql`SELECT ordem_producao_url, observacoes FROM producao_pedido WHERE id = ${pedidoId}`;
     const storagePath: string | null = rows[0]?.ordem_producao_url ?? null;
     if (!storagePath) return NextResponse.json({ erro: 'Este pedido não tem OP anexada.' }, { status: 404 });
+    // A origem (Totvs/Omie) foi carimbada nas observações na abertura — define
+    // qual leitor relê a OP na conferência (o Totvs é caro/OCR; o Omie é texto).
+    const origem: 'totvs' | 'omie' = /Origem:\s*Omie/i.test(rows[0]?.observacoes || '') ? 'omie' : 'totvs';
 
     // Baixa os bytes (Backblaze "b2:" ou Supabase Storage legado).
     let buf: Buffer;
@@ -52,9 +55,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     }
 
     if (!/pdf/i.test(contentType))
-      return NextResponse.json({ erro: 'A leitura automática só funciona com PDF do Totvs.' }, { status: 400 });
+      return NextResponse.json({ erro: 'A leitura automática só funciona com PDF.' }, { status: 400 });
 
-    const leitura = await lerOP(buf);
+    const leitura = origem === 'omie' ? await lerOpOmie(buf) : await lerOP(buf);
     if (leitura.avisos.length) {
       console.warn(`[pcp-hrm/pedidos/${pedidoId}/ler-op] ${leitura.ops.length} ordem(ns), ${leitura.totalPaginas} pág. Avisos:`);
       for (const a of leitura.avisos) console.warn(`  · ${a}`);

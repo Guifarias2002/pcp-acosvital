@@ -38,7 +38,7 @@ export default function PcpHrmPage() {
   const [anexadas, setAnexadas] = useState<{ id: number; numero: string; cliente: string; pn: string; produto: string }[]>([]);
   const [fileKey, setFileKey] = useState(0);
 
-  const [origem, setOrigem] = useState<Origem>('totvs');
+  const [origem] = useState<Origem>('omie'); // Caldeiraria = só Omie (origem fixa)
   const [numero, setNumero] = useState('');
   const [cliente, setCliente] = useState('');
   const [semPrazo, setSemPrazo] = useState(false);
@@ -51,12 +51,13 @@ export default function PcpHrmPage() {
   interface OPMat { codigo: string; descricao: string; quantidade: string; unidade: string; materiaPrima?: string | null; dimensao?: string | null; norma?: string | null; }
   interface OPOp { seq: string; setor: string; setorNome: string; etapa: string; tc: string; tf: string; }
   interface OPValid { temProduto: boolean; temComponentes: boolean; temRoteiro: boolean; componentesSemCodigo: number; avisos: string[] }
-  interface OPIdent { clienteNome: string; clienteCodigo: string; quantidade: string; unidade: string; emissao: string; entrega: string; situacao: string; }
+  interface OPIdent { clienteNome: string; clienteCodigo: string; quantidade: string; unidade: string; emissao: string; entrega: string; situacao: string; previsaoConclusao?: string; }
   interface OPItem {
     cabecalho: { pn: string; po: string; ns: string };
     produto: { codigo: string; descricao: string };
     identificacao?: OPIdent;
     materiais: OPMat[]; roteiro: OPOp[]; confianca: number; qualidade?: number; validacao?: OPValid; paginas: number;
+    origem?: 'totvs' | 'omie'; numero?: string;
   }
   interface OPLeitura { ops: OPItem[]; totalPaginas: number; avisos?: string[] }
   const [lendo, setLendo] = useState(false);
@@ -97,16 +98,20 @@ export default function PcpHrmPage() {
   });
   const carregarRoteiroPadrao = () => setRoteiroSel(PROCESSO_CALDEIRARIA.slice());
 
-  async function selecionarArquivo(f: File | null) {
+  async function selecionarArquivo(f: File | null, origemForcada?: Origem) {
     setArquivo(f);
     setLeitura(null); setErroLeitura(''); setComponentesAbertos(new Set()); setNomeEnvio('');
     if (!f) return;
     if (f.type && f.type !== 'application/pdf') return; // leitura automática só p/ PDF
+    // A origem escolhida na tela decide o leitor (Totvs=cifra; Omie=texto limpo).
+    // Passa explícito quando vem do toggle (evita ler o state antes de atualizar).
+    const origemLeitura = origemForcada ?? origem;
     setLendo(true);
     try {
       const token = getToken() || '';
       const fd = new FormData();
       fd.append('arquivo', f);
+      fd.append('origem', origemLeitura);
       const res = await fetch('/api/pcp-hrm/ler-op', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
       const data = await res.json();
       if (data.ok) {
@@ -206,7 +211,7 @@ export default function PcpHrmPage() {
       }]);
       // reset pra próxima OP
       setNumero(''); setCliente(''); setPrazo(''); setSemPrazo(false); setObs('');
-      setOrigem('totvs'); setArquivo(null); setRoteiroSel([]);
+      setArquivo(null); setRoteiroSel([]);
       setLeitura(null); setErroLeitura(''); setCriadoId(null); setComponentesAbertos(new Set());
       setFileKey(k => k + 1);
     } catch (e: unknown) {
@@ -260,8 +265,8 @@ export default function PcpHrmPage() {
             <i className="bi bi-info-circle" style={{ marginRight:6 }} />Como preencher
           </div>
           <ol style={{ margin:0, paddingLeft:18, display:'flex', flexDirection:'column', gap:5, fontSize:13, color:'#1e3a8a' }}>
-            <li>Escolha a origem (<b>Totvs</b> ou <b>Omie</b>) e o nº do pedido, se já tiver — pode deixar em branco e completar depois.</li>
-            <li>Anexe o PDF da OP (Ordem de Produção) — o sistema lê os materiais e o roteiro sozinho, não precisa digitar nada.</li>
+            <li>Informe o nº do pedido, se já tiver — pode deixar em branco e completar depois.</li>
+            <li>Anexe o PDF da OP (Ordem de Produção do <b>Omie</b>) — o sistema lê os materiais sozinho, não precisa digitar nada.</li>
             <li>Confira a leitura clicando no produto — é só pra você olhar, não precisa corrigir nada, quem confere de verdade é o PCP.</li>
             <li>Clique em <b>&quot;Enviar para Emissão&quot;</b> no canto superior direito. Pronto — a OP cai pro PCP conferir e liberar pra produção.</li>
           </ol>
@@ -313,11 +318,10 @@ export default function PcpHrmPage() {
             <div style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
               <i className="bi bi-diagram-3" style={{ marginRight:6 }} />Origem do Pedido
             </div>
+            {/* A Caldeiraria trabalha só com OP do Omie — origem fixa (o leitor
+                do Omie sempre roda). */}
             <div style={{ display:'flex', gap:10, marginBottom:14 }}>
-              <div style={toggleBtn(origem==='totvs')} onClick={() => setOrigem('totvs')}>
-                <i className="bi bi-database" style={{ marginRight:6 }} />Totvs (Protheus)
-              </div>
-              <div style={toggleBtn(origem==='omie')} onClick={() => setOrigem('omie')}>
+              <div style={toggleBtn(true)}>
                 <i className="bi bi-box" style={{ marginRight:6 }} />Omie
               </div>
             </div>
@@ -441,7 +445,7 @@ export default function PcpHrmPage() {
               </div>
 
               {leitura.ops.length === 0 && (
-                <div style={{ fontSize:13, color:'#92400e' }}>Não consegui identificar nenhuma ordem neste PDF. Confira se é uma OP do Totvs.</div>
+                <div style={{ fontSize:13, color:'#92400e' }}>Não consegui identificar os itens neste PDF. Confira se é uma Ordem de Produção do Omie.</div>
               )}
 
               <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
@@ -456,8 +460,13 @@ export default function PcpHrmPage() {
                   // embaralhada onde as descrições saem mas os códigos não). Anexa
                   // do mesmo jeito; o PCP confere na Conferência.
                   const qual = op.qualidade ?? op.confianca;
-                  // Código coerente = numérico com 4+ dígitos (mesma regra do opReader).
-                  const codigoCoerente = (c: string) => /^\d{4,}$/.test((c || '').replace(/\s/g, ''));
+                  // Código coerente: no Totvs é numérico 4+ dígitos (a cifra pode
+                  // gerar lixo com cara de código, então o check é estrito). No Omie
+                  // o texto é limpo e os códigos são alfanuméricos (ex.: OSSSJP...,
+                  // FL150...) — aceita qualquer código não-vazio.
+                  const codigoCoerente = (c: string) => op.origem === 'omie'
+                    ? !!(c || '').trim()
+                    : /^\d{4,}$/.test((c || '').replace(/\s/g, ''));
                   const codOk = op.materiais.filter(m => codigoCoerente(m.codigo)).length;
                   const fracCodOk = op.materiais.length ? codOk / op.materiais.length : 1;
                   // "Não auditável": PDF nativamente ilegível (cifra de substituição
@@ -529,6 +538,25 @@ export default function PcpHrmPage() {
                                   {op.identificacao.situacao && <span><span style={{ opacity:.6 }}>Situação</span> {op.identificacao.situacao}</span>}
                                 </div>
                               )}
+                            </div>
+                          )}
+
+                          {/* Identificação do Omie (sem quadro vermelho PN/PO/NS):
+                              Nº da OP, Qtde, Situação e Previsão de Conclusão lidos
+                              direto do PDF limpo. A Previsão de Conclusão é a data da
+                              própria OP (não é a previsão de faturamento) — por isso
+                              NÃO pré-preenche o prazo, só mostra pra conferência. */}
+                          {op.origem === 'omie' && (op.numero || op.identificacao?.quantidade || op.identificacao?.situacao || op.identificacao?.previsaoConclusao) && (
+                            <div style={{ border:'1px solid #cfe0f2', borderRadius:10, padding:'12px 14px', marginBottom:14, background:'#f8faff' }}>
+                              <div style={{ fontSize:10.5, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:6 }}>
+                                <i className="bi bi-bookmark-star" style={{ marginRight:5 }} />Identificação
+                              </div>
+                              <div style={{ display:'flex', flexWrap:'wrap', gap:'4px 16px', fontSize:12.5, fontWeight:600, color:'#1a3a5c' }}>
+                                {op.numero && <span><span style={{ opacity:.6 }}>OP nº</span> {op.numero}</span>}
+                                {op.identificacao?.quantidade && <span><span style={{ opacity:.6 }}>Qtde</span> {op.identificacao.quantidade} {op.identificacao.unidade}</span>}
+                                {op.identificacao?.situacao && <span><span style={{ opacity:.6 }}>Situação</span> {op.identificacao.situacao}</span>}
+                                {op.identificacao?.previsaoConclusao && <span><span style={{ opacity:.6 }}>Previsão de Conclusão</span> {op.identificacao.previsaoConclusao.split('-').reverse().join('/')}</span>}
+                              </div>
                             </div>
                           )}
 

@@ -49,6 +49,7 @@ export interface OPIdentificacao {
   quantidade: string; unidade: string;
   emissao: string; entrega: string;      // ISO (yyyy-mm-dd) quando reconhecível, senão ''
   situacao: string;
+  previsaoConclusao?: string;            // ISO — só nas OPs do Omie (Previsão de Conclusão)
 }
 export interface OPValidacao {
   temProduto: boolean;
@@ -67,6 +68,8 @@ export interface OPItem {
   qualidade: number;        // plausibilidade PÓS-decodificação (0..1) — gate da UI
   validacao: OPValidacao;
   paginas: number;
+  origem?: 'totvs' | 'omie'; // qual leitor gerou (Totvs=cifra; Omie=texto limpo). ausente=totvs
+  numero?: string;          // Nº da OP quando o PDF traz (ex.: Omie "2026/00002")
 }
 export interface OPLeitura { ops: OPItem[]; totalPaginas: number; avisos: string[] }
 
@@ -1090,4 +1093,114 @@ export async function lerOP(buf: Buffer): Promise<OPLeitura> {
   for (const op of opsFiltrados) for (const a of op.validacao.avisos) avisosGerais.push(`${op.cabecalho.ns || op.produto.codigo || 'ordem'}: ${a}`);
 
   return { ops: opsFiltrados, totalPaginas: paginas.length, avisos: avisosGerais };
+}
+
+// ── Leitor de OP do Omie (PCP HRM — Caldeiraria) ─────────────────────────────
+// Formato LIMPO (texto nativo, SEM embaralhamento) gerado pelo Omie/HRM:
+//   "HRM CALDEIRARIA INDUSTRIAL LTDA" · "Ordem de Produção Nº AAAA/NNNNN" ·
+//   "Previsão de Conclusão: dd/mm/aaaa" · "Situação: ..." · linha do PRODUTO
+//   "<cod> - <descrição>" · e a tabela "Itens da Ordem de Produção" (cada item
+//   ocupa 1 linha de dados — código na coluna Descrição, Quantidade, Unidade,
+//   Tipo, Reservado, Família — e a descrição QUEBRA na(s) linha(s) de baixo,
+//   ainda na coluna Descrição).
+//
+// Diferente do Totvs: sem quadro vermelho PN/PO/NS, sem COMPONENTES/ROTEIRO,
+// sem cifra de fonte, sem OCR. Parser POSICIONAL simples: agrupa por Y (via
+// extractDoc) e separa as colunas pelos X dos rótulos do cabeçalho da tabela.
+// Regra mantida do Totvs: NÃO inventa — campo ausente fica vazio. "Por onde
+// passa" continua sendo escolha do operador (o Omie não traz roteiro).
+// A leitura é sempre limpa (texto nativo) → confianca/qualidade = 1, sem gate.
+function ddmmToIsoOmie(s: string | undefined): string {
+  const m = (s || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : '';
+}
+const normOmie = (s: string | undefined) => (s || '').replace(/\s+/g, ' ').trim();
+
+export async function lerOpOmie(buf: Buffer): Promise<OPLeitura> {
+  const paginas = await extractDoc(buf);
+  const linhas: Line[] = paginas.flatMap(p => p.lines);
+  const full = linhas.map(l => normOmie(l.raw)).join('\n');
+
+  const numero = (full.match(/Ordem de Produç[aã]o\s*N[ºo°]?\s*([\w./-]+)/i) || [])[1] || '';
+  const previsao = ddmmToIsoOmie((full.match(/Previs[aã]o de Conclus[aã]o:?\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1]);
+  const situacao = normOmie((full.match(/Situaç[aã]o:?\s*([^\n]+)/i) || [])[1] || '');
+
+  // Cabeçalho da tabela de itens (tem "Descrição do Item" + "Quantidade").
+  const headerIdx = linhas.findIndex(l => /Descriç[aã]o do Item/i.test(l.raw) && /Quantidade/i.test(l.raw));
+
+  // Produto: 1ª linha "COD - descrição" antes do header, sem ':' (evita rótulos
+  // como "Tipo de Produto: ..."). Ex.: "OSSSJP10288974 - 10288974 MONT ESTRUT...".
+  let produto: OPProduto = { codigo: '', descricao: '' };
+  const limite = headerIdx < 0 ? linhas.length : headerIdx;
+  for (let i = 0; i < limite; i++) {
+    const r = normOmie(linhas[i].raw);
+    if (/:/.test(r)) continue;
+    const m = r.match(/^([A-Za-z0-9][\w./-]*)\s+-\s+(\S.*)$/);
+    if (m) { produto = { codigo: m[1], descricao: normOmie(m[2]) }; break; }
+  }
+
+  // Colunas da tabela: X de cada rótulo do cabeçalho. A coluna de uma célula é
+  // o rótulo de MAIOR X que ainda seja <= X da célula (valores ficam à direita
+  // do rótulo, dentro da própria coluna).
+  const labels: [string, RegExp][] = [
+    ['desc', /Descriç[aã]o do Item/i], ['qtd', /Quantidade/i], ['un', /Unidade/i],
+    ['tipo', /Tipo do Produto/i], ['reserv', /Reservado/i], ['fam', /Fam[ií]lia/i],
+    ['pesoL', /Peso L[ií]quido/i], ['pesoB', /Peso Bruto/i],
+  ];
+  const cols: { key: string; x: number }[] = [];
+  if (headerIdx >= 0) {
+    for (const [key, re] of labels) {
+      const it = linhas[headerIdx].items.find(i => re.test(i.s));
+      if (it) cols.push({ key, x: it.x });
+    }
+    cols.sort((a, b) => a.x - b.x);
+  }
+  const colDe = (x: number): string => {
+    let k = cols[0]?.key || 'desc';
+    for (const c of cols) { if (x + 0.5 >= c.x) k = c.key; else break; }
+    return k;
+  };
+  const cellsOf = (linha: Line): Record<string, string> => {
+    const acc: Record<string, string> = {};
+    for (const it of linha.items) { const k = colDe(it.x); acc[k] = (acc[k] ? acc[k] + ' ' : '') + it.s; }
+    for (const k of Object.keys(acc)) acc[k] = normOmie(acc[k]);
+    return acc;
+  };
+
+  // Itens: linha de DADOS (tem Quantidade/Unidade/Tipo) inicia um material; a(s)
+  // linha(s) seguinte(s) só com texto na coluna Descrição = continuação.
+  const materiais: OPMaterial[] = [];
+  let cur: OPMaterial | null = null;
+  const fim = /Outras Informaç[oõ]es|Gerado em|P[aá]gina\s+\d+\s+de/i;
+  for (let i = headerIdx + 1; headerIdx >= 0 && i < linhas.length; i++) {
+    const r = normOmie(linhas[i].raw);
+    if (!r) continue;
+    if (fim.test(r)) break;
+    const c = cellsOf(linhas[i]);
+    const temDados = !!(c.qtd || c.un || c.tipo);
+    if (temDados && c.desc) {
+      if (cur) materiais.push(cur);
+      cur = { codigo: c.desc, descricao: '', quantidade: (c.qtd || '').replace(/[^\d.,]/g, ''), unidade: c.un || '' };
+    } else if (cur && c.desc && !c.qtd && !c.un) {
+      cur.descricao = normOmie(cur.descricao + ' ' + c.desc);
+    }
+  }
+  if (cur) materiais.push(cur);
+
+  if (!produto.codigo && materiais[0]) produto = { codigo: materiais[0].codigo, descricao: materiais[0].descricao };
+
+  const identificacao: OPIdentificacao = {
+    clienteNome: '', clienteCodigo: '',
+    quantidade: materiais[0]?.quantidade || '', unidade: materiais[0]?.unidade || '',
+    emissao: '', entrega: '', situacao, previsaoConclusao: previsao,
+  };
+  const op: OPItem = {
+    cabecalho: { pn: '', po: '', ns: '' }, produto, identificacao,
+    materiais, roteiro: [], confianca: 1, qualidade: 1,
+    validacao: { temProduto: !!produto.codigo, temComponentes: materiais.length > 0, temRoteiro: false, componentesSemCodigo: 0, avisos: [] },
+    paginas: paginas.length, origem: 'omie', numero,
+  };
+  const avisos: string[] = [];
+  if (!materiais.length) avisos.push('Nenhum item identificado na OP do Omie (confira se o PDF é uma Ordem de Produção do Omie).');
+  return { ops: [op], totalPaginas: paginas.length, avisos };
 }

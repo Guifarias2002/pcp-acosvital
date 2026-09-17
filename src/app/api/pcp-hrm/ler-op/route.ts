@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { autenticar } from '@/lib/middleware';
-import { lerOP } from '@/lib/opReader';
+import { lerOP, lerOpOmie } from '@/lib/opReader';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -8,8 +8,10 @@ export const maxDuration = 60;
 
 const MAX_SIZE = 20 * 1024 * 1024;
 
-// Lê uma OP do Totvs em PDF e devolve materiais + roteiro (por onde passa).
-// Usado pela tela PCP HRM assim que a pessoa anexa o arquivo — antes de salvar.
+// Lê uma OP em PDF e devolve materiais + roteiro (por onde passa). Usado pela
+// tela PCP HRM assim que a pessoa anexa o arquivo — antes de salvar. A origem
+// (Totvs/Omie) escolhida na tela define QUAL leitor roda: Totvs = cifra de
+// fonte + OCR (opReader.lerOP); Omie = texto limpo posicional (lerOpOmie).
 export async function POST(req: Request) {
   try {
     const user = await autenticar(req);
@@ -17,14 +19,15 @@ export async function POST(req: Request) {
 
     const form = await req.formData();
     const arquivo = form.get('arquivo') as File | null;
+    const origem = (form.get('origem') as string | null) === 'omie' ? 'omie' : 'totvs';
     if (!arquivo) return NextResponse.json({ erro: 'Nenhum arquivo enviado' }, { status: 400 });
     if (arquivo.type && arquivo.type !== 'application/pdf') {
-      return NextResponse.json({ erro: 'A leitura automática só funciona com PDF do Totvs.' }, { status: 400 });
+      return NextResponse.json({ erro: 'A leitura automática só funciona com PDF.' }, { status: 400 });
     }
     if (arquivo.size > MAX_SIZE) return NextResponse.json({ erro: 'Arquivo muito grande (máx 20 MB)' }, { status: 400 });
 
     const buf = Buffer.from(await arquivo.arrayBuffer());
-    const leitura = await lerOP(buf);
+    const leitura = origem === 'omie' ? await lerOpOmie(buf) : await lerOP(buf);
     // Log de validação (instrução 7): registra CLARAMENTE o que não foi
     // interpretado, pra diagnóstico sem depender da tela. Não altera a resposta.
     if (leitura.avisos.length) {

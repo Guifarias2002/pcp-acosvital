@@ -16,7 +16,7 @@ import { FABRICAS, NOMES } from '@/lib/types';
 interface OPMat { codigo: string; descricao: string; quantidade: string; unidade: string; }
 interface OPOp { seq: string; setor: string; setorNome: string; etapa: string; }
 interface OPIdent { clienteNome: string; quantidade: string; unidade: string; entrega: string; situacao: string; }
-interface OPItem { cabecalho: { pn: string; po: string; ns: string }; produto: { codigo: string; descricao: string }; identificacao?: OPIdent; materiais: OPMat[]; roteiro: OPOp[]; qualidade?: number; confianca: number; }
+interface OPItem { cabecalho: { pn: string; po: string; ns: string }; produto: { codigo: string; descricao: string }; identificacao?: OPIdent; materiais: OPMat[]; roteiro: OPOp[]; qualidade?: number; confianca: number; origem?: 'totvs' | 'omie'; numero?: string; }
 
 // Setores disponíveis pro roteiro da Caldeiraria (fonte única em types.FABRICAS),
 // + etapas finais compartilhadas. 'emissao' é o passo 0 fixo (não entra aqui).
@@ -102,6 +102,13 @@ function Conteudo() {
             for (const o of op0.roteiro) {
               const c = sugerirSetor(o.setorNome || o.setor);
               if (c && MENU_SETORES.includes(c) && !sug.includes(c)) sug.push(c);
+            }
+            // OP sem roteiro (ex.: Omie não traz roteiro): usa o "por onde passa"
+            // que o operador já montou na abertura (roteiro_base do pedido).
+            if (!sug.length && Array.isArray(ped.roteiro_base)) {
+              for (const s of ped.roteiro_base as string[]) {
+                if (s !== 'emissao' && MENU_SETORES.includes(s) && !sug.includes(s)) sug.push(s);
+              }
             }
             setRoteiroSel(sug);
           }
@@ -300,14 +307,18 @@ function Conteudo() {
                     <th style={{ padding: '6px 8px' }}>Código</th><th style={{ padding: '6px 8px' }}>Descrição</th><th style={{ padding: '6px 8px' }}>Qtde</th><th style={{ padding: '6px 8px' }}>Un</th>
                   </tr></thead>
                   <tbody>
-                    {op0.materiais.map((m, i) => (
+                    {op0.materiais.map((m, i) => {
+                      // Totvs: só mostra código numérico coerente (a cifra gera lixo);
+                      // Omie: texto limpo, código alfanumérico confiável (OSSSJP..., FL...).
+                      const codOk = op0.origem === 'omie' ? !!m.codigo.trim() : /^\d{4,}$/.test(m.codigo.replace(/\s/g, ''));
+                      return (
                       <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '6px 8px', fontFamily: 'monospace', color: /^\d{4,}$/.test(m.codigo.replace(/\s/g, '')) ? '#0f172a' : '#b45309' }}>{/^\d{4,}$/.test(m.codigo.replace(/\s/g, '')) ? m.codigo : '—'}</td>
+                        <td style={{ padding: '6px 8px', fontFamily: 'monospace', color: codOk ? '#0f172a' : '#b45309' }}>{codOk ? m.codigo : '—'}</td>
                         <td style={{ padding: '6px 8px' }}>{m.descricao}</td>
                         <td style={{ padding: '6px 8px' }}>{m.quantidade}</td>
                         <td style={{ padding: '6px 8px' }}>{m.unidade}</td>
                       </tr>
-                    ))}
+                    );})}
                   </tbody>
                 </table>
               </div>
