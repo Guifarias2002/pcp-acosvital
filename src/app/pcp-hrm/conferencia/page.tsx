@@ -47,7 +47,7 @@ function Conteudo() {
   }
 
   return (
-    <div style={{ maxWidth: 820, margin: '0 auto' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
         <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1a3a5c' }}>
           <i className="bi bi-clipboard-check" style={{ marginRight: 8 }} />PCP HRM — Conferência
@@ -77,7 +77,10 @@ function Conteudo() {
           <div key={p.id}
             style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 16px', boxShadow: '0 1px 3px rgba(0,0,0,.05)' }}>
             <span style={{ flexShrink: 0, minWidth: 26, height: 26, borderRadius: 13, background: '#1a3a5c', color: '#fff', fontWeight: 800, fontSize: 13, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            {/* Área de info clicável → PRÉVIA só-leitura (OP, descrição, componentes,
+                desenhos). Ver os detalhes sem iniciar a conferência. */}
+            <a href={`/pcp-hrm/conferencia/${p.id}?preview=1`} title="Ver detalhes (prévia)"
+              style={{ flex: 1, minWidth: 0, textDecoration: 'none', color: 'inherit' }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#1a3a5c' }}>
                 {p.numero_pedido_venda}{p.cliente && p.cliente !== 'A definir' ? ` · ${p.cliente}` : ''}
               </div>
@@ -87,8 +90,9 @@ function Conteudo() {
                 {jaIniciada && (
                   <span style={{ color: '#7c3aed' }}> · <i className="bi bi-hourglass-split" /> Em conferência{p.conferencia_iniciada_por ? ` · ${p.conferencia_iniciada_por}` : ''}</span>
                 )}
+                <span style={{ color: '#94a3b8' }}> · <i className="bi bi-eye" /> ver detalhes</span>
               </div>
-            </div>
+            </a>
             {jaIniciada ? (
               <a href={`/pcp-hrm/conferencia/${p.id}`}
                 style={{ background: '#eef4fb', color: '#1a3a5c', border: '1px solid #c7d7ee', borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', textDecoration: 'none' }}>

@@ -3,8 +3,22 @@ import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { b2Upload, b2Download, b2Delete, B2_CONFIGURADO } from '@/lib/b2';
+import { podeAcessarHrm, type JWTPayload } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
+
+// Mesma regra da OP (ordem-producao): o perfil HRM (acesso_hrm, sem ser staff)
+// pode anexar/remover desenho enquanto o pedido ainda é "casca" (sem item ativo)
+// — ou seja, na tela Anexar OP, antes da Conferência. Depois que ganha item,
+// volta a exigir is_staff, o que protege os anexos do Flange (sempre têm item).
+async function podeMexerNoDesenho(user: JWTPayload, pedidoId: number): Promise<boolean> {
+  if (user.is_staff) return true;
+  if (!podeAcessarHrm(user)) return false;
+  const [{ tem_item }] = await sql`
+    SELECT EXISTS(SELECT 1 FROM producao_itempedido WHERE pedido_id = ${pedidoId} AND inativo = false) AS tem_item
+  `;
+  return !tem_item;
+}
 
 // Anexos NOVOS vão pro Backblaze B2 (não contam no egress do Supabase, que
 // estourou a cota e travou o Storage). No banco ficam com o prefixo "b2:";
@@ -92,13 +106,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   try {
     const user = await autenticar(req);
     if (user instanceof NextResponse) return user;
-    if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
     if (!checkMutationRateLimit(getClientIp(req)))
       return NextResponse.json({ erro: 'Muitas requisicoes' }, { status: 429 });
 
     const pedidoId = Number(params.id);
     if (!Number.isInteger(pedidoId) || pedidoId <= 0)
       return NextResponse.json({ erro: 'ID inválido' }, { status: 400 });
+
+    if (!(await podeMexerNoDesenho(user, pedidoId)))
+      return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
     if (!B2_CONFIGURADO)
       return NextResponse.json({ erro: 'Armazenamento de anexos não configurado. Avise o TI.' }, { status: 500 });
@@ -144,9 +160,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
-  if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   const pedidoId = Number(params.id);
+  if (!(await podeMexerNoDesenho(user, pedidoId)))
+    return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+
   const { path } = await req.json().catch(() => ({ path: null }));
 
   const [row] = await sql`SELECT desenhos, desenho_url FROM producao_pedido WHERE id = ${pedidoId}`;

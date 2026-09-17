@@ -1,10 +1,11 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
-import { getPedido, lerOpDoPedido, editarPedido, itemAcao } from '@/lib/api';
-import { getUser } from '@/lib/auth';
+import { getPedido, lerOpDoPedido, editarPedido, itemAcao, iniciarConferenciaHrm } from '@/lib/api';
+import { getUser, getToken } from '@/lib/auth';
 import { FABRICAS, NOMES } from '@/lib/types';
+import VisualizadorDoc from '@/components/VisualizadorDoc';
 
 // ── PCP HRM — Conferência ────────────────────────────────────────────────────
 // O PCP (staff) pega uma OP que caiu na Emissão (pedido "casca" sem itens),
@@ -45,20 +46,29 @@ function sugerirSetor(nome: string): string | null {
 }
 
 export default function ConferenciaPage() {
-  return <AuthGuard hrmOnly><Conteudo /></AuthGuard>;
+  return <AuthGuard hrmOnly><Suspense fallback={null}><Conteudo /></Suspense></AuthGuard>;
 }
 
 function Conteudo() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const pedidoId = Number(params.id);
   const staff = !!getUser()?.is_staff;
+  // Prévia (?preview=1): só-leitura. Abre pela lista ao clicar no card, pra
+  // CONSULTAR (OP, descrição, componentes, desenhos) sem iniciar a conferência.
+  const preview = searchParams.get('preview') === '1';
 
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [pedido, setPedido] = useState<Record<string, unknown> | null>(null);
   const [ops, setOps] = useState<OPItem[]>([]);
   const [avisoLeitura, setAvisoLeitura] = useState('');
+  // Visualizador inline (OP/desenho) em tela cheia — funciona no tablet.
+  const [visualizando, setVisualizando] = useState<{ url: string; titulo: string } | null>(null);
+  const [iniciandoConf, setIniciandoConf] = useState(false);
+  const [uploadingDesenho, setUploadingDesenho] = useState(false);
+  const [desenhoMsg, setDesenhoMsg] = useState('');
 
   // Campos editáveis do item a lançar (pré-preenchidos pela leitura da OP)
   const [codigo, setCodigo] = useState('');
@@ -126,6 +136,35 @@ function Conteudo() {
     return () => { vivo = false; };
   }, [pedidoId]);
 
+  // Prévia → iniciar de fato: marca "em conferência" e abre o modo de trabalho.
+  async function iniciarDaPrevia() {
+    if (iniciandoConf) return;
+    setIniciandoConf(true);
+    try { await iniciarConferenciaHrm(pedidoId); router.push(`/pcp-hrm/conferencia/${pedidoId}`); }
+    catch { setErro('Não consegui iniciar a conferência.'); setIniciandoConf(false); }
+  }
+
+  async function recarregarPedido() {
+    try { const ped = await getPedido(pedidoId); setPedido(ped); } catch { /* mantém o atual */ }
+  }
+  async function uploadDesenho(arquivo: File) {
+    setUploadingDesenho(true); setDesenhoMsg('');
+    try {
+      const fd = new FormData(); fd.append('arquivo', arquivo);
+      const res = await fetch(`/api/pedidos/${pedidoId}/desenho`, { method: 'POST', headers: { Authorization: `Bearer ${getToken() || ''}` }, body: fd });
+      const data = await res.json();
+      if (data.ok) { setDesenhoMsg('Desenho anexado com sucesso!'); recarregarPedido(); }
+      else setDesenhoMsg(data.erro || `Erro ${res.status}`);
+    } catch { setDesenhoMsg('Erro ao enviar o desenho.'); }
+    finally { setUploadingDesenho(false); }
+  }
+  async function removerDesenho(path: string) {
+    try {
+      await fetch(`/api/pedidos/${pedidoId}/desenho`, { method: 'DELETE', headers: { Authorization: `Bearer ${getToken() || ''}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
+      setDesenhoMsg(''); recarregarPedido();
+    } catch { setDesenhoMsg('Erro ao remover o desenho.'); }
+  }
+
   function toggleSetor(cod: string) {
     setRoteiroSel(prev => prev.includes(cod) ? prev.filter(s => s !== cod) : [...prev, cod]);
   }
@@ -183,18 +222,21 @@ function Conteudo() {
   const card: React.CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 18, marginBottom: 16 };
   const secTitle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#1a3a5c', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12, borderBottom: '2px solid #1a3a5c', paddingBottom: 6 };
   const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white';
+  const lblRo: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block' };
+  const roVal: React.CSSProperties = { fontSize: 14, color: '#0f172a', fontWeight: 600, padding: '6px 2px' };
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
       <style>{`@media print { .no-print { display:none !important; } }`}</style>
+      {visualizando && <VisualizadorDoc url={visualizando.url} titulo={visualizando.titulo} onClose={() => setVisualizando(null)} />}
 
       {/* Cabeçalho */}
       <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <a href="/pcp-hrm/conferencia" style={{ color: '#888', fontSize: 13, textDecoration: 'none' }}>← Conferência</a>
           <h1 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1a3a5c' }}>
-            <i className="bi bi-clipboard-check" style={{ marginRight: 8 }} />
-            Conferência — {String(pedido?.numero_pedido_venda || pedidoId)}
+            <i className={`bi ${preview ? 'bi-eye' : 'bi-clipboard-check'}`} style={{ marginRight: 8 }} />
+            {preview ? 'Prévia' : 'Conferência'} — {String(pedido?.numero_pedido_venda || pedidoId)}
           </h1>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -202,10 +244,10 @@ function Conteudo() {
             <i className="bi bi-printer" style={{ marginRight: 6 }} />Imprimir
           </button>
           {pedido != null && token && (
-            <a href={`/api/pedidos/${pedidoId}/ordem-producao?token=${encodeURIComponent(token)}`} target="_blank" rel="noreferrer"
-              style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 13, color: '#555', background: '#fff', fontWeight: 600, textDecoration: 'none' }}>
+            <button onClick={() => setVisualizando({ url: `/api/pedidos/${pedidoId}/ordem-producao?token=${encodeURIComponent(token)}`, titulo: `OP — ${String(pedido?.numero_pedido_venda || pedidoId)}` })}
+              style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 13, color: '#555', background: '#fff', fontWeight: 600, cursor: 'pointer' }}>
               <i className="bi bi-file-earmark-pdf" style={{ marginRight: 6 }} />Ver OP (PDF)
-            </a>
+            </button>
           )}
         </div>
       </div>
@@ -234,16 +276,16 @@ function Conteudo() {
             </div>
           )}
 
-          {/* Produto + quantidade (editável) */}
+          {/* Produto + quantidade (editável; só-leitura na prévia) */}
           <div style={card}>
             <div style={secTitle}><i className="bi bi-box-seam" style={{ marginRight: 6 }} />Produto a fabricar</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginBottom: 12 }}>
-              <div><label style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Código</label><input value={codigo} onChange={e => setCodigo(e.target.value)} className={inputCls} /></div>
-              <div><label style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Descrição</label><input value={descricao} onChange={e => setDescricao(e.target.value)} className={inputCls} /></div>
+              <div><label style={lblRo}>Código</label>{preview ? <div style={roVal}>{codigo || '—'}</div> : <input value={codigo} onChange={e => setCodigo(e.target.value)} className={inputCls} />}</div>
+              <div><label style={lblRo}>Descrição</label>{preview ? <div style={roVal}>{descricao || '—'}</div> : <input value={descricao} onChange={e => setDescricao(e.target.value)} className={inputCls} />}</div>
             </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <div><label style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Quantidade</label><input type="number" value={quantidade} onChange={e => setQuantidade(e.target.value)} style={{ width: 110 }} className={inputCls} /></div>
-              <div><label style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Unidade</label><input value={unidade} onChange={e => setUnidade(e.target.value)} style={{ width: 90 }} className={inputCls} /></div>
+              <div><label style={lblRo}>Quantidade</label>{preview ? <div style={roVal}>{quantidade}</div> : <input type="number" value={quantidade} onChange={e => setQuantidade(e.target.value)} style={{ width: 110 }} className={inputCls} />}</div>
+              <div><label style={lblRo}>Unidade</label>{preview ? <div style={roVal}>{unidade}</div> : <input value={unidade} onChange={e => setUnidade(e.target.value)} style={{ width: 90 }} className={inputCls} />}</div>
             </div>
           </div>
 
@@ -252,12 +294,12 @@ function Conteudo() {
             <div style={secTitle}><i className="bi bi-bookmark-check" style={{ marginRight: 6 }} />Rastreio do cliente</div>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <div style={{ flex: '1 1 240px' }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Nº Pedido do Cliente</label>
-                <input value={pedCliente} onChange={e => setPedCliente(e.target.value)} placeholder="OC/PO do cliente" className={inputCls} />
+                <label style={lblRo}>Nº Pedido do Cliente</label>
+                {preview ? <div style={roVal}>{pedCliente || '—'}</div> : <input value={pedCliente} onChange={e => setPedCliente(e.target.value)} placeholder="OC/PO do cliente" className={inputCls} />}
               </div>
               <div style={{ flex: '0 1 200px' }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Entrega Contratual</label>
-                <input type="date" value={entregaContratual} onChange={e => setEntregaContratual(e.target.value)} className={inputCls} />
+                <label style={lblRo}>Entrega Contratual</label>
+                {preview ? <div style={roVal}>{entregaContratual ? entregaContratual.split('-').reverse().join('/') : '—'}</div> : <input type="date" value={entregaContratual} onChange={e => setEntregaContratual(e.target.value)} className={inputCls} />}
               </div>
             </div>
           </div>
@@ -277,15 +319,17 @@ function Conteudo() {
                 <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#eef4fb', border: '1px solid #c7d7ee', borderRadius: 8, padding: '6px 10px' }}>
                   <span style={{ minWidth: 22, height: 22, borderRadius: 11, background: '#1a3a5c', color: '#fff', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{i + 2}</span>
                   <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#1a3a5c' }}>{NOMES[s] || s}</span>
-                  <button onClick={() => moverSetor(i, -1)} disabled={i === 0} title="Subir" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#64748b', opacity: i === 0 ? .3 : 1 }}><i className="bi bi-arrow-up" /></button>
-                  <button onClick={() => moverSetor(i, 1)} disabled={i === roteiroSel.length - 1} title="Descer" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#64748b', opacity: i === roteiroSel.length - 1 ? .3 : 1 }}><i className="bi bi-arrow-down" /></button>
-                  <button onClick={() => toggleSetor(s)} title="Remover" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626' }}><i className="bi bi-x-lg" /></button>
+                  {!preview && <>
+                    <button onClick={() => moverSetor(i, -1)} disabled={i === 0} title="Subir" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#64748b', opacity: i === 0 ? .3 : 1 }}><i className="bi bi-arrow-up" /></button>
+                    <button onClick={() => moverSetor(i, 1)} disabled={i === roteiroSel.length - 1} title="Descer" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#64748b', opacity: i === roteiroSel.length - 1 ? .3 : 1 }}><i className="bi bi-arrow-down" /></button>
+                    <button onClick={() => toggleSetor(s)} title="Remover" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626' }}><i className="bi bi-x-lg" /></button>
+                  </>}
                 </div>
               ))}
               {roteiroSel.length === 0 && <div style={{ fontSize: 12, color: '#b45309' }}>Nenhum setor escolhido ainda — clique nos setores abaixo.</div>}
             </div>
             {/* Disponíveis pra adicionar */}
-            <div className="no-print">
+            {!preview && <div className="no-print">
               <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>Adicionar setor (clique na ordem):</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {MENU_SETORES.filter(s => !roteiroSel.includes(s)).map(s => (
@@ -294,7 +338,7 @@ function Conteudo() {
                   </button>
                 ))}
               </div>
-            </div>
+            </div>}
           </div>
 
           {/* Materiais (COMPONENTES) — ver/imprimir */}
@@ -325,16 +369,70 @@ function Conteudo() {
             </div>
           )}
 
-          {/* Lançar */}
-          <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginBottom: 40 }}>
-            <a href="/pcp-hrm/conferencia" style={{ padding: '11px 20px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, color: '#555', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center' }}>Cancelar</a>
-            <button onClick={lancar} disabled={lancando || !staff} title={staff ? '' : 'Só o PCP/administrador pode lançar'}
-              style={{ padding: '11px 28px', borderRadius: 8, background: staff ? '#16a34a' : '#9ca3af', color: '#fff', fontSize: 14, fontWeight: 800, border: 'none', cursor: lancando || !staff ? 'not-allowed' : 'pointer', opacity: lancando ? .7 : 1 }}>
-              <i className="bi bi-play-circle-fill" style={{ marginRight: 8 }} />
-              {lancando ? 'Lançando…' : 'Lançar pra produção'}
-            </button>
-          </div>
-          {!staff && <div className="no-print" style={{ textAlign: 'right', fontSize: 12, color: '#b45309', marginTop: -30, marginBottom: 30 }}>Você pode conferir, mas o lançamento é feito pelo PCP/administrador.</div>}
+          {/* Desenho(s) do projeto — ver (inline) e anexar (fora da prévia) */}
+          {(() => {
+            const desenhos: string[] = (pedido?.desenhos as string[]) || [];
+            return (
+              <div style={card}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, borderBottom: '2px solid #1a3a5c', paddingBottom: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#1a3a5c', textTransform: 'uppercase', letterSpacing: 1 }}><i className="bi bi-rulers" style={{ marginRight: 6 }} />Desenho(s) do projeto — {desenhos.length}</span>
+                  {!preview && (
+                    <label className="no-print" style={{ background: '#f59e0b', color: '#fff', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: uploadingDesenho ? 'wait' : 'pointer' }}>
+                      {uploadingDesenho ? '⏳ Enviando…' : '+ Anexar'}
+                      <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" style={{ display: 'none' }} disabled={uploadingDesenho}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadDesenho(f); e.target.value = ''; }} />
+                    </label>
+                  )}
+                </div>
+                {desenhos.length === 0 ? (
+                  <div style={{ fontSize: 13, color: '#94a3b8' }}>Nenhum desenho anexado.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {desenhos.map((path, di) => {
+                      const nome = path.split('/').pop() || `Desenho ${di + 1}`;
+                      return (
+                        <div key={di} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 10px' }}>
+                          <i className="bi bi-file-earmark" style={{ color: '#6b7280', fontSize: 13 }} />
+                          <button onClick={() => setVisualizando({ url: `/api/pedidos/${pedidoId}/desenho?idx=${di}&token=${encodeURIComponent(token)}`, titulo: nome })}
+                            style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', fontSize: 13, textDecoration: 'underline', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {nome}
+                          </button>
+                          {!preview && (
+                            <button onClick={() => removerDesenho(path)} className="no-print" style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 13 }} title="Remover"><i className="bi bi-trash" /></button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {desenhoMsg && <div style={{ fontSize: 12, color: desenhoMsg.includes('sucesso') ? '#16a34a' : '#dc2626', marginTop: 8 }}>{desenhoMsg}</div>}
+              </div>
+            );
+          })()}
+
+          {/* Ação — na prévia: iniciar a conferência; no modo trabalho: lançar */}
+          {preview ? (
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginBottom: 40 }}>
+              <a href="/pcp-hrm/conferencia" style={{ padding: '11px 20px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, color: '#555', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center' }}>Voltar</a>
+              <button onClick={iniciarDaPrevia} disabled={iniciandoConf}
+                style={{ padding: '11px 28px', borderRadius: 8, background: '#16a34a', color: '#fff', fontSize: 14, fontWeight: 800, border: 'none', cursor: iniciandoConf ? 'wait' : 'pointer', opacity: iniciandoConf ? .7 : 1 }}>
+                <i className="bi bi-play-fill" style={{ marginRight: 8 }} />
+                {iniciandoConf ? 'Iniciando…' : 'Iniciar conferência'}
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginBottom: 40 }}>
+                <a href="/pcp-hrm/conferencia" style={{ padding: '11px 20px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, color: '#555', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center' }}>Cancelar</a>
+                <button onClick={lancar} disabled={lancando || !staff} title={staff ? '' : 'Só o PCP/administrador pode lançar'}
+                  style={{ padding: '11px 28px', borderRadius: 8, background: staff ? '#16a34a' : '#9ca3af', color: '#fff', fontSize: 14, fontWeight: 800, border: 'none', cursor: lancando || !staff ? 'not-allowed' : 'pointer', opacity: lancando ? .7 : 1 }}>
+                  <i className="bi bi-play-circle-fill" style={{ marginRight: 8 }} />
+                  {lancando ? 'Lançando…' : 'Lançar pra produção'}
+                </button>
+              </div>
+              {!staff && <div className="no-print" style={{ textAlign: 'right', fontSize: 12, color: '#b45309', marginTop: -30, marginBottom: 30 }}>Você pode conferir, mas o lançamento é feito pelo PCP/administrador.</div>}
+            </>
+          )}
         </>
       )}
     </div>

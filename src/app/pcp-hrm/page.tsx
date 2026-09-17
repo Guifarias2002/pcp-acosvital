@@ -45,6 +45,10 @@ export default function PcpHrmPage() {
   const [prazo, setPrazo] = useState('');
   const [obs, setObs] = useState('');
   const [arquivo, setArquivo] = useState<File | null>(null);
+  // Desenho(s) do projeto — opcional, um ou vários (PDF/imagem). Vão pro mesmo
+  // acervo de "desenhos" do pedido (Backblaze), separados da OP; o PCP/produção
+  // veem na conferência e no detalhe do pedido.
+  const [desenhos, setDesenhos] = useState<File[]>([]);
 
   // Leitura automática da OP (materiais + roteiro) assim que anexa o PDF. Um
   // mesmo PDF pode trazer mais de uma ordem (cada quadro vermelho abre uma).
@@ -269,6 +273,25 @@ export default function PcpHrmPage() {
         }
       }
 
+      // Anexa o(s) desenho(s) do projeto — vão pro acervo "desenhos" do pedido
+      // (mesmo endpoint do Flange). Falha aqui não perde o pedido: avisa e segue.
+      if (desenhos.length) {
+        const token = getToken() || '';
+        const falhas: string[] = [];
+        for (const d of desenhos) {
+          const fd = new FormData();
+          fd.append('arquivo', d);
+          const up = await fetch(`/api/pedidos/${id}/desenho`, {
+            method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
+          });
+          if (!up.ok) { const r = await up.json().catch(() => ({})); falhas.push(`${d.name} (${r.erro || up.status})`); }
+        }
+        if (falhas.length) {
+          setErro(`OP registrada, mas ${falhas.length} desenho(s) falharam: ${falhas.join('; ')}. Abra o pedido pra reanexar.`);
+          return;
+        }
+      }
+
       // Sucesso: NÃO navega. Acumula a OP na lista numerada e reseta o
       // formulário pra próxima — o operador vê 1,2,3,4 aparecendo um abaixo do
       // outro conforme anexa.
@@ -281,7 +304,7 @@ export default function PcpHrmPage() {
       }]);
       // reset pra próxima OP
       setNumero(''); setCliente(''); setPrazo(''); setSemPrazo(false); setObs('');
-      setArquivo(null); setRoteiroSel([]); setGrupos([]); setSelComps([]); setModo('mesmo');
+      setArquivo(null); setDesenhos([]); setRoteiroSel([]); setGrupos([]); setSelComps([]); setModo('mesmo');
       setLeitura(null); setErroLeitura(''); setCriadoId(null); setComponentesAbertos(new Set());
       setFileKey(k => k + 1);
     } catch (e: unknown) {
@@ -472,6 +495,40 @@ export default function PcpHrmPage() {
             {erroLeitura && (
               <div style={{ marginTop:14, background:'#fffbeb', border:'1px solid #fcd34d', color:'#92400e', borderRadius:8, padding:'10px 14px', fontSize:13 }}>
                 <i className="bi bi-exclamation-triangle" style={{ marginRight:6 }} />{erroLeitura}
+              </div>
+            )}
+          </div>
+
+          {/* Anexo de DESENHO(S) — opcional, um ou vários. Separado da OP. */}
+          <div className="card" style={{ padding:20 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
+              <i className="bi bi-rulers" style={{ marginRight:6 }} />Desenho(s) do projeto <span style={{ fontWeight:500, textTransform:'none', color:'#94a3b8' }}>— opcional</span>
+            </div>
+            <label htmlFor="hrm-desenhos" style={{
+              display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8,
+              border:'2px dashed #b6c6da', borderRadius:12, padding:'22px 16px', cursor:'pointer',
+              background: desenhos.length ? '#eefaf1' : '#f8faff', textAlign:'center',
+            }}>
+              <i className={`bi ${desenhos.length ? 'bi-file-earmark-check-fill' : 'bi-cloud-arrow-up'}`} style={{ fontSize:26, color: desenhos.length ? '#198754' : '#6c8bb0' }} />
+              <div style={{ fontSize:13, fontWeight:700, color:'#1a3a5c' }}>
+                {desenhos.length ? `${desenhos.length} desenho${desenhos.length > 1 ? 's' : ''} selecionado${desenhos.length > 1 ? 's' : ''}` : 'Clique para anexar desenho(s)'}
+              </div>
+              <div style={{ fontSize:12, color:'#7a8aa0' }}>pode anexar um ou vários — PDF, PNG, JPG — máx. 20 MB cada</div>
+            </label>
+            <input id="hrm-desenhos" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp" style={{ display:'none' }}
+              onChange={e => { const fs = Array.from(e.target.files || []); if (fs.length) setDesenhos(prev => [...prev, ...fs]); e.target.value = ''; }} />
+            {desenhos.length > 0 && (
+              <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:6 }}>
+                {desenhos.map((d, i) => (
+                  <div key={i} style={{ display:'flex', alignItems:'center', gap:8, background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:6, padding:'5px 10px' }}>
+                    <i className="bi bi-file-earmark" style={{ color:'#6b7280', fontSize:13 }} />
+                    <span style={{ flex:1, fontSize:12, color:'#334155', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{d.name} <span style={{ color:'#94a3b8' }}>({(d.size/1024/1024).toFixed(2)} MB)</span></span>
+                    <button type="button" onClick={() => setDesenhos(prev => prev.filter((_, idx) => idx !== i))}
+                      style={{ background:'none', border:'none', color:'#dc2626', cursor:'pointer', fontSize:13 }} title="Remover">
+                      <i className="bi bi-trash" />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
