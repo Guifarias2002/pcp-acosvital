@@ -98,9 +98,46 @@ export default function PcpHrmPage() {
   });
   const carregarRoteiroPadrao = () => setRoteiroSel(PROCESSO_CALDEIRARIA.slice());
 
+  // Por onde CADA componente passa. O operador seleciona 1+ componentes lidos da
+  // OP e monta o caminho DAQUELA seleção (um "grupo"); componentes diferentes
+  // podem ter caminhos diferentes. `selComps` = componentes marcados pro grupo
+  // que está sendo montado agora; `roteiroSel` (acima) = o caminho desse grupo.
+  // Persiste no pedido via observações (bloco legível) — o roteiro_base do pedido
+  // casca segue mínimo emissao→caldeiraria (ver o submit e a rota /api/pedidos,
+  // que detecta o pedido HRM por esse roteiro). O PCP confirma na Conferência.
+  const [grupos, setGrupos] = useState<{ comps: string[]; roteiro: string[] }[]>([]);
+  const [selComps, setSelComps] = useState<string[]>([]);
+  const materiaisLidos = leitura?.ops?.[0]?.materiais ?? [];
+  const compsAtribuidos = new Set(grupos.flatMap(g => g.comps));
+  const compsPendentes = materiaisLidos.filter(m => !compsAtribuidos.has(m.codigo));
+  const nomeComp = (cod: string) => {
+    const m = materiaisLidos.find(x => x.codigo === cod);
+    return m ? `${m.descricao || m.codigo} (${cod})` : cod;
+  };
+  const toggleComp = (cod: string) => {
+    if (selComps.includes(cod)) { setSelComps(s => s.filter(x => x !== cod)); return; }
+    // Reatribuição: se o componente já está num grupo, tira de lá (e descarta o
+    // grupo se ficar vazio) antes de entrar na nova seleção.
+    if (compsAtribuidos.has(cod))
+      setGrupos(gs => gs.map(g => ({ ...g, comps: g.comps.filter(c => c !== cod) })).filter(g => g.comps.length));
+    setSelComps(s => [...s, cod]);
+  };
+  const salvarGrupo = () => {
+    if (!selComps.length || !roteiroSel.length) return;
+    setGrupos(g => [...g, { comps: [...selComps], roteiro: [...roteiroSel] }]);
+    setSelComps([]); setRoteiroSel([]);
+  };
+  const removerGrupo = (i: number) => setGrupos(g => g.filter((_, idx) => idx !== i));
+  const editarGrupo = (i: number) => {
+    const g = grupos[i]; if (!g) return;
+    setSelComps(g.comps); setRoteiroSel(g.roteiro);
+    setGrupos(gs => gs.filter((_, idx) => idx !== i));
+  };
+
   async function selecionarArquivo(f: File | null, origemForcada?: Origem) {
     setArquivo(f);
     setLeitura(null); setErroLeitura(''); setComponentesAbertos(new Set()); setNomeEnvio('');
+    setGrupos([]); setSelComps([]); setRoteiroSel([]);
     if (!f) return;
     if (f.type && f.type !== 'application/pdf') return; // leitura automática só p/ PDF
     // A origem escolhida na tela decide o leitor (Totvs=cifra; Omie=texto limpo).
@@ -159,9 +196,24 @@ export default function PcpHrmPage() {
         // que o PCP troca pelo real na conferência.
         const num = numero.trim() || `PCP-HRM-${Date.now()}`;
 
+        // Inclui um grupo ainda não "Salvo" (seleção + caminho montados mas sem
+        // clicar em Salvar) pra não perder o que a pessoa deixou pronto.
+        const gruposFinais = (selComps.length && roteiroSel.length)
+          ? [...grupos, { comps: [...selComps], roteiro: [...roteiroSel] }]
+          : grupos;
+        const atribFinais = new Set(gruposFinais.flatMap(g => g.comps));
+        const pendFinais = materiaisLidos.filter(m => !atribFinais.has(m.codigo));
+        const linhasCaminho = gruposFinais.map(g =>
+          `• ${g.comps.map(nomeComp).join(' + ')}: ${g.roteiro.map(c => NOMES[c] || c).join(' → ')}`);
+        const linhasPend = pendFinais.map(m => `• ${m.descricao || m.codigo} (${m.codigo}): (definir na Conferência)`);
+        const blocoCaminho = (linhasCaminho.length || linhasPend.length)
+          ? ['Por onde cada peça passa:', ...linhasCaminho, ...linhasPend].join('\n')
+          : '';
+
         const linhasObs = [
           `Origem: ${origemLabel[origem]}`,
           obs.trim(),
+          blocoCaminho,
         ].filter(Boolean).join('\n');
 
         const res = await criarPedido({
@@ -171,9 +223,12 @@ export default function PcpHrmPage() {
           vendedor: '',
           prazo_entrega: semPrazo ? '' : prazo,
           prioridade: 'normal',
-          // Por onde a peça passa = o que o operador montou na abertura. 1º passo
-          // é sempre 'emissao' (fixo). Sem seleção, cai no mínimo (Recebimento).
-          roteiro_base: roteiroSel.length ? ['emissao', ...roteiroSel] : ['emissao', 'caldeiraria'],
+          // Pedido casca do HRM: roteiro_base fica no mínimo emissao→caldeiraria
+          // (a rota /api/pedidos detecta o pedido HRM por EXATAMENTE esse roteiro
+          // pra liberar item vazio + prazo em branco). O caminho REAL de cada
+          // componente vai no bloco "Por onde cada peça passa" das observações
+          // acima; o PCP monta os itens com esses caminhos na Conferência.
+          roteiro_base: ['emissao', 'caldeiraria'],
           observacoes: linhasObs,
           itens: [],
         });
@@ -211,7 +266,7 @@ export default function PcpHrmPage() {
       }]);
       // reset pra próxima OP
       setNumero(''); setCliente(''); setPrazo(''); setSemPrazo(false); setObs('');
-      setArquivo(null); setRoteiroSel([]);
+      setArquivo(null); setRoteiroSel([]); setGrupos([]); setSelComps([]);
       setLeitura(null); setErroLeitura(''); setCriadoId(null); setComponentesAbertos(new Set());
       setFileKey(k => k + 1);
     } catch (e: unknown) {
@@ -679,67 +734,147 @@ export default function PcpHrmPage() {
             </div>
           )}
 
-          {/* Por onde a peça vai passar — aparece APÓS anexar a OP. O operador
-              monta o roteiro da Caldeiraria (seleção livre da lista REAL de
-              setores). Persiste no pedido (roteiro_base). Inspeção CQ pode
-              entrar mais de uma vez. */}
+          {/* Por onde CADA peça vai passar — aparece após anexar a OP. O operador
+              SELECIONA um ou mais componentes lidos e monta o caminho daquela
+              seleção (um "grupo"); componentes diferentes podem ter caminhos
+              diferentes. O caminho vai no pedido via observações (bloco "Por onde
+              cada peça passa"); o PCP confirma na Conferência. */}
           {arquivo && (
           <div className="card" style={{ padding:20 }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, flexWrap:'wrap', marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
+            <div style={{ marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
               <span style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1 }}>
                 <i className="bi bi-signpost-split" style={{ marginRight:6 }} />Por onde a peça vai passar
               </span>
-              <div style={{ display:'flex', gap:8 }}>
-                <button type="button" onClick={carregarRoteiroPadrao}
-                  style={{ background:'#eef4fb', border:'1px solid #cfe0f2', color:'#1a3a5c', borderRadius:8, padding:'6px 12px', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                  <i className="bi bi-list-check" style={{ marginRight:5 }} />Usar roteiro padrão
-                </button>
-                {roteiroSel.length > 0 && (
-                  <button type="button" onClick={() => setRoteiroSel([])}
-                    style={{ background:'#fff', border:'1px solid #e5e7eb', color:'#94a3b8', borderRadius:8, padding:'6px 12px', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                    Limpar
-                  </button>
-                )}
-              </div>
             </div>
 
-            {roteiroSel.length === 0 ? (
-              <div style={{ fontSize:13, color:'#7a8aa0', background:'#f8faff', border:'1px dashed #cfe0f2', borderRadius:10, padding:'14px 16px', marginBottom:14 }}>
+            {materiaisLidos.length === 0 ? (
+              <div style={{ fontSize:13, color:'#7a8aa0', background:'#f8faff', border:'1px dashed #cfe0f2', borderRadius:10, padding:'14px 16px' }}>
                 <i className="bi bi-info-circle" style={{ marginRight:6 }} />
-                Escolha por onde a peça passa — clique nos setores abaixo na ordem do processo. Ou use o <b>roteiro padrão</b> da Caldeiraria e ajuste.
+                {lendo ? 'Lendo a OP…' : 'Assim que a leitura trouxer os componentes, selecione cada um (ou vários) e defina o caminho deles aqui.'}
               </div>
             ) : (
-              <ol style={{ listStyle:'none', margin:'0 0 14px', padding:0, display:'flex', flexDirection:'column', gap:6 }}>
-                {roteiroSel.map((cod, i) => (
-                  <li key={i} style={{ display:'flex', alignItems:'center', gap:8, background:'#f8faff', border:'1px solid #cfe0f2', borderRadius:10, padding:'8px 8px 8px 12px' }}>
-                    <span style={{ flexShrink:0, minWidth:22, height:22, borderRadius:11, background:'#1a3a5c', color:'#fff', fontWeight:800, fontSize:12, display:'inline-flex', alignItems:'center', justifyContent:'center' }}>{i + 1}</span>
-                    <span style={{ flex:1, minWidth:0, fontSize:13.5, fontWeight:700, color:'#1a3a5c' }}>{NOMES[cod] || cod}</span>
-                    <button type="button" onClick={() => moverEtapa(i, -1)} disabled={i === 0} title="Subir"
-                      style={{ background:'none', border:'none', cursor:i===0?'default':'pointer', color:i===0?'#d1d5db':'#1a3a5c', fontSize:14, padding:'0 3px' }}>
-                      <i className="bi bi-arrow-up" />
-                    </button>
-                    <button type="button" onClick={() => moverEtapa(i, 1)} disabled={i === roteiroSel.length - 1} title="Descer"
-                      style={{ background:'none', border:'none', cursor:i===roteiroSel.length-1?'default':'pointer', color:i===roteiroSel.length-1?'#d1d5db':'#1a3a5c', fontSize:14, padding:'0 3px' }}>
-                      <i className="bi bi-arrow-down" />
-                    </button>
-                    <button type="button" onClick={() => removerEtapa(i)} title="Remover"
-                      style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:14, padding:'0 3px' }}>
-                      <i className="bi bi-x-lg" />
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            )}
+              <>
+                {/* Passo 1 — selecionar componentes */}
+                <span className={labelCls}>1. Selecione o(s) componente(s) — pode marcar mais de um</span>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginTop:6, marginBottom:14 }}>
+                  {materiaisLidos.map((m, i) => {
+                    const sel = selComps.includes(m.codigo);
+                    const jaTem = compsAtribuidos.has(m.codigo);
+                    return (
+                      <button key={m.codigo + '-' + i} type="button" onClick={() => toggleComp(m.codigo)} title={m.descricao}
+                        style={{
+                          display:'inline-flex', alignItems:'center', gap:6, borderRadius:10, padding:'7px 12px',
+                          fontSize:12.5, fontWeight:700, cursor:'pointer', maxWidth:'100%',
+                          background: sel ? '#1a3a5c' : jaTem ? '#e8f2ec' : '#fff',
+                          color: sel ? '#fff' : jaTem ? '#2f7d5b' : '#1a3a5c',
+                          border: sel ? '1px solid #1a3a5c' : jaTem ? '1px solid #bbe0cb' : '1px dashed #cfe0f2',
+                        }}>
+                        <i className={sel ? 'bi bi-check-square-fill' : jaTem ? 'bi bi-check-circle-fill' : 'bi bi-square'} style={{ fontSize:12 }} />
+                        <span style={{ whiteSpace:'nowrap' }}>{m.codigo}</span>
+                        <span style={{ fontWeight:500, opacity:.85, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:170 }}>{m.descricao}</span>
+                        {jaTem && !sel && <span style={{ fontSize:10.5, fontWeight:700 }}>✓ com caminho</span>}
+                      </button>
+                    );
+                  })}
+                </div>
 
-            <span className={labelCls}>Adicionar etapa (clique pra incluir no fim — a Inspeção CQ pode repetir)</span>
-            <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
-              {SETORES_CALD.map(cod => (
-                <button key={cod} type="button" onClick={() => addEtapa(cod)}
-                  style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#fff', border:'1px dashed #cfe0f2', color:'#1a3a5c', borderRadius:20, padding:'5px 12px', fontSize:12.5, fontWeight:700, cursor:'pointer' }}>
-                  <i className="bi bi-plus-lg" style={{ fontSize:11 }} />{NOMES[cod] || cod}
-                </button>
-              ))}
-            </div>
+                {/* Passo 2 — montar o caminho da seleção */}
+                {selComps.length > 0 && (
+                  <div style={{ marginTop:4, background:'#f8faff', border:'1px solid #e3ecf7', borderRadius:12, padding:'14px 16px' }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, flexWrap:'wrap', marginBottom:10 }}>
+                      <span style={{ fontSize:12.5, fontWeight:700, color:'#1a3a5c' }}>
+                        2. Caminho para <span style={{ color:'#1f5f8b' }}>{selComps.length} selecionado(s)</span>
+                      </span>
+                      <div style={{ display:'flex', gap:8 }}>
+                        <button type="button" onClick={carregarRoteiroPadrao}
+                          style={{ background:'#eef4fb', border:'1px solid #cfe0f2', color:'#1a3a5c', borderRadius:8, padding:'5px 10px', fontSize:11.5, fontWeight:700, cursor:'pointer' }}>
+                          <i className="bi bi-list-check" style={{ marginRight:5 }} />Roteiro padrão
+                        </button>
+                        {roteiroSel.length > 0 && (
+                          <button type="button" onClick={() => setRoteiroSel([])}
+                            style={{ background:'#fff', border:'1px solid #e5e7eb', color:'#94a3b8', borderRadius:8, padding:'5px 10px', fontSize:11.5, fontWeight:700, cursor:'pointer' }}>
+                            Limpar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {roteiroSel.length === 0 ? (
+                      <div style={{ fontSize:12.5, color:'#7a8aa0', marginBottom:4 }}>
+                        Clique nos setores abaixo na ordem do processo, ou use o roteiro padrão.
+                      </div>
+                    ) : (
+                      <ol style={{ listStyle:'none', margin:'0 0 10px', padding:0, display:'flex', flexDirection:'column', gap:6 }}>
+                        {roteiroSel.map((cod, i) => (
+                          <li key={i} style={{ display:'flex', alignItems:'center', gap:8, background:'#fff', border:'1px solid #cfe0f2', borderRadius:10, padding:'8px 8px 8px 12px' }}>
+                            <span style={{ flexShrink:0, minWidth:22, height:22, borderRadius:11, background:'#1a3a5c', color:'#fff', fontWeight:800, fontSize:12, display:'inline-flex', alignItems:'center', justifyContent:'center' }}>{i + 1}</span>
+                            <span style={{ flex:1, minWidth:0, fontSize:13.5, fontWeight:700, color:'#1a3a5c' }}>{NOMES[cod] || cod}</span>
+                            <button type="button" onClick={() => moverEtapa(i, -1)} disabled={i === 0} title="Subir" style={{ background:'none', border:'none', cursor:i===0?'default':'pointer', color:i===0?'#d1d5db':'#1a3a5c', fontSize:14, padding:'0 3px' }}><i className="bi bi-arrow-up" /></button>
+                            <button type="button" onClick={() => moverEtapa(i, 1)} disabled={i === roteiroSel.length - 1} title="Descer" style={{ background:'none', border:'none', cursor:i===roteiroSel.length-1?'default':'pointer', color:i===roteiroSel.length-1?'#d1d5db':'#1a3a5c', fontSize:14, padding:'0 3px' }}><i className="bi bi-arrow-down" /></button>
+                            <button type="button" onClick={() => removerEtapa(i)} title="Remover" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:14, padding:'0 3px' }}><i className="bi bi-x-lg" /></button>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+
+                    <span className={labelCls}>Adicionar etapa (clique pra incluir no fim — a Inspeção CQ pode repetir)</span>
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6, marginBottom:12 }}>
+                      {SETORES_CALD.map(cod => (
+                        <button key={cod} type="button" onClick={() => addEtapa(cod)}
+                          style={{ display:'inline-flex', alignItems:'center', gap:5, background:'#fff', border:'1px dashed #cfe0f2', color:'#1a3a5c', borderRadius:20, padding:'5px 12px', fontSize:12.5, fontWeight:700, cursor:'pointer' }}>
+                          <i className="bi bi-plus-lg" style={{ fontSize:11 }} />{NOMES[cod] || cod}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button type="button" onClick={salvarGrupo} disabled={!roteiroSel.length}
+                      style={{ width:'100%', background: roteiroSel.length ? '#1a3a5c' : '#c9d4e2', border:'none', color:'#fff', borderRadius:8, padding:'9px 12px', fontSize:13, fontWeight:700, cursor: roteiroSel.length ? 'pointer' : 'default' }}>
+                      <i className="bi bi-check2-circle" style={{ marginRight:6 }} />Salvar caminho pra seleção
+                    </button>
+                  </div>
+                )}
+
+                {/* Caminhos já definidos (grupos) */}
+                {grupos.length > 0 && (
+                  <div style={{ marginTop:16 }}>
+                    <span className={labelCls}>Caminhos definidos</span>
+                    <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:6 }}>
+                      {grupos.map((g, gi) => (
+                        <div key={gi} style={{ border:'1px solid #cfe0f2', borderRadius:10, padding:'10px 12px', background:'#fff' }}>
+                          <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8 }}>
+                            <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
+                              {g.comps.map(c => (
+                                <span key={c} style={{ fontSize:11.5, fontWeight:700, color:'#1a3a5c', background:'#eef4fb', border:'1px solid #cfe0f2', borderRadius:6, padding:'2px 7px' }}>{c}</span>
+                              ))}
+                            </div>
+                            <div style={{ display:'flex', gap:4, flexShrink:0 }}>
+                              <button type="button" onClick={() => editarGrupo(gi)} title="Editar" style={{ background:'none', border:'none', cursor:'pointer', color:'#1f5f8b', fontSize:13, padding:'0 4px' }}><i className="bi bi-pencil" /></button>
+                              <button type="button" onClick={() => removerGrupo(gi)} title="Remover" style={{ background:'none', border:'none', cursor:'pointer', color:'#94a3b8', fontSize:13, padding:'0 4px' }}><i className="bi bi-x-lg" /></button>
+                            </div>
+                          </div>
+                          <div style={{ marginTop:8, display:'flex', flexWrap:'wrap', alignItems:'center', gap:6, fontSize:12.5, fontWeight:700, color:'#1a3a5c' }}>
+                            {g.roteiro.map((c, ri) => (
+                              <span key={ri} style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                                <span style={{ background:'#eaf1f7', color:'#1f5f8b', border:'1px solid #cfe0f2', borderRadius:8, padding:'3px 9px' }}>{NOMES[c] || c}</span>
+                                {ri < g.roteiro.length - 1 && <i className="bi bi-arrow-right" style={{ color:'#7a8aa0', fontSize:11 }} />}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Componentes ainda sem caminho */}
+                {compsPendentes.length > 0 && grupos.length > 0 && (
+                  <div style={{ marginTop:12, fontSize:12.5, color:'#92400e', background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:8, padding:'8px 12px' }}>
+                    <i className="bi bi-exclamation-triangle" style={{ marginRight:6 }} />
+                    Sem caminho ainda: <b>{compsPendentes.map(m => m.codigo).join(', ')}</b>. Selecione e defina — ou deixe pro PCP na Conferência.
+                  </div>
+                )}
+              </>
+            )}
           </div>
           )}
 
