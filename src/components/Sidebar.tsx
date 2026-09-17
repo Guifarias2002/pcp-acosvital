@@ -222,7 +222,10 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
           </div>
         </div>
         <nav>
-          {!restritoHrm && (
+          {/* "Geral" é o mundo Flange (Dashboard/Todos os Pedidos/Análise…). No
+              workspace HRM (admin) some inteiro — lá valem só os grupos PCP HRM e
+              Caldeiraria. Operador comum tem emAcosvital sempre true (menu igual). */}
+          {!restritoHrm && emAcosvital && (
             <NavGroup label="Geral">
               {!isVendedor && !isApontador && <NavItem href="/" label="Dashboard" icon="bi-speedometer2" onNav={fechar} />}
               <NavItem href="/pedidos" label={vendedorRestrito(user) ? 'Meus Pedidos' : 'Todos os Pedidos'} icon="bi-list-ul" onNav={fechar} />
