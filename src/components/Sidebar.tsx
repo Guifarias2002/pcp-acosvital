@@ -34,6 +34,24 @@ const SETOR_ICONS: Record<string, string> = {
   montagem: 'bi-nut-fill',
   liberado: 'bi-hourglass-split',
   pintura: 'bi-paint-bucket',
+  // Caldeiraria — processo novo (ver types.ts SETORES_CALDEIRARIA_PROCESSO_NOVOS)
+  usinagem_final: 'bi-gear-fill',
+  cald_corte_oxi: 'bi-scissors',
+  cald_identificacao: 'bi-tags',
+  cald_transp_externo: 'bi-truck',
+  cald_conformacao_int: 'bi-bezier2',
+  cald_conformacao_ext: 'bi-bezier',
+  cald_pre_usinagem: 'bi-tools',
+  cald_prep_chapas: 'bi-layers',
+  cald_revestimento: 'bi-shield-shaded',
+  cald_pint_primer: 'bi-paint-bucket',
+  cald_pint_interm: 'bi-droplet-half',
+  cald_pint_acab: 'bi-brush',
+  cald_pint_antiderr: 'bi-grip-horizontal',
+  cald_pint_retoques: 'bi-eyedropper',
+  cald_book: 'bi-journal-text',
+  cald_emissao_nf: 'bi-receipt',
+  cald_outros: 'bi-three-dots',
 };
 
 // Setores compartilhados entre Flanges e Caldeiraria — ficam fora do grupo
