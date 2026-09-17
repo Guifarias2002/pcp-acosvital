@@ -28,7 +28,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 46;
+const SCHEMA_VERSION = 47;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -685,4 +685,12 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   // só como "encaminhado" sem pinar (fixo=false). Default true (comportamento
   // atual). Ver /api/encaminhamentos e o componente EncaminhadosSetor.
   await sql.unsafe(`ALTER TABLE producao_encaminhamento ADD COLUMN IF NOT EXISTS fixo BOOLEAN NOT NULL DEFAULT true`).catch(() => {});
+
+  // M47 (17/09): INICIAR CONFERÊNCIA (PCP HRM / Caldeiraria). Ao enviar a OP pra
+  // Conferência, ela nasce "aguardando"; na lista o PCP aperta "Iniciar" pra
+  // marcar que começou a conferir aquela OP (evita dois conferindo a mesma).
+  // Marcador no próprio pedido "casca" (só existe até a Conferência lançar os
+  // itens, quando o pedido sai da lista). Ver /api/pcp-hrm/conferencia/[id].
+  await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS conferencia_iniciada_em TIMESTAMPTZ`).catch(() => {});
+  await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS conferencia_iniciada_por TEXT`).catch(() => {});
 }

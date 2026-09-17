@@ -102,6 +102,11 @@ export const getUltimoRoteiro = () =>
 export const listarConferenciaHrm = () =>
   api.get('/api/pcp-hrm/conferencia').then(r => r.data);
 
+// Marca que o PCP INICIOU a conferência de uma OP (some o botão "Iniciar" e
+// aparece "em conferência por …"). Idempotente: já iniciada devolve o estado.
+export const iniciarConferenciaHrm = (id: number) =>
+  api.patch(`/api/pcp-hrm/conferencia/${id}`).then(r => r.data);
+
 // Re-lê a OP já anexada a um pedido (materiais + roteiro + identificação).
 export const lerOpDoPedido = (id: number) =>
   api.get(`/api/pcp-hrm/pedidos/${id}/ler-op`).then(r => r.data);

@@ -264,7 +264,7 @@ export default function PcpHrmPage() {
           // NÃO navega: fica na tela pra pessoa VER o aviso. O pedido já existe,
           // então clicar em "Enviar para Emissão" de novo só repete o anexo
           // (sem duplicar o pedido), e há o link "Abrir o pedido" no aviso.
-          setErro(`O pedido foi criado, mas o anexo da OP falhou: ${d.erro || up.status}. Clique em "Enviar para Emissão" de novo pra tentar reenviar, ou abra o pedido e anexe por lá.`);
+          setErro(`O pedido foi criado, mas o anexo da OP falhou: ${d.erro || up.status}. Clique em "Enviar para a Conferência" de novo pra tentar reenviar, ou abra o pedido e anexe por lá.`);
           return;
         }
       }
@@ -323,7 +323,7 @@ export default function PcpHrmPage() {
             <button type="submit" disabled={loading}
               style={{ padding:'9px 24px', borderRadius:8, background:'#1a3a5c', color:'#fff', fontSize:13, fontWeight:700, border:'none', cursor:'pointer', opacity:loading?0.6:1 }}>
               <i className="bi bi-send" style={{ marginRight:6 }} />
-              {loading ? 'Enviando...' : 'Enviar para Emissão'}
+              {loading ? 'Enviando...' : 'Enviar para a Conferência'}
             </button>
           </div>
         </div>
@@ -338,7 +338,7 @@ export default function PcpHrmPage() {
             <li>Informe o nº do pedido, se já tiver — pode deixar em branco e completar depois.</li>
             <li>Anexe o PDF da OP (Ordem de Produção do <b>Omie</b>) — o sistema lê os materiais sozinho, não precisa digitar nada.</li>
             <li>Confira a leitura clicando no produto — é só pra você olhar, não precisa corrigir nada, quem confere de verdade é o PCP.</li>
-            <li>Clique em <b>&quot;Enviar para Emissão&quot;</b> no canto superior direito. Pronto — a OP cai pro PCP conferir e liberar pra produção.</li>
+            <li>Clique em <b>&quot;Enviar para a Conferência&quot;</b> no canto superior direito. Pronto — a OP cai pra Conferência do PCP validar e liberar pra produção.</li>
           </ol>
         </div>
 
@@ -346,7 +346,7 @@ export default function PcpHrmPage() {
         {anexadas.length > 0 && (
           <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:10, padding:'14px 18px', marginBottom:16, maxWidth:760 }}>
             <div style={{ fontSize:12, fontWeight:700, color:'#166534', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>
-              <i className="bi bi-check2-circle" style={{ marginRight:6 }} />Enviadas para Emissão ({anexadas.length})
+              <i className="bi bi-check2-circle" style={{ marginRight:6 }} />Enviadas para a Conferência ({anexadas.length})
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
               {anexadas.map((op, i) => (
@@ -482,7 +482,7 @@ export default function PcpHrmPage() {
               <i className="bi bi-chat-left-text" style={{ marginRight:6 }} />Observações
             </div>
             <textarea value={obs} onChange={e => setObs(e.target.value)} rows={2} className={inputCls} style={{ resize:'vertical' }}
-              placeholder="Alguma observação pra Emissão? (opcional)" />
+              placeholder="Alguma observação pra Conferência? (opcional)" />
           </div>
 
           </div>{/* /coluna esquerda */}
@@ -859,7 +859,7 @@ export default function PcpHrmPage() {
                     {roteiroSel.length > 0 && (
                       <div style={{ marginTop:12, fontSize:12, color:'#2f7d5b', background:'#e8f2ec', border:'1px solid #bbe0cb', borderRadius:8, padding:'8px 12px' }}>
                         <i className="bi bi-check2-circle" style={{ marginRight:6 }} />
-                        Pronto — os {materiaisLidos.length} componentes vão por esse caminho. É só <b>Enviar para Emissão</b>.
+                        Pronto — os {materiaisLidos.length} componentes vão por esse caminho. É só <b>Enviar para a Conferência</b>.
                       </div>
                     )}
                   </div>
