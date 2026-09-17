@@ -311,7 +311,13 @@ export default function PcpHrmPage() {
           </div>
         )}
 
-        <div style={{ display:'flex', flexDirection:'column', gap:16, maxWidth:760 }}>
+        {/* Duas colunas: entrada à esquerda, leitura/roteiro à direita — reduz a
+            rolagem em tela larga. Em tela estreita (tablet) a direita quebra pra
+            baixo (flexWrap). */}
+        <div style={{ display:'flex', flexWrap:'wrap', alignItems:'flex-start', gap:16, maxWidth:1200 }}>
+
+          {/* Coluna ESQUERDA — entrada (origem, prazo, anexo, observações) */}
+          <div style={{ display:'flex', flexDirection:'column', gap:16, flex:'1 1 340px', minWidth:320, maxWidth:440 }}>
 
           {/* Origem */}
           <div className="card" style={{ padding:20 }}>
@@ -399,6 +405,20 @@ export default function PcpHrmPage() {
               </div>
             )}
           </div>
+
+          {/* Observações */}
+          <div className="card" style={{ padding:20 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
+              <i className="bi bi-chat-left-text" style={{ marginRight:6 }} />Observações
+            </div>
+            <textarea value={obs} onChange={e => setObs(e.target.value)} rows={2} className={inputCls} style={{ resize:'vertical' }}
+              placeholder="Alguma observação pra Emissão? (opcional)" />
+          </div>
+
+          </div>{/* /coluna esquerda */}
+
+          {/* Coluna DIREITA — leitura da OP + por onde a peça vai passar */}
+          <div style={{ display:'flex', flexDirection:'column', gap:16, flex:'1 1 480px', minWidth:340 }}>
 
           {/* Resultado da leitura — uma OP pode trazer mais de uma ordem */}
           {leitura && (
@@ -723,15 +743,7 @@ export default function PcpHrmPage() {
           </div>
           )}
 
-          {/* Observações */}
-          <div className="card" style={{ padding:20 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
-              <i className="bi bi-chat-left-text" style={{ marginRight:6 }} />Observações
-            </div>
-            <textarea value={obs} onChange={e => setObs(e.target.value)} rows={2} className={inputCls} style={{ resize:'vertical' }}
-              placeholder="Alguma observação pra Emissão? (opcional)" />
-          </div>
-
+          </div>{/* /coluna direita */}
         </div>
       </form>
     </AuthGuard>
