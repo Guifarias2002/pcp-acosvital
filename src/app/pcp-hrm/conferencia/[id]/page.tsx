@@ -48,6 +48,23 @@ function sugerirSetor(nome: string): string | null {
 // Reverso de NOMES (nome amigável → código do setor), normalizado. Usado pra
 // recuperar o roteiro que o operador montou na Anexar OP, gravado nas
 // observações como texto "A → B → C" (ver pcp-hrm/page.tsx, bloco "Por onde…").
+// Unidades que a Caldeiraria manda pra produção: peça, quilo ou metro. Código
+// (pc/kg/m) casa com UNIDADES_VALIDAS da API; label/ícone são só de exibição.
+const UNIDADES: [string, string, string][] = [
+  ['pc', 'Peça', 'bi-box'],
+  ['kg', 'Quilo', 'bi-speedometer2'],
+  ['m',  'Metro', 'bi-rulers'],
+];
+const UNIDADE_LABEL: Record<string, string> = Object.fromEntries(UNIDADES.map(([c, l]) => [c, l]));
+// Casa a unidade lida da OP (PÇ, PC, PCS, KG, MT…) com os códigos dos botões.
+function normalizarUnidade(u: string): string {
+  const s = (u || '').trim().toLowerCase();
+  if (/^(pc|pç|pcs|pça|peca|peça|un|und)/.test(s)) return 'pc';
+  if (/^kg|quilo|kilo/.test(s)) return 'kg';
+  if (/^m(t|tr|etro)?$/.test(s) || /metro/.test(s)) return 'm';
+  return s;
+}
+
 const norm = (s: string) => (s || '').trim().toLowerCase();
 const NOME_PARA_COD: Record<string, string> = Object.fromEntries(
   Object.entries(NOMES).map(([cod, nome]) => [norm(nome), cod]),
@@ -140,7 +157,7 @@ function Conteudo() {
             if (op0.produto?.codigo) setCodigo(op0.produto.codigo);
             if (op0.produto?.descricao) setDescricao(op0.produto.descricao);
             if (op0.identificacao?.quantidade) setQuantidade(op0.identificacao.quantidade.replace(',', '.'));
-            if (op0.identificacao?.unidade) setUnidade(op0.identificacao.unidade);
+            if (op0.identificacao?.unidade) setUnidade(normalizarUnidade(op0.identificacao.unidade));
             if (op0.cabecalho?.po) setPedCliente(op0.cabecalho.po);
             if (op0.identificacao?.entrega) setEntregaContratual(op0.identificacao.entrega);
             // Pré-seleciona o roteiro a partir dos setores lidos (na ordem da OP)
@@ -469,7 +486,25 @@ function Conteudo() {
             </div>
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <div><label style={lblRo}>Quantidade</label>{preview ? <div style={roVal}>{quantidade}</div> : <input type="number" value={quantidade} onChange={e => setQuantidade(e.target.value)} style={{ width: 110 }} className={inputCls} />}</div>
-              <div><label style={lblRo}>Unidade</label>{preview ? <div style={roVal}>{unidade}</div> : <input value={unidade} onChange={e => setUnidade(e.target.value)} style={{ width: 90 }} className={inputCls} />}</div>
+              <div>
+                <label style={lblRo}>Unidade — como vamos mandar</label>
+                {preview ? (
+                  <div style={roVal}>{UNIDADE_LABEL[unidade.toLowerCase()] || unidade}</div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                    {UNIDADES.map(([cod, label, icon]) => {
+                      const ativo = unidade.toLowerCase() === cod;
+                      return (
+                        <button key={cod} type="button" onClick={() => setUnidade(cod)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                            border: `1px solid ${ativo ? '#1a3a5c' : '#dee2e6'}`, background: ativo ? '#1a3a5c' : '#fff', color: ativo ? '#fff' : '#334155' }}>
+                          <i className={`bi ${icon}`} />{label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
