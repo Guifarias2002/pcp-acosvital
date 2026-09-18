@@ -131,9 +131,13 @@ function Conteudo() {
   const [pedCliente, setPedCliente] = useState('');
   const [entregaContratual, setEntregaContratual] = useState('');
   const [lancando, setLancando] = useState(false);
-  // Confirmação do lançamento: 1º clique mostra PRA QUAL setor a peça vai (o 1º
-  // do roteiro, pra onde o "liberar" manda); 2º clique confirma e lança.
+  // Confirmação do lançamento: 1º clique mostra PRA QUAL(is) setor(es) a peça
+  // vai; 2º clique confirma e lança. `destinos` = setores escolhidos (subconjunto
+  // do roteiro); `qtdDestino` = quanto vai pra cada quando é mais de um (divide a
+  // quantidade, soma tem que fechar o total). 1 setor = peça inteira.
   const [confirmandoLancar, setConfirmandoLancar] = useState(false);
+  const [destinos, setDestinos] = useState<string[]>([]);
+  const [qtdDestino, setQtdDestino] = useState<Record<string, string>>({});
   const [token, setToken] = useState('');
 
   useEffect(() => { try { setToken(localStorage.getItem('access_token') || ''); } catch { /* ignore */ } }, []);
@@ -246,8 +250,29 @@ function Conteudo() {
     if (roteiroSel.length === 0) { setErro('Monte o roteiro: selecione ao menos um setor.'); return; }
     const qtd = Number(quantidade);
     if (!qtd || qtd <= 0) { setErro('Quantidade inválida.'); return; }
+    // Começa mandando pro 1º setor do roteiro (o operador pode marcar mais).
+    setDestinos([roteiroSel[0]]);
+    setQtdDestino({});
     setConfirmandoLancar(true);
   }
+
+  // Marca/desmarca um setor de destino, mantendo a ordem do roteiro. Nunca deixa
+  // ficar sem nenhum (o último não sai).
+  function toggleDestino(cod: string) {
+    setDestinos(prev => {
+      if (prev.includes(cod)) return prev.length === 1 ? prev : prev.filter(s => s !== cod);
+      return roteiroSel.filter(s => prev.includes(s) || s === cod);
+    });
+  }
+
+  // Divisão da quantidade entre os destinos (só quando é mais de um).
+  const multiDestino = destinos.length > 1;
+  const qtdTotal = Number(quantidade) || 0;
+  const unidadePeca = normalizarUnidade(unidade) === 'pc';
+  const somaDestinos = destinos.reduce((s, cod) => s + (Number(qtdDestino[cod]) || 0), 0);
+  // Peça inteira (pc) com qtd 1 não dá pra dividir em vários setores.
+  const bloqueiaMulti = multiDestino && unidadePeca && qtdTotal <= 1;
+  const somaConfere = !multiDestino || (somaDestinos === qtdTotal && destinos.every(cod => (Number(qtdDestino[cod]) || 0) > 0));
 
   async function lancar() {
     if (lancando) return;
@@ -283,13 +308,34 @@ function Conteudo() {
         }],
       });
 
-      // Lança pra produção: libera o(s) item(ns) emitido(s) recém-criado(s).
+      // Lança pra produção: pega o item recém-criado e MANDA pro(s) setor(es)
+      // escolhido(s) no quadro de confirmação.
       const ped = await getPedido(pedidoId);
       const emitidos = (ped.itens || []).filter((i: Record<string, unknown>) => i.status === 'emitido');
-      for (const it of emitidos) {
-        try { await itemAcao(it.id as number, 'liberar'); } catch { /* segue */ }
+      const it = emitidos[0];
+      if (!it) { setErro('Item criado mas não encontrei pra lançar — abra o pedido e libere por lá.'); setLancando(false); return; }
+      const itId = it.id as number;
+      const dests = destinos.length ? destinos : [roteiroSel[0]];
+
+      if (dests.length <= 1) {
+        // Um setor: manda a peça inteira pra lá (o "liberar" aceita destino
+        // arbitrário do roteiro; por padrão é o 1º setor).
+        await itemAcao(itId, 'liberar', { setor_destino: dests[0] });
+      } else {
+        // Vários setores: divide a quantidade. Os N-1 primeiros vão por
+        // "enviar_parcial" (cada um leva sua fatia); o último recebe o que
+        // sobrou na emissão via "liberar". Soma das fatias = total, sem sobra.
+        for (let k = 0; k < dests.length - 1; k++) {
+          const cod = dests[k];
+          const q = Number(qtdDestino[cod]) || 0;
+          await itemAcao(itId, 'enviar_parcial', {
+            quantidade: q, setor_destino: cod,
+            observacao: `Distribuído no lançamento: ${q} ${unidade} → ${NOMES[cod] || cod}`,
+          });
+        }
+        await itemAcao(itId, 'liberar', { setor_destino: dests[dests.length - 1] });
       }
-      router.push('/setor/caldeiraria');
+      router.push('/pcp-hrm/painel');
     } catch (e) {
       const ax = e as { response?: { data?: { erro?: string } } };
       setErro(ax?.response?.data?.erro || 'Falha ao lançar pra produção.');
@@ -641,20 +687,62 @@ function Conteudo() {
             </div>
           ) : (
             <>
-              {/* Confirmação: mostra PRA QUAL setor a peça vai (o 1º do roteiro,
-                  destino do "liberar"). Só depois de confirmar é que lança. */}
+              {/* Confirmação: ESCOLHE pra qual(is) setor(es) mandar. 1 setor = peça
+                  inteira; vários = divide a quantidade (a soma tem que fechar o
+                  total). Só depois de confirmar é que lança. */}
               {confirmandoLancar && roteiroSel.length > 0 && (
                 <div className="no-print" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
-                  <div style={{ fontSize: 13, color: '#166534', marginBottom: 4 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#166534', marginBottom: 10 }}>
                     <i className="bi bi-box-arrow-in-right" style={{ marginRight: 6 }} />
-                    Esta OP vai ser lançada para o setor:
+                    Mandar para qual setor? (marque um ou mais)
                   </div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: '#15803d', marginBottom: 6 }}>
-                    {NOMES[roteiroSel[0]] || roteiroSel[0]}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                    {roteiroSel.map(cod => {
+                      const on = destinos.includes(cod);
+                      return (
+                        <button key={cod} type="button" onClick={() => toggleDestino(cod)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                            border: `1px solid ${on ? '#15803d' : '#cbd5e1'}`, background: on ? '#15803d' : '#fff', color: on ? '#fff' : '#334155' }}>
+                          <i className={`bi ${on ? 'bi-check-circle-fill' : 'bi-circle'}`} />{NOMES[cod] || cod}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <div style={{ fontSize: 12.5, color: '#4b5563' }}>
-                    A peça começa aí (1º setor do roteiro) e segue: {['Emissão', ...roteiroSel.map(s => NOMES[s] || s)].join(' → ')}. Ela já aparece em <b>&quot;Onde está cada OP&quot;</b>.
-                  </div>
+
+                  {!multiDestino && (
+                    <div style={{ fontSize: 12.5, color: '#4b5563' }}>
+                      Vai a peça inteira (<b>{qtdTotal} {UNIDADE_LABEL[normalizarUnidade(unidade)] || unidade}</b>) para <b>{NOMES[destinos[0]] || destinos[0]}</b>. Roteiro: {['Emissão', ...roteiroSel.map(s => NOMES[s] || s)].join(' → ')}.
+                    </div>
+                  )}
+
+                  {multiDestino && bloqueiaMulti && (
+                    <div style={{ fontSize: 12.5, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 12px' }}>
+                      <i className="bi bi-exclamation-triangle" style={{ marginRight: 6 }} />
+                      É <b>1 peça só</b> — não dá pra dividir em vários setores. Escolha <b>um</b> setor, ou mude a unidade pra <b>Quilo/Metro</b> (ou aumente a quantidade) pra dividir.
+                    </div>
+                  )}
+
+                  {multiDestino && !bloqueiaMulti && (
+                    <div>
+                      <div style={{ fontSize: 12.5, color: '#166534', marginBottom: 8 }}>
+                        Quanto vai pra cada setor? (a soma tem que fechar <b>{qtdTotal} {UNIDADE_LABEL[normalizarUnidade(unidade)] || unidade}</b>)
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                        {destinos.map(cod => (
+                          <div key={cod} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1px solid #d1fae5', borderRadius: 8, padding: '6px 10px' }}>
+                            <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: '#15803d' }}>{NOMES[cod] || cod}</span>
+                            <input type="number" min={0} value={qtdDestino[cod] ?? ''} placeholder="0"
+                              onChange={e => setQtdDestino(q => ({ ...q, [cod]: e.target.value }))}
+                              style={{ width: 90 }} className={inputCls} />
+                            <span style={{ fontSize: 12, color: '#64748b', minWidth: 34 }}>{UNIDADE_LABEL[normalizarUnidade(unidade)] || unidade}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: somaConfere ? '#15803d' : '#dc2626' }}>
+                        Soma: {somaDestinos} / {qtdTotal} {somaConfere ? '✓' : '— precisa fechar o total'}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginBottom: 40 }}>
@@ -662,11 +750,18 @@ function Conteudo() {
                   <>
                     <button onClick={() => setConfirmandoLancar(false)} disabled={lancando}
                       style={{ padding: '11px 20px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, color: '#555', background: '#fff', fontWeight: 600, cursor: lancando ? 'not-allowed' : 'pointer' }}>Voltar</button>
-                    <button onClick={lancar} disabled={lancando}
-                      style={{ padding: '11px 28px', borderRadius: 8, background: '#16a34a', color: '#fff', fontSize: 14, fontWeight: 800, border: 'none', cursor: lancando ? 'wait' : 'pointer', opacity: lancando ? .7 : 1 }}>
-                      <i className="bi bi-check-circle-fill" style={{ marginRight: 8 }} />
-                      {lancando ? 'Lançando…' : `Confirmar — lançar para ${NOMES[roteiroSel[0]] || roteiroSel[0]}`}
-                    </button>
+                    {(() => {
+                      const podeConfirmar = !lancando && !bloqueiaMulti && somaConfere;
+                      const rotulo = lancando ? 'Lançando…'
+                        : multiDestino ? `Confirmar — lançar para ${destinos.length} setores`
+                        : `Confirmar — lançar para ${NOMES[destinos[0]] || destinos[0]}`;
+                      return (
+                        <button onClick={lancar} disabled={!podeConfirmar}
+                          style={{ padding: '11px 28px', borderRadius: 8, background: podeConfirmar ? '#16a34a' : '#9ca3af', color: '#fff', fontSize: 14, fontWeight: 800, border: 'none', cursor: podeConfirmar ? 'pointer' : 'not-allowed', opacity: lancando ? .7 : 1 }}>
+                          <i className="bi bi-check-circle-fill" style={{ marginRight: 8 }} />{rotulo}
+                        </button>
+                      );
+                    })()}
                   </>
                 ) : (
                   <>
