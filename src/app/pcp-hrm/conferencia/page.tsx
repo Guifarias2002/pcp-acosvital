@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { listarConferenciaHrm, iniciarConferenciaHrm } from '@/lib/api';
+import { getToken, getUser } from '@/lib/auth';
 
 // Lista das OPs aguardando Conferência (pedidos "casca" do HRM na Emissão).
 export default function ConferenciaListaPage() {
@@ -22,6 +23,11 @@ function Conteudo() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [iniciando, setIniciando] = useState<number | null>(null);
+  // Exclusão em 2 toques (sem modal): 1º clique arma o "Confirmar?", 2º exclui.
+  const [confirmando, setConfirmando] = useState<number | null>(null);
+  const [excluindo, setExcluindo] = useState<number | null>(null);
+  // Só admin/PCP (is_staff) vê a lixeira — o backend também exige is_staff.
+  const podeExcluir = !!getUser()?.is_staff;
 
   useEffect(() => {
     (async () => {
@@ -43,6 +49,32 @@ function Conteudo() {
     } catch {
       setErro('Não consegui iniciar a conferência.');
       setIniciando(null);
+    }
+  }
+
+  // Exclui a OP (pedido "casca" ainda na Emissão, sem item em produção). Usa o
+  // DELETE de pedidos já existente: registra em "Pedidos Excluídos" (recuperável)
+  // e faz CASCADE. Some da lista no sucesso.
+  async function excluir(id: number) {
+    setExcluindo(id);
+    setErro('');
+    try {
+      const res = await fetch(`/api/pedidos/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
+        body: JSON.stringify({ motivo: 'Excluído na Conferência HRM' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setPedidos(ps => ps.filter(p => p.id !== id));
+        setConfirmando(null);
+      } else {
+        setErro((data.detalhe || data.erro) || 'Não consegui excluir a OP.');
+      }
+    } catch {
+      setErro('Erro de conexão ao excluir. Tente novamente.');
+    } finally {
+      setExcluindo(null);
     }
   }
 
@@ -105,6 +137,32 @@ function Conteudo() {
                   ? <><i className="bi bi-arrow-repeat" /> Iniciando…</>
                   : <><i className="bi bi-play-fill" /> Iniciar</>}
               </button>
+            )}
+            {/* Excluir (só admin/PCP) — 2 toques inline, sem modal: a lixeira
+                vira "Confirmar?" e some se clicar fora/no ✕. */}
+            {podeExcluir && (
+              confirmando === p.id ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                  <button onClick={() => excluir(p.id)} disabled={excluindo === p.id}
+                    title="Confirmar exclusão da OP"
+                    style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: excluindo === p.id ? 0.6 : 1 }}>
+                    {excluindo === p.id
+                      ? <><i className="bi bi-arrow-repeat" /> Excluindo…</>
+                      : <><i className="bi bi-trash" /> Confirmar?</>}
+                  </button>
+                  {excluindo !== p.id && (
+                    <button onClick={() => setConfirmando(null)} title="Cancelar"
+                      style={{ background: '#fff', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 10px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                      <i className="bi bi-x-lg" />
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button onClick={() => setConfirmando(p.id)} title="Excluir OP"
+                  style={{ background: '#fff', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 8, padding: '7px 12px', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                  <i className="bi bi-trash" />
+                </button>
+              )
             )}
           </div>
           );
