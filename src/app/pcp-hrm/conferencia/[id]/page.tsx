@@ -114,6 +114,9 @@ function Conteudo() {
   const [pedCliente, setPedCliente] = useState('');
   const [entregaContratual, setEntregaContratual] = useState('');
   const [lancando, setLancando] = useState(false);
+  // Confirmação do lançamento: 1º clique mostra PRA QUAL setor a peça vai (o 1º
+  // do roteiro, pra onde o "liberar" manda); 2º clique confirma e lança.
+  const [confirmandoLancar, setConfirmandoLancar] = useState(false);
   const [token, setToken] = useState('');
 
   useEffect(() => { try { setToken(localStorage.getItem('access_token') || ''); } catch { /* ignore */ } }, []);
@@ -217,6 +220,18 @@ function Conteudo() {
     });
   }
 
+  // Valida e, se ok, revela a confirmação (mostrando o setor de destino). Não
+  // lança ainda — o lançamento é o clique em "Confirmar" (lancar()).
+  function pedirConfirmacaoLancar() {
+    setErro('');
+    if (!staff) { setErro('Só o PCP/administrador pode lançar pra produção.'); return; }
+    if (!descricao.trim()) { setErro('Informe a descrição do produto.'); return; }
+    if (roteiroSel.length === 0) { setErro('Monte o roteiro: selecione ao menos um setor.'); return; }
+    const qtd = Number(quantidade);
+    if (!qtd || qtd <= 0) { setErro('Quantidade inválida.'); return; }
+    setConfirmandoLancar(true);
+  }
+
   async function lancar() {
     if (lancando) return;
     if (!staff) { setErro('Só o PCP/administrador pode lançar pra produção.'); return; }
@@ -230,11 +245,17 @@ function Conteudo() {
       // observações se ela existir de pedidos antigos; nada de novo é gravado.
       const obsLimpa = String(pedido?.observacoes || '').split('\n').filter(l => !/^Fábrica:/i.test(l.trim())).join('\n');
 
-      // Cria o item com roteiro próprio ['emissao', ...setores escolhidos].
+      // Cria o item com roteiro próprio ['emissao', ...setores escolhidos] e
+      // GRAVA o mesmo roteiro no roteiro_base do pedido — antes ele ficava no
+      // mínimo emissao→caldeiraria (do casca HRM) e o painel "Onde está cada OP"
+      // desenhava a trilha por ele, mostrando só 2 etapas. Agora o pedido não é
+      // mais casca (tem item), então atualizar o roteiro_base é seguro e deixa a
+      // trilha do painel/detalhe igual ao roteiro que o PCP montou aqui.
       await editarPedido(pedidoId, {
         observacoes: obsLimpa,
         numero_pedido_cliente: pedCliente,
         entrega_contratual: entregaContratual,
+        roteiro_base: ['emissao', ...roteiroSel],
         itens: [{
           codigo: codigo.trim() || 'S/COD',
           descricao: descricao.trim(),
@@ -585,13 +606,43 @@ function Conteudo() {
             </div>
           ) : (
             <>
+              {/* Confirmação: mostra PRA QUAL setor a peça vai (o 1º do roteiro,
+                  destino do "liberar"). Só depois de confirmar é que lança. */}
+              {confirmandoLancar && roteiroSel.length > 0 && (
+                <div className="no-print" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, color: '#166534', marginBottom: 4 }}>
+                    <i className="bi bi-box-arrow-in-right" style={{ marginRight: 6 }} />
+                    Esta OP vai ser lançada para o setor:
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#15803d', marginBottom: 6 }}>
+                    {NOMES[roteiroSel[0]] || roteiroSel[0]}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: '#4b5563' }}>
+                    A peça começa aí (1º setor do roteiro) e segue: {['Emissão', ...roteiroSel.map(s => NOMES[s] || s)].join(' → ')}. Ela já aparece em <b>&quot;Onde está cada OP&quot;</b>.
+                  </div>
+                </div>
+              )}
               <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginBottom: 40 }}>
-                <a href="/pcp-hrm/conferencia" style={{ padding: '11px 20px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, color: '#555', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center' }}>Cancelar</a>
-                <button onClick={lancar} disabled={lancando || !staff} title={staff ? '' : 'Só o PCP/administrador pode lançar'}
-                  style={{ padding: '11px 28px', borderRadius: 8, background: staff ? '#16a34a' : '#9ca3af', color: '#fff', fontSize: 14, fontWeight: 800, border: 'none', cursor: lancando || !staff ? 'not-allowed' : 'pointer', opacity: lancando ? .7 : 1 }}>
-                  <i className="bi bi-play-circle-fill" style={{ marginRight: 8 }} />
-                  {lancando ? 'Lançando…' : 'Lançar pra produção'}
-                </button>
+                {confirmandoLancar ? (
+                  <>
+                    <button onClick={() => setConfirmandoLancar(false)} disabled={lancando}
+                      style={{ padding: '11px 20px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, color: '#555', background: '#fff', fontWeight: 600, cursor: lancando ? 'not-allowed' : 'pointer' }}>Voltar</button>
+                    <button onClick={lancar} disabled={lancando}
+                      style={{ padding: '11px 28px', borderRadius: 8, background: '#16a34a', color: '#fff', fontSize: 14, fontWeight: 800, border: 'none', cursor: lancando ? 'wait' : 'pointer', opacity: lancando ? .7 : 1 }}>
+                      <i className="bi bi-check-circle-fill" style={{ marginRight: 8 }} />
+                      {lancando ? 'Lançando…' : `Confirmar — lançar para ${NOMES[roteiroSel[0]] || roteiroSel[0]}`}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <a href="/pcp-hrm/conferencia" style={{ padding: '11px 20px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, color: '#555', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center' }}>Cancelar</a>
+                    <button onClick={pedirConfirmacaoLancar} disabled={lancando || !staff} title={staff ? '' : 'Só o PCP/administrador pode lançar'}
+                      style={{ padding: '11px 28px', borderRadius: 8, background: staff ? '#16a34a' : '#9ca3af', color: '#fff', fontSize: 14, fontWeight: 800, border: 'none', cursor: lancando || !staff ? 'not-allowed' : 'pointer', opacity: lancando ? .7 : 1 }}>
+                      <i className="bi bi-play-circle-fill" style={{ marginRight: 8 }} />
+                      Lançar pra produção
+                    </button>
+                  </>
+                )}
               </div>
               {!staff && <div className="no-print" style={{ textAlign: 'right', fontSize: 12, color: '#b45309', marginTop: -30, marginBottom: 30 }}>Você pode conferir, mas o lançamento é feito pelo PCP/administrador.</div>}
             </>
