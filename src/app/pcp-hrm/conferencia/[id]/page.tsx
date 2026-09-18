@@ -45,6 +45,39 @@ function sugerirSetor(nome: string): string | null {
   return null;
 }
 
+// Reverso de NOMES (nome amigável → código do setor), normalizado. Usado pra
+// recuperar o roteiro que o operador montou na Anexar OP, gravado nas
+// observações como texto "A → B → C" (ver pcp-hrm/page.tsx, bloco "Por onde…").
+const norm = (s: string) => (s || '').trim().toLowerCase();
+const NOME_PARA_COD: Record<string, string> = Object.fromEntries(
+  Object.entries(NOMES).map(([cod, nome]) => [norm(nome), cod]),
+);
+
+// Lê o roteiro que o operador montou, a partir do bloco "Por onde a peça
+// passa"/"Por onde cada peça passa" das observações. Cada linha "• alvo: A → B
+// → C" vira códigos de setor. Junta a UNIÃO dos setores de todas as linhas, na
+// ordem em que aparecem (no modo "mesmo caminho" é uma linha só = exato; no
+// modo "cada um o seu" mescla os caminhos, e o PCP ajusta). Ignora "(definir na
+// Conferência)" e mantém só setores válidos do menu. 'emissao' nunca entra.
+function roteiroDasObservacoes(observacoes: string, menu: string[]): string[] {
+  const linhas = String(observacoes || '').split('\n');
+  const out: string[] = [];
+  for (const raw of linhas) {
+    const linha = raw.trim();
+    if (!linha.startsWith('•')) continue;
+    // A rota é o trecho após o ÚLTIMO ": " (o alvo pode conter ":", a rota não).
+    const i = linha.lastIndexOf(': ');
+    if (i < 0) continue;
+    const rota = linha.slice(i + 2).trim();
+    if (!rota || /definir na confer/i.test(rota)) continue;
+    for (const parte of rota.split('→')) {
+      const cod = NOME_PARA_COD[norm(parte)];
+      if (cod && cod !== 'emissao' && menu.includes(cod) && !out.includes(cod)) out.push(cod);
+    }
+  }
+  return out;
+}
+
 export default function ConferenciaPage() {
   return <AuthGuard hrmOnly><Suspense fallback={null}><Conteudo /></Suspense></AuthGuard>;
 }
@@ -114,7 +147,15 @@ function Conteudo() {
               if (c && MENU_SETORES.includes(c) && !sug.includes(c)) sug.push(c);
             }
             // OP sem roteiro (ex.: Omie não traz roteiro): usa o "por onde passa"
-            // que o operador já montou na abertura (roteiro_base do pedido).
+            // que o operador montou na abertura — gravado nas observações do
+            // pedido (o roteiro_base do casca HRM é sempre o mínimo
+            // emissao→caldeiraria, então não serve pra isso).
+            if (!sug.length) {
+              const daObs = roteiroDasObservacoes(String(ped.observacoes || ''), MENU_SETORES);
+              for (const s of daObs) if (!sug.includes(s)) sug.push(s);
+            }
+            // Último recurso: roteiro_base do pedido (o mínimo, quando nem a OP
+            // nem as observações trouxeram nada).
             if (!sug.length && Array.isArray(ped.roteiro_base)) {
               for (const s of ped.roteiro_base as string[]) {
                 if (s !== 'emissao' && MENU_SETORES.includes(s) && !sug.includes(s)) sug.push(s);
