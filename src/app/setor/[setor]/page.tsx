@@ -54,7 +54,7 @@ function Cronometro({ desde }: { desde: string }) {
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, registrarSinetePedido, setPesosPallets, setEmbalagemResumo, inativarItem, editarPedido, solicitarInspecao } from '@/lib/api';
 import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento, podeDefinirPrevisao, podeVerNaoLocalizados, podeDefinirPrazoSetor, podePlanejar } from '@/lib/auth';
 import { definirPrazoSetor } from '@/lib/api';
-import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA, TIPOS_INSPECAO, SETOR_NAO_LOCALIZADO } from '@/lib/types';
+import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA, TIPOS_INSPECAO, SETOR_NAO_LOCALIZADO, SETORES_CALD_SEM_PRODUCAO } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
@@ -1554,21 +1554,32 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
             }}
           />
         )}
-        {!isLogistica && !isConferenciaHrm && !isRecebimentoHrm && isRecebido && (
+        {!isLogistica && !isConferenciaHrm && !isRecebimentoHrm && isRecebido && (() => {
+          // Caldeiraria: em setor de PRODUÇÃO não pode enviar sem iniciar (some o
+          // "Enviar"); em setor pass-through (SEM_PRODUCAO) o envio vira
+          // "Só encaminhar → produzido em outro setor". Flange fica igual.
+          const isCald = parcial.item_fabrica === 'caldeiraria';
+          const setorPassThrough = SETORES_CALD_SEM_PRODUCAO.includes(parcial.setor_atual);
+          const bloqueiaEnviar = isCald && !setorPassThrough;
+          const soEncaminhar = isCald && setorPassThrough;
+          return (
           <>
             <button onClick={() => temMaquinas(parcial.setor_atual) ? setShowIniciarProducao(true) : acao('iniciar')} disabled={loading} style={btnStyle('#198754')}>
               <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Iniciar produção
             </button>
-            <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
-              <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
-            </button>
+            {!bloqueiaEnviar && (
+              <button onClick={() => { setShowEnviar(v => !v); if (!setorDestino) setSetorDestino(parcial.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
+                <i className="bi bi-send-fill" style={{ marginRight: 5 }} />{soEncaminhar ? 'Só encaminhar → produzido em outro setor' : 'Enviar ao próximo setor'}
+              </button>
+            )}
             {podeDesfazer && (
               <button onClick={() => setConfirm({ titulo: 'Desfazer recebimento', mensagem: 'Voltar esta parcial para "em aberto" (não recebida)?', acao: () => acao('desfazer_recebimento') })} disabled={loading} style={btnStyle('#6b7280', true)}>
                 <i className="bi bi-arrow-counterclockwise" style={{ marginRight: 5 }} />Desfazer recebimento
               </button>
             )}
           </>
-        )}
+          );
+        })()}
 
         {/* ── Em andamento: logística confirma a entrega direto, sem etapa intermediária ── */}
         {isAndamento && (
@@ -2717,7 +2728,14 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
             }}
           />
         )}
-        {!isLogistica && !isConferenciaHrm && !isRecebimentoHrm && isRecebido && (
+        {!isLogistica && !isConferenciaHrm && !isRecebimentoHrm && isRecebido && (() => {
+          // Mesma regra da parcial individual: Caldeiraria em setor de produção
+          // não envia sem iniciar; pass-through vira "Só encaminhar".
+          const isCald = p0.item_fabrica === 'caldeiraria';
+          const setorPassThrough = SETORES_CALD_SEM_PRODUCAO.includes(p0.setor_atual);
+          const bloqueiaEnviar = isCald && !setorPassThrough;
+          const soEncaminhar = isCald && setorPassThrough;
+          return (
           <>
             {temMaquinas(p0.setor_atual) ? (
               <span style={{ fontSize: 11, color: '#92400e', background: '#fef9c3', border: '1px solid #fbbf24', borderRadius: 5, padding: '5px 10px', fontWeight: 600 }}>
@@ -2728,16 +2746,19 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
                 <i className="bi bi-play-fill" style={{ marginRight: 5 }} />Iniciar produção
               </button>
             )}
-            <button onClick={() => { setShowEnviar(v => !v); setShowEnviarParcial(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
-              <i className="bi bi-send-fill" style={{ marginRight: 5 }} />Enviar ao próximo setor
-            </button>
+            {!bloqueiaEnviar && (
+              <button onClick={() => { setShowEnviar(v => !v); setShowEnviarParcial(false); setShowDevolver(false); if (!setorDestino) setSetorDestino(p0.proximo_setor || ''); }} disabled={loading} style={btnStyle('#1a3a5c')}>
+                <i className="bi bi-send-fill" style={{ marginRight: 5 }} />{soEncaminhar ? 'Só encaminhar → produzido em outro setor' : 'Enviar ao próximo setor'}
+              </button>
+            )}
             {podeDesfazer && (
               <button onClick={() => setConfirm({ titulo: 'Desfazer recebimento', mensagem: `Voltar ${parciais.length > 1 ? `as ${parciais.length} parciais` : 'a parcial'} para "em aberto" (não recebida)?`, acao: () => acaoTodos('desfazer_recebimento') })} disabled={loading} style={btnStyle('#6b7280', true)}>
                 <i className="bi bi-arrow-counterclockwise" style={{ marginRight: 5 }} />Desfazer recebimento
               </button>
             )}
           </>
-        )}
+          );
+        })()}
 
         {!isLogistica && isAndamento && isQualidadeGrupo && (
           <>

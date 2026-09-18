@@ -15,7 +15,7 @@ import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
 import { isAdministrador, podeAcessarSetor, podeDesfazerRecebimento, podeVerNaoLocalizados, podeRedirecionarCorteLivre } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
-import { SETOR_CHOICES, nomeInspecao, SETOR_NAO_LOCALIZADO, SETORES_CORTE, DESTINOS_PERMITIDOS_CORTE } from '@/lib/types';
+import { SETOR_CHOICES, nomeInspecao, SETOR_NAO_LOCALIZADO, SETORES_CORTE, DESTINOS_PERMITIDOS_CORTE, SETORES_CALD_SEM_PRODUCAO } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
 import { temMaquinas } from '@/lib/maquinas';
@@ -66,7 +66,7 @@ async function handlePOST(
       pa.*,
       pa.quantidade::float AS qtd,
       i.id AS item_id, i.codigo AS item_codigo, i.unidade,
-      i.quantidade::float AS item_qtd_total,
+      i.quantidade::float AS item_qtd_total, i.fabrica AS item_fabrica,
       i.pedido_id, i.status AS item_status, i.setor_atual AS item_setor_atual,
       p.numero_pedido_venda
     FROM producao_itemparcial pa
@@ -105,6 +105,17 @@ async function handlePOST(
     return NextResponse.json({ erro: 'Etapa finalizada. Use "mover" para enviar para o próximo setor ou "retomar" para voltar à produção.' }, { status: 400 });
 
   const obs = body.observacao || '';
+
+  // Caldeiraria (18/09): não dá pra ENVIAR pro próximo setor sem INICIAR a
+  // produção. Bloqueia 'mover' quando a parcial só foi recebida (status
+  // 'recebido') num setor de produção da Caldeiraria. Setores pass-through
+  // (SETORES_CALD_SEM_PRODUCAO) escapam — lá o fluxo é receber → só encaminhar.
+  // Só afeta itens fabrica='caldeiraria'; Flange e demais fábricas ficam iguais.
+  if (acao === 'mover' && parcial.status === 'recebido'
+      && parcial.item_fabrica === 'caldeiraria'
+      && !SETORES_CALD_SEM_PRODUCAO.includes(parcial.setor_atual)) {
+    return NextResponse.json({ erro: 'Inicie a produção antes de enviar ao próximo setor.' }, { status: 400 });
+  }
 
   // Hold Point (Caldeiraria): parcial com inspeção PENDENTE não avança até a
   // Qualidade laudar. Bloqueio server-side do "peça parada aguardando inspeção"

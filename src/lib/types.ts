@@ -145,6 +145,21 @@ export const PROCESSO_CALDEIRARIA = [
 // exclusividade (não vazam pro Flange) e alimentar menu/kanban da Caldeiraria.
 export const SETORES_CALDEIRARIA_PROCESSO_NOVOS = ['cald_corte_oxi', 'cald_identificacao', 'cald_transp_externo', 'cald_conformacao_int', 'cald_conformacao_ext', 'cald_pre_usinagem', 'cald_prep_chapas', 'cald_revestimento', 'cald_pint_primer', 'cald_pint_interm', 'cald_pint_acab', 'cald_pint_antiderr', 'cald_pint_retoques', 'cald_book', 'cald_emissao_nf', 'cald_outros'];
 
+// Setores da Caldeiraria SEM início de produção (pass-through, 18/09): a peça só
+// é RECEBIDA e ENCAMINHADA ("produzido em outro setor") — não exige "Iniciar"
+// antes de enviar. Nos DEMAIS setores da Caldeiraria, não dá pra mandar pro
+// próximo sem Iniciar (regra do usuário). Só afeta itens fabrica='caldeiraria';
+// Flange fica igual. Ajustar esta lista se uma área passar a produzir de fato.
+export const SETORES_CALD_SEM_PRODUCAO = [
+  'caldeiraria',          // Recebimento
+  'cald_identificacao',   // Identificação dos Materiais
+  'cald_transp_externo',  // Transporte p/ Serviço Externo
+  'cald_revestimento',    // Serviço Externo — Revestimento
+  'cald_book',            // Book (Preparação / Aprovação)
+  'cald_emissao_nf',      // Emissão de NF
+  'qualidade',            // Inspeção CQ
+];
+
 // Setores ANTIGOS da Caldeiraria — já esvaziados (12/08, confirmado com o
 // usuário) e REMOVIDOS do menu/kanban. Continuam em SETOR_CHOICES e em
 // SETORES_EXCLUSIVOS_CALDEIRARIA só pra resolver o nome em dados históricos
