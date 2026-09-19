@@ -8,7 +8,7 @@
  * Acesso só por login (podeVerValoresMes) — o gate real está aqui (redirect) e na
  * API (/api/pedidos/valores-mes → 403). Ver [[project_paradas_pedidos]].
  */
-import { useEffect, useState, useCallback, type CSSProperties } from 'react';
+import { useEffect, useState, useCallback, useMemo, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AuthGuard from '@/components/AuthGuard';
@@ -114,6 +114,8 @@ export default function ValoresMesPage() {
   const [fDe, setFDe] = useState('');
   const [fAte, setFAte] = useState('');
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  const [abertosV, setAbertosV] = useState<Set<string>>(new Set()); // vendedores abertos
+  const [aba, setAba] = useState<'mes' | 'vendedor'>('mes');
   // Modal de opções da exportação Excel: com/sem produto e com/sem cliente.
   const [showExport, setShowExport] = useState(false);
   const [expProduto, setExpProduto] = useState(true);
@@ -150,6 +152,37 @@ export default function ValoresMesPage() {
   const todosAbertos = dados.meses.length > 0 && dados.meses.every(m => abertos.has(m.mes));
   function toggleTodos() {
     setAbertos(todosAbertos ? new Set() : new Set(dados.meses.map(m => m.mes)));
+  }
+
+  // ── Análise por VENDEDOR (comercial) ────────────────────────────────────────
+  // Agrega os pedidos já carregados por vendedor: total de pedidos, de flanges
+  // (peças) e valor, com a quebra por mês de cada um. Ordena por valor (maior 1º).
+  interface VendMes { mes: string; count: number; pecas: number; valor: number }
+  interface VendAgg { vendedor: string; count: number; pecas: number; valor: number; porMes: VendMes[] }
+  const vendedores = useMemo<VendAgg[]>(() => {
+    const m = new Map<string, { vendedor: string; count: number; pecas: number; valor: number; porMes: Map<string, VendMes> }>();
+    for (const bloco of dados.meses) {
+      for (const p of bloco.pedidos) {
+        const v = (p.vendedor || '').trim() || '(sem vendedor)';
+        let e = m.get(v);
+        if (!e) { e = { vendedor: v, count: 0, pecas: 0, valor: 0, porMes: new Map() }; m.set(v, e); }
+        e.count += 1; e.pecas += p.pecas; e.valor += p.valor;
+        let mm = e.porMes.get(bloco.mes);
+        if (!mm) { mm = { mes: bloco.mes, count: 0, pecas: 0, valor: 0 }; e.porMes.set(bloco.mes, mm); }
+        mm.count += 1; mm.pecas += p.pecas; mm.valor += p.valor;
+      }
+    }
+    return Array.from(m.values())
+      .map(e => ({ vendedor: e.vendedor, count: e.count, pecas: e.pecas, valor: e.valor, porMes: Array.from(e.porMes.values()) }))
+      .sort((a, b) => b.valor - a.valor);
+  }, [dados]);
+
+  function toggleV(v: string) {
+    setAbertosV(prev => {
+      const next = new Set(prev);
+      next.has(v) ? next.delete(v) : next.add(v);
+      return next;
+    });
   }
 
   // Baixa um CSV compatível com Excel pt-BR (separador ";", BOM UTF-8 pros acentos,
@@ -291,12 +324,34 @@ export default function ValoresMesPage() {
           </button>
         )}
         <div style={{ flex: 1 }} />
-        {dados.meses.length > 0 && (
+        {aba === 'mes' && dados.meses.length > 0 && (
           <button onClick={toggleTodos}
             style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 13, cursor: 'pointer', color: '#1a3a5c', fontWeight: 600 }}>
             {todosAbertos ? 'Recolher todos' : 'Expandir todos'}
           </button>
         )}
+      </div>
+
+      {/* Chave de visão: Por Mês × Por Vendedor (análise comercial) */}
+      <div className="no-print" style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        <button type="button" onClick={() => setAba('mes')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 10,
+            border: `2px solid ${aba === 'mes' ? '#1a3a5c' : '#e5e7eb'}`,
+            background: aba === 'mes' ? '#1a3a5c' : '#fff', color: aba === 'mes' ? '#fff' : '#555',
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}>
+          <i className="bi bi-calendar3" />Por Mês
+        </button>
+        <button type="button" onClick={() => setAba('vendedor')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 10,
+            border: `2px solid ${aba === 'vendedor' ? '#1a3a5c' : '#e5e7eb'}`,
+            background: aba === 'vendedor' ? '#1a3a5c' : '#fff', color: aba === 'vendedor' ? '#fff' : '#555',
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}>
+          <i className="bi bi-person-badge" />Por Vendedor
+        </button>
       </div>
 
       {/* Total geral */}
@@ -336,7 +391,7 @@ export default function ValoresMesPage() {
       )}
 
       {/* Blocos por mês */}
-      {!loading && dados.meses.map((bloco, idx) => {
+      {!loading && aba === 'mes' && dados.meses.map((bloco, idx) => {
         const aberto = abertos.has(bloco.mes);
         // Mês anterior = o PRÓXIMO da lista (ordenada do mais recente ao mais antigo).
         const anterior = dados.meses[idx + 1];
@@ -432,6 +487,70 @@ export default function ValoresMesPage() {
                         <td colSpan={6} style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 700, color: '#475569', fontSize: 12 }}>Total do mês</td>
                         <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 700, color: '#7c3aed', whiteSpace: 'nowrap' }}>{num(bloco.pecas)}</td>
                         <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 800, color: '#065f46', whiteSpace: 'nowrap' }}>{brl(bloco.total)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Blocos por vendedor (análise comercial) */}
+      {!loading && aba === 'vendedor' && vendedores.length === 0 && (
+        <div className="card" style={{ padding: 40, textAlign: 'center', color: '#999' }}>Nenhum pedido no período.</div>
+      )}
+      {!loading && aba === 'vendedor' && vendedores.map(v => {
+        const aberto = abertosV.has(v.vendedor);
+        return (
+          <div key={v.vendedor} style={{ ...CARD, marginBottom: 12, overflow: 'hidden' }}>
+            <button onClick={() => toggleV(v.vendedor)}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '13px 18px', background: aberto ? '#f8fafc' : '#fff', border: 'none', borderBottom: aberto ? '1px solid #eef2f7' : 'none', cursor: 'pointer', textAlign: 'left' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flexWrap: 'wrap' }}>
+                <i className={`bi ${aberto ? 'bi-chevron-down' : 'bi-chevron-right'}`} style={{ color: '#94a3b8', fontSize: 13 }} />
+                <i className="bi bi-person-badge" style={{ color: '#1a3a5c' }} />
+                <span style={{ fontWeight: 700, color: '#1a3a5c', fontSize: 15 }}>{v.vendedor}</span>
+                <span style={{ fontSize: 12, color: '#64748b', background: '#eef2f7', borderRadius: 20, padding: '2px 10px', fontWeight: 600 }}>
+                  {v.count} pedido{v.count !== 1 ? 's' : ''}
+                </span>
+                <span style={{ fontSize: 12, color: '#7c3aed', background: '#f3e8ff', borderRadius: 20, padding: '2px 10px', fontWeight: 600 }}>
+                  {num(v.pecas)} flanges
+                </span>
+              </div>
+              <span style={{ fontWeight: 800, color: '#065f46', fontSize: 16, whiteSpace: 'nowrap' }}>{brl(v.valor)}</span>
+            </button>
+
+            {aberto && (
+              <div style={{ padding: '4px 0 10px' }}>
+                <div style={{ padding: '12px 18px 6px', fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: .3 }}>
+                  <i className="bi bi-calendar3" style={{ marginRight: 6 }} />Por mês
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', color: '#475569' }}>
+                        {['Mês', 'Pedidos', 'Flanges', 'Valor'].map((h, i) => (
+                          <th key={h} style={{ padding: '8px 18px', textAlign: i === 0 ? 'left' : 'right', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {v.porMes.map(mm => (
+                        <tr key={mm.mes} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '8px 18px', color: '#1a3a5c', fontWeight: 600 }}>{labelMes(mm.mes)}</td>
+                          <td style={{ padding: '8px 18px', textAlign: 'right', color: '#475569' }}>{num(mm.count)}</td>
+                          <td style={{ padding: '8px 18px', textAlign: 'right', color: '#7c3aed', fontWeight: 600 }}>{num(mm.pecas)}</td>
+                          <td style={{ padding: '8px 18px', textAlign: 'right', fontWeight: 700, color: mm.valor > 0 ? '#065f46' : '#cbd5e1', whiteSpace: 'nowrap' }}>{brl(mm.valor)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
+                        <td style={{ padding: '8px 18px', fontWeight: 700, color: '#475569', fontSize: 12 }}>Total do vendedor</td>
+                        <td style={{ padding: '8px 18px', textAlign: 'right', fontWeight: 700, color: '#475569' }}>{num(v.count)}</td>
+                        <td style={{ padding: '8px 18px', textAlign: 'right', fontWeight: 700, color: '#7c3aed' }}>{num(v.pecas)}</td>
+                        <td style={{ padding: '8px 18px', textAlign: 'right', fontWeight: 800, color: '#065f46', whiteSpace: 'nowrap' }}>{brl(v.valor)}</td>
                       </tr>
                     </tfoot>
                   </table>
