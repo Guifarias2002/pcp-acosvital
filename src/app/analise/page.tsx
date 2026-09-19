@@ -4,6 +4,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { getToken, isAdministrador, podeVerAnalise, getUser, podeVerNaoLocalizados, podeRegistrarParadas } from '@/lib/auth';
 import { MAQUINAS_POR_SETOR, fotoMaquina } from '@/lib/maquinas';
 import EstoqueDestino from './EstoqueDestino';
+import FaturamentoUpload from './FaturamentoUpload';
 
 const NOMES: Record<string, string> = {
   emissao: 'Emissão', usinagem: 'Usinagem', 'maçarico': 'Corte Maçarico', plasma: 'Corte Plasma',
@@ -834,6 +835,11 @@ export default function AnalisePage() {
 
         {dados && !loading && (<>
           {aba === 'geral' && (<>
+          {/* Faturamento por Empresa de Fabricação / Local de Produção / Família
+              a partir do Excel anexado (leitura no navegador, nada é salvo). */}
+          <SectionTitle icon="bi-file-earmark-spreadsheet" t="Faturamento (planilha)" s="Anexe o Excel de faturamento — total geral, fabricado × revenda, por empresa, local e família" />
+          <FaturamentoUpload />
+
           {/* Saídas do estoque: inspeção (flange pronto) × corte (fabricação).
               Análise própria (todos os meses), independente do período acima. */}
           <SectionTitle icon="bi-box-seam" t="Saídas do Estoque — Inspeção × Corte" s="Flange pronto (→ Inspeção) × precisou fabricar (→ Corte), por mês" />
