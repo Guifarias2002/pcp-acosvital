@@ -117,6 +117,45 @@ export default function EstoqueDestino() {
     });
   }
 
+  // Exporta pra Excel (CSV pt-BR: ";", BOM UTF-8, vírgula decimal, CRLF). Uma linha
+  // por pedido em cada rota (Inspeção/Corte), com mês, flanges e valor.
+  function exportarExcel() {
+    if (meses.length === 0) return;
+    const nBR = (v: number) => {
+      const n = Number(v || 0);
+      return (Number.isInteger(n) ? String(n) : n.toFixed(2)).replace('.', ',');
+    };
+    const cell = (v: string | number) => {
+      const s = String(v ?? '');
+      return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const linhas: string[] = [['Mês', 'Rota', 'Pedido', 'Cliente', 'Vendedor', 'Flanges', 'Valor'].join(';')];
+    let totPecas = 0, totValor = 0;
+    for (const b of meses) {
+      const rotas: [string, Rota][] = [['Inspeção (flange pronto)', b.inspecao], ['Corte (fabricação)', b.corte]];
+      for (const [rotulo, rota] of rotas) {
+        for (const p of rota.lista) {
+          linhas.push([cell(b.mes), cell(rotulo), cell(p.numero_pedido_venda), cell(p.cliente), cell(p.vendedor || ''), nBR(p.pecas), nBR(p.valor)].join(';'));
+          totPecas += p.pecas; totValor += p.valor;
+        }
+      }
+    }
+    linhas.push('');
+    linhas.push(['TOTAL GERAL', '', '', '', '', nBR(totPecas), nBR(totValor)].map(cell).join(';'));
+
+    const conteudo = '﻿' + linhas.join('\r\n');
+    const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const periodo = (fDe || fAte) ? `_${fDe || 'inicio'}_a_${fAte || 'fim'}` : '';
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `saidas-estoque${periodo}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div style={{ ...CARD, padding: 18, marginBottom: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
@@ -139,6 +178,10 @@ export default function EstoqueDestino() {
               Limpar
             </button>
           )}
+          <button onClick={exportarExcel} disabled={meses.length === 0}
+            style={{ border: '1px solid #198754', color: '#198754', background: 'none', borderRadius: 6, padding: '7px 12px', fontSize: 12.5, cursor: meses.length === 0 ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: meses.length === 0 ? 0.5 : 1 }}>
+            <i className="bi bi-file-earmark-excel" style={{ marginRight: 4 }} />Extrair Excel
+          </button>
         </div>
       </div>
       <div style={{ fontSize: 12.5, color: '#64748b', marginBottom: 12 }}>
