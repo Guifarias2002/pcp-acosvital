@@ -189,6 +189,19 @@ export function podeRegistrarParadas(u?: JWTPayload | null): boolean {
   return !!user && PARADAS_LOGINS.has(user.username);
 }
 
+// Pode VER o relatório "Valores por Mês" (pedidos + valor de cada um, agrupados
+// pelo mês de emissão, desde o início)? Controle PRIVADO — lista EXPLÍCITA por
+// login, mesmo padrão de PARADAS_LOGINS. A pedido do Guilherme é uma visão só do
+// acesso dele (financeiro consolidado por mês), então NÃO libera nem pra outros
+// administradores. Pra dar acesso a mais alguém, adicione o username aqui. O gate
+// real fica na API (/api/pedidos/valores-mes → 403) + no useEffect da página +
+// na visibilidade do botão na aba "Todos os Pedidos".
+const VALORES_MES_LOGINS = new Set<string>(['guilherme.santos']);
+export function podeVerValoresMes(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return !!user && VALORES_MES_LOGINS.has(user.username);
+}
+
 // Pode DEFINIR o prazo de finalização POR SETOR (item/pedido)? Administrador
 // sempre; além dele, lista EXPLÍCITA por login (hoje só Ezequiel), mesmo padrão
 // de CORTE_REDIRECT_LIVRE. Ver [[project_prazo_por_setor]]. Todos VÊEM o prazo

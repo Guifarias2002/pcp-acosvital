@@ -6,7 +6,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { getPedidos } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 import { Pedido, STATUS_LABELS, getPedidoEtapa, ETAPA_LABELS, NOMES, SETOR_CHOICES, FABRICAS } from '@/lib/types';
-import { getUser, podeEditar, podeVerCliente, vendedorRestrito, podeDefinirPrevisao } from '@/lib/auth';
+import { getUser, podeEditar, podeVerCliente, vendedorRestrito, podeDefinirPrevisao, podeVerValoresMes } from '@/lib/auth';
 import Link from 'next/link';
 import RastreioModal from '@/components/RastreioModal';
 
@@ -94,6 +94,9 @@ function PedidosPageInner() {
   const verCliente = podeVerCliente(_u);
   const isSuperAdmin = (_u?.perfil === 'administrador' || (_u?.is_staff && _u?.perfil !== 'pcp' && _u?.perfil !== 'lider')) && editavel;
   const isVendedor = vendedorRestrito(_u);
+  // Relatório privado "Valores por Mês" — botão visível só pra quem tem o gate
+  // (hoje só guilherme.santos). Ver podeVerValoresMes / /pedidos/valores.
+  const veValoresMes = podeVerValoresMes(_u);
 
   const buscarRef = useRef<(p?: number) => void>(() => {});
 
@@ -259,6 +262,15 @@ function PedidosPageInner() {
           }}>
             <i className="bi bi-file-earmark-excel" style={{ marginRight: 4 }}></i>Excel
           </button>
+          {veValoresMes && (
+            <Link href="/pedidos/valores" style={{
+              border: '1px solid #198754', color: '#198754', background: 'none',
+              borderRadius: 5, padding: '5px 14px', fontSize: 12, cursor: 'pointer', fontWeight: 600,
+              textDecoration: 'none', display: 'inline-flex', alignItems: 'center',
+            }} title="Relatório privado: pedidos e valores por mês">
+              <i className="bi bi-cash-coin" style={{ marginRight: 4 }}></i>Valores por Mês
+            </Link>
+          )}
           {isAdmin && (
             <button onClick={() => setShowImprimir(true)} style={{
               border: '1px solid #1a3a5c', color: '#1a3a5c', background: 'none',
