@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import AuthGuard from '@/components/AuthGuard';
 import { getToken, isAdministrador, podeVerAnalise, getUser, podeVerNaoLocalizados, podeRegistrarParadas } from '@/lib/auth';
 import { MAQUINAS_POR_SETOR, fotoMaquina } from '@/lib/maquinas';
+import EstoqueDestino from './EstoqueDestino';
 
 const NOMES: Record<string, string> = {
   emissao: 'Emissão', usinagem: 'Usinagem', 'maçarico': 'Corte Maçarico', plasma: 'Corte Plasma',
@@ -833,6 +834,11 @@ export default function AnalisePage() {
 
         {dados && !loading && (<>
           {aba === 'geral' && (<>
+          {/* Saídas do estoque: inspeção (flange pronto) × corte (fabricação).
+              Análise própria (todos os meses), independente do período acima. */}
+          <SectionTitle icon="bi-box-seam" t="Saídas do Estoque — Inspeção × Corte" s="Flange pronto (→ Inspeção) × precisou fabricar (→ Corte), por mês" />
+          <EstoqueDestino />
+
           {/* 3 Etapas */}
           <SectionTitle icon="bi-signpost-split" t="Situação dos materiais (agora)" s="Nível pedido — mesma contagem do painel" />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 8 }}>

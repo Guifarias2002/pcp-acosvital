@@ -94,6 +94,11 @@ export const getPedido = (id: number) =>
 export const getValoresMes = (params?: { de?: string; ate?: string; com_itens?: '1' }) =>
   api.get('/api/pedidos/valores-mes', { params }).then(r => r.data);
 
+// Análise PCP: saídas do estoque por mês → inspeção (flange pronto) × corte
+// (fabricação), com pedidos e peças. Filtro opcional { de, ate } em 'YYYY-MM'.
+export const getEstoqueDestino = (params?: { de?: string; ate?: string }) =>
+  api.get('/api/analise/estoque-destino', { params }).then(r => r.data);
+
 export const criarPedido = (data: unknown) =>
   api.post('/api/pedidos', data).then(r => r.data);
 
