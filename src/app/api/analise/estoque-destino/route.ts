@@ -32,8 +32,9 @@ interface PedidoRota {
   cliente: string;
   vendedor: string;
   pecas: number;
+  valor: number;
 }
-interface Rota { pedidos: number; pecas: number; lista: PedidoRota[] }
+interface Rota { pedidos: number; pecas: number; valor: number; lista: PedidoRota[] }
 interface MesBloco { mes: string; inspecao: Rota; corte: Rota }
 
 export async function GET(req: Request) {
@@ -65,7 +66,8 @@ export async function GET(req: Request) {
       SELECT
         b.mes, b.cat, b.pedido_id,
         p.numero_pedido_venda, p.cliente, p.vendedor,
-        COALESCE(SUM(i.quantidade), 0)::float8 AS pecas
+        COALESCE(SUM(i.quantidade), 0)::float8 AS pecas,
+        COALESCE(SUM(i.quantidade * COALESCE(i.valor_unitario, 0)), 0)::float8 AS valor
       FROM base b
       JOIN producao_pedido p ON p.id = b.pedido_id
       LEFT JOIN producao_itempedido i ON i.id = b.item_id
@@ -80,19 +82,22 @@ export async function GET(req: Request) {
       const mes = r.mes as string;
       let bloco = mapa.get(mes);
       if (!bloco) {
-        bloco = { mes, inspecao: { pedidos: 0, pecas: 0, lista: [] }, corte: { pedidos: 0, pecas: 0, lista: [] } };
+        bloco = { mes, inspecao: { pedidos: 0, pecas: 0, valor: 0, lista: [] }, corte: { pedidos: 0, pecas: 0, valor: 0, lista: [] } };
         mapa.set(mes, bloco);
       }
       const rota: Rota = r.cat === 'inspecao' ? bloco.inspecao : bloco.corte;
       const pecas = Number(r.pecas) || 0;
+      const valor = Number(r.valor) || 0;
       rota.pedidos += 1;
       rota.pecas += pecas;
+      rota.valor += valor;
       rota.lista.push({
         id: r.pedido_id as number,
         numero_pedido_venda: r.numero_pedido_venda as string,
         cliente: r.cliente as string,
         vendedor: r.vendedor as string,
         pecas,
+        valor,
       });
     }
 

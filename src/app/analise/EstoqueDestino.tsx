@@ -12,8 +12,8 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { getEstoqueDestino } from '@/lib/api';
 
-interface PedidoRota { id: number; numero_pedido_venda: string; cliente: string; vendedor: string; pecas: number }
-interface Rota { pedidos: number; pecas: number; lista: PedidoRota[] }
+interface PedidoRota { id: number; numero_pedido_venda: string; cliente: string; vendedor: string; pecas: number; valor: number }
+interface Rota { pedidos: number; pecas: number; valor: number; lista: PedidoRota[] }
 interface MesBloco { mes: string; inspecao: Rota; corte: Rota }
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -26,6 +26,7 @@ const num = (v: number) => {
   const n = Number(v || 0);
   return n.toLocaleString('pt-BR', { maximumFractionDigits: Number.isInteger(n) ? 0 : 2 });
 };
+const brl = (v: number) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const CARD = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, boxShadow: '0 1px 2px rgba(0,0,0,.04)' } as const;
 
@@ -41,6 +42,7 @@ function ColunaRota({ titulo, sub, cor, bg, rota }: { titulo: string; sub: strin
         <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
           <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>{num(rota.pedidos)} pedidos</div>
           <div style={{ fontSize: 16, fontWeight: 800, color: cor }}>{num(rota.pecas)} <span style={{ fontSize: 11, fontWeight: 600 }}>flanges</span></div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: '#065f46' }}>{brl(rota.valor)}</div>
         </div>
       </div>
       {rota.lista.length === 0 ? (
@@ -53,6 +55,7 @@ function ColunaRota({ titulo, sub, cor, bg, rota }: { titulo: string; sub: strin
                 <th style={{ padding: '4px 8px', fontWeight: 600, fontSize: 11 }}>Pedido</th>
                 <th style={{ padding: '4px 8px', fontWeight: 600, fontSize: 11 }}>Cliente</th>
                 <th style={{ padding: '4px 8px', fontWeight: 600, fontSize: 11, textAlign: 'right' }}>Flanges</th>
+                <th style={{ padding: '4px 8px', fontWeight: 600, fontSize: 11, textAlign: 'right' }}>Valor</th>
               </tr>
             </thead>
             <tbody>
@@ -65,9 +68,18 @@ function ColunaRota({ titulo, sub, cor, bg, rota }: { titulo: string; sub: strin
                   </td>
                   <td style={{ padding: '5px 8px', color: '#444' }}>{p.cliente}</td>
                   <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 700, color: cor }}>{num(p.pecas)}</td>
+                  <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 700, color: p.valor > 0 ? '#065f46' : '#cbd5e1', whiteSpace: 'nowrap' }}>{brl(p.valor)}</td>
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr style={{ borderTop: '2px solid #e2e8f0' }}>
+                <td style={{ padding: '5px 8px', fontWeight: 700, color: '#475569', fontSize: 11 }}>Total</td>
+                <td />
+                <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 800, color: cor }}>{num(rota.pecas)}</td>
+                <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 800, color: '#065f46', whiteSpace: 'nowrap' }}>{brl(rota.valor)}</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
@@ -147,10 +159,10 @@ export default function EstoqueDestino() {
                 <i className={`bi ${aberto ? 'bi-chevron-down' : 'bi-chevron-right'}`} style={{ color: '#94a3b8', fontSize: 13 }} />
                 <span style={{ fontWeight: 700, color: '#1a3a5c', fontSize: 14 }}>{labelMes(b.mes)}</span>
                 <span style={{ fontSize: 11.5, color: '#065f46', background: '#d1fae5', borderRadius: 20, padding: '2px 10px', fontWeight: 700 }}>
-                  Inspeção: {num(b.inspecao.pecas)} flanges · {num(b.inspecao.pedidos)} ped.
+                  Inspeção: {num(b.inspecao.pecas)} flanges · {num(b.inspecao.pedidos)} ped. · {brl(b.inspecao.valor)}
                 </span>
                 <span style={{ fontSize: 11.5, color: '#9a3412', background: '#ffedd5', borderRadius: 20, padding: '2px 10px', fontWeight: 700 }}>
-                  Corte: {num(b.corte.pecas)} flanges · {num(b.corte.pedidos)} ped.
+                  Corte: {num(b.corte.pecas)} flanges · {num(b.corte.pedidos)} ped. · {brl(b.corte.valor)}
                 </span>
               </div>
             </button>
