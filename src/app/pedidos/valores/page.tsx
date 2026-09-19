@@ -158,22 +158,24 @@ export default function ValoresMesPage() {
   // Agrega os pedidos já carregados por vendedor: total de pedidos, de flanges
   // (peças) e valor, com a quebra por mês de cada um. Ordena por valor (maior 1º).
   interface VendMes { mes: string; count: number; pecas: number; valor: number }
-  interface VendAgg { vendedor: string; count: number; pecas: number; valor: number; porMes: VendMes[] }
+  interface VendPedido extends PedidoValor { mes: string }
+  interface VendAgg { vendedor: string; count: number; pecas: number; valor: number; porMes: VendMes[]; pedidos: VendPedido[] }
   const vendedores = useMemo<VendAgg[]>(() => {
-    const m = new Map<string, { vendedor: string; count: number; pecas: number; valor: number; porMes: Map<string, VendMes> }>();
+    const m = new Map<string, { vendedor: string; count: number; pecas: number; valor: number; porMes: Map<string, VendMes>; pedidos: VendPedido[] }>();
     for (const bloco of dados.meses) {
       for (const p of bloco.pedidos) {
         const v = (p.vendedor || '').trim() || '(sem vendedor)';
         let e = m.get(v);
-        if (!e) { e = { vendedor: v, count: 0, pecas: 0, valor: 0, porMes: new Map() }; m.set(v, e); }
+        if (!e) { e = { vendedor: v, count: 0, pecas: 0, valor: 0, porMes: new Map(), pedidos: [] }; m.set(v, e); }
         e.count += 1; e.pecas += p.pecas; e.valor += p.valor;
+        e.pedidos.push({ ...p, mes: bloco.mes });
         let mm = e.porMes.get(bloco.mes);
         if (!mm) { mm = { mes: bloco.mes, count: 0, pecas: 0, valor: 0 }; e.porMes.set(bloco.mes, mm); }
         mm.count += 1; mm.pecas += p.pecas; mm.valor += p.valor;
       }
     }
     return Array.from(m.values())
-      .map(e => ({ vendedor: e.vendedor, count: e.count, pecas: e.pecas, valor: e.valor, porMes: Array.from(e.porMes.values()) }))
+      .map(e => ({ vendedor: e.vendedor, count: e.count, pecas: e.pecas, valor: e.valor, porMes: Array.from(e.porMes.values()), pedidos: e.pedidos }))
       .sort((a, b) => b.valor - a.valor);
   }, [dados]);
 
@@ -553,6 +555,40 @@ export default function ValoresMesPage() {
                         <td style={{ padding: '8px 18px', textAlign: 'right', fontWeight: 800, color: '#065f46', whiteSpace: 'nowrap' }}>{brl(v.valor)}</td>
                       </tr>
                     </tfoot>
+                  </table>
+                </div>
+
+                {/* Pedidos do vendedor — clicáveis (abre o pedido) */}
+                <div style={{ padding: '16px 18px 6px', fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: .3 }}>
+                  <i className="bi bi-list-ul" style={{ marginRight: 6 }} />Pedidos <span style={{ fontWeight: 500, textTransform: 'none' }}>(clique para abrir)</span>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', color: '#475569' }}>
+                        {['Mês', 'Emissão', 'Pedido', 'OP', 'Cliente', 'Status', 'Flanges', 'Valor'].map((h, i) => (
+                          <th key={h} style={{ padding: '8px 14px', textAlign: (i === 6 || i === 7) ? 'right' : 'left', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {v.pedidos.map(p => (
+                        <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '8px 14px', color: '#666', fontSize: 12, whiteSpace: 'nowrap' }}>{labelMes(p.mes)}</td>
+                          <td style={{ padding: '8px 14px', color: '#666', fontSize: 12, whiteSpace: 'nowrap' }}>{fmtData(p.data_emissao)}</td>
+                          <td style={{ padding: '8px 14px' }}>
+                            <Link href={`/pedidos/${p.id}`} prefetch={false} style={{ color: '#1a3a5c', fontWeight: 700, textDecoration: 'underline' }}>
+                              {p.numero_pedido_venda}
+                            </Link>
+                          </td>
+                          <td style={{ padding: '8px 14px', color: '#666' }}>{p.numero_op}</td>
+                          <td style={{ padding: '8px 14px', color: '#444' }}>{p.cliente}</td>
+                          <td style={{ padding: '8px 14px', color: '#666', fontSize: 12 }}>{STATUS_LABELS[p.status] || p.status}</td>
+                          <td style={{ padding: '8px 14px', textAlign: 'right', color: '#7c3aed', fontWeight: 600 }}>{num(p.pecas)}</td>
+                          <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 700, color: p.valor > 0 ? '#065f46' : '#cbd5e1', whiteSpace: 'nowrap' }}>{brl(p.valor)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
                   </table>
                 </div>
               </div>
