@@ -281,7 +281,7 @@ export default function ValoresMesPage() {
       <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <h4 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c' }}>
-            <i className="bi bi-cash-coin" style={{ marginRight: 8 }} />Valores por Mês
+            <i className="bi bi-cash-coin" style={{ marginRight: 8 }} />Valores por Mês — FLANGES
           </h4>
           <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 3 }}>
             Todos os pedidos e o valor de cada um, agrupados pelo mês de emissão. <b>Visão privada.</b>
