@@ -8,7 +8,7 @@
  * Acesso só por login (podeVerValoresMes) — o gate real está aqui (redirect) e na
  * API (/api/pedidos/valores-mes → 403). Ver [[project_paradas_pedidos]].
  */
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AuthGuard from '@/components/AuthGuard';
@@ -16,6 +16,14 @@ import { getValoresMes } from '@/lib/api';
 import { getUser, podeVerValoresMes } from '@/lib/auth';
 import { STATUS_LABELS } from '@/lib/types';
 
+interface ItemProduto {
+  codigo: string;
+  descricao: string;
+  unidade: string;
+  quantidade: number;
+  valor_unitario: number;
+  valor: number;
+}
 interface PedidoValor {
   id: number;
   numero_pedido_venda: string;
@@ -26,6 +34,7 @@ interface PedidoValor {
   data_emissao: string;
   valor: number;
   pecas: number;
+  itens?: ItemProduto[];
 }
 interface ClienteAgg { cliente: string; count: number; pecas: number; valor: number }
 interface MesBloco { mes: string; total: number; count: number; pecas: number; por_cliente: ClienteAgg[]; pedidos: PedidoValor[] }
@@ -54,6 +63,17 @@ function labelMes(mes: string): string {
 }
 
 const CARD = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, boxShadow: '0 1px 2px rgba(0,0,0,.04)' } as const;
+
+// Estilo dos botões-opção do modal de exportação (selecionado × não).
+function optBtn(active: boolean): CSSProperties {
+  return {
+    flex: 1, textAlign: 'left', cursor: 'pointer', borderRadius: 8, padding: '10px 12px',
+    border: `2px solid ${active ? '#198754' : '#e5e7eb'}`,
+    background: active ? '#f0fdf4' : '#fff',
+    color: active ? '#065f46' : '#475569',
+    transition: 'all .12s',
+  };
+}
 
 // Badge de variação % do valor de um mês em relação ao mês ANTERIOR (o próximo na
 // lista, que vem ordenada do mais recente pro mais antigo). Verde=subiu, vermelho=
@@ -94,6 +114,11 @@ export default function ValoresMesPage() {
   const [fDe, setFDe] = useState('');
   const [fAte, setFAte] = useState('');
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  // Modal de opções da exportação Excel: com/sem produto e com/sem cliente.
+  const [showExport, setShowExport] = useState(false);
+  const [expProduto, setExpProduto] = useState(true);
+  const [expCliente, setExpCliente] = useState(true);
+  const [expGerando, setExpGerando] = useState(false);
 
   // Gate por login: controle privado (só guilherme.santos). Sem permissão, home.
   useEffect(() => {
@@ -127,11 +152,9 @@ export default function ValoresMesPage() {
     setAbertos(todosAbertos ? new Set() : new Set(dados.meses.map(m => m.mes)));
   }
 
-  // Exporta pra Excel (CSV compatível com Excel pt-BR): separador ";", BOM UTF-8
-  // pros acentos e números com vírgula decimal. Uma linha por pedido, com a coluna
-  // do mês — assim dá pra pivotar por mês/cliente/peças/valor livremente no Excel.
-  function exportarExcel() {
-    if (dados.meses.length === 0) return;
+  // Baixa um CSV compatível com Excel pt-BR (separador ";", BOM UTF-8 pros acentos,
+  // números com vírgula decimal, CRLF). `fonte` = os meses a exportar.
+  function baixarCsv(fonte: MesBloco[], comProduto: boolean, comCliente: boolean) {
     const nBR = (v: number) => {
       const n = Number(v || 0);
       return (Number.isInteger(n) ? String(n) : n.toFixed(2)).replace('.', ',');
@@ -140,38 +163,83 @@ export default function ValoresMesPage() {
       const s = String(v ?? '');
       return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
-    const linhas: string[] = [];
-    linhas.push(['Mês', 'Emissão', 'Pedido', 'OP', 'Cliente', 'Vendedor', 'Status', 'Peças', 'Valor'].join(';'));
-    for (const bloco of dados.meses) {
+    // Colunas conforme as opções escolhidas.
+    const cabecalho = ['Mês', 'Emissão', 'Pedido', 'OP'];
+    if (comCliente) cabecalho.push('Cliente');
+    cabecalho.push('Vendedor', 'Status');
+    if (comProduto) cabecalho.push('Código', 'Descrição', 'Unid.', 'Qtd', 'Valor unit.', 'Valor item');
+    else cabecalho.push('Peças', 'Valor');
+
+    const linhas: string[] = [cabecalho.map(cell).join(';')];
+    let totValor = 0, totQtd = 0, totLinhas = 0;
+
+    for (const bloco of fonte) {
       for (const p of bloco.pedidos) {
-        linhas.push([
-          cell(bloco.mes),
-          cell(fmtData(p.data_emissao)),
-          cell(p.numero_pedido_venda),
-          cell(p.numero_op),
-          cell(p.cliente),
-          cell(p.vendedor || ''),
-          cell(STATUS_LABELS[p.status] || p.status),
-          nBR(p.pecas),
-          nBR(p.valor),
-        ].join(';'));
+        const base = [cell(bloco.mes), cell(fmtData(p.data_emissao)), cell(p.numero_pedido_venda), cell(p.numero_op)];
+        if (comCliente) base.push(cell(p.cliente));
+        base.push(cell(p.vendedor || ''), cell(STATUS_LABELS[p.status] || p.status));
+
+        if (comProduto) {
+          const itens = p.itens && p.itens.length > 0 ? p.itens : [];
+          if (itens.length === 0) {
+            // Pedido sem itens (casca): ainda sai uma linha, sem produto.
+            linhas.push([...base, '', '(sem produto)', '', nBR(0), nBR(0), nBR(p.valor)].join(';'));
+            totValor += p.valor; totLinhas += 1;
+          } else {
+            for (const it of itens) {
+              linhas.push([...base, cell(it.codigo), cell(it.descricao), cell(it.unidade), nBR(it.quantidade), nBR(it.valor_unitario), nBR(it.valor)].join(';'));
+              totValor += it.valor; totQtd += it.quantidade; totLinhas += 1;
+            }
+          }
+        } else {
+          linhas.push([...base, nBR(p.pecas), nBR(p.valor)].join(';'));
+          totValor += p.valor; totQtd += p.pecas; totLinhas += 1;
+        }
       }
     }
-    // Linha de total geral no fim.
+
+    // Linha de total geral no fim: "TOTAL GERAL" no início, total de Qtd/Peças na
+    // sua coluna e o total de Valor na última coluna (posiciona pelo cabeçalho).
     linhas.push('');
-    linhas.push(['TOTAL GERAL', '', '', '', '', '', String(dados.count_geral), nBR(dados.pecas_geral), nBR(dados.total_geral)].map(cell).join(';'));
+    const totalRow: string[] = new Array(cabecalho.length).fill('');
+    totalRow[0] = 'TOTAL GERAL';
+    const qtdIdx = cabecalho.indexOf(comProduto ? 'Qtd' : 'Peças');
+    if (qtdIdx >= 0) totalRow[qtdIdx] = nBR(totQtd);
+    totalRow[cabecalho.length - 1] = nBR(totValor); // Valor / Valor item
+    linhas.push(totalRow.map(cell).join(';'));
 
     const conteudo = '﻿' + linhas.join('\r\n'); // BOM + CRLF (Excel Windows)
     const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const periodo = (fDe || fAte) ? `_${fDe || 'inicio'}_a_${fAte || 'fim'}` : '';
+    const suf = `${comProduto ? '_com-produto' : ''}${comCliente ? '' : '_sem-cliente'}`;
     const a = document.createElement('a');
     a.href = url;
-    a.download = `valores-por-mes${periodo}.csv`;
+    a.download = `valores-por-mes${periodo}${suf}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    void totLinhas;
+  }
+
+  // Gera o Excel conforme as opções escolhidas no modal. Quando "com produto",
+  // rebusca o período trazendo os itens (com_itens=1) e usa esse conjunto.
+  async function gerarExcel() {
+    setExpGerando(true);
+    try {
+      if (expProduto) {
+        const d: Resposta = await getValoresMes({ de: fDe || undefined, ate: fAte || undefined, com_itens: '1' });
+        baixarCsv(d.meses, true, expCliente);
+      } else {
+        baixarCsv(dados.meses, false, expCliente);
+      }
+      setShowExport(false);
+    } catch {
+      setErro('Não consegui gerar o Excel. Tente novamente.');
+    } finally {
+      setExpGerando(false);
+    }
   }
 
   return (
@@ -190,7 +258,7 @@ export default function ValoresMesPage() {
           <Link href="/pedidos" style={{ border: '1px solid #dee2e6', color: '#666', background: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 13, textDecoration: 'none' }}>
             <i className="bi bi-arrow-left" style={{ marginRight: 4 }} />Voltar
           </Link>
-          <button onClick={exportarExcel} disabled={dados.meses.length === 0}
+          <button onClick={() => setShowExport(true)} disabled={dados.meses.length === 0}
             style={{ border: '1px solid #198754', color: '#198754', background: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 13, cursor: dados.meses.length === 0 ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: dados.meses.length === 0 ? 0.5 : 1 }}>
             <i className="bi bi-file-earmark-excel" style={{ marginRight: 4 }} />Extrair Excel
           </button>
@@ -373,6 +441,65 @@ export default function ValoresMesPage() {
           </div>
         );
       })}
+
+      {/* Modal: opções da exportação Excel */}
+      {showExport && (
+        <div onClick={() => !expGerando && setShowExport(false)} className="no-print"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, padding: 22, width: 440, maxWidth: '100%', boxShadow: '0 10px 40px rgba(0,0,0,.2)' }}>
+            <h5 style={{ margin: '0 0 4px', color: '#1a3a5c', fontWeight: 800 }}>
+              <i className="bi bi-file-earmark-excel" style={{ marginRight: 6 }} />Extrair para Excel
+            </h5>
+            <div style={{ fontSize: 12.5, color: '#64748b', marginBottom: 16 }}>
+              O que você precisa nesse relatório?
+            </div>
+
+            {/* Com / sem produto */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>Produtos</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setExpProduto(true)}
+                  style={optBtn(expProduto)}>
+                  <div style={{ fontWeight: 700 }}>Com produto</div>
+                  <div style={{ fontSize: 11, opacity: .8 }}>1 linha por item (código, qtd, valor)</div>
+                </button>
+                <button onClick={() => setExpProduto(false)}
+                  style={optBtn(!expProduto)}>
+                  <div style={{ fontWeight: 700 }}>Sem produto</div>
+                  <div style={{ fontSize: 11, opacity: .8 }}>1 linha por pedido (peças + valor)</div>
+                </button>
+              </div>
+            </div>
+
+            {/* Com / sem cliente */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>Cliente</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setExpCliente(true)} style={optBtn(expCliente)}>
+                  <div style={{ fontWeight: 700 }}>Com cliente</div>
+                  <div style={{ fontSize: 11, opacity: .8 }}>inclui a coluna do cliente</div>
+                </button>
+                <button onClick={() => setExpCliente(false)} style={optBtn(!expCliente)}>
+                  <div style={{ fontWeight: 700 }}>Sem cliente</div>
+                  <div style={{ fontSize: 11, opacity: .8 }}>oculta o cliente</div>
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => setShowExport(false)} disabled={expGerando}
+                style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 13, cursor: 'pointer', color: '#666' }}>
+                Cancelar
+              </button>
+              <button onClick={gerarExcel} disabled={expGerando}
+                style={{ background: '#198754', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', fontSize: 13, fontWeight: 700, cursor: expGerando ? 'wait' : 'pointer', opacity: expGerando ? 0.7 : 1 }}>
+                <i className="bi bi-download" style={{ marginRight: 5 }} />{expGerando ? 'Gerando…' : 'Gerar Excel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @media print {

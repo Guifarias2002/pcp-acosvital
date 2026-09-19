@@ -38,6 +38,9 @@ export async function GET(req: Request) {
     const ate = searchParams.get('ate'); // 'YYYY-MM' (mês final, inclusive)
     const deOk = de && MES_RE.test(de) ? de : null;
     const ateOk = ate && MES_RE.test(ate) ? ate : null;
+    // com_itens=1: anexa os PRODUTOS (itens) de cada pedido — usado só na
+    // exportação "com produto" do Excel (na tela normal não é necessário).
+    const comItens = searchParams.get('com_itens') === '1';
 
     // Uma linha por pedido, com o mês de emissão, valor e peças. A soma dos itens
     // (valor e quantidade) vem de um LEFT JOIN agregado; o valor cai na soma só
@@ -70,28 +73,39 @@ export async function GET(req: Request) {
     `;
 
     interface ClienteAgg { cliente: string; count: number; pecas: number; valor: number }
+    interface ItemProduto {
+      codigo: string;
+      descricao: string;
+      unidade: string;
+      quantidade: number;
+      valor_unitario: number;
+      valor: number;
+    }
+    interface PedidoLinha {
+      id: number;
+      numero_pedido_venda: string;
+      numero_op: string;
+      cliente: string;
+      vendedor: string;
+      status: string;
+      data_emissao: string;
+      valor: number;
+      pecas: number;
+      itens?: ItemProduto[];
+    }
     interface Bloco {
       mes: string;
       total: number;
       count: number;
       pecas: number;
       por_cliente: ClienteAgg[];
-      pedidos: {
-        id: number;
-        numero_pedido_venda: string;
-        numero_op: string;
-        cliente: string;
-        vendedor: string;
-        status: string;
-        data_emissao: string;
-        valor: number;
-        pecas: number;
-      }[];
+      pedidos: PedidoLinha[];
     }
 
     // Agrupa por mês (mais recente primeiro) e, dentro do mês, por cliente.
     const mapa = new Map<string, Bloco>();
     const clientesPorMes = new Map<string, Map<string, ClienteAgg>>();
+    const pedidosById = new Map<number, PedidoLinha>();
 
     let total_geral = 0;
     let pecas_geral = 0;
@@ -112,7 +126,7 @@ export async function GET(req: Request) {
       bloco.total += valor;
       bloco.count += 1;
       bloco.pecas += pecas;
-      bloco.pedidos.push({
+      const pl: PedidoLinha = {
         id: r.id as number,
         numero_pedido_venda: r.numero_pedido_venda as string,
         numero_op: r.numero_op as string,
@@ -122,7 +136,10 @@ export async function GET(req: Request) {
         data_emissao: r.data_emissao as string,
         valor,
         pecas,
-      });
+        ...(comItens ? { itens: [] } : {}),
+      };
+      bloco.pedidos.push(pl);
+      pedidosById.set(pl.id, pl);
 
       const cmap = clientesPorMes.get(mes)!;
       let ca = cmap.get(cliente);
@@ -137,6 +154,34 @@ export async function GET(req: Request) {
       bloco.por_cliente = Array.from(clientesPorMes.get(mes)!.values())
         .sort((a, b) => b.valor - a.valor);
     });
+
+    // Exportação "com produto": busca os itens de todos os pedidos do período e
+    // anexa a cada pedido (uma linha por produto no Excel).
+    if (comItens && pedidosById.size > 0) {
+      const ids = Array.from(pedidosById.keys());
+      const itemRows = await sql`
+        SELECT pedido_id, codigo, descricao, unidade,
+               quantidade::float8                                  AS quantidade,
+               COALESCE(valor_unitario, 0)::float8                 AS valor_unitario,
+               (quantidade * COALESCE(valor_unitario, 0))::float8  AS valor
+        FROM producao_itempedido
+        WHERE pedido_id = ANY(${ids}) AND inativo = false
+        ORDER BY pedido_id, id
+      `;
+      for (const it of itemRows) {
+        const pl = pedidosById.get(it.pedido_id as number);
+        if (pl?.itens) {
+          pl.itens.push({
+            codigo: (it.codigo as string) || '',
+            descricao: (it.descricao as string) || '',
+            unidade: (it.unidade as string) || '',
+            quantidade: Number(it.quantidade) || 0,
+            valor_unitario: Number(it.valor_unitario) || 0,
+            valor: Number(it.valor) || 0,
+          });
+        }
+      }
+    }
 
     return NextResponse.json({
       meses: Array.from(mapa.values()),

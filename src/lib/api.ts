@@ -89,8 +89,9 @@ export const getPedido = (id: number) =>
   api.get(`/api/pedidos/${id}`).then(r => r.data);
 
 // Relatório privado "Valores por Mês" (só guilherme.santos). Aceita filtro
-// opcional de período por mês { de: 'YYYY-MM', ate: 'YYYY-MM' }.
-export const getValoresMes = (params?: { de?: string; ate?: string }) =>
+// opcional de período por mês { de: 'YYYY-MM', ate: 'YYYY-MM' } e com_itens=1
+// (anexa os produtos de cada pedido — usado na exportação "com produto").
+export const getValoresMes = (params?: { de?: string; ate?: string; com_itens?: '1' }) =>
   api.get('/api/pedidos/valores-mes', { params }).then(r => r.data);
 
 export const criarPedido = (data: unknown) =>
