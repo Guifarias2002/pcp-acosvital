@@ -149,6 +149,35 @@ function Conteudo() {
         const ped = await getPedido(pedidoId);
         if (!vivo) return;
         setPedido(ped);
+
+        // ── BASE: o que JÁ está salvo no pedido ────────────────────────────────
+        // A Conferência passa a nascer com os dados colocados no pedido (código,
+        // descrição, quantidade, unidade, rastreio do cliente, entrega e roteiro).
+        // A leitura da OP (logo abaixo) SOBRESCREVE campo a campo quando consegue
+        // ler o PDF; quando a OP não abre, a tela não vem mais em branco — mostra
+        // o que foi lançado no pedido.
+        const itensPed = (ped.itens as Record<string, unknown>[]) || [];
+        const it0 = itensPed.find(i => !i.inativo) || itensPed[0];
+        if (it0) {
+          if (it0.codigo) setCodigo(String(it0.codigo));
+          if (it0.descricao) setDescricao(String(it0.descricao));
+          if (it0.quantidade) setQuantidade(String(it0.quantidade).replace(',', '.'));
+          if (it0.unidade) setUnidade(normalizarUnidade(String(it0.unidade)));
+        }
+        if (ped.numero_pedido_cliente) setPedCliente(String(ped.numero_pedido_cliente));
+        if (ped.entrega_contratual) setEntregaContratual(String(ped.entrega_contratual));
+        {
+          // Roteiro base: roteiro próprio do item (se tiver mais que emissão),
+          // senão o "por onde passa" das observações, senão o roteiro_base.
+          const doItem = (it0 && Array.isArray(it0.roteiro_proprio)) ? (it0.roteiro_proprio as string[]) : [];
+          const doPedido = Array.isArray(ped.roteiro_base) ? (ped.roteiro_base as string[]) : [];
+          const daObs = roteiroDasObservacoes(String(ped.observacoes || ''), MENU_SETORES);
+          const fonte = doItem.length > 1 ? doItem : (daObs.length ? daObs : doPedido);
+          const baseRot: string[] = [];
+          for (const s of fonte) if (s !== 'emissao' && MENU_SETORES.includes(s) && !baseRot.includes(s)) baseRot.push(s);
+          if (baseRot.length) setRoteiroSel(baseRot);
+        }
+
         // Re-lê a OP anexada
         try {
           const leit = await lerOpDoPedido(pedidoId);
@@ -189,7 +218,7 @@ function Conteudo() {
           }
         } catch (e) {
           const ax = e as { response?: { data?: { erro?: string } } };
-          setAvisoLeitura(ax?.response?.data?.erro || 'Não consegui reler a OP automaticamente — preencha os campos à mão.');
+          setAvisoLeitura((ax?.response?.data?.erro ? ax.response.data.erro + ' ' : '') + 'Os campos abaixo vieram do que foi lançado no pedido — confira antes de lançar.');
         }
       } catch (e) {
         const ax = e as { response?: { data?: { erro?: string } } };
