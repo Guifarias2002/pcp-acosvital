@@ -467,6 +467,58 @@ export default function PcpHrmPage() {
           {/* Coluna DIREITA — leitura da OP + por onde a peça vai passar */}
           <div style={{ display:'flex', flexDirection:'column', gap:16, flex:'1 1 480px', minWidth:340 }}>
 
+          {/* Placeholder ilustrado — enche a coluna enquanto não há leitura, com um
+              desenho da Caldeiraria e a chamada pra anexar a OP. Some quando lê. */}
+          {!leitura && (
+            <div className="card" style={{ padding:'36px 24px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', minHeight:440, gap:20 }}>
+              <svg viewBox="0 0 360 240" width="100%" style={{ maxWidth:320 }} xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ilustração da Caldeiraria">
+                <defs>
+                  <linearGradient id="hrm-vessel" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stopColor="#e8f1fb" />
+                    <stop offset="1" stopColor="#bcd4ef" />
+                  </linearGradient>
+                </defs>
+                {/* chão */}
+                <line x1="24" y1="198" x2="336" y2="198" stroke="#dbe4f0" strokeWidth="3" strokeLinecap="round" />
+                {/* vapor */}
+                <g fill="#e0ecfa">
+                  <circle cx="196" cy="46" r="10" /><circle cx="210" cy="35" r="8" /><circle cx="184" cy="35" r="7" />
+                </g>
+                {/* suportes (selas) */}
+                <path d="M104 198 L118 158 L138 158 L128 198 Z" fill="#a9bdd6" />
+                <path d="M250 198 L236 158 L216 158 L226 198 Z" fill="#a9bdd6" />
+                {/* corpo do vaso */}
+                <rect x="70" y="92" width="220" height="80" rx="40" fill="url(#hrm-vessel)" stroke="#1a3a5c" strokeWidth="2.5" />
+                {/* costuras */}
+                <ellipse cx="130" cy="132" rx="9" ry="40" fill="none" stroke="#8fb0d6" strokeWidth="2" />
+                <ellipse cx="230" cy="132" rx="9" ry="40" fill="none" stroke="#8fb0d6" strokeWidth="2" />
+                {/* tampo direito */}
+                <ellipse cx="290" cy="132" rx="11" ry="40" fill="#cfe0f2" stroke="#1a3a5c" strokeWidth="2.5" />
+                {/* bocal superior + flange */}
+                <rect x="172" y="72" width="16" height="24" fill="#1f5f8b" />
+                <rect x="166" y="66" width="28" height="9" rx="2" fill="#1a3a5c" />
+                {/* tubo/flange à esquerda */}
+                <rect x="30" y="124" width="46" height="16" rx="4" fill="#cfe0f2" stroke="#1a3a5c" strokeWidth="2" />
+                {/* solda / faísca */}
+                <g stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="96" y1="176" x2="96" y2="163" /><line x1="96" y1="176" x2="85" y2="169" />
+                  <line x1="96" y1="176" x2="107" y2="169" /><line x1="96" y1="176" x2="87" y2="185" />
+                  <line x1="96" y1="176" x2="105" y2="185" />
+                </g>
+                <circle cx="96" cy="176" r="4" fill="#fbbf24" />
+                <circle cx="112" cy="188" r="2" fill="#f59e0b" /><circle cx="80" cy="190" r="2" fill="#f59e0b" />
+              </svg>
+              <div>
+                <div style={{ fontSize:16, fontWeight:800, color:'#1a3a5c' }}>
+                  <i className="bi bi-hammer" style={{ marginRight:8 }} />Caldeiraria
+                </div>
+                <div style={{ fontSize:13, color:'#7a8aa0', marginTop:6, maxWidth:300, lineHeight:1.5 }}>
+                  {lendo ? 'Lendo a OP…' : 'Anexe o PDF da OP ao lado — a leitura dos materiais aparece aqui pra você conferir.'}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Resultado da leitura — uma OP pode trazer mais de uma ordem */}
           {leitura && (
             <div className="card" style={{ padding:20 }}>
