@@ -38,7 +38,12 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     let contentType = 'application/pdf';
     if (storagePath.startsWith('b2:')) {
       const r = await b2Download(storagePath.slice(3));
-      if (!r.ok) return NextResponse.json({ erro: 'Não foi possível abrir o arquivo da OP.' }, { status: 502 });
+      if (!r.ok) {
+        console.error(`[pcp-hrm/pedidos/${pedidoId}/ler-op] B2 download falhou status=${r.status}`);
+        // 403 no B2 costuma ser cota de download do dia estourada.
+        const dica = r.status === 403 ? ' (cota de download do B2 pode ter estourado)' : '';
+        return NextResponse.json({ erro: `Não foi possível abrir o arquivo da OP (B2 ${r.status})${dica}.` }, { status: 502 });
+      }
       contentType = r.contentType;
       buf = Buffer.from(await new Response(r.body).arrayBuffer());
     } else {

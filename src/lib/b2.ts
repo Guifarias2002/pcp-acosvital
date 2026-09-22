@@ -80,18 +80,36 @@ type B2DownloadResult =
   | { ok: true; body: ArrayBuffer; contentType: string }
   | { ok: false; status: number };
 
-/** Baixa um arquivo do bucket (privado). */
+/** Baixa um arquivo do bucket (privado). Resiliente: re-autoriza e retenta em
+ *  falhas transientes (token expirado = 401, 5xx, 429, erro de rede). Falhas
+ *  definitivas (404/403) NÃO retentam — o `status` volta pra quem chamou
+ *  diagnosticar (ex.: 403 = cota de download do B2 estourada). */
 export async function b2Download(fileName: string): Promise<B2DownloadResult> {
-  const auth = await authorize();
-  const res = await fetch(`${auth.downloadUrl}/file/${auth.bucketName}/${encodeURIComponent(fileName)}`, {
-    headers: { Authorization: auth.authToken },
-  });
-  if (!res.ok) return { ok: false, status: res.status };
-  return {
-    ok: true,
-    body: await res.arrayBuffer(),
-    contentType: res.headers.get('content-type') || 'application/octet-stream',
-  };
+  let lastStatus = 0;
+  for (let tentativa = 0; tentativa < 3; tentativa++) {
+    // Da 2ª tentativa em diante força re-authorize — o token em cache pode ter
+    // expirado/sido invalidado (mais provável quando a 1ª deu 401).
+    if (tentativa > 0) cache = null;
+    let auth: B2Auth;
+    try { auth = await authorize(); } catch { lastStatus = 401; continue; }
+    let res: Response;
+    try {
+      res = await fetch(`${auth.downloadUrl}/file/${auth.bucketName}/${encodeURIComponent(fileName)}`, {
+        headers: { Authorization: auth.authToken },
+      });
+    } catch { lastStatus = 0; continue; } // erro de rede — retenta
+    if (res.ok) {
+      return {
+        ok: true,
+        body: await res.arrayBuffer(),
+        contentType: res.headers.get('content-type') || 'application/octet-stream',
+      };
+    }
+    lastStatus = res.status;
+    // Só retenta transiente: token expirado (401), 5xx ou 429. 403/404 = definitivo.
+    if (res.status !== 401 && res.status !== 429 && res.status < 500) break;
+  }
+  return { ok: false, status: lastStatus };
 }
 
 /** Apaga todas as versões de um arquivo. Best-effort: não lança. */
