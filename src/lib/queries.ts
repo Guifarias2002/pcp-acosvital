@@ -65,6 +65,7 @@ export async function queryItens(pedidoId: number, incluirInativos = false) {
       i.id, i.pedido_id, i.codigo, i.descricao,
       i.quantidade::text, i.unidade,
       i.roteiro_proprio, i.fabrica, i.setor_atual, i.status, i.item_pai_id, i.tipo_produto,
+      i.numero_rastreabilidade,
       i.quantidade_pendente::text,
       i.quantidade_entregue::text,
       i.valor_unitario::text,
@@ -128,6 +129,7 @@ export function formatItem(row: any) {
     fabrica: row.fabrica || 'flange',
     item_pai_id: row.item_pai_id || null,
     tipo_produto: row.tipo_produto || null,
+    numero_rastreabilidade: row.numero_rastreabilidade || null,
     // Previsão de conclusão: a da PEÇA quando existe; senão herda a do PEDIDO.
     // `previsao_efetiva` é a que vale para atraso/conclusão. ISO cru (AAAA-MM-DD)
     // para a UI editar; `_fmt` já formatado para exibir.

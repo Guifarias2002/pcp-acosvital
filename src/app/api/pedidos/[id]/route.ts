@@ -182,6 +182,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         // ativa o gate de checklist de processo, então não sendo enviado não
         // muda nada do comportamento atual pra itens de Flanges/já existentes.
         const tipoProduto = TIPOS_PRODUTO_VALIDOS.includes(item.tipo_produto) ? item.tipo_produto : null;
+        // Nº de rastreabilidade por material (M48) — texto livre. COALESCE nos
+        // UPDATEs: quando o campo não vem no corpo (outros chamadores/telas que não
+        // enviam), o valor já gravado é preservado (não zera por engano).
+        const rastreab = item.numero_rastreabilidade?.toString().trim().slice(0, 120) || null;
 
         if (item.id) {
           // Atualiza item existente — ajusta quantidade_pendente pelo mesmo delta
@@ -225,6 +229,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
                 roteiro_proprio    = ${rotProprio},
                 fabrica            = COALESCE(${fabrica}, fabrica),
                 tipo_produto       = COALESCE(${tipoProduto}, tipo_produto),
+                numero_rastreabilidade = COALESCE(${rastreab}, numero_rastreabilidade),
                 atualizado_em      = NOW()
               WHERE id = ${Number(item.id)} AND pedido_id = ${pedidoId}
             `;
@@ -238,6 +243,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
                 unidade            = ${unid},
                 valor_unitario     = ${val},
                 tipo_produto       = COALESCE(${tipoProduto}, tipo_produto),
+                numero_rastreabilidade = COALESCE(${rastreab}, numero_rastreabilidade),
                 atualizado_em      = NOW()
               WHERE id = ${Number(item.id)} AND pedido_id = ${pedidoId}
             `;
@@ -273,10 +279,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           await tx`
             INSERT INTO producao_itempedido
               (pedido_id, codigo, descricao, quantidade, unidade, valor_unitario,
-               roteiro_proprio, fabrica, status, setor_atual, quantidade_pendente, quantidade_entregue, item_pai_id, tipo_produto, criado_em, atualizado_em)
+               roteiro_proprio, fabrica, status, setor_atual, quantidade_pendente, quantidade_entregue, item_pai_id, tipo_produto, numero_rastreabilidade, criado_em, atualizado_em)
             VALUES
               (${pedidoId}, ${cod}, ${desc}, ${qtd}, ${unid}, ${val},
-               ${rotProprio}, ${fabrica}, 'emitido', ${setorAtual}, ${qtd}, 0, ${itemPaiId}, ${tipoProduto}, NOW(), NOW())
+               ${rotProprio}, ${fabrica}, 'emitido', ${setorAtual}, ${qtd}, 0, ${itemPaiId}, ${tipoProduto}, ${rastreab}, NOW(), NOW())
           `;
         }
       }

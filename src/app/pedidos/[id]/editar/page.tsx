@@ -15,6 +15,7 @@ interface ItemForm {
   valor_unitario: string;
   roteiro_proprio: string[];
   fabrica: string;
+  numero_rastreabilidade?: string;
   status?: string;
   quantidade_entregue?: number;
   inativo?: boolean;
@@ -49,7 +50,7 @@ function emProducao(it: ItemForm): boolean {
 const UNIDADES = ['un', 'kg', 'm', 'pc', 'jg', 'cx', 'lt'];
 
 function novoItem(fabrica: string): ItemForm {
-  return { codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', roteiro_proprio: [], fabrica };
+  return { codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', roteiro_proprio: [], fabrica, numero_rastreabilidade: '' };
 }
 
 // Agrupa os itens pela fábrica gravada em cada um (coluna explícita `fabrica`
@@ -122,6 +123,7 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
       valor_unitario: i.valor_unitario ? String(i.valor_unitario) : '',
       roteiro_proprio: (i.roteiro_proprio as string[]) || [],
       fabrica: String(i.fabrica || FABRICAS[0].cod),
+      numero_rastreabilidade: (i.numero_rastreabilidade as string) || '',
       status: i.status as string | undefined,
       quantidade_entregue: Number(i.quantidade_entregue || 0),
       inativo: Boolean(i.inativo),
@@ -230,6 +232,7 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
           valor_unitario: it.valor_unitario ? Number(String(it.valor_unitario).replace(',', '.')) : null,
           roteiro_proprio: misto ? g.roteiro : [],
           fabrica: f.cod,
+          numero_rastreabilidade: it.numero_rastreabilidade ?? '',
         });
       }
     }
@@ -604,6 +607,13 @@ export default function EditarPedidoPage({ params }: { params: { id: string } })
                             placeholder="0,00" className={inputCls} />
                         </div>
                       </div>
+                      {item.fabrica === 'caldeiraria' && (
+                        <div style={{ marginTop: 8 }}>
+                          <label className={labelCls}>Nº de Rastreabilidade <span style={{ fontWeight: 400, textTransform: 'none' }}>(colada/corrida/certificado da matéria-prima)</span></label>
+                          <input value={item.numero_rastreabilidade ?? ''} onChange={e => setItemField(i, 'numero_rastreabilidade', e.target.value)}
+                            placeholder="Ex: colada 12345 / heat nº" maxLength={120} className={inputCls} />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

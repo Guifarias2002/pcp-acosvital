@@ -260,17 +260,19 @@ export async function POST(req: Request) {
         const primeiroSetor = rotProprio.length > 0 ? rotProprio[0] : roteiro_base[0];
         const fabrica = FABRICAS_VALIDAS.includes(item.fabrica) ? item.fabrica : FABRICAS_VALIDAS[0];
         const tipoProduto = TIPOS_PRODUTO_VALIDOS.includes(item.tipo_produto) ? item.tipo_produto : null;
+        // Nº de rastreabilidade por material (M48) — texto livre (colada/heat/cert).
+        const rastreab = item.numero_rastreabilidade?.toString().trim().slice(0, 120) || null;
         const [itemInserido] = await tx`
           INSERT INTO producao_itempedido
             (pedido_id, codigo, descricao, quantidade, unidade, valor_unitario,
-             roteiro_proprio, fabrica, setor_atual, status, quantidade_pendente, tipo_produto, criado_em)
+             roteiro_proprio, fabrica, setor_atual, status, quantidade_pendente, tipo_produto, numero_rastreabilidade, criado_em)
           VALUES (
             ${pedido.id}, ${item.codigo}, ${item.descricao || ''},
             ${item.quantidade}, ${item.unidade || 'un'},
             ${item.valor_unitario || null},
             ${rotProprio as string[]}, ${fabrica},
             ${primeiroSetor}, 'emitido',
-            ${item.quantidade}, ${tipoProduto}, NOW()
+            ${item.quantidade}, ${tipoProduto}, ${rastreab}, NOW()
           )
           RETURNING id
         `;

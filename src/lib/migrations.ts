@@ -28,7 +28,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 47;
+const SCHEMA_VERSION = 48;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -693,4 +693,13 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   // itens, quando o pedido sai da lista). Ver /api/pcp-hrm/conferencia/[id].
   await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS conferencia_iniciada_em TIMESTAMPTZ`).catch(() => {});
   await sql.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS conferencia_iniciada_por TEXT`).catch(() => {});
+
+  // M48 (22/09): Nº DE RASTREABILIDADE por MATERIAL (Caldeiraria). Óleo & gás
+  // exige rastrear a matéria-prima de cada peça (nº de colada/corrida/heat number
+  // ou certificado). Campo textual livre, preenchido "ao lado de cada material" na
+  // abertura/edição da OP da Caldeiraria. Coluna aditiva na tabela de itens
+  // (compartilhada) — inofensiva pro Flange, que simplesmente não preenche. A OP
+  // do Omie já traz a coluna RASTREAB (hoje descartada no leitor), então dá pra
+  // auto-preencher depois. Ver [[project_leitor_op_omie]].
+  await sql.unsafe(`ALTER TABLE producao_itempedido ADD COLUMN IF NOT EXISTS numero_rastreabilidade VARCHAR(120)`).catch(() => {});
 }

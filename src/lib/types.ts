@@ -583,6 +583,9 @@ export interface ItemPedido {
   fabrica?: string;
   item_pai_id?: number | null;
   tipo_produto?: string | null;
+  // Nº de rastreabilidade da matéria-prima (colada/corrida/heat number/cert) —
+  // por MATERIAL (Caldeiraria). M48. Ver [[project_leitor_op_omie]].
+  numero_rastreabilidade?: string | null;
   checklists_processo?: { id: number; setor: string; setor_nome: string; tipo_produto: string | null; respostas: { id: string; label: string; resposta: string; observacao: string }[]; usuario_nome: string; criado_em: string }[];
   setor_atual: string;
   nome_setor_atual: string;

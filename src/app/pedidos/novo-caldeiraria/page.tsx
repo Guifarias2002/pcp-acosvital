@@ -4,9 +4,10 @@ import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 
 import { criarPedido } from '@/lib/api';
+import { getToken } from '@/lib/auth';
 import { TIPOS_PRODUTO_CALDEIRARIA } from '@/lib/types';
 
-interface ItemForm { codigo: string; descricao: string; quantidade: string; unidade: string; valor_unitario: string; tipo_produto: string; }
+interface ItemForm { codigo: string; descricao: string; quantidade: string; unidade: string; valor_unitario: string; tipo_produto: string; numero_rastreabilidade: string; }
 
 const UNIDADES = ['un', 'kg', 'm', 'pc', 'jg', 'cx', 'lt'];
 
@@ -54,10 +55,14 @@ export default function NovoPedidoCaldeirariaPage() {
   const [entregaContratual, setEntregaContratual] = useState('');
   const [prioridade, setPrioridade] = useState('normal');
   const [obs, setObs] = useState('');
-  const [itens, setItens] = useState<ItemForm[]>([{ codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', tipo_produto: '' }]);
+  // PDF da OP (opcional): sem ele, o pedido nascia sem documento e nenhuma tela
+  // mostrava o botão "Ver OP" (o gate é ordem_producao_url != null). Com o anexo
+  // aqui a OP já nasce visível — mesmo mecanismo do PCP-HRM (Backblaze).
+  const [arquivoOp, setArquivoOp] = useState<File | null>(null);
+  const [itens, setItens] = useState<ItemForm[]>([{ codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', tipo_produto: '', numero_rastreabilidade: '' }]);
 
   function addItem() {
-    setItens(prev => [...prev, { codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', tipo_produto: '' }]);
+    setItens(prev => [...prev, { codigo: '', descricao: '', quantidade: '1', unidade: 'un', valor_unitario: '', tipo_produto: '', numero_rastreabilidade: '' }]);
   }
   function remItem(i: number) {
     setItens(prev => prev.filter((_, idx) => idx !== i));
@@ -110,6 +115,23 @@ export default function NovoPedidoCaldeirariaPage() {
         id = res.id;
       } finally {
         clearTimeout(tmo);
+      }
+      // Anexa o PDF da OP (mesmo mecanismo do PCP-HRM/Flange: Backblaze via
+      // ordem-producao) pra OP já nascer VISÍVEL nas telas do pedido/setor. O
+      // pedido já existe: se o anexo falhar, avisa e NÃO navega (o operador pode
+      // abrir o pedido e anexar por lá, sem recriar).
+      if (arquivoOp) {
+        const token = getToken() || '';
+        const fd = new FormData();
+        fd.append('arquivo', arquivoOp);
+        const up = await fetch(`/api/pedidos/${id}/ordem-producao`, {
+          method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
+        });
+        if (!up.ok) {
+          const d = await up.json().catch(() => ({}));
+          setErro(`O pedido ${pvFinal} foi criado, mas o anexo da OP falhou: ${d.erro || up.status}. Abra o pedido e anexe a OP por lá.`);
+          return;
+        }
       }
       router.push(`/pedidos/${id}`);
     } catch (e: unknown) {
@@ -255,6 +277,25 @@ export default function NovoPedidoCaldeirariaPage() {
                 <label className={labelCls}>Observações</label>
                 <textarea value={obs} onChange={e => setObs(e.target.value)} rows={2} className={inputCls} style={{ resize:'vertical' }} />
               </div>
+              <div style={{ gridColumn:'1 / -1' }}>
+                <label className={labelCls}>Arquivo da OP (PDF) <span style={{ fontWeight:400, textTransform:'none' }}>(opcional — anexe pra poder VER a OP nas telas do pedido)</span></label>
+                <input id="cald-op-file" type="file" accept="application/pdf,image/png,image/jpeg,image/webp" style={{ display:'none' }}
+                  onChange={e => setArquivoOp(e.target.files?.[0] || null)} />
+                <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+                  <label htmlFor="cald-op-file" style={{ padding:'8px 16px', borderRadius:8, border:'1px solid #1a3a5c', color:'#1a3a5c', fontSize:13, fontWeight:700, cursor:'pointer', background:'#fff', display:'inline-flex', alignItems:'center', gap:6 }}>
+                    <i className="bi bi-paperclip" />{arquivoOp ? 'Trocar arquivo' : 'Anexar OP (PDF)'}
+                  </label>
+                  {arquivoOp && (
+                    <span style={{ fontSize:12, color:'#166534', display:'inline-flex', alignItems:'center', gap:6 }}>
+                      <i className="bi bi-file-earmark-check" />{arquivoOp.name}
+                      <button type="button" onClick={() => setArquivoOp(null)}
+                        style={{ background:'#fee2e2', color:'#dc2626', border:'none', borderRadius:5, padding:'2px 8px', fontSize:11, fontWeight:600, cursor:'pointer' }}>
+                        Remover
+                      </button>
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -320,12 +361,19 @@ export default function NovoPedidoCaldeirariaPage() {
                           placeholder="0,00" className={inputCls} />
                       </div>
                     </div>
-                    <div style={{ marginTop: 8 }}>
-                      <label className={labelCls}>Tipo de Produto <span style={{ fontWeight: 400, textTransform: 'none' }}>(opcional — ativa o checklist de processo por etapa)</span></label>
-                      <select value={item.tipo_produto} onChange={e => setItemField(i, 'tipo_produto', e.target.value)} className={inputCls}>
-                        <option value="">— Não classificado —</option>
-                        {TIPOS_PRODUTO_CALDEIRARIA.map(t => <option key={t.cod} value={t.cod}>{t.label}</option>)}
-                      </select>
+                    <div style={{ marginTop: 8, display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                      <div>
+                        <label className={labelCls}>Tipo de Produto <span style={{ fontWeight: 400, textTransform: 'none' }}>(opcional — ativa o checklist)</span></label>
+                        <select value={item.tipo_produto} onChange={e => setItemField(i, 'tipo_produto', e.target.value)} className={inputCls}>
+                          <option value="">— Não classificado —</option>
+                          {TIPOS_PRODUTO_CALDEIRARIA.map(t => <option key={t.cod} value={t.cod}>{t.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelCls}>Nº de Rastreabilidade <span style={{ fontWeight: 400, textTransform: 'none' }}>(colada/corrida/cert.)</span></label>
+                        <input value={item.numero_rastreabilidade} onChange={e => setItemField(i, 'numero_rastreabilidade', e.target.value)}
+                          placeholder="Ex: colada 12345 / heat nº" maxLength={120} className={inputCls} />
+                      </div>
                     </div>
                   </div>
                 );

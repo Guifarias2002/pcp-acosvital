@@ -386,6 +386,9 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
               <div className="space-y-2 text-sm">
                 <div><span className="text-gray-400 text-xs">Código</span><p className="font-semibold">{item.codigo}</p></div>
                 <div><span className="text-gray-400 text-xs">Descrição</span><p className="font-semibold">{item.descricao}</p></div>
+                {item.numero_rastreabilidade && (
+                  <div><span className="text-gray-400 text-xs">Nº de rastreabilidade</span><p className="font-semibold">{item.numero_rastreabilidade}</p></div>
+                )}
                 <div>
                   <span className="text-gray-400 text-xs">Quantidade neste setor</span>
                   <p className="font-bold text-2xl text-blue-700">{fmtQtd(qtdNoSetorAtual)} <span className="text-base font-medium text-blue-400">{item.unidade}</span></p>
