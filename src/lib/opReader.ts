@@ -195,7 +195,16 @@ function lineFont(ln: Line): string {
   return best;
 }
 
-async function extractDoc(buf: Buffer): Promise<Pagina[]> {
+// `yTolerance` agrupa itens cuja baseline varia até N pt (ex.: negrito vs
+// regular na MESMA linha visual saem com baselines levemente diferentes —
+// visto em OP do Omie: valor em negrito a 1pt do rótulo em fonte regular).
+// 0 (padrão, usado pelo leitor Totvs) mantém o agrupamento por Y EXATO
+// (arredondado) de sempre — comportamento intocado, testado com OPs reais.
+// >0 (usado só pelo leitor Omie) faz clustering por proximidade: preserva a
+// mesma linha lógica mesmo com esse jitter de baseline, sem juntar linhas
+// DIFERENTES (o espaçamento entre linhas reais do template é bem maior que
+// esse jitter). Ver [[project_rastreabilidade_material]].
+async function extractDoc(buf: Buffer, yTolerance = 0): Promise<Pagina[]> {
   const pdfjsMod: any = await import('pdfjs-dist/legacy/build/pdf.js');
   const pdfjs = pdfjsMod.getDocument ? pdfjsMod : (pdfjsMod.default || pdfjsMod);
   // Serverless (Vercel): aponta o workerSrc pro caminho absoluto (senão o fake
@@ -212,16 +221,38 @@ async function extractDoc(buf: Buffer): Promise<Pagina[]> {
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p);
     const tc = await page.getTextContent();
-    const byY: Record<number, Item[]> = {};
-    for (const it of tc.items as any[]) {
-      if (typeof it.str !== 'string') continue;
-      const y = Math.round(it.transform[5]);
-      (byY[y] = byY[y] || []).push({ s: it.str, x: it.transform[4], f: it.fontName || '', p: p - 1 });
+    let lines: Line[];
+    if (yTolerance > 0) {
+      // Clustering por proximidade: ordena por Y (topo->base) e agrupa itens
+      // cujo Y fica a até `yTolerance` do PRIMEIRO item do cluster (referência
+      // fixa — evita "andar" a linha toda por soma de jitters pequenos).
+      const raw = (tc.items as any[])
+        .filter(it => typeof it.str === 'string')
+        .map(it => ({ s: it.str as string, x: it.transform[4] as number, y: it.transform[5] as number, f: it.fontName || '' }));
+      raw.sort((a, b) => b.y - a.y);
+      const clusters: { y: number; items: (Item & { y: number })[] }[] = [];
+      for (const it of raw) {
+        const last = clusters[clusters.length - 1];
+        const item = { s: it.s, x: it.x, f: it.f, p: p - 1, y: it.y };
+        if (last && Math.abs(last.y - it.y) <= yTolerance) last.items.push(item);
+        else clusters.push({ y: it.y, items: [item] });
+      }
+      lines = clusters.map(c => {
+        const items = c.items.sort((a, b) => a.x - b.x);
+        return { items, raw: items.map(i => i.s).join('') };
+      });
+    } else {
+      const byY: Record<number, Item[]> = {};
+      for (const it of tc.items as any[]) {
+        if (typeof it.str !== 'string') continue;
+        const y = Math.round(it.transform[5]);
+        (byY[y] = byY[y] || []).push({ s: it.str, x: it.transform[4], f: it.fontName || '', p: p - 1 });
+      }
+      lines = Object.keys(byY).map(Number).sort((a, b) => b - a).map(y => {
+        const items = byY[y].sort((a, b) => a.x - b.x);
+        return { items, raw: items.map(i => i.s).join('') };
+      });
     }
-    const lines = Object.keys(byY).map(Number).sort((a, b) => b - a).map(y => {
-      const items = byY[y].sort((a, b) => a.x - b.x);
-      return { items, raw: items.map(i => i.s).join('') };
-    });
     // Quadro vermelho (PN/PO/NS): anotação FreeText — texto em contentsObj.str.
     let redbox: string | null = null;
     try {
@@ -1117,7 +1148,12 @@ function ddmmToIsoOmie(s: string | undefined): string {
 const normOmie = (s: string | undefined) => (s || '').replace(/\s+/g, ' ').trim();
 
 export async function lerOpOmie(buf: Buffer): Promise<OPLeitura> {
-  const paginas = await extractDoc(buf);
+  // Tolerância de 3pt no agrupamento por linha: o valor da Quantidade sai em
+  // NEGRITO e o resto da linha em fonte regular — as duas fontes têm baseline
+  // levemente diferente (~1pt), o que separava valor e código em "linhas"
+  // distintas e derrubava a Quantidade/Unidade silenciosamente. Ver
+  // [[project_rastreabilidade_material]].
+  const paginas = await extractDoc(buf, 3);
   const linhas: Line[] = paginas.flatMap(p => p.lines);
   const full = linhas.map(l => normOmie(l.raw)).join('\n');
 
@@ -1177,10 +1213,26 @@ export async function lerOpOmie(buf: Buffer): Promise<OPLeitura> {
     if (!r) continue;
     if (fim.test(r)) break;
     const c = cellsOf(linhas[i]);
-    const temDados = !!(c.qtd || c.un || c.tipo);
+    // Só Quantidade/Unidade indicam LINHA DE DADOS nova. "Tipo do Produto"
+    // ("00 - Mercadoria para Revenda") quebra em 2 linhas no PDF e a 2ª
+    // ("Revenda") cai na MESMA altura da 2ª linha da Descrição — se `tipo`
+    // entrasse aqui, essa continuação de descrição virava um material falso
+    // (código = frase da descrição, quantidade/unidade vazias).
+    const temDados = !!(c.qtd || c.un);
     if (temDados && c.desc) {
       if (cur) materiais.push(cur);
-      cur = { codigo: c.desc, descricao: '', quantidade: (c.qtd || '').replace(/[^\d.,]/g, ''), unidade: c.un || '' };
+      let codigo = c.desc;
+      let quantidade = (c.qtd || '').replace(/[^\d.,]/g, '');
+      // Quantidade com milhar (ex.: "1.459,000000") começa alguns pixels antes
+      // das quantidades curtas — às vezes cai na coluna Descrição em vez da
+      // Quantidade (a fronteira das colunas é fixa, calibrada pelas curtas).
+      // Sem isso o código do material saía com o número colado no fim (ex.:
+      // "CH12,5S355J2+N 1.459,000000") e a Quantidade ficava vazia.
+      if (!quantidade) {
+        const m = codigo.match(/^(.*\S)\s+(\d{1,3}(?:\.\d{3})*,\d+)$/);
+        if (m) { codigo = m[1]; quantidade = m[2]; }
+      }
+      cur = { codigo, descricao: '', quantidade, unidade: c.un || '' };
     } else if (cur && c.desc && !c.qtd && !c.un) {
       cur.descricao = normOmie(cur.descricao + ' ' + c.desc);
     }
