@@ -1213,16 +1213,23 @@ export async function lerOpOmie(buf: Buffer): Promise<OPLeitura> {
     if (!r) continue;
     if (fim.test(r)) break;
     const c = cellsOf(linhas[i]);
-    // Só Quantidade/Unidade indicam LINHA DE DADOS nova. "Tipo do Produto"
-    // ("00 - Mercadoria para Revenda") quebra em 2 linhas no PDF e a 2ª
-    // ("Revenda") cai na MESMA altura da 2ª linha da Descrição — se `tipo`
-    // entrasse aqui, essa continuação de descrição virava um material falso
-    // (código = frase da descrição, quantidade/unidade vazias).
-    const temDados = !!(c.qtd || c.un);
-    if (temDados && c.desc) {
+    // LINHA DE DADOS nova exige Quantidade OU Unidade com formato LIMPO — não
+    // basta a coluna não estar vazia. O pdfjs às vezes quebra uma linha em
+    // mais "items" do que uma palavra (ex.: o final da especificação técnica,
+    // "CMAX 0,16CEQ MAX 0,43", sai como um item à parte da continuação da
+    // descrição) e esse pedaço cai na coluna Quantidade/Unidade por estar mais
+    // à direita — sem essa checagem virava um material fantasma (código =
+    // frase da descrição) OU bloqueava a descrição de ser anexada ao material
+    // certo (por isso "18 componentes" em vez de 12 numa OP real). Mesma razão
+    // pra não usar `tipo`: "00 - Mercadoria para Revenda" quebra em 2 linhas e
+    // a 2ª ("Revenda") cai na mesma altura da continuação da descrição.
+    const qtdLimpa = /^\d{1,3}(?:\.\d{3})*(?:,\d+)?$/.test(c.qtd || '');
+    const unLimpa = /^[A-Z0-9Çç]{1,4}$/i.test((c.un || '').trim());
+    const linhaDeDados = qtdLimpa || unLimpa;
+    if (linhaDeDados && c.desc) {
       if (cur) materiais.push(cur);
       let codigo = c.desc;
-      let quantidade = (c.qtd || '').replace(/[^\d.,]/g, '');
+      let quantidade = qtdLimpa ? (c.qtd || '').replace(/[^\d.,]/g, '') : '';
       // Quantidade com milhar (ex.: "1.459,000000") começa alguns pixels antes
       // das quantidades curtas — às vezes cai na coluna Descrição em vez da
       // Quantidade (a fronteira das colunas é fixa, calibrada pelas curtas).
@@ -1232,8 +1239,11 @@ export async function lerOpOmie(buf: Buffer): Promise<OPLeitura> {
         const m = codigo.match(/^(.*\S)\s+(\d{1,3}(?:\.\d{3})*,\d+)$/);
         if (m) { codigo = m[1]; quantidade = m[2]; }
       }
-      cur = { codigo, descricao: '', quantidade, unidade: c.un || '' };
-    } else if (cur && c.desc && !c.qtd && !c.un) {
+      cur = { codigo, descricao: '', quantidade, unidade: unLimpa ? (c.un || '') : '' };
+    } else if (cur && c.desc) {
+      // Ignora qualquer coisa que tenha caído em qtd/un/etc. nesta linha (é
+      // sobra de fonte fragmentada, não dado de verdade) — só a Descrição
+      // emenda no material atual.
       cur.descricao = normOmie(cur.descricao + ' ' + c.desc);
     }
   }
