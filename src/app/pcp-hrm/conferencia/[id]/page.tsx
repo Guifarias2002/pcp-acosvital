@@ -65,6 +65,19 @@ function normalizarUnidade(u: string): string {
   return s;
 }
 
+// A OP do Omie traz a Quantidade sempre com 6 casas decimais (ex.: "853,000000",
+// "1.459,000000") — sobra pro sistema de origem, não pra quem confere aqui. Só
+// formatação de EXIBIÇÃO na tabela de Materiais: quando as casas decimais são
+// só zero, mostra o inteiro (mantendo o ponto de milhar que já vem no texto);
+// quando tem decimal de verdade, mantém só os dígitos que sobram.
+function formatarQtd(raw: string): string {
+  const s = (raw || '').trim();
+  if (!s) return s;
+  const [inteiro, decimal] = s.split(',');
+  if (decimal == null || /^0+$/.test(decimal)) return inteiro;
+  return `${inteiro},${decimal.replace(/0+$/, '')}`;
+}
+
 const norm = (s: string) => (s || '').trim().toLowerCase();
 const NOME_PARA_COD: Record<string, string> = Object.fromEntries(
   Object.entries(NOMES).map(([cod, nome]) => [norm(nome), cod]),
@@ -489,7 +502,7 @@ function Conteudo() {
                                   <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                     <td style={{ padding: '6px 8px', fontFamily: 'monospace', color: codOk ? '#0f172a' : '#b45309' }}>{codOk ? m.codigo : '—'}</td>
                                     <td style={{ padding: '6px 8px' }}>{m.descricao}</td>
-                                    <td style={{ padding: '6px 8px' }}>{m.quantidade}</td>
+                                    <td style={{ padding: '6px 8px' }}>{formatarQtd(m.quantidade)}</td>
                                     <td style={{ padding: '6px 8px' }}>{m.unidade}</td>
                                   </tr>
                                 );
@@ -653,7 +666,7 @@ function Conteudo() {
                       <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                         <td style={{ padding: '6px 8px', fontFamily: 'monospace', color: codOk ? '#0f172a' : '#b45309' }}>{codOk ? m.codigo : '—'}</td>
                         <td style={{ padding: '6px 8px' }}>{m.descricao}</td>
-                        <td style={{ padding: '6px 8px' }}>{m.quantidade}</td>
+                        <td style={{ padding: '6px 8px' }}>{formatarQtd(m.quantidade)}</td>
                         <td style={{ padding: '6px 8px' }}>{m.unidade}</td>
                       </tr>
                     );})}

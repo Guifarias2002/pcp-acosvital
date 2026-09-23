@@ -20,6 +20,20 @@ type Origem = 'totvs' | 'omie';
 const inputCls = 'mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 bg-white';
 const labelCls = 'text-xs font-semibold text-gray-500 uppercase tracking-wide';
 
+// A OP do Omie traz a Quantidade sempre com 6 casas decimais (ex.: "853,000000",
+// "1.459,000000") — sobra pro sistema de origem, não pra quem confere aqui. Só
+// formatação de EXIBIÇÃO: quando as casas decimais são só zero, mostra o
+// inteiro (mantendo o ponto de milhar que já vem no texto); quando tem
+// decimal de verdade, mantém só os dígitos que sobram. Não mexe no dado cru
+// (`m.quantidade` continua intacto pra quem mais usar).
+function formatarQtd(raw: string): string {
+  const s = (raw || '').trim();
+  if (!s) return s;
+  const [inteiro, decimal] = s.split(',');
+  if (decimal == null || /^0+$/.test(decimal)) return inteiro;
+  return `${inteiro},${decimal.replace(/0+$/, '')}`;
+}
+
 export default function PcpHrmPage() {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
@@ -773,7 +787,7 @@ export default function PcpHrmPage() {
                                           ? <td style={{ padding:'5px 8px', fontWeight:700, color:'#1a3a5c', whiteSpace:'nowrap', textDecoration: sel ? 'none' : 'line-through' }}>{m.codigo}</td>
                                           : <td style={{ padding:'5px 8px', color:'#b91c1c', whiteSpace:'nowrap', textDecoration: sel ? 'none' : 'line-through' }} title="Código não pôde ser lido com segurança — confira no PDF">—</td>}
                                         <td style={{ padding:'5px 8px', textDecoration: sel ? 'none' : 'line-through' }}>{m.descricao}</td>
-                                        <td style={{ padding:'5px 8px', whiteSpace:'nowrap', textDecoration: sel ? 'none' : 'line-through' }}>{m.quantidade}</td>
+                                        <td style={{ padding:'5px 8px', whiteSpace:'nowrap', textDecoration: sel ? 'none' : 'line-through' }}>{formatarQtd(m.quantidade)}</td>
                                         <td style={{ padding:'5px 8px', textDecoration: sel ? 'none' : 'line-through' }}>{m.unidade}</td>
                                       </tr>
                                     );
