@@ -108,6 +108,42 @@ function roteiroDasObservacoes(observacoes: string, menu: string[]): string[] {
   return out;
 }
 
+// Um componente da OP com o próprio roteiro (sub-item = filho do produto).
+interface CompRot { codigo: string; descricao: string; quantidade: string; unidade: string; roteiro: string[]; }
+
+// Seletor de roteiro compacto e reutilizável (produto e cada componente usam).
+// Sempre começa em "Emissão" (fixo, passo 1). Clica pra adicionar; setinhas pra
+// ordenar; ✕ pra remover.
+function RoteiroPicker({ roteiro, onChange }: { roteiro: string[]; onChange: (r: string[]) => void }) {
+  const mov = (i: number, dir: -1 | 1) => {
+    const j = i + dir; if (j < 0 || j >= roteiro.length) return;
+    const n = roteiro.slice(); [n[i], n[j]] = [n[j], n[i]]; onChange(n);
+  };
+  return (
+    <div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>1. Emissão</span>
+        {roteiro.map((s, i) => (
+          <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#eef4fb', border: '1px solid #c7d7ee', borderRadius: 20, padding: '3px 6px 3px 10px', fontSize: 12, fontWeight: 600, color: '#1a3a5c' }}>
+            {i + 2}. {NOMES[s] || s}
+            <button type="button" onClick={() => mov(i, -1)} disabled={i === 0} title="Subir" style={{ border: 'none', background: 'none', cursor: i === 0 ? 'default' : 'pointer', color: '#64748b', opacity: i === 0 ? .3 : 1, padding: '0 2px' }}><i className="bi bi-arrow-up" /></button>
+            <button type="button" onClick={() => mov(i, 1)} disabled={i === roteiro.length - 1} title="Descer" style={{ border: 'none', background: 'none', cursor: i === roteiro.length - 1 ? 'default' : 'pointer', color: '#64748b', opacity: i === roteiro.length - 1 ? .3 : 1, padding: '0 2px' }}><i className="bi bi-arrow-down" /></button>
+            <button type="button" onClick={() => onChange(roteiro.filter(x => x !== s))} title="Remover" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', padding: '0 2px' }}><i className="bi bi-x-lg" /></button>
+          </span>
+        ))}
+        {roteiro.length === 0 && <span style={{ fontSize: 12, color: '#b45309' }}>sem setor — clique abaixo</span>}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {MENU_SETORES.filter(s => !roteiro.includes(s)).map(s => (
+          <button key={s} type="button" onClick={() => onChange([...roteiro, s])} style={{ border: '1px solid #dee2e6', background: '#fff', borderRadius: 20, padding: '4px 10px', fontSize: 11.5, fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
+            + {NOMES[s] || s}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function ConferenciaPage() {
   return <AuthGuard hrmOnly><Suspense fallback={null}><Conteudo /></Suspense></AuthGuard>;
 }
@@ -152,6 +188,19 @@ function Conteudo() {
   const [destinos, setDestinos] = useState<string[]>([]);
   const [qtdDestino, setQtdDestino] = useState<Record<string, string>>({});
   const [token, setToken] = useState('');
+  // Roteiro por componente: cada componente (sub-item) pode ter seu próprio
+  // roteiro. `modoRoteiro` = 'mesmo' (todos seguem o roteiro do produto) ou
+  // 'cada' (cada um o seu). Semeado da leitura da OP; editável à mão (funciona
+  // mesmo se a OP não abrir). No lançamento: produto = pai, componentes = filhos.
+  const [componentes, setComponentes] = useState<CompRot[]>([]);
+  const [modoRoteiro, setModoRoteiro] = useState<'mesmo' | 'cada'>('mesmo');
+
+  const setComp = (i: number, patch: Partial<CompRot>) =>
+    setComponentes(cs => cs.map((c, idx) => idx === i ? { ...c, ...patch } : c));
+  const addComp = () => setComponentes(cs => [...cs, { codigo: '', descricao: '', quantidade: '1', unidade: 'pc', roteiro: [] }]);
+  const remComp = (i: number) => setComponentes(cs => cs.filter((_, idx) => idx !== i));
+  // "Repetir o 1º": copia o roteiro do primeiro componente pros demais.
+  const repetirPrimeiroRoteiro = () => setComponentes(cs => cs.length ? cs.map((c, i) => i === 0 ? c : { ...c, roteiro: [...cs[0].roteiro] }) : cs);
 
   useEffect(() => { try { setToken(localStorage.getItem('access_token') || ''); } catch { /* ignore */ } }, []);
 
@@ -206,6 +255,21 @@ function Conteudo() {
             if (op0.identificacao?.unidade) setUnidade(normalizarUnidade(op0.identificacao.unidade));
             if (op0.cabecalho?.po) setPedCliente(op0.cabecalho.po);
             if (op0.identificacao?.entrega) setEntregaContratual(op0.identificacao.entrega);
+            // Semeia os COMPONENTES a partir dos materiais lidos, ignorando o que
+            // tem o mesmo código do produto (é o próprio produto, não um filho).
+            {
+              const prodCod = (op0.produto?.codigo || '').trim();
+              const comps = (op0.materiais || [])
+                .filter(m => (m.codigo || '').trim() && (m.codigo || '').trim() !== prodCod)
+                .map(m => ({
+                  codigo: (m.codigo || '').trim(),
+                  descricao: (m.descricao || '').trim(),
+                  quantidade: (m.quantidade || '1').replace(',', '.').replace(/\.?0+$/, '') || '1',
+                  unidade: normalizarUnidade(m.unidade || 'pc'),
+                  roteiro: [] as string[],
+                }));
+              if (comps.length) setComponentes(comps);
+            }
             // Pré-seleciona o roteiro a partir dos setores lidos (na ordem da OP)
             const sug: string[] = [];
             for (const o of op0.roteiro) {
@@ -335,6 +399,56 @@ function Conteudo() {
       // desenhava a trilha por ele, mostrando só 2 etapas. Agora o pedido não é
       // mais casca (tem item), então atualizar o roteiro_base é seguro e deixa a
       // trilha do painel/detalhe igual ao roteiro que o PCP montou aqui.
+      // ── Com COMPONENTES: produto = item PAI, cada componente = item FILHO ──
+      // (item_pai_id, igual "Montar Receita"), cada filho com seu roteiro. Todos
+      // são liberados pro 1º setor do próprio roteiro e aparecem separados em
+      // "Onde está cada peça".
+      if (componentes.length > 0) {
+        const rotComp = (c: CompRot) => (modoRoteiro === 'mesmo' ? roteiroSel : c.roteiro);
+        if (componentes.some(c => rotComp(c).length === 0)) {
+          setErro('Cada componente precisa de um roteiro — ou use "Mesmo roteiro pra todos".');
+          setLancando(false); return;
+        }
+        // 1. Cria o produto (pai).
+        await editarPedido(pedidoId, {
+          observacoes: obsLimpa,
+          numero_pedido_cliente: pedCliente,
+          entrega_contratual: entregaContratual,
+          roteiro_base: ['emissao', ...roteiroSel],
+          itens: [{
+            codigo: codigo.trim() || 'S/COD', descricao: descricao.trim(),
+            quantidade: qtd, unidade: (unidade.trim() || 'pc').toLowerCase(),
+            fabrica: 'caldeiraria', roteiro_proprio: ['emissao', ...roteiroSel],
+          }],
+        });
+        // Acha o pai recém-criado (emitido, sem pai).
+        const pedPai = await getPedido(pedidoId);
+        const pais = (pedPai.itens || []).filter((i: Record<string, unknown>) => i.status === 'emitido' && !i.item_pai_id);
+        const pai = pais[pais.length - 1];
+        if (!pai) { setErro('Produto criado, mas não encontrei pra vincular os componentes — abra o pedido.'); setLancando(false); return; }
+        const paiId = pai.id as number;
+        // 2. Cria os componentes (filhos), cada um com seu roteiro.
+        await editarPedido(pedidoId, {
+          itens: componentes.map(c => ({
+            codigo: c.codigo.trim() || 'S/COD', descricao: c.descricao.trim(),
+            quantidade: Number(c.quantidade) || 1, unidade: (c.unidade || 'pc').toLowerCase(),
+            fabrica: 'caldeiraria', item_pai_id: paiId,
+            roteiro_proprio: ['emissao', ...rotComp(c)],
+          })),
+        });
+        // 3. Libera o pai + cada filho pro 1º setor do roteiro de cada um.
+        const pedFinal = await getPedido(pedidoId);
+        const emitidos = (pedFinal.itens || []).filter((i: Record<string, unknown>) => i.status === 'emitido');
+        for (const it of emitidos) {
+          const rp = Array.isArray(it.roteiro_proprio) ? (it.roteiro_proprio as string[]) : [];
+          const destino = rp.find(s => s !== 'emissao') || roteiroSel[0];
+          if (destino) { try { await itemAcao(it.id as number, 'liberar', { setor_destino: destino }); } catch { /* segue */ } }
+        }
+        router.push('/pcp-hrm/painel');
+        return;
+      }
+
+      // ── Sem componentes: 1 item só (com o seletor de destino do quadro) ──
       await editarPedido(pedidoId, {
         observacoes: obsLimpa,
         numero_pedido_cliente: pedCliente,
@@ -648,33 +762,82 @@ function Conteudo() {
             </div>}
           </div>
 
-          {/* Materiais (COMPONENTES) — ver/imprimir */}
-          {op0 && op0.materiais.length > 0 && (
-            <div style={card}>
-              <div style={secTitle}><i className="bi bi-list-check" style={{ marginRight: 6 }} />Materiais (COMPONENTES) — {op0.materiais.length}</div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
-                  <thead><tr style={{ textAlign: 'left', color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>
-                    <th style={{ padding: '6px 8px' }}>Código</th><th style={{ padding: '6px 8px' }}>Descrição</th><th style={{ padding: '6px 8px' }}>Qtde</th><th style={{ padding: '6px 8px' }}>Un</th>
-                  </tr></thead>
-                  <tbody>
-                    {op0.materiais.map((m, i) => {
-                      // Totvs: só mostra código numérico coerente (a cifra gera lixo);
-                      // Omie: texto limpo, código alfanumérico confiável (OSSSJP..., FL...).
-                      const codOk = op0.origem === 'omie' ? !!m.codigo.trim() : /^\d{4,}$/.test(m.codigo.replace(/\s/g, ''));
-                      return (
-                      <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '6px 8px', fontFamily: 'monospace', color: codOk ? '#0f172a' : '#b45309' }}>{codOk ? m.codigo : '—'}</td>
-                        <td style={{ padding: '6px 8px' }}>{m.descricao}</td>
-                        <td style={{ padding: '6px 8px' }}>{formatarQtd(m.quantidade)}</td>
-                        <td style={{ padding: '6px 8px' }}>{m.unidade}</td>
-                      </tr>
-                    );})}
-                  </tbody>
-                </table>
-              </div>
+          {/* Componentes e roteiros — cada componente (sub-item) pode ter o
+              próprio roteiro. Semeado da OP; editável à mão. */}
+          <div style={card}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 12, borderBottom: '2px solid #1a3a5c', paddingBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#1a3a5c', textTransform: 'uppercase', letterSpacing: 1 }}>
+                <i className="bi bi-diagram-3" style={{ marginRight: 6 }} />Componentes e roteiros {componentes.length > 0 ? `— ${componentes.length}` : ''}
+              </span>
+              {!preview && componentes.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {(['mesmo', 'cada'] as const).map(m => (
+                    <button key={m} type="button" onClick={() => setModoRoteiro(m)}
+                      style={{ borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                        border: `1px solid ${modoRoteiro === m ? '#1a3a5c' : '#dee2e6'}`, background: modoRoteiro === m ? '#1a3a5c' : '#fff', color: modoRoteiro === m ? '#fff' : '#334155' }}>
+                      {m === 'mesmo' ? 'Mesmo roteiro pra todos' : 'Cada um o seu'}
+                    </button>
+                  ))}
+                  {modoRoteiro === 'cada' && (
+                    <button type="button" onClick={repetirPrimeiroRoteiro} title="Copiar o roteiro do 1º componente pros demais"
+                      style={{ borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid #c7d7ee', background: '#eef4fb', color: '#1a3a5c' }}>
+                      <i className="bi bi-arrow-repeat" style={{ marginRight: 4 }} />Repetir o 1º
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-          )}
+
+            {modoRoteiro === 'mesmo' && componentes.length > 0 && (
+              <div style={{ fontSize: 12.5, color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+                <i className="bi bi-info-circle" style={{ marginRight: 6 }} />Todos os componentes seguem o <b>roteiro do produto</b> (o de cima). Pra dar caminhos diferentes, escolha <b>&quot;Cada um o seu&quot;</b>.
+              </div>
+            )}
+
+            {componentes.length === 0 && (
+              <div style={{ fontSize: 13, color: '#7a8aa0', marginBottom: 12 }}>
+                Nenhum componente {op0 ? 'lido da OP' : '(a OP não abriu)'}. Você pode adicionar à mão abaixo.
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {componentes.map((c, i) => (
+                <div key={i} style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, background: '#fbfdff' }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                    <span style={{ minWidth: 22, height: 22, borderRadius: 11, background: '#1a3a5c', color: '#fff', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                    {preview ? (
+                      <div style={{ flex: 1, fontSize: 13 }}><b>{c.codigo || '—'}</b> {c.descricao} · {c.quantidade} {c.unidade}</div>
+                    ) : (<>
+                      <div style={{ flex: '1 1 120px' }}><label style={lblRo}>Código</label><input value={c.codigo} onChange={e => setComp(i, { codigo: e.target.value })} className={inputCls} /></div>
+                      <div style={{ flex: '2 1 220px' }}><label style={lblRo}>Descrição</label><input value={c.descricao} onChange={e => setComp(i, { descricao: e.target.value })} className={inputCls} /></div>
+                      <div style={{ flex: '0 0 80px' }}><label style={lblRo}>Qtd</label><input type="number" value={c.quantidade} onChange={e => setComp(i, { quantidade: e.target.value })} className={inputCls} /></div>
+                      <div style={{ flex: '0 0 90px' }}>
+                        <label style={lblRo}>Un</label>
+                        <select value={normalizarUnidade(c.unidade)} onChange={e => setComp(i, { unidade: e.target.value })} className={inputCls}>
+                          {UNIDADES.map(([cod, label]) => <option key={cod} value={cod}>{label}</option>)}
+                        </select>
+                      </div>
+                      <button type="button" onClick={() => remComp(i)} title="Remover componente" style={{ border: '1px solid #fecaca', background: '#fff', color: '#dc2626', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', fontWeight: 700 }}><i className="bi bi-trash" /></button>
+                    </>)}
+                  </div>
+                  {modoRoteiro === 'cada' && (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e2e8f0' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>Roteiro deste componente</div>
+                      {preview
+                        ? <div style={{ fontSize: 12.5, color: '#1a3a5c' }}>{['Emissão', ...c.roteiro.map(s => NOMES[s] || s)].join(' → ')}</div>
+                        : <RoteiroPicker roteiro={c.roteiro} onChange={r => setComp(i, { roteiro: r })} />}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {!preview && (
+              <button type="button" onClick={addComp} style={{ marginTop: 12, border: '1px dashed #c7d7ee', background: '#fff', color: '#1a3a5c', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                <i className="bi bi-plus-lg" style={{ marginRight: 6 }} />Adicionar componente
+              </button>
+            )}
+          </div>
 
           {/* Desenho(s) do projeto — ver (inline) e anexar (fora da prévia) */}
           {(() => {
@@ -729,10 +892,28 @@ function Conteudo() {
             </div>
           ) : (
             <>
-              {/* Confirmação: ESCOLHE pra qual(is) setor(es) mandar. 1 setor = peça
-                  inteira; vários = divide a quantidade (a soma tem que fechar o
-                  total). Só depois de confirmar é que lança. */}
-              {confirmandoLancar && roteiroSel.length > 0 && (
+              {/* Confirmação — modo COMPONENTES: lança o produto (pai) + cada
+                  componente (filho) no 1º setor do roteiro de cada um. */}
+              {confirmandoLancar && componentes.length > 0 && (
+                <div className="no-print" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#166534', marginBottom: 8 }}>
+                    <i className="bi bi-diagram-3" style={{ marginRight: 6 }} />
+                    Vai lançar o produto + {componentes.length} componente{componentes.length > 1 ? 's' : ''}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: '#4b5563', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div><b>{codigo || 'Produto'}</b> — {NOMES[roteiroSel[0]] || roteiroSel[0]} (roteiro do produto)</div>
+                    {componentes.map((c, i) => {
+                      const r = modoRoteiro === 'mesmo' ? roteiroSel : c.roteiro;
+                      return <div key={i}>↳ <b>{c.codigo || `Comp ${i + 1}`}</b> ({c.quantidade} {c.unidade}) → {r.length ? (NOMES[r[0]] || r[0]) : <span style={{ color: '#b45309' }}>sem roteiro!</span>}</div>;
+                    })}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 8 }}>Cada um vira um item rastreado em &quot;Onde está cada peça&quot;.</div>
+                </div>
+              )}
+
+              {/* Confirmação — modo 1 ITEM: ESCOLHE pra qual(is) setor(es) mandar.
+                  1 setor = peça inteira; vários = divide a quantidade. */}
+              {confirmandoLancar && componentes.length === 0 && roteiroSel.length > 0 && (
                 <div className="no-print" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#166534', marginBottom: 10 }}>
                     <i className="bi bi-box-arrow-in-right" style={{ marginRight: 6 }} />
@@ -793,8 +974,10 @@ function Conteudo() {
                     <button onClick={() => setConfirmandoLancar(false)} disabled={lancando}
                       style={{ padding: '11px 20px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, color: '#555', background: '#fff', fontWeight: 600, cursor: lancando ? 'not-allowed' : 'pointer' }}>Voltar</button>
                     {(() => {
-                      const podeConfirmar = !lancando && !bloqueiaMulti && somaConfere;
+                      const temComp = componentes.length > 0;
+                      const podeConfirmar = temComp ? !lancando : (!lancando && !bloqueiaMulti && somaConfere);
                       const rotulo = lancando ? 'Lançando…'
+                        : temComp ? `Confirmar — lançar produto + ${componentes.length} componente${componentes.length > 1 ? 's' : ''}`
                         : multiDestino ? `Confirmar — lançar para ${destinos.length} setores`
                         : `Confirmar — lançar para ${NOMES[destinos[0]] || destinos[0]}`;
                       return (
