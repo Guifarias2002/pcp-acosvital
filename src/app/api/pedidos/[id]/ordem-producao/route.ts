@@ -55,8 +55,11 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     if (storagePath.startsWith('b2:')) {
       const r = await b2Download(storagePath.slice(3));
       if (!r.ok) {
-        console.error('[ordem-producao] B2 download falhou', r.status);
-        return NextResponse.json({ erro: 'Não foi possível abrir o arquivo.' }, { status: 502 });
+        console.error(`[ordem-producao] B2 ${r.reason} falhou status=${r.status} detalhe=${r.detalhe || ''}`);
+        const msg = r.reason === 'auth'
+          ? 'Não foi possível abrir o arquivo: o Backblaze recusou a chave (verifique B2_KEY_ID/B2_APP_KEY na Vercel e a permissão de leitura).'
+          : 'Não foi possível abrir o arquivo.';
+        return NextResponse.json({ erro: msg }, { status: 502 });
       }
       const extB2 = r.contentType.split('/')[1] || 'bin';
       return new Response(r.body, {

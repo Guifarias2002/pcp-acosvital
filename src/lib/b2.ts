@@ -78,26 +78,44 @@ export async function b2Upload(fileName: string, contentType: string, bytes: Arr
 
 type B2DownloadResult =
   | { ok: true; body: ArrayBuffer; contentType: string }
-  | { ok: false; status: number };
+  // `reason` separa os dois mundos: 'auth' = o b2_authorize_account recusou a
+  // chave (B2_KEY_ID/B2_APP_KEY inválida, expirada ou SEM permissão de leitura);
+  // 'download' = autorizou, mas o GET do arquivo falhou (403 cota, 404 sumiu…).
+  // `detalhe` traz a mensagem crua do B2 pra log/diagnóstico.
+  | { ok: false; status: number; reason: 'auth' | 'download'; detalhe?: string };
 
 /** Baixa um arquivo do bucket (privado). Resiliente: re-autoriza e retenta em
  *  falhas transientes (token expirado = 401, 5xx, 429, erro de rede). Falhas
- *  definitivas (404/403) NÃO retentam — o `status` volta pra quem chamou
- *  diagnosticar (ex.: 403 = cota de download do B2 estourada). */
+ *  definitivas (404/403) NÃO retentam — o `status`/`reason` voltam pra quem
+ *  chamou diagnosticar (ex.: reason 'auth' = chave recusada; 403 download =
+ *  cota de download do B2 estourada). */
 export async function b2Download(fileName: string): Promise<B2DownloadResult> {
   let lastStatus = 0;
+  let lastReason: 'auth' | 'download' = 'download';
+  let lastDetalhe = '';
   for (let tentativa = 0; tentativa < 3; tentativa++) {
     // Da 2ª tentativa em diante força re-authorize — o token em cache pode ter
     // expirado/sido invalidado (mais provável quando a 1ª deu 401).
     if (tentativa > 0) cache = null;
     let auth: B2Auth;
-    try { auth = await authorize(); } catch { lastStatus = 401; continue; }
+    try {
+      auth = await authorize();
+    } catch (e) {
+      // authorize() falhou = a CHAVE foi recusada, não o download. Extrai o
+      // status real da mensagem ("B2 authorize 401: …") em vez de assumir 401.
+      const msg = e instanceof Error ? e.message : String(e);
+      const m = msg.match(/authorize\s+(\d{3})/);
+      lastStatus = m ? Number(m[1]) : 401;
+      lastReason = 'auth';
+      lastDetalhe = msg;
+      continue;
+    }
     let res: Response;
     try {
       res = await fetch(`${auth.downloadUrl}/file/${auth.bucketName}/${encodeURIComponent(fileName)}`, {
         headers: { Authorization: auth.authToken },
       });
-    } catch { lastStatus = 0; continue; } // erro de rede — retenta
+    } catch { lastStatus = 0; lastReason = 'download'; continue; } // erro de rede — retenta
     if (res.ok) {
       return {
         ok: true,
@@ -106,10 +124,12 @@ export async function b2Download(fileName: string): Promise<B2DownloadResult> {
       };
     }
     lastStatus = res.status;
+    lastReason = 'download';
+    lastDetalhe = await res.text().catch(() => '');
     // Só retenta transiente: token expirado (401), 5xx ou 429. 403/404 = definitivo.
     if (res.status !== 401 && res.status !== 429 && res.status < 500) break;
   }
-  return { ok: false, status: lastStatus };
+  return { ok: false, status: lastStatus, reason: lastReason, detalhe: lastDetalhe || undefined };
 }
 
 /** Apaga todas as versões de um arquivo. Best-effort: não lança. */

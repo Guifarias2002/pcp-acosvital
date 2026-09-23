@@ -39,10 +39,14 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     if (storagePath.startsWith('b2:')) {
       const r = await b2Download(storagePath.slice(3));
       if (!r.ok) {
-        console.error(`[pcp-hrm/pedidos/${pedidoId}/ler-op] B2 download falhou status=${r.status}`);
-        // 403 no B2 costuma ser cota de download do dia estourada.
-        const dica = r.status === 403 ? ' (cota de download do B2 pode ter estourado)' : '';
-        return NextResponse.json({ erro: `Não foi possível abrir o arquivo da OP (B2 ${r.status})${dica}.` }, { status: 502 });
+        console.error(`[pcp-hrm/pedidos/${pedidoId}/ler-op] B2 ${r.reason} falhou status=${r.status} detalhe=${r.detalhe || ''}`);
+        // reason 'auth' = a CHAVE do B2 foi recusada (config, não o arquivo);
+        // 403 no download costuma ser cota de download do dia estourada.
+        const dica = r.reason === 'auth'
+          ? ' — o Backblaze recusou a chave (verifique B2_KEY_ID/B2_APP_KEY na Vercel e se a Application Key tem permissão de LEITURA no bucket)'
+          : r.status === 403 ? ' (cota de download do B2 pode ter estourado)' : '';
+        const rotulo = r.reason === 'auth' ? `credenciais ${r.status}` : String(r.status);
+        return NextResponse.json({ erro: `Não foi possível abrir o arquivo da OP (B2 ${rotulo})${dica}.` }, { status: 502 });
       }
       contentType = r.contentType;
       buf = Buffer.from(await new Response(r.body).arrayBuffer());
