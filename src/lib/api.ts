@@ -105,8 +105,8 @@ export const criarPedido = (data: unknown) =>
 export const editarPedido = (id: number, data: unknown) =>
   api.patch(`/api/pedidos/${id}`, data).then(r => r.data);
 
-export const getUltimoRoteiro = () =>
-  api.get('/api/pedidos/ultimo-roteiro').then(r => r.data);
+export const getUltimoRoteiro = (fabrica?: string) =>
+  api.get('/api/pedidos/ultimo-roteiro', { params: fabrica ? { fabrica } : {} }).then(r => r.data);
 
 // ── PCP HRM / Conferência ───────────────────────────────────────────────────
 // Lista as OPs (pedidos "casca") aguardando conferência.

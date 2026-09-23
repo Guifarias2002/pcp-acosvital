@@ -201,9 +201,12 @@ export default function NovoPedidoPage() {
     setCopiandoRoteiro(true);
     setMsgRoteiro('');
     try {
-      const data = await getUltimoRoteiro();
+      // Busca o último pedido DA MESMA fábrica da aba — não mistura o roteiro de
+      // uma Caldeiraria numa OP de Flange (e vice-versa).
+      const data = await getUltimoRoteiro(fabricaAtiva);
       if (data.roteiro_base?.length > 0) {
-        // Copia só o que faz sentido para a fábrica ativa (emissão + setores dela).
+        // Rede de segurança: mesmo vindo da fábrica certa, mantém só emissão +
+        // setores dela.
         const rot = (data.roteiro_base as string[]).filter(s => s === 'emissao' || fabDef.setores.includes(s));
         setGrupo(fabricaAtiva, { roteiro: rot.length ? rot : ['emissao'] });
         setMsgRoteiro(`Roteiro copiado do pedido ${data.numero_pedido_venda}.`);
