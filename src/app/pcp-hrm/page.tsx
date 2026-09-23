@@ -62,6 +62,31 @@ export default function PcpHrmPage() {
   const [leitura, setLeitura] = useState<OPLeitura | null>(null);
   const [erroLeitura, setErroLeitura] = useState('');
   const [componentesAbertos, setComponentesAbertos] = useState<Set<number>>(new Set());
+  // Componentes DESMARCADOS pela pessoa (chave "opIdx:matIdx") — por padrão
+  // todos vêm marcados (foco em fazer aparecer o material, não some da lista;
+  // só fica visualmente "riscado"). É só pra conferência visual nesta tela —
+  // não muda o que é enviado (a Conferência do PCP já relê a OP inteira).
+  const [materiaisExcluidos, setMateriaisExcluidos] = useState<Set<string>>(new Set());
+  const materialKey = (opIdx: number, matIdx: number) => `${opIdx}:${matIdx}`;
+  const materialSelecionado = (opIdx: number, matIdx: number) => !materiaisExcluidos.has(materialKey(opIdx, matIdx));
+  function toggleMaterial(opIdx: number, matIdx: number) {
+    setMateriaisExcluidos(prev => {
+      const next = new Set(prev);
+      const key = materialKey(opIdx, matIdx);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+  function toggleTodosMateriais(opIdx: number, total: number, marcarTodos: boolean) {
+    setMateriaisExcluidos(prev => {
+      const next = new Set(prev);
+      for (let i = 0; i < total; i++) {
+        const key = materialKey(opIdx, i);
+        if (marcarTodos) next.delete(key); else next.add(key);
+      }
+      return next;
+    });
+  }
   // Nome sugerido pra baixar a OP e mandar pras áreas — parte da descrição do
   // produto lida, mas o operador pode ajustar antes de baixar.
   const [nomeEnvio, setNomeEnvio] = useState('');
@@ -718,10 +743,17 @@ export default function PcpHrmPage() {
                               <div style={{ fontSize:12, color:'#1f5f8b', margin:'2px 0 4px' }}>
                                 <i className="bi bi-info-circle" style={{ marginRight:5 }} />
                                 Leitura só pra conferência — o roteiro (por onde a peça passa) é definido pelo PCP na Conferência.
+                                {' '}Desmarque o que não for material de verdade (ex.: o próprio produto) — é só pra você conferir aqui.
                               </div>
                               <table style={{ width:'100%', borderCollapse:'collapse', marginTop:6, fontSize:12.5, minWidth:520 }}>
                                 <thead>
                                   <tr style={{ textAlign:'left', color:'#6c757d', borderBottom:'1px solid #e9ecef' }}>
+                                    <th style={{ padding:'5px 8px', width:26 }}>
+                                      <input type="checkbox"
+                                        checked={op.materiais.every((_, i) => materialSelecionado(idx, i))}
+                                        onChange={e => toggleTodosMateriais(idx, op.materiais.length, e.target.checked)}
+                                        title="Selecionar/desmarcar todos" style={{ cursor:'pointer' }} />
+                                    </th>
                                     <th style={{ padding:'5px 8px' }}>Código</th><th style={{ padding:'5px 8px' }}>Descrição</th>
                                     <th style={{ padding:'5px 8px' }}>Qtd</th><th style={{ padding:'5px 8px' }}>Un</th>
                                   </tr>
@@ -731,14 +763,18 @@ export default function PcpHrmPage() {
                                     // Código só quando numericamente coerente; senão "—" (a
                                     // decodificação não recuperou este código).
                                     const codOk = codigoCoerente(m.codigo);
+                                    const sel = materialSelecionado(idx, i);
                                     return (
-                                      <tr key={i} style={{ borderBottom:'1px solid #f1f3f5' }}>
+                                      <tr key={i} style={{ borderBottom:'1px solid #f1f3f5', opacity: sel ? 1 : .45 }}>
+                                        <td style={{ padding:'5px 8px' }}>
+                                          <input type="checkbox" checked={sel} onChange={() => toggleMaterial(idx, i)} style={{ cursor:'pointer' }} />
+                                        </td>
                                         {codOk
-                                          ? <td style={{ padding:'5px 8px', fontWeight:700, color:'#1a3a5c', whiteSpace:'nowrap' }}>{m.codigo}</td>
-                                          : <td style={{ padding:'5px 8px', color:'#b91c1c', whiteSpace:'nowrap' }} title="Código não pôde ser lido com segurança — confira no PDF">—</td>}
-                                        <td style={{ padding:'5px 8px' }}>{m.descricao}</td>
-                                        <td style={{ padding:'5px 8px', whiteSpace:'nowrap' }}>{m.quantidade}</td>
-                                        <td style={{ padding:'5px 8px' }}>{m.unidade}</td>
+                                          ? <td style={{ padding:'5px 8px', fontWeight:700, color:'#1a3a5c', whiteSpace:'nowrap', textDecoration: sel ? 'none' : 'line-through' }}>{m.codigo}</td>
+                                          : <td style={{ padding:'5px 8px', color:'#b91c1c', whiteSpace:'nowrap', textDecoration: sel ? 'none' : 'line-through' }} title="Código não pôde ser lido com segurança — confira no PDF">—</td>}
+                                        <td style={{ padding:'5px 8px', textDecoration: sel ? 'none' : 'line-through' }}>{m.descricao}</td>
+                                        <td style={{ padding:'5px 8px', whiteSpace:'nowrap', textDecoration: sel ? 'none' : 'line-through' }}>{m.quantidade}</td>
+                                        <td style={{ padding:'5px 8px', textDecoration: sel ? 'none' : 'line-through' }}>{m.unidade}</td>
                                       </tr>
                                     );
                                   })}
