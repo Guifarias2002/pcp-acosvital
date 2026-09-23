@@ -187,11 +187,27 @@ export default function PcpHrmPage() {
         const num = numero.trim() || `PCP-HRM-${Date.now()}`;
 
         // O ROTEIRO ("por onde a peça passa") NÃO é definido aqui — quem define é
-        // o PCP na Conferência. As observações levam só a origem (define o leitor
+        // o PCP na Conferência. As observações levam a origem (define o leitor
         // Totvs/Omie na releitura da OP) + o texto livre digitado.
+        //
+        // COMPONENTES: salva os materiais lidos (só os selecionados) num bloco
+        // machine-readable "[[COMPONENTES]]<json>". Assim a Conferência mostra os
+        // componentes mesmo quando a OP não reabre (B2 fora) — a leitura aqui é
+        // feita do arquivo na memória, não depende do B2.
+        const compsLidos: { codigo: string; descricao: string; quantidade: string; unidade: string }[] = [];
+        (leitura?.ops || []).forEach((op, opIdx) => {
+          op.materiais.forEach((m, matIdx) => {
+            if (!materialSelecionado(opIdx, matIdx)) return;
+            if (!(m.codigo || '').trim() && !(m.descricao || '').trim()) return;
+            compsLidos.push({ codigo: m.codigo || '', descricao: m.descricao || '', quantidade: m.quantidade || '1', unidade: m.unidade || 'pc' });
+          });
+        });
+        const blocoComp = compsLidos.length ? `[[COMPONENTES]]${JSON.stringify(compsLidos)}` : '';
+
         const linhasObs = [
           `Origem: ${origemLabel[origem]}`,
           obs.trim(),
+          blocoComp,
         ].filter(Boolean).join('\n');
 
         const res = await criarPedido({

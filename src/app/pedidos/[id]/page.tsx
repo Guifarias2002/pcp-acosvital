@@ -1481,7 +1481,8 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                 </div>
               ) : (
                 <p style={{ fontSize: 12, color: pedido.observacoes ? '#374151' : '#64748b', margin: 0, fontStyle: pedido.observacoes ? 'normal' : 'italic', whiteSpace: 'pre-wrap' }}>
-                  {pedido.observacoes || 'Nenhuma observação registrada.'}
+                  {/* Esconde blocos machine-readable (ex.: [[COMPONENTES]]<json> do HRM) — dado interno, não pra leitura. */}
+                  {(String(pedido.observacoes || '').split('\n').filter(l => !l.trim().startsWith('[[')).join('\n').trim()) || 'Nenhuma observação registrada.'}
                 </p>
               )}
             </div>

@@ -108,6 +108,24 @@ function roteiroDasObservacoes(observacoes: string, menu: string[]): string[] {
   return out;
 }
 
+// Lê os COMPONENTES salvos na Anexar OP — bloco "[[COMPONENTES]]<json>" nas
+// observações. É o que faz os materiais aparecerem na Conferência SEM depender
+// de reler a OP do B2 (que pode estar fora). Roteiro começa vazio (o PCP monta).
+function componentesDasObservacoes(observacoes: string): CompRot[] {
+  const linha = String(observacoes || '').split('\n').find(l => l.trim().startsWith('[[COMPONENTES]]'));
+  if (!linha) return [];
+  try {
+    const arr = JSON.parse(linha.trim().slice('[[COMPONENTES]]'.length)) as { codigo?: string; descricao?: string; quantidade?: string; unidade?: string }[];
+    return (Array.isArray(arr) ? arr : []).map(m => ({
+      codigo: (m.codigo || '').trim(),
+      descricao: (m.descricao || '').trim(),
+      quantidade: (m.quantidade || '1').replace(',', '.').replace(/\.?0+$/, '') || '1',
+      unidade: normalizarUnidade(m.unidade || 'pc'),
+      roteiro: [] as string[],
+    }));
+  } catch { return []; }
+}
+
 // Um componente da OP com o próprio roteiro (sub-item = filho do produto).
 interface CompRot { codigo: string; descricao: string; quantidade: string; unidade: string; roteiro: string[]; }
 
@@ -238,6 +256,14 @@ function Conteudo() {
           const baseRot: string[] = [];
           for (const s of fonte) if (s !== 'emissao' && MENU_SETORES.includes(s) && !baseRot.includes(s)) baseRot.push(s);
           if (baseRot.length) setRoteiroSel(baseRot);
+        }
+        // Componentes salvos na Anexar OP (bloco [[COMPONENTES]]) — aparecem na
+        // tela mesmo se a OP não reabrir (B2 fora). Exclui o que == produto.
+        {
+          const prodCod = (it0?.codigo ? String(it0.codigo) : '').trim();
+          const compsSalvos = componentesDasObservacoes(String(ped.observacoes || ''))
+            .filter(c => !prodCod || c.codigo !== prodCod);
+          if (compsSalvos.length) setComponentes(compsSalvos);
         }
 
         // Re-lê a OP anexada
@@ -391,7 +417,9 @@ function Conteudo() {
     try {
       // Fábrica única (Caldeiraria) — remove a etiqueta Leve/Pesada obsoleta das
       // observações se ela existir de pedidos antigos; nada de novo é gravado.
-      const obsLimpa = String(pedido?.observacoes || '').split('\n').filter(l => !/^Fábrica:/i.test(l.trim())).join('\n');
+      const obsLimpa = String(pedido?.observacoes || '').split('\n')
+        .filter(l => !/^Fábrica:/i.test(l.trim()) && !l.trim().startsWith('[[COMPONENTES]]'))
+        .join('\n');
 
       // Cria o item com roteiro próprio ['emissao', ...setores escolhidos] e
       // GRAVA o mesmo roteiro no roteiro_base do pedido — antes ele ficava no
