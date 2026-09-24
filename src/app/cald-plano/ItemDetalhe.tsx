@@ -5,7 +5,7 @@ import {
   AREAS_CALD, AREA_POR_CODIGO, AREA_TERCEIRO, UNIDADES_CALD, PRIORIDADES_CALD,
   ordenarAreas, situacaoItem, hojeISO, fmtData, diasEntre, type ItemCald, type EtapaCald,
 } from '@/lib/caldPlano';
-import { C, Modal, Campo, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, erroDe, SeletorEmpresa, CampoValor } from './comum';
+import { C, Modal, Campo, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, erroDe, SeletorEmpresa, CampoValor, calcTotal, calcUnit, qtdNum } from './comum';
 
 interface Hist { id: number; acao: string; detalhe: string | null; usuario_nome: string | null; criado_em: string }
 
@@ -47,7 +47,7 @@ export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, 
         faturado_em: f.faturado_em || null, parcial: f.parcial, obs: f.obs,
       };
       if (f.empresa) body.empresa = f.empresa;
-      if (verValores) body.valor = f.valor;
+      if (verValores) { body.valor = f.valor; body.valor_unitario = f.unit; }
       if (podeEditarRoteiro) body.areas = f.areas;
       if (podePlanejar) {
         body.prioridade = f.prioridade;
@@ -193,11 +193,17 @@ export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, 
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
         <Campo rot="Material"><input className="cp-in" value={f.material} onChange={e => setF({ ...f, material: e.target.value })} /></Campo>
-        <Campo rot="Qtd" largura={90}><input className="cp-in" inputMode="decimal" value={f.quantidade} onChange={e => setF({ ...f, quantidade: e.target.value })} /></Campo>
+        <Campo rot="Qtd" largura={90}><input className="cp-in" inputMode="decimal" value={f.quantidade} onChange={e => {
+          const q = qtdNum(e.target.value);
+          setF(f.unit !== null ? { ...f, quantidade: e.target.value, valor: calcTotal(f.unit, q) ?? f.valor } : { ...f, quantidade: e.target.value, unit: calcUnit(f.valor, q) });
+        }} /></Campo>
         <Campo rot="Un." largura={80}>
           <select className="cp-in" value={f.unidade} onChange={e => setF({ ...f, unidade: e.target.value })}>{UNIDADES_CALD.map(u => <option key={u}>{u}</option>)}</select>
         </Campo>
-        {verValores && <Campo rot="Valor R$" largura={150}><CampoValor valor={f.valor} onChange={v => setF({ ...f, valor: v })} /></Campo>}
+        {verValores && <>
+          <Campo rot="Vlr unitário" largura={140}><CampoValor valor={f.unit} onChange={v => setF({ ...f, unit: v, valor: calcTotal(v, qtdNum(f.quantidade)) ?? f.valor })} /></Campo>
+          <Campo rot="Vlr total" largura={150}><CampoValor valor={f.valor} onChange={v => setF({ ...f, valor: v, unit: calcUnit(v, qtdNum(f.quantidade)) ?? f.unit })} /></Campo>
+        </>}
         <Campo rot="Prioridade" largura={120}>
           <select className="cp-in" value={f.prioridade} disabled={!podePlanejar} onChange={e => setF({ ...f, prioridade: e.target.value })}>
             {PRIORIDADES_CALD.map(p => <option key={p} value={p}>{PRIO[p].txt}</option>)}
@@ -281,7 +287,7 @@ function formDe(it: ItemCald) {
   return {
     pedido: it.pedido, empresa: it.empresa as string | null, vendedor: it.vendedor || '', cliente: it.cliente || '', material: it.material,
     quantidade: it.quantidade === null ? '' : String(it.quantidade), unidade: it.unidade || 'pç',
-    valor: it.valor as number | null, prioridade: it.prioridade || 'normal',
+    valor: it.valor as number | null, unit: (it.valor_unitario ?? calcUnit(it.valor, it.quantidade)) as number | null, prioridade: it.prioridade || 'normal',
     prazo_entrega: it.prazo_entrega || '', prev_faturamento: it.prev_faturamento || '', faturado_em: it.faturado_em || '',
     prev_finalizacao: it.prev_finalizacao || '', finalizado_em: it.finalizado_em || '',
     parcial: it.parcial, obs: it.obs || '', areas: [...it.areas],

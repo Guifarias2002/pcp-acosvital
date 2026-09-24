@@ -66,7 +66,8 @@ export interface ItemCald {
   material: string;
   quantidade: number | null;
   unidade: string | null;
-  valor: number | null;            // R$ (opcional — pro relatório da diretoria/contabilidade)
+  valor: number | null;            // R$ TOTAL do item (opcional — soma nos relatórios)
+  valor_unitario: number | null;   // R$ por unidade (null = só o total foi informado)
   empresa: string | null;          // acosvital | uberaba | hrm (EMPRESAS_CALD)
   areas: string[];
   area_atual: string | null;
@@ -100,6 +101,12 @@ export function lerValorBR(v: unknown): number | null {
   else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
   const n = Number(t);
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+}
+// Unitário "efetivo": o gravado, ou total ÷ quantidade quando só há o total.
+export function valorUnitario(it: { valor: number | null; valor_unitario?: number | null; quantidade: number | null }): number | null {
+  if (it.valor_unitario !== null && it.valor_unitario !== undefined) return it.valor_unitario;
+  if (it.valor !== null && it.quantidade) return Math.round((it.valor / it.quantidade) * 100) / 100;
+  return null;
 }
 // 56837 → "56.837,00" (sem o "R$", pra ficar dentro do campo).
 export function fmtValorBR(n: number | null | undefined): string {

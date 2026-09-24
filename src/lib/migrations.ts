@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 54;
+const SCHEMA_VERSION = 55;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -867,4 +867,12 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
       `;
     }
   }).catch(e => console.error('[migrations] M52 (valor milhar caldeiraria) falhou:', e));
+
+  // M53 (24/09): VALOR UNITÁRIO da mercadoria no PCP Caldeiraria. `valor`
+  // continua sendo o TOTAL do item (o que soma nos relatórios); unitário é
+  // guardado junto (a tela calcula um pelo outro × quantidade). Leitura
+  // tolerante via to_jsonb em caldPlanoServer.
+  await sql.savepoint(async (sp) => {
+    await sp.unsafe(`ALTER TABLE producao_cald_plano_item ADD COLUMN IF NOT EXISTS valor_unitario NUMERIC`);
+  }).catch(e => console.error('[migrations] M53 (valor unitário caldeiraria) falhou:', e));
 }

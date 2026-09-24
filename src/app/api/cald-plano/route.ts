@@ -74,6 +74,7 @@ export async function POST(req: Request) {
         quantidade: num(it.quantidade),
         unidade: UNIDADES_CALD.includes(String(it.unidade)) ? String(it.unidade) : 'pç',
         valor: lerValorBR(it.valor),
+        valor_unitario: lerValorBR(it.valor_unitario),
         areas: ordenarAreas(Array.isArray(it.areas) ? (it.areas as unknown[]).map(String) : []),
         obs: txt(it.obs, 1000),
       }))
@@ -88,10 +89,10 @@ export async function POST(req: Request) {
           const obs = [it.obs, obsPedido].filter(Boolean).join(' · ') || null;
           const [row] = await tx`
             INSERT INTO producao_cald_plano_item
-              (pedido, vendedor, cliente, material, quantidade, unidade, valor, empresa, areas, status, prioridade,
+              (pedido, vendedor, cliente, material, quantidade, unidade, valor, valor_unitario, empresa, areas, status, prioridade,
                prazo_entrega, prev_faturamento, prev_finalizacao, obs, criado_por_id, criado_por_nome)
             VALUES
-              (${pedido}, ${vendedor}, ${cliente}, ${it.material}, ${it.quantidade}, ${it.unidade}, ${it.valor}, ${empresa},
+              (${pedido}, ${vendedor}, ${cliente}, ${it.material}, ${it.quantidade}, ${it.unidade}, ${it.valor}, ${it.valor_unitario}, ${empresa},
                ${it.areas}::text[], 'novo', ${prioridade},
                ${prazo}, ${prevFat}, ${prevFin}, ${obs}, ${user.id}, ${user.nome || user.username})
             RETURNING id

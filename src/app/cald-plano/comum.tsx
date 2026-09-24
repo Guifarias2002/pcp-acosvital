@@ -203,3 +203,16 @@ export function CampoValor({ valor, onChange, disabled }: { valor: number | null
     </div>
   );
 }
+
+// Unitário × quantidade = total. Mudou um → recalcula o outro (se tem quantidade).
+export function calcTotal(unit: number | null, qtd: number | null): number | null {
+  return unit !== null && qtd ? Math.round(unit * qtd * 100) / 100 : null;
+}
+export function calcUnit(total: number | null, qtd: number | null): number | null {
+  return total !== null && qtd ? Math.round((total / qtd) * 100) / 100 : null;
+}
+export function qtdNum(q: string | number | null | undefined): number | null {
+  if (q === null || q === undefined || q === '') return null;
+  const n = typeof q === 'number' ? q : Number(String(q).replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}

@@ -105,7 +105,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
       campoTxt('obs', 1000, 'Obs');
       if ('quantidade' in b) { const v = num(b.quantidade); if (v !== atual.quantidade) { set.quantidade = v; mud.push(`Qtd: ${v ?? '—'}`); } }
       if ('unidade' in b && UNIDADES_CALD.includes(String(b.unidade)) && b.unidade !== atual.unidade) { set.unidade = String(b.unidade); mud.push(`Unidade: ${b.unidade}`); }
-      if ('valor' in b) { const v = lerValorBR(b.valor); if (v !== atual.valor) { set.valor = v; mud.push(`Valor: ${v === null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`); } }
+      if ('valor_unitario' in b) {
+        const v = lerValorBR(b.valor_unitario);
+        if (v !== atual.valor_unitario) { set.valor_unitario = v; mud.push(`Valor unitário: ${v === null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`); }
+      }
+      if ('valor' in b) { const v = lerValorBR(b.valor); if (v !== atual.valor) { set.valor = v; mud.push(`Valor total: ${v === null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`); } }
       if ('empresa' in b && CODIGOS_EMPRESA.includes(String(b.empresa)) && b.empresa !== atual.empresa) {
         set.empresa = String(b.empresa); mud.push(`Empresa: ${nomeEmpresa(String(b.empresa))}`);
       }

@@ -5,7 +5,7 @@
 // lançamento. Separado do Flange de propósito (não mistura os totais).
 import { useEffect, useMemo, useState } from 'react';
 import { getToken } from '@/lib/auth';
-import { dataChegada, AREA_POR_CODIGO, passaEmpresa, nomeEmpresa, type ItemCald } from '@/lib/caldPlano';
+import { dataChegada, AREA_POR_CODIGO, passaEmpresa, nomeEmpresa, valorUnitario, type ItemCald } from '@/lib/caldPlano';
 import { FiltroEmpresa } from '@/app/cald-plano/comum';
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -70,14 +70,14 @@ export default function ValoresCaldeiraria({ de, ate }: { de: string; ate: strin
   function baixarCsv() {
     const cell = (v: string | number) => { const s = String(v ?? ''); return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const nBR = (v: number | null) => (v === null ? '' : String(Number.isInteger(v) ? v : v.toFixed(2)).replace('.', ','));
-    const linhas = [['Mês', 'Chegou', 'Empresa', 'Pedido', 'Cliente', 'Vendedor', 'Material', 'Qtd', 'Un.', 'Situação', 'Valor'].map(cell).join(';')];
+    const linhas = [['Mês', 'Chegou', 'Empresa', 'Pedido', 'Cliente', 'Vendedor', 'Material', 'Qtd', 'Un.', 'Situação', 'Vlr unitário', 'Vlr total'].map(cell).join(';')];
     let tot = 0;
     for (const b of blocos) for (const { it, data } of b.linhas) {
       tot += it.valor || 0;
       linhas.push([b.mes, fmtD(data), nomeEmpresa(it.empresa), it.pedido, it.cliente || '', it.vendedor || '', it.material, nBR(it.quantidade), it.unidade || '',
-        it.status === 'andamento' ? (AREA_POR_CODIGO[it.area_atual || '']?.nome || '') : it.status, nBR(it.valor)].map(v => cell(v as string)).join(';'));
+        it.status === 'andamento' ? (AREA_POR_CODIGO[it.area_atual || '']?.nome || '') : it.status, nBR(valorUnitario(it)), nBR(it.valor)].map(v => cell(v as string)).join(';'));
     }
-    linhas.push('', ['TOTAL GERAL', '', '', '', '', '', '', '', '', '', nBR(tot)].map(cell).join(';'));
+    linhas.push('', ['TOTAL GERAL', '', '', '', '', '', '', '', '', '', '', nBR(tot)].map(cell).join(';'));
     const blob = new Blob(['﻿' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `valores-por-mes_caldeiraria_${fEmp || 'todas'}.csv`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
@@ -146,7 +146,7 @@ export default function ValoresCaldeiraria({ de, ate }: { de: string; ate: strin
                 </table>
                 <div style={{ padding: '16px 18px 6px', fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: .3 }}><i className="bi bi-list-ul" style={{ marginRight: 6 }} />Detalhe dos itens</div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <thead><tr style={{ background: '#f8fafc', color: '#475569' }}>{['Chegou', 'Pedido', 'Cliente', 'Vendedor', 'Material', 'Qtd', 'Situação', 'Valor'].map((h, i) => <th key={h} style={{ padding: '8px 14px', textAlign: i >= 5 && i !== 6 ? 'right' : 'left', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>)}</tr></thead>
+                  <thead><tr style={{ background: '#f8fafc', color: '#475569' }}>{['Chegou', 'Pedido', 'Cliente', 'Vendedor', 'Material', 'Qtd', 'Situação', 'Vlr unit.', 'Vlr total'].map((h, i) => <th key={h} style={{ padding: '8px 14px', textAlign: i >= 5 && i !== 6 ? 'right' : 'left', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>)}</tr></thead>
                   <tbody>{b.linhas.map(({ it, data }) => (
                     <tr key={it.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ padding: '8px 14px', color: '#666', fontSize: 12, whiteSpace: 'nowrap' }}>{fmtD(data)}</td>
@@ -156,6 +156,7 @@ export default function ValoresCaldeiraria({ de, ate }: { de: string; ate: strin
                       <td style={{ padding: '8px 14px', color: '#444' }}>{it.material}</td>
                       <td style={{ padding: '8px 14px', textAlign: 'right', whiteSpace: 'nowrap', color: '#c2410c', fontWeight: 600 }}>{it.quantidade !== null ? `${num(it.quantidade)} ${it.unidade || ''}` : '—'}</td>
                       <td style={{ padding: '8px 14px', color: '#666', fontSize: 12 }}>{it.status === 'andamento' ? AREA_POR_CODIGO[it.area_atual || '']?.nome : it.status === 'finalizado' ? `Finalizado ${fmtD(it.finalizado_em)}` : it.status === 'aguardando' ? 'Chegando' : 'A planejar'}</td>
+                      <td style={{ padding: '8px 14px', textAlign: 'right', color: '#475569', whiteSpace: 'nowrap' }}>{valorUnitario(it) !== null ? brl(valorUnitario(it)!) : '—'}</td>
                       <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 700, color: it.valor ? '#065f46' : '#cbd5e1', whiteSpace: 'nowrap' }}>{it.valor !== null ? brl(it.valor) : 'sem valor'}</td>
                     </tr>
                   ))}</tbody>

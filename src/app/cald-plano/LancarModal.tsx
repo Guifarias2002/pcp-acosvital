@@ -2,13 +2,13 @@
 import { useState } from 'react';
 import { postIdempotente } from '@/lib/api';
 import { AREAS_CALD, UNIDADES_CALD, PRIORIDADES_CALD } from '@/lib/caldPlano';
-import { C, Modal, Campo, PRIO, erroDe, SeletorEmpresa, CampoValor } from './comum';
+import { C, Modal, Campo, PRIO, erroDe, SeletorEmpresa, CampoValor, calcTotal, calcUnit, qtdNum } from './comum';
 
 // Roteiro sugerido pra um item novo (o planejador ajusta depois).
 const ROTEIRO_PADRAO = ['corte', 'montagem', 'solda', 'acabamento', 'inspecao'];
 
-interface ItemForm { material: string; quantidade: string; unidade: string; valor: number | null; areas: string[] }
-const itemVazio = (areas: string[]): ItemForm => ({ material: '', quantidade: '', unidade: 'pç', valor: null, areas: [...areas] });
+interface ItemForm { material: string; quantidade: string; unidade: string; valor: number | null; unit: number | null; areas: string[] }
+const itemVazio = (areas: string[]): ItemForm => ({ material: '', quantidade: '', unidade: 'pç', valor: null, unit: null, areas: [...areas] });
 
 export default function LancarModal({ onFechar, onLancado, vendedores, clientes, verValores }: {
   onFechar: () => void;
@@ -46,7 +46,7 @@ export default function LancarModal({ onFechar, onLancado, vendedores, clientes,
         prazo_entrega: prazo || null, prev_faturamento: prevFat || null, obs,
         itens: validos.map(i => ({
           material: i.material, quantidade: i.quantidade || null, unidade: i.unidade,
-          valor: i.valor, areas: i.areas,
+          valor: i.valor, valor_unitario: i.unit, areas: i.areas,
         })),
       });
       onLancado(r.ids?.length || validos.length);
@@ -104,14 +104,20 @@ export default function LancarModal({ onFechar, onLancado, vendedores, clientes,
             <Campo rot={`Material ${itens.length > 1 ? i + 1 : ''}`}>
               <input className="cp-in" value={it.material} onChange={e => alterar(i, { material: e.target.value })} placeholder='Ex.: Curva 90° RC 24" std' />
             </Campo>
-            <Campo rot="Qtd" largura={90}><input className="cp-in" inputMode="decimal" value={it.quantidade} onChange={e => alterar(i, { quantidade: e.target.value })} /></Campo>
+            <Campo rot="Qtd" largura={90}><input className="cp-in" inputMode="decimal" value={it.quantidade} onChange={e => {
+              const q = qtdNum(e.target.value);
+              alterar(i, it.unit !== null ? { quantidade: e.target.value, valor: calcTotal(it.unit, q) ?? it.valor } : { quantidade: e.target.value, unit: calcUnit(it.valor, q) });
+            }} /></Campo>
             <Campo rot="Un." largura={80}>
               <select className="cp-in" value={it.unidade} onChange={e => alterar(i, { unidade: e.target.value })}>
                 {UNIDADES_CALD.map(u => <option key={u} value={u}>{u}</option>)}
               </select>
             </Campo>
             {verValores && (
-              <Campo rot="Valor R$ (opc.)" largura={150}><CampoValor valor={it.valor} onChange={v => alterar(i, { valor: v })} /></Campo>
+              <>
+                <Campo rot="Vlr unitário" largura={140}><CampoValor valor={it.unit} onChange={v => alterar(i, { unit: v, valor: calcTotal(v, qtdNum(it.quantidade)) ?? it.valor })} /></Campo>
+                <Campo rot="Vlr total" largura={150}><CampoValor valor={it.valor} onChange={v => alterar(i, { valor: v, unit: calcUnit(v, qtdNum(it.quantidade)) ?? it.unit })} /></Campo>
+              </>
             )}
             <div style={{ display: 'flex', gap: 4 }}>
               <button className="cp-btn sm" title="Duplicar este item" onClick={() => setItens(v => [...v.slice(0, i + 1), { ...it, material: '' }, ...v.slice(i + 1)])}><i className="bi bi-copy" /></button>

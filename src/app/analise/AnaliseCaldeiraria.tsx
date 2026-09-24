@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { getToken, podeVerValores, podeLancarCaldeiraria } from '@/lib/auth';
 import {
   AREAS_CALD, AREA_POR_CODIGO, hojeISO, fmtData, inicioSemana, somarDias, dataChegada, diasEntre, DIAS_PARADO,
-  situacaoItem, passaEmpresa, nomeEmpresa, type ItemCald,
+  situacaoItem, passaEmpresa, nomeEmpresa, valorUnitario, type ItemCald,
 } from '@/lib/caldPlano';
 import { FiltroEmpresa } from '@/app/cald-plano/comum';
 
@@ -15,6 +15,8 @@ const C = { azul: '#1a3a5c', azul2: '#1d4ed8', verde: '#16a34a', laranja: '#d977
 const nomeArea = (c: string | null) => (c ? AREA_POR_CODIGO[c]?.nome ?? c : '—');
 const fmtN = (n: number, d = 0) => n.toLocaleString('pt-BR', { maximumFractionDigits: d });
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+// Com centavos — usado no valor de cada item (unitário/total da mercadoria).
+const fmtBRL2 = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const lblSemana = (ini: string) => `${fmtData(ini).slice(0, 5)} a ${fmtData(somarDias(ini, 6))}`;
 
 type Grupo = 'chegaram' | 'producao' | 'finalizados' | 'faturados' | 'previstos' | 'atrasados';
@@ -186,7 +188,7 @@ export default function AnaliseCaldeiraria() {
         Chegou: fmtData(dataChegada(i)), 'Prev. finalização': fmtData(i.prev_finalizacao),
         Finalizado: fmtData(i.finalizado_em), 'Prev. faturamento': fmtData(i.prev_faturamento), Faturado: fmtData(i.faturado_em),
       };
-      if (verValores) r['Valor R$'] = i.valor ?? '';
+      if (verValores) { r['Vlr unitário R$'] = valorUnitario(i) ?? ''; r['Vlr total R$'] = i.valor ?? ''; }
       return r;
     };
     const wb = XLSX.utils.book_new();
@@ -218,7 +220,7 @@ export default function AnaliseCaldeiraria() {
   const Tabela = ({ lista }: { lista: ItemCald[] }) => (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr>{['Pedido', 'Material', 'Qtd', 'Cliente', 'Vendedor', 'Situação', 'Chegou', 'Prev. final.', 'Finalizado', 'Faturado', ...(verValores ? ['Valor'] : [])].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+        <thead><tr>{['Pedido', 'Material', 'Qtd', 'Cliente', 'Vendedor', 'Situação', 'Chegou', 'Prev. final.', 'Finalizado', 'Faturado', ...(verValores ? ['Vlr unit.', 'Vlr total'] : [])].map(h => <th key={h} style={h.startsWith('Vlr') ? { ...th, textAlign: 'right' } : th}>{h}</th>)}</tr></thead>
         <tbody>
           {lista.map(i => {
             const s = situacaoItem(i, hoje);
@@ -234,7 +236,10 @@ export default function AnaliseCaldeiraria() {
                 <td style={{ ...td, whiteSpace: 'nowrap', color: s.atrasado ? C.vermelho : undefined, fontWeight: s.atrasado ? 800 : 400 }}>{fmtData(i.prev_finalizacao) || '—'}</td>
                 <td style={{ ...td, whiteSpace: 'nowrap' }}>{fmtData(i.finalizado_em) || '—'}</td>
                 <td style={{ ...td, whiteSpace: 'nowrap' }}>{fmtData(i.faturado_em) || '—'}</td>
-                {verValores && <td style={{ ...td, whiteSpace: 'nowrap', textAlign: 'right' }}>{i.valor !== null ? fmtBRL(i.valor) : '—'}</td>}
+                {verValores && <>
+                  <td style={{ ...td, whiteSpace: 'nowrap', textAlign: 'right' }}>{valorUnitario(i) !== null ? fmtBRL2(valorUnitario(i)!) : '—'}</td>
+                  <td style={{ ...td, whiteSpace: 'nowrap', textAlign: 'right', fontWeight: 700 }}>{i.valor !== null ? fmtBRL2(i.valor) : '—'}</td>
+                </>}
               </tr>
             );
           })}
@@ -382,7 +387,7 @@ export default function AnaliseCaldeiraria() {
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead><tr>{['Pedido', 'Cliente', 'Vendedor', 'Itens', 'Quantidade', 'Onde está (dias na área)', 'Chegou', 'Dias', 'Prev. final.', 'Finalizado', ...(verValores ? ['Valor'] : [])].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+            <thead><tr>{['Pedido', 'Cliente', 'Vendedor', 'Itens', 'Quantidade', 'Onde está (dias na área)', 'Chegou', 'Dias', 'Prev. final.', 'Finalizado', ...(verValores ? ['Vlr total'] : [])].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
             <tbody>
               {pedidosVis.map(p => {
                 const ab = pedAberto.has(p.pedido);
@@ -406,7 +411,7 @@ export default function AnaliseCaldeiraria() {
                     <td style={{ ...td, whiteSpace: 'nowrap', fontWeight: 800, color: p.aberto ? C.azul : C.cinza }} title={p.aberto ? 'Dias desde que chegou na Caldeiraria' : 'Dias entre a chegada e a finalização'}>{p.diasTotal !== null ? `${p.diasTotal}d` : '—'}</td>
                     <td style={{ ...td, whiteSpace: 'nowrap' }}>{fmtData(p.prev) || '—'}</td>
                     <td style={{ ...td, whiteSpace: 'nowrap' }}>{fmtData(p.finalizado) || '—'}</td>
-                    {verValores && <td style={{ ...td, whiteSpace: 'nowrap', textAlign: 'right', fontWeight: 700 }}>{p.valor !== null ? fmtBRL(p.valor) : '—'}</td>}
+                    {verValores && <td style={{ ...td, whiteSpace: 'nowrap', textAlign: 'right', fontWeight: 700 }}>{p.valor !== null ? fmtBRL2(p.valor) : '—'}</td>}
                   </tr>,
                   ab && (
                     <tr key={p.pedido + '-itens'}>

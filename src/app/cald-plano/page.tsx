@@ -5,7 +5,7 @@ import AuthGuard from '@/components/AuthGuard';
 import api, { postIdempotente } from '@/lib/api';
 import { podeLancarCaldeiraria, podePlanejarCaldeiraria, podeVerValores } from '@/lib/auth';
 import {
-  AREAS_CALD, EMPRESAS_CALD, PRIORIDADES_CALD, situacaoItem, pendenciasItem, passaEmpresa, nomeEmpresa, hojeISO, fmtData, inicioSemana, somarDias, DIAS_PARADO,
+  AREAS_CALD, EMPRESAS_CALD, valorUnitario, PRIORIDADES_CALD, situacaoItem, pendenciasItem, passaEmpresa, nomeEmpresa, hojeISO, fmtData, inicioSemana, somarDias, DIAS_PARADO,
   type ItemCald,
 } from '@/lib/caldPlano';
 import { C, CSS, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, fmtBRL, somaPorUnidade, somaValor, EmpresaTag, FiltroEmpresa } from './comum';
@@ -218,7 +218,7 @@ export default function CaldPlanoPage() {
       }
       row['Prev. Fatur.'] = fmtData(i.prev_faturamento); row['Faturado'] = fmtData(i.faturado_em);
       row['Prev. Final.'] = fmtData(i.prev_finalizacao); row['Finalizado'] = fmtData(i.finalizado_em);
-      if (verValores) row['Valor R$'] = i.valor ?? '';
+      if (verValores) { row['Vlr unitário R$'] = valorUnitario(i) ?? ''; row['Vlr total R$'] = i.valor ?? ''; }
       row['Parcial'] = i.parcial ? 'Sim' : ''; row['Obs'] = i.obs || '';
       return row;
     });
@@ -457,7 +457,7 @@ export default function CaldPlanoPage() {
                     )}
                     <th>Pedido</th><th>Empresa</th><th>Vendedor</th><th>Material</th><th>Qtd</th><th>Cliente</th><th>Situação</th>
                     {AREAS_CALD.map(a => <th key={a.codigo} style={{ color: a.cor }}>{a.nome}</th>)}
-                    <th>Prev. fat.</th><th>Prev. final.</th><th>Finalizado</th>{verValores && <th>Valor</th>}<th>Obs</th>
+                    <th>Prev. fat.</th><th>Prev. final.</th><th>Finalizado</th>{verValores && <><th>Vlr unit.</th><th>Vlr total</th></>}<th>Obs</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -494,12 +494,12 @@ export default function CaldPlanoPage() {
                         <td style={{ whiteSpace: 'nowrap' }}>{it.faturado_em ? <span style={{ color: C.verde, fontWeight: 700 }}>fat. {fmtData(it.faturado_em)}</span> : fmtData(it.prev_faturamento) || '—'}</td>
                         <td style={{ whiteSpace: 'nowrap', color: s.atrasado ? C.vermelho : undefined, fontWeight: s.atrasado ? 800 : 500 }}>{fmtData(it.prev_finalizacao) || '—'}</td>
                         <td style={{ whiteSpace: 'nowrap' }}>{fmtData(it.finalizado_em) || '—'}</td>
-                        {verValores && <td style={{ whiteSpace: 'nowrap' }}>{fmtBRL(it.valor)}</td>}
+                        {verValores && <><td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>{fmtBRL(valorUnitario(it))}</td><td style={{ whiteSpace: 'nowrap', textAlign: 'right', fontWeight: 700 }}>{fmtBRL(it.valor)}</td></>}
                         <td style={{ minWidth: 160, fontSize: 11.5, color: C.cinza }}>{it.obs || ''}</td>
                       </tr>
                     );
                   })}
-                  {!listaFiltrada.length && <tr><td colSpan={22} style={{ textAlign: 'center', color: C.fraco, padding: 24 }}>Nenhum item.</td></tr>}
+                  {!listaFiltrada.length && <tr><td colSpan={24} style={{ textAlign: 'center', color: C.fraco, padding: 24 }}>Nenhum item.</td></tr>}
                 </tbody>
               </table>
             </div>
