@@ -288,6 +288,10 @@ function Conteudo() {
             .filter(c => !prodCod || c.codigo !== prodCod);
           if (compsSalvos.length) setComponentes(compsSalvos);
         }
+        // Tem algo salvo pra mostrar sem a OP? (produto/componentes da Anexar OP
+        // ou código já no item). Se não tiver e a OP não reabrir, o aviso explica
+        // que a OP é antiga/sem leitura e precisa ser anexada de novo.
+        const temSalvo = Boolean(prodSalvo || it0?.codigo || componentesDasObservacoes(String(ped.observacoes || '')).length);
 
         // Re-lê a OP anexada
         try {
@@ -344,7 +348,9 @@ function Conteudo() {
           }
         } catch (e) {
           const ax = e as { response?: { data?: { erro?: string } } };
-          setAvisoLeitura((ax?.response?.data?.erro ? ax.response.data.erro + ' ' : '') + 'Os campos abaixo vieram do que foi lançado no pedido — confira antes de lançar.');
+          setAvisoLeitura((ax?.response?.data?.erro ? ax.response.data.erro + ' ' : '') + (temSalvo
+            ? 'Os campos abaixo vieram do que foi lançado no pedido — confira antes de lançar.'
+            : 'Esta OP não tem produto nem materiais salvos (foi anexada antes da atualização ou a leitura falhou na Anexar OP). Anexe a OP de novo pela Anexar OP, ou preencha os campos à mão.'));
         }
       } catch (e) {
         const ax = e as { response?: { data?: { erro?: string } } };
