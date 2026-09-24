@@ -3,7 +3,7 @@ import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { podePlanejarCaldeiraria, podeVerAnaliseCaldeiraria, podeVerValoresMes } from '@/lib/auth';
 import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
-import { ordenarAreas, isoValida, UNIDADES_CALD, PRIORIDADES_CALD, CODIGOS_EMPRESA } from '@/lib/caldPlano';
+import { ordenarAreas, isoValida, UNIDADES_CALD, PRIORIDADES_CALD, CODIGOS_EMPRESA, lerValorBR } from '@/lib/caldPlano';
 import { carregarItensCald, registrarHistCald } from '@/lib/caldPlanoServer';
 import { runMigrations } from '@/lib/migrations';
 
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
         material: txt(it.material, 200),
         quantidade: num(it.quantidade),
         unidade: UNIDADES_CALD.includes(String(it.unidade)) ? String(it.unidade) : 'pç',
-        valor: num(it.valor),
+        valor: lerValorBR(it.valor),
         areas: ordenarAreas(Array.isArray(it.areas) ? (it.areas as unknown[]).map(String) : []),
         obs: txt(it.obs, 1000),
       }))

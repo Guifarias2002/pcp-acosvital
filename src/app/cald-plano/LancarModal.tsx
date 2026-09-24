@@ -2,13 +2,13 @@
 import { useState } from 'react';
 import { postIdempotente } from '@/lib/api';
 import { AREAS_CALD, UNIDADES_CALD, PRIORIDADES_CALD } from '@/lib/caldPlano';
-import { C, Modal, Campo, PRIO, erroDe, SeletorEmpresa } from './comum';
+import { C, Modal, Campo, PRIO, erroDe, SeletorEmpresa, CampoValor } from './comum';
 
 // Roteiro sugerido pra um item novo (o planejador ajusta depois).
 const ROTEIRO_PADRAO = ['corte', 'montagem', 'solda', 'acabamento', 'inspecao'];
 
-interface ItemForm { material: string; quantidade: string; unidade: string; valor: string; areas: string[] }
-const itemVazio = (areas: string[]): ItemForm => ({ material: '', quantidade: '', unidade: 'pç', valor: '', areas: [...areas] });
+interface ItemForm { material: string; quantidade: string; unidade: string; valor: number | null; areas: string[] }
+const itemVazio = (areas: string[]): ItemForm => ({ material: '', quantidade: '', unidade: 'pç', valor: null, areas: [...areas] });
 
 export default function LancarModal({ onFechar, onLancado, vendedores, clientes, verValores }: {
   onFechar: () => void;
@@ -46,7 +46,7 @@ export default function LancarModal({ onFechar, onLancado, vendedores, clientes,
         prazo_entrega: prazo || null, prev_faturamento: prevFat || null, obs,
         itens: validos.map(i => ({
           material: i.material, quantidade: i.quantidade || null, unidade: i.unidade,
-          valor: i.valor || null, areas: i.areas,
+          valor: i.valor, areas: i.areas,
         })),
       });
       onLancado(r.ids?.length || validos.length);
@@ -111,7 +111,7 @@ export default function LancarModal({ onFechar, onLancado, vendedores, clientes,
               </select>
             </Campo>
             {verValores && (
-              <Campo rot="Valor R$ (opc.)" largura={120}><input className="cp-in" inputMode="decimal" value={it.valor} onChange={e => alterar(i, { valor: e.target.value })} /></Campo>
+              <Campo rot="Valor R$ (opc.)" largura={150}><CampoValor valor={it.valor} onChange={v => alterar(i, { valor: v })} /></Campo>
             )}
             <div style={{ display: 'flex', gap: 4 }}>
               <button className="cp-btn sm" title="Duplicar este item" onClick={() => setItens(v => [...v.slice(0, i + 1), { ...it, material: '' }, ...v.slice(i + 1)])}><i className="bi bi-copy" /></button>

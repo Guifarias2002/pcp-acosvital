@@ -5,7 +5,7 @@ import { podeLancarCaldeiraria, podePlanejarCaldeiraria } from '@/lib/auth';
 import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
 import {
   AREA_POR_CODIGO, CODIGOS_AREA, ordenarAreas, isoValida, hojeISO, fmtData,
-  UNIDADES_CALD, PRIORIDADES_CALD, CODIGOS_EMPRESA, nomeEmpresa, type EtapaCald,
+  UNIDADES_CALD, PRIORIDADES_CALD, CODIGOS_EMPRESA, nomeEmpresa, lerValorBR, type EtapaCald,
 } from '@/lib/caldPlano';
 import { carregarItensCald, registrarHistCald } from '@/lib/caldPlanoServer';
 
@@ -105,7 +105,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       campoTxt('obs', 1000, 'Obs');
       if ('quantidade' in b) { const v = num(b.quantidade); if (v !== atual.quantidade) { set.quantidade = v; mud.push(`Qtd: ${v ?? '—'}`); } }
       if ('unidade' in b && UNIDADES_CALD.includes(String(b.unidade)) && b.unidade !== atual.unidade) { set.unidade = String(b.unidade); mud.push(`Unidade: ${b.unidade}`); }
-      if ('valor' in b) { const v = num(b.valor); if (v !== atual.valor) { set.valor = v; mud.push(`Valor: ${v ?? '—'}`); } }
+      if ('valor' in b) { const v = lerValorBR(b.valor); if (v !== atual.valor) { set.valor = v; mud.push(`Valor: ${v === null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`); } }
       if ('empresa' in b && CODIGOS_EMPRESA.includes(String(b.empresa)) && b.empresa !== atual.empresa) {
         set.empresa = String(b.empresa); mud.push(`Empresa: ${nomeEmpresa(String(b.empresa))}`);
       }

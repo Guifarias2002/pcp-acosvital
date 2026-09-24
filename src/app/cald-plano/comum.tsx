@@ -1,7 +1,8 @@
 'use client';
 // Peças comuns da tela Planejamento da Caldeiraria (/cald-plano).
 import type { ReactNode } from 'react';
-import { AREA_POR_CODIGO, EMPRESAS_CALD, type ItemCald } from '@/lib/caldPlano';
+import { useState } from 'react';
+import { AREA_POR_CODIGO, EMPRESAS_CALD, lerValorBR, fmtValorBR, type ItemCald } from '@/lib/caldPlano';
 
 export const C = {
   azul: '#1a3a5c', azul2: '#1d4ed8', verde: '#16a34a', laranja: '#d97706', vermelho: '#dc2626',
@@ -181,6 +182,24 @@ export function FiltroEmpresa({ valor, onChange, mostrarSem = true }: { valor: s
           border: `1.5px solid ${valor === o.v ? o.cor : C.borda}`, background: valor === o.v ? o.cor : '#fff', color: valor === o.v ? '#fff' : '#475569',
         }}>{o.rot}</button>
       ))}
+    </div>
+  );
+}
+
+// Campo de valor em R$: aceita "56.837", "56837,5", "R$ 1.234,56"… e ao sair do
+// campo mostra formatado ("56.837,00"). `valor` = número (ou null = vazio).
+export function CampoValor({ valor, onChange, disabled }: { valor: number | null; onChange: (v: number | null) => void; disabled?: boolean }) {
+  const [txt, setTxt] = useState<string | null>(null); // texto enquanto digita
+  const invalido = txt !== null && txt.trim() !== '' && lerValorBR(txt) === null;
+  return (
+    <div style={{ position: 'relative' }}>
+      <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', fontSize: 12.5, color: C.fraco, fontWeight: 700, pointerEvents: 'none' }}>R$</span>
+      <input className="cp-in" inputMode="decimal" disabled={disabled} placeholder="0,00"
+        style={{ paddingLeft: 30, textAlign: 'right', borderColor: invalido ? C.vermelho : undefined }}
+        value={txt ?? fmtValorBR(valor)}
+        onChange={e => { setTxt(e.target.value); onChange(lerValorBR(e.target.value)); }}
+        onBlur={() => setTxt(null)}
+        title='Ex.: 56.837 (= 56 mil) ou 56.837,50' />
     </div>
   );
 }

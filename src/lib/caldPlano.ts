@@ -88,6 +88,24 @@ export interface ItemCald {
   cobranca?: { quem: string | null; mensagem: string | null; retorno: string | null; criado_por_nome: string | null; criado_em: string } | null;
 }
 
+// ── Valor em R$ (formato brasileiro) ───────────────────────────────────────
+// "56.837" = 56 mil (ponto = milhar); "56.837,50" / "56837,5" = com centavos;
+// "R$ 1.234,56" também. Ponto só vira decimal quando NÃO forma grupo de milhar
+// ("12.5" = 12,50). Devolve null se vazio/ inválido.
+export function lerValorBR(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) && v >= 0 ? Math.round(v * 100) / 100 : null;
+  let t = String(v ?? '').replace(/[R$\s]/g, '');
+  if (!t) return null;
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+}
+// 56837 → "56.837,00" (sem o "R$", pra ficar dentro do campo).
+export function fmtValorBR(n: number | null | undefined): string {
+  return n === null || n === undefined ? '' : n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 // ── Datas ──────────────────────────────────────────────────────────────────
 export function hojeISO(): string {
   const d = new Date();
@@ -290,13 +308,8 @@ export function interpretarPlanilha(rows: unknown[][], anoPadrao = new Date().ge
     // Valor (R$) — número do Excel ou texto "R$ 12.345,67".
     let valor: number | null = null;
     if (cValor >= 0 && row[cValor] !== '' && row[cValor] != null) {
-      const v = row[cValor];
-      if (typeof v === 'number') valor = v;
-      else {
-        const t = String(v).replace(/[R$\s]/g, '');
-        const n = Number(/,\d{1,2}$/.test(t) ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, ''));
-        if (Number.isFinite(n)) valor = n; else avisos.push(`Valor "${String(v).trim()}" não reconhecido`);
-      }
+      valor = lerValorBR(row[cValor]);
+      if (valor === null) avisos.push(`Valor "${String(row[cValor]).trim()}" não reconhecido`);
     }
 
     const empTxt = norm(cEmp >= 0 ? row[cEmp] : '');

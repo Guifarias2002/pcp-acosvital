@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 53;
+const SCHEMA_VERSION = 54;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -841,4 +841,30 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   await sql.savepoint(async (sp) => {
     await sp.unsafe(`ALTER TABLE producao_cald_plano_item ADD COLUMN IF NOT EXISTS empresa TEXT`);
   }).catch(e => console.error('[migrations] M51 (empresa caldeiraria) falhou:', e));
+
+  // M52 (24/09): conserta VALOR digitado com ponto de milhar no PCP Caldeiraria.
+  // Até aqui o campo lia "56.837" como 56,837 (R$ 56,84) em vez de 56 mil. Real
+  // tem 2 casas: valor com 3 casas decimais só existe por esse erro → ×1000.
+  // Roda 1x (marca em producao_config) e registra no histórico de cada item.
+  await sql.savepoint(async (sp) => {
+    const [marca] = await sp`
+      INSERT INTO producao_config (chave, valor, atualizado_em)
+      VALUES ('m52_cald_valor_milhar', 'ok', NOW())
+      ON CONFLICT (chave) DO NOTHING
+      RETURNING chave
+    `;
+    if (!marca) return;
+    const corr = await sp`
+      UPDATE producao_cald_plano_item
+      SET valor = valor * 1000, atualizado_em = NOW()
+      WHERE valor IS NOT NULL AND valor <> round(valor, 2)
+      RETURNING id, valor::float AS valor
+    `;
+    for (const c of corr) {
+      await sp`
+        INSERT INTO producao_cald_plano_hist (item_id, acao, detalhe, usuario_nome)
+        VALUES (${c.id}, 'correcao', ${`Valor corrigido (ponto de milhar lido como decimal): R$ ${Number(c.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}, 'Sistema')
+      `;
+    }
+  }).catch(e => console.error('[migrations] M52 (valor milhar caldeiraria) falhou:', e));
 }
