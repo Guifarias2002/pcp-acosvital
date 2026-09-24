@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerNaoLocalizados, podeVerRomaneios, podePlanejar, podeConferirHrm, podePlanejarCaldeiraria } from '@/lib/auth';
+import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerNaoLocalizados, podeVerRomaneios, podePlanejar, podeConferirHrm, podePlanejarCaldeiraria, podeGerenciarUsuarios } from '@/lib/auth';
 import { SETOR_CHOICES, NOMES, SETORES_CALDEIRARIA_MENU, SETORES_EXCLUSIVOS_CALDEIRARIA } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { JWTPayload } from '@/lib/auth';
@@ -350,6 +350,12 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
             </NavGroup>
           )}
 
+          {/* Gabriel (PCP): só o item Usuários, sem o resto do grupo Sistema. */}
+          {!isSuperAdmin && podeGerenciarUsuarios(user) && (
+            <NavGroup label="Sistema" defaultOpen={false}>
+              <NavItem href="/usuarios" label="Usuários" icon="bi-people" onNav={fechar} />
+            </NavGroup>
+          )}
           {isSuperAdmin && (
             <NavGroup label="Sistema" defaultOpen={false}>
               <NavItem href="/usuarios" label="Usuários" icon="bi-people" onNav={fechar} />

@@ -256,6 +256,15 @@ export function podePlanejar(u?: JWTPayload | null): boolean {
   return isAdministrador(user) || user?.acesso_planejamento === true;
 }
 
+// Vê o item "Usuários" no menu (ver os acessos e definir senha nova) sem ser
+// administrador completo. Lista por login. Obs.: a senha fica CRIPTOGRAFADA
+// (hash) — ninguém consegue VER a senha de outro; dá pra definir uma nova.
+const USUARIOS_LOGINS = new Set<string>(['gabriel.ribeiro']);
+export function podeGerenciarUsuarios(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return isAdministrador(user) || (!!user && !!user.is_staff && USUARIOS_LOGINS.has(user.username));
+}
+
 // PLANEJAMENTO DA CALDEIRARIA (/cald-plano — controle do coordenador, "o
 // Reginaldo da Caldeiraria"). Lista EXPLÍCITA por login (mesmo padrão de
 // PARADAS_LOGINS) — de propósito sem coluna nova em usuarios_usuario, pra não
