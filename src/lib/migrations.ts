@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 55;
+const SCHEMA_VERSION = 56;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -875,4 +875,27 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   await sql.savepoint(async (sp) => {
     await sp.unsafe(`ALTER TABLE producao_cald_plano_item ADD COLUMN IF NOT EXISTS valor_unitario NUMERIC`);
   }).catch(e => console.error('[migrations] M53 (valor unitário caldeiraria) falhou:', e));
+
+  // M54 (25/09): setores NOVOS da Caldeiraria HRM (montagens, inspeções, testes,
+  // tipagem, laboratório, ciclo do Book) — setor é texto livre, sem DDL. Aqui
+  // só ACRESCENTA os novos ao Alan (login 'alan'), sem tirar nada, 1x.
+  await sql.savepoint(async (sp) => {
+    const [marca] = await sp`
+      INSERT INTO producao_config (chave, valor, atualizado_em)
+      VALUES ('m54_alan_setores_novos', 'ok', NOW())
+      ON CONFLICT (chave) DO NOTHING
+      RETURNING chave
+    `;
+    if (!marca) return;
+    await sp`
+      UPDATE usuarios_usuario
+      SET setores = ARRAY(
+        SELECT DISTINCT s FROM unnest(
+          COALESCE(NULLIF(setores, '{}'), CASE WHEN setor IS NOT NULL AND setor <> '' THEN ARRAY[setor::text] ELSE '{}'::text[] END)
+          || ${sp.array(['cald_pre_montagem', 'cald_insp_fitup', 'cald_insp_terceiros', 'cald_montagem_interm', 'cald_montagem_final', 'cald_insp_visual', 'cald_insp_lp', 'cald_insp_pm', 'cald_insp_us', 'cald_insp_dimensional', 'cald_tipagem', 'cald_conj_insp_cliente', 'cald_insp_dim_cliente', 'cald_teste_carga', 'cald_teste_queda', 'cald_lab_externo', 'cald_insp_pintura', 'cald_insp_final_cliente', 'cald_book_insp_cliente', 'cald_book_postagem', 'cald_book_ag_aprov', 'cald_book_aprovado'])}::text[]
+        ) AS s
+      )
+      WHERE username = 'alan'
+    `;
+  }).catch(e => console.error('[migrations] M54 (setores novos alan) falhou:', e));
 }

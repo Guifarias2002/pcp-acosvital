@@ -49,7 +49,7 @@ export const SETOR_CHOICES: [string, string][] = [
   ['montagem_solda', 'Montagem / Solda Inicial'],
   ['usinagem_final', 'Usinagem Final'],
   ['acabamento_geral', 'Acabamento Geral / Tipar'],
-  ['conjuntos', 'Montagem de Conjuntos'],
+  ['conjuntos', 'Montagem de Conjuntos Após a Pintura'],
   ['jateamento', 'Jateamento'],
   ['pintura_cald', 'Pintura (Caldeiraria)'],
   // ── Caldeiraria — PROCESSO REAL (fábrica única, lista "Principais processos"
@@ -71,16 +71,40 @@ export const SETOR_CHOICES: [string, string][] = [
   ['cald_conformacao_int', 'Conformação Interna'],
   ['cald_conformacao_ext', 'Conformação Externa'],
   ['cald_pre_usinagem', 'Pré-Usinagem'],
-  ['cald_prep_chapas', 'Prep. Chapas e Perfis (Pré-Montagem)'],
+  ['cald_prep_chapas', 'Prep. Chapas e Perfis'],
   ['cald_revestimento', 'Serviço Externo — Revestimento'],
   ['cald_pint_primer', 'Pintura Primer'],
   ['cald_pint_interm', 'Pintura Intermediária'],
   ['cald_pint_acab', 'Pintura Acabamento'],
   ['cald_pint_antiderr', 'Pintura Antiderrapante'],
   ['cald_pint_retoques', 'Pintura de Retoques (Insp. Final)'],
-  ['cald_book', 'Book (Preparação / Aprovação)'],
+  ['cald_book', 'Preparação de Book'],
   ['cald_emissao_nf', 'Emissão de NF'],
   ['cald_outros', 'Outros (identificar manual)'],
+  // 25/09: etapas novas da lista da área (montagens, inspeções/ensaios, testes,
+  // tipagem, laboratório externo e o ciclo do Book com o cliente).
+  ['cald_pre_montagem', 'Pré-Montagem'],
+  ['cald_insp_fitup', 'Inspeção Fit-Up Solda (Preparação e Montagem de Chanfros)'],
+  ['cald_insp_terceiros', 'Inspeção de Terceiros (ABS, DNV, etc.)'],
+  ['cald_montagem_interm', 'Montagem Intermediária'],
+  ['cald_montagem_final', 'Montagem Final'],
+  ['cald_insp_visual', 'Inspeção Visual'],
+  ['cald_insp_lp', 'Inspeção Líquido Penetrante'],
+  ['cald_insp_pm', 'Inspeção Partículas Magnéticas'],
+  ['cald_insp_us', 'Inspeção Ultrassom'],
+  ['cald_insp_dimensional', 'Inspeção Dimensional'],
+  ['cald_tipagem', 'Tipar Conforme Doc do Cliente e NS HRM'],
+  ['cald_conj_insp_cliente', 'Montagem de Conjuntos p/ Inspeção do Cliente (antes da Pintura)'],
+  ['cald_insp_dim_cliente', 'Inspeção Dimensional do Cliente'],
+  ['cald_teste_carga', 'Teste de Carga'],
+  ['cald_teste_queda', 'Teste de Queda'],
+  ['cald_lab_externo', 'Serviço Externo de Laboratório'],
+  ['cald_insp_pintura', 'Inspeção de Pintura'],
+  ['cald_insp_final_cliente', 'Inspeção Final do Cliente'],
+  ['cald_book_insp_cliente', 'Inspeção do Book pelo Cliente'],
+  ['cald_book_postagem', 'Postagem do Book no Portal do Cliente'],
+  ['cald_book_ag_aprov', 'Aguardando Aprovação do Book (Cliente)'],
+  ['cald_book_aprovado', 'Book Aprovado (Cliente)'],
 ];
 
 export const NOMES: Record<string, string> = Object.fromEntries(SETOR_CHOICES);
@@ -115,40 +139,64 @@ export const SETORES_CALDEIRARIA_NOVOS = ['corte_chapas', 'corte_perfis', 'supor
 // Jateamento, Montagem de Conjuntos, Coleta/Entrega='logistica') e usa os
 // passos novos ('cald_*'). Inspeção CQ aparece em vários pontos de propósito.
 export const PROCESSO_CALDEIRARIA = [
-  'caldeiraria',          // Recebimento
+  // 25/09: ORDEM da lista "Componentes e roteiros" passada pela área. Corte
+  // Caldeiraria e Usinagem Caldeiraria (fora da lista, mantidos) ficam junto do
+  // corte e da pré-usinagem. Inspeção de Qualidade ('qualidade') repete.
+  'compras',              // Compras
+  'corte_perfis',         // Corte de Perfis
   'cald_corte_oxi',       // Corte Oxicorte/Plasma/Laser
   'cald_corte',           // Corte Caldeiraria
-  'corte_perfis',         // Corte de Perfis
+  'caldeiraria',          // Caldeiraria (Recebimento)
   'cald_identificacao',   // Identificação dos Materiais
-  'cald_transp_externo',  // Solicitação transporte p/ Serviço Externo
   'cald_conformacao_int', // Conformação Interna
+  'cald_transp_externo',  // Transporte p/ Serviço Externo
   'cald_conformacao_ext', // Conformação Externa
   'cald_pre_usinagem',    // Pré-Usinagem
   'cald_usinagem',        // Usinagem Caldeiraria
-  'cald_prep_chapas',     // Prep. Chapas e Perfis (Pré-Montagem)
-  'qualidade',            // Inspeção CQ
+  'cald_prep_chapas',     // Prep. Chapas e Perfis
+  'cald_pre_montagem',    // Pré-Montagem
+  'cald_insp_fitup',      // Inspeção Fit-Up Solda (chanfros)
+  'cald_insp_terceiros',  // Inspeção de Terceiros (ABS, DNV…)
+  'cald_montagem_interm', // Montagem Intermediária
+  'cald_montagem_final',  // Montagem Final
   'solda',                // Solda
-  'qualidade',            // Inspeção CQ
+  'cald_insp_visual',     // Inspeção Visual
+  'cald_insp_lp',         // Inspeção Líquido Penetrante
+  'cald_insp_pm',         // Inspeção Partículas Magnéticas
+  'cald_insp_us',         // Inspeção Ultrassom
+  'cald_insp_dimensional',// Inspeção Dimensional
+  'cald_tipagem',         // Tipar conforme doc do cliente e NS HRM
+  'cald_conj_insp_cliente', // Montagem de Conjuntos p/ Inspeção do Cliente (antes da pintura)
+  'cald_insp_dim_cliente',// Inspeção Dimensional do Cliente
+  'cald_teste_carga',     // Teste de Carga
+  'cald_teste_queda',     // Teste de Queda
+  'cald_lab_externo',     // Serviço Externo de Laboratório
   'cald_revestimento',    // Serviço Externo — Revestimento
-  'qualidade',            // Inspeção CQ
+  'qualidade',            // Inspeção de Qualidade
   'jateamento',           // Jateamento
   'cald_pint_primer',     // Pintura Primer
   'cald_pint_interm',     // Pintura Intermediária
   'cald_pint_acab',       // Pintura Acabamento
-  'qualidade',            // Inspeção CQ
-  'conjuntos',            // Montagem de Conjuntos
+  'cald_insp_pintura',    // Inspeção de Pintura
+  'conjuntos',            // Montagem de Conjuntos Após a Pintura
+  'qualidade',            // Inspeção de Qualidade
   'cald_pint_antiderr',   // Pintura Antiderrapante
-  'cald_pint_retoques',   // Pintura de Retoques (Inspeção Final)
-  'qualidade',            // Inspeção CQ
-  'cald_book',            // Book (Preparação / Aprovação)
+  'cald_pint_retoques',   // Pintura de Retoques (Insp. Final)
+  'qualidade',            // Inspeção de Qualidade
+  'cald_book',            // Preparação de Book
+  'cald_insp_final_cliente', // Inspeção Final do Cliente
+  'cald_book_insp_cliente',  // Inspeção do Book pelo Cliente
+  'cald_book_postagem',   // Postagem do Book no Portal do Cliente
+  'cald_book_ag_aprov',   // Aguardando Aprovação do Book (Cliente)
+  'cald_book_aprovado',   // Book Aprovado (Cliente)
   'cald_emissao_nf',      // Emissão de NF
-  'logistica',            // Solicitação de Coleta / Entrega
+  'logistica',            // Logística
   'cald_outros',          // Outros (identificar manual)
 ];
 
 // Só os passos NOVOS do processo (os 'cald_*' criados agora). Usado pra marcar
 // exclusividade (não vazam pro Flange) e alimentar menu/kanban da Caldeiraria.
-export const SETORES_CALDEIRARIA_PROCESSO_NOVOS = ['cald_corte_oxi', 'cald_corte', 'cald_identificacao', 'cald_transp_externo', 'cald_conformacao_int', 'cald_conformacao_ext', 'cald_pre_usinagem', 'cald_usinagem', 'cald_prep_chapas', 'cald_revestimento', 'cald_pint_primer', 'cald_pint_interm', 'cald_pint_acab', 'cald_pint_antiderr', 'cald_pint_retoques', 'cald_book', 'cald_emissao_nf', 'cald_outros'];
+export const SETORES_CALDEIRARIA_PROCESSO_NOVOS = ['cald_corte_oxi', 'cald_corte', 'cald_identificacao', 'cald_transp_externo', 'cald_conformacao_int', 'cald_conformacao_ext', 'cald_pre_usinagem', 'cald_usinagem', 'cald_prep_chapas', 'cald_revestimento', 'cald_pint_primer', 'cald_pint_interm', 'cald_pint_acab', 'cald_pint_antiderr', 'cald_pint_retoques', 'cald_book', 'cald_emissao_nf', 'cald_outros', 'cald_pre_montagem', 'cald_insp_fitup', 'cald_insp_terceiros', 'cald_montagem_interm', 'cald_montagem_final', 'cald_insp_visual', 'cald_insp_lp', 'cald_insp_pm', 'cald_insp_us', 'cald_insp_dimensional', 'cald_tipagem', 'cald_conj_insp_cliente', 'cald_insp_dim_cliente', 'cald_teste_carga', 'cald_teste_queda', 'cald_lab_externo', 'cald_insp_pintura', 'cald_insp_final_cliente', 'cald_book_insp_cliente', 'cald_book_postagem', 'cald_book_ag_aprov', 'cald_book_aprovado'];
 
 // Setores da Caldeiraria SEM início de produção (pass-through, 18/09): a peça só
 // é RECEBIDA e ENCAMINHADA ("produzido em outro setor") — não exige "Iniciar"
@@ -163,6 +211,23 @@ export const SETORES_CALD_SEM_PRODUCAO = [
   'cald_book',            // Book (Preparação / Aprovação)
   'cald_emissao_nf',      // Emissão de NF
   'qualidade',            // Inspeção CQ
+  // 25/09 (decisão do usuário): inspeções/ensaios, ciclo do Book e laboratório
+  // externo também são PASSAGEM — só recebem e encaminham.
+  'cald_insp_fitup',
+  'cald_insp_terceiros',
+  'cald_insp_visual',
+  'cald_insp_lp',
+  'cald_insp_pm',
+  'cald_insp_us',
+  'cald_insp_dimensional',
+  'cald_insp_dim_cliente',
+  'cald_lab_externo',
+  'cald_insp_pintura',
+  'cald_insp_final_cliente',
+  'cald_book_insp_cliente',
+  'cald_book_postagem',
+  'cald_book_ag_aprov',
+  'cald_book_aprovado',
 ];
 
 // Setores ANTIGOS da Caldeiraria — já esvaziados (12/08, confirmado com o
