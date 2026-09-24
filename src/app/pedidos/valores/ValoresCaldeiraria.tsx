@@ -5,7 +5,8 @@
 // lançamento. Separado do Flange de propósito (não mistura os totais).
 import { useEffect, useMemo, useState } from 'react';
 import { getToken } from '@/lib/auth';
-import { dataChegada, AREA_POR_CODIGO, type ItemCald } from '@/lib/caldPlano';
+import { dataChegada, AREA_POR_CODIGO, passaEmpresa, nomeEmpresa, type ItemCald } from '@/lib/caldPlano';
+import { FiltroEmpresa } from '@/app/cald-plano/comum';
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const labelMes = (mes: string) => { const [a, m] = mes.split('-'); const n = MESES[+m - 1] || m; return `${n[0].toUpperCase()}${n.slice(1)} de ${a}`; };
@@ -27,6 +28,7 @@ export default function ValoresCaldeiraria({ de, ate }: { de: string; ate: strin
   const [itens, setItens] = useState<ItemCald[] | null>(null);
   const [erro, setErro] = useState('');
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  const [fEmp, setFEmp] = useState('');
 
   useEffect(() => {
     fetch('/api/cald-plano', { headers: { Authorization: `Bearer ${getToken() || ''}` } })
@@ -38,7 +40,7 @@ export default function ValoresCaldeiraria({ de, ate }: { de: string; ate: strin
     if (!itens) return [];
     const mapa = new Map<string, Linha[]>();
     for (const it of itens) {
-      if (it.status === 'cancelado') continue;
+      if (it.status === 'cancelado' || !passaEmpresa(it, fEmp)) continue;
       const data = dataChegada(it) || String(it.criado_em).slice(0, 10);
       const mes = data.slice(0, 7);
       if ((de && mes < de) || (ate && mes > ate)) continue;
@@ -61,23 +63,23 @@ export default function ValoresCaldeiraria({ de, ate }: { de: string; ate: strin
         porCliente: Array.from(cli.values()).sort((a, b) => b.valor - a.valor || b.itens - a.itens),
       };
     });
-  }, [itens, de, ate]);
+  }, [itens, de, ate, fEmp]);
 
   useEffect(() => { if (blocos.length && !abertos.size) setAbertos(new Set([blocos[0].mes])); }, [blocos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function baixarCsv() {
     const cell = (v: string | number) => { const s = String(v ?? ''); return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const nBR = (v: number | null) => (v === null ? '' : String(Number.isInteger(v) ? v : v.toFixed(2)).replace('.', ','));
-    const linhas = [['Mês', 'Chegou', 'Pedido', 'Cliente', 'Vendedor', 'Material', 'Qtd', 'Un.', 'Situação', 'Valor'].map(cell).join(';')];
+    const linhas = [['Mês', 'Chegou', 'Empresa', 'Pedido', 'Cliente', 'Vendedor', 'Material', 'Qtd', 'Un.', 'Situação', 'Valor'].map(cell).join(';')];
     let tot = 0;
     for (const b of blocos) for (const { it, data } of b.linhas) {
       tot += it.valor || 0;
-      linhas.push([b.mes, fmtD(data), it.pedido, it.cliente || '', it.vendedor || '', it.material, nBR(it.quantidade), it.unidade || '',
+      linhas.push([b.mes, fmtD(data), nomeEmpresa(it.empresa), it.pedido, it.cliente || '', it.vendedor || '', it.material, nBR(it.quantidade), it.unidade || '',
         it.status === 'andamento' ? (AREA_POR_CODIGO[it.area_atual || '']?.nome || '') : it.status, nBR(it.valor)].map(v => cell(v as string)).join(';'));
     }
-    linhas.push('', ['TOTAL GERAL', '', '', '', '', '', '', '', '', nBR(tot)].map(cell).join(';'));
+    linhas.push('', ['TOTAL GERAL', '', '', '', '', '', '', '', '', '', nBR(tot)].map(cell).join(';'));
     const blob = new Blob(['﻿' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'valores-por-mes_caldeiraria.csv';
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `valores-por-mes_caldeiraria_${fEmp || 'todas'}.csv`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   }
 
@@ -91,9 +93,10 @@ export default function ValoresCaldeiraria({ de, ate }: { de: string; ate: strin
 
   return (
     <>
+      <div className="no-print" style={{ marginBottom: 12 }}><FiltroEmpresa valor={fEmp} onChange={setFEmp} /></div>
       <div style={{ ...CARD, padding: '16px 20px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, background: '#fff7ed', borderColor: '#fed7aa' }}>
         <div style={{ fontSize: 12, color: '#c2410c', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .3 }}>
-          🏗 Caldeiraria — total do período
+          🏗 Caldeiraria{fEmp ? ` · ${fEmp === 'sem' ? 'Sem empresa' : nomeEmpresa(fEmp)}` : ''} — total do período
           <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, textTransform: 'none', fontWeight: 500 }}>{blocos.length} mês(es) · mês = chegada na Caldeiraria</div>
         </div>
         <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', alignItems: 'center' }}>

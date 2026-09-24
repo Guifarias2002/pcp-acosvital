@@ -1,7 +1,7 @@
 'use client';
 // Peças comuns da tela Planejamento da Caldeiraria (/cald-plano).
 import type { ReactNode } from 'react';
-import { AREA_POR_CODIGO, type ItemCald } from '@/lib/caldPlano';
+import { AREA_POR_CODIGO, EMPRESAS_CALD, type ItemCald } from '@/lib/caldPlano';
 
 export const C = {
   azul: '#1a3a5c', azul2: '#1d4ed8', verde: '#16a34a', laranja: '#d97706', vermelho: '#dc2626',
@@ -141,3 +141,46 @@ export const CSS = `
     body{background:#fff!important}
   }
 `;
+
+// Escolha da empresa do pedido (Aços Vital / Uberaba / HRM) — botões grandes.
+export function SeletorEmpresa({ valor, onChange, disabled }: { valor: string | null; onChange: (v: string) => void; disabled?: boolean }) {
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {EMPRESAS_CALD.map(e => {
+        const on = valor === e.codigo;
+        return (
+          <button key={e.codigo} type="button" disabled={disabled} onClick={() => onChange(e.codigo)} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 800, borderRadius: 8, padding: '7px 12px',
+            cursor: disabled ? 'default' : 'pointer', border: `2px solid ${on ? e.cor : C.borda}`,
+            background: on ? e.cor : '#fff', color: on ? '#fff' : C.cinza,
+          }}><i className="bi bi-building" />{e.nome}</button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function EmpresaTag({ empresa }: { empresa: string | null }) {
+  const e = EMPRESAS_CALD.find(x => x.codigo === empresa);
+  if (!e) return <Chip cor="#94a3b8" bg="#f1f5f9" title="Empresa não informada">sem empresa</Chip>;
+  return <Chip cor="#fff" bg={e.cor} title={e.nome}>{e.curto}</Chip>;
+}
+
+// Filtro de empresa (chips) — '' = todas · 'sem' = sem empresa.
+export function FiltroEmpresa({ valor, onChange, mostrarSem = true }: { valor: string; onChange: (v: string) => void; mostrarSem?: boolean }) {
+  const opts: { v: string; rot: string; cor: string }[] = [
+    { v: '', rot: 'Todas as empresas', cor: C.azul },
+    ...EMPRESAS_CALD.map(e => ({ v: e.codigo as string, rot: e.nome as string, cor: e.cor as string })),
+    ...(mostrarSem ? [{ v: 'sem', rot: 'Sem empresa', cor: C.cinza }] : []),
+  ];
+  return (
+    <div style={{ display: 'inline-flex', gap: 5, flexWrap: 'wrap' }}>
+      {opts.map(o => (
+        <button key={o.v || 'todas'} type="button" onClick={() => onChange(o.v)} style={{
+          fontSize: 12, fontWeight: 700, borderRadius: 999, padding: '5px 11px', cursor: 'pointer',
+          border: `1.5px solid ${valor === o.v ? o.cor : C.borda}`, background: valor === o.v ? o.cor : '#fff', color: valor === o.v ? '#fff' : '#475569',
+        }}>{o.rot}</button>
+      ))}
+    </div>
+  );
+}

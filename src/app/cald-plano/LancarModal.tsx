@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { postIdempotente } from '@/lib/api';
 import { AREAS_CALD, UNIDADES_CALD, PRIORIDADES_CALD } from '@/lib/caldPlano';
-import { C, Modal, Campo, PRIO, erroDe } from './comum';
+import { C, Modal, Campo, PRIO, erroDe, SeletorEmpresa } from './comum';
 
 // Roteiro sugerido pra um item novo (o planejador ajusta depois).
 const ROTEIRO_PADRAO = ['corte', 'montagem', 'solda', 'acabamento', 'inspecao'];
@@ -18,6 +18,7 @@ export default function LancarModal({ onFechar, onLancado, vendedores, clientes,
   verValores: boolean;
 }) {
   const [pedido, setPedido] = useState('');
+  const [empresa, setEmpresa] = useState<string | null>(null);
   const [vendedor, setVendedor] = useState('');
   const [cliente, setCliente] = useState('');
   const [prioridade, setPrioridade] = useState('normal');
@@ -35,12 +36,13 @@ export default function LancarModal({ onFechar, onLancado, vendedores, clientes,
   async function salvar() {
     setErro('');
     if (!pedido.trim()) { setErro('Informe o nº do pedido (Omie).'); return; }
+    if (!empresa) { setErro('Escolha a empresa: Aços Vital, Aços Uberaba ou Aços HRM.'); return; }
     const validos = itens.filter(i => i.material.trim());
     if (!validos.length) { setErro('Informe pelo menos um item com o material.'); return; }
     setSalvando(true);
     try {
       const r = await postIdempotente<{ ids: number[] }>('/api/cald-plano', {
-        pedido: pedido.trim(), vendedor, cliente, prioridade,
+        pedido: pedido.trim(), empresa, vendedor, cliente, prioridade,
         prazo_entrega: prazo || null, prev_faturamento: prevFat || null, obs,
         itens: validos.map(i => ({
           material: i.material, quantidade: i.quantidade || null, unidade: i.unidade,
@@ -75,6 +77,10 @@ export default function LancarModal({ onFechar, onLancado, vendedores, clientes,
         O pedido cai na caixa <b>&quot;Novos — aguardando planejamento&quot;</b> do coordenador da Caldeiraria, que define a ordem, as previsões e acompanha área por área.
       </p>
 
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.cinza, textTransform: 'uppercase', letterSpacing: .3, marginBottom: 5 }}>Empresa do pedido *</div>
+        <SeletorEmpresa valor={empresa} onChange={setEmpresa} />
+      </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
         <Campo rot="Nº do pedido (Omie) *" largura={150}><input className="cp-in" value={pedido} onChange={e => setPedido(e.target.value)} autoFocus /></Campo>
         <Campo rot="Vendedor"><input className="cp-in" list="cp-vendedores" value={vendedor} onChange={e => setVendedor(e.target.value)} /></Campo>

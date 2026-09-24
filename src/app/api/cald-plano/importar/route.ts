@@ -33,6 +33,7 @@ export async function POST(req: Request) {
     const brutas = Array.isArray(b.linhas) ? (b.linhas as Record<string, unknown>[]).slice(0, 2000) : [];
     if (!brutas.length) return NextResponse.json({ erro: 'Nada para importar' }, { status: 400 });
     const simular = b.simular === true;
+    const empresaPadrao = typeof b.empresa_padrao === 'string' && ['acosvital', 'uberaba', 'hrm'].includes(b.empresa_padrao) ? b.empresa_padrao : null;
     const quem = user.nome || user.username;
 
     try {
@@ -57,7 +58,7 @@ export async function POST(req: Request) {
           const it = par.get(i);
           if (it && it.status === 'cancelado') { resultado.push({ linha: l.linha, pedido: l.pedido, material: l.material, tipo: 'cancelado', item_id: it.id }); continue; }
           if (it) {
-            const { set, etapas, mud } = diferencas(l, it);
+            const { set, etapas, mud } = diferencas(l, it, empresaPadrao);
             if (!mud.length) { resultado.push({ linha: l.linha, pedido: l.pedido, material: l.material, tipo: 'igual', item_id: it.id }); continue; }
             resultado.push({ linha: l.linha, pedido: l.pedido, material: l.material, tipo: 'atualizar', item_id: it.id, mudancas: mud });
             atualizados++;
@@ -82,11 +83,11 @@ export async function POST(req: Request) {
           const status = l.finalizado_em ? 'finalizado' : areaAtual ? 'andamento' : 'novo';
           const [row] = await tx`
             INSERT INTO producao_cald_plano_item
-              (pedido, vendedor, cliente, material, quantidade, unidade, valor, areas, area_atual, status,
+              (pedido, vendedor, cliente, material, quantidade, unidade, valor, empresa, areas, area_atual, status,
                prev_faturamento, faturado_em, prev_finalizacao, finalizado_em, parcial, obs,
                criado_por_id, criado_por_nome)
             VALUES
-              (${l.pedido}, ${l.vendedor}, ${l.cliente}, ${l.material}, ${l.quantidade}, ${l.unidade}, ${l.valor},
+              (${l.pedido}, ${l.vendedor}, ${l.cliente}, ${l.material}, ${l.quantidade}, ${l.unidade}, ${l.valor}, ${l.empresa ?? empresaPadrao},
                ${l.areas}::text[], ${areaAtual}, ${status},
                ${l.prev_faturamento}, ${l.faturado_em}, ${l.prev_finalizacao}, ${l.finalizado_em},
                ${l.parcial}, ${l.obs}, ${user.id}, ${quem})

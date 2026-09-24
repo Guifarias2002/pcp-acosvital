@@ -1,14 +1,14 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import api, { postIdempotente } from '@/lib/api';
 import { podeLancarCaldeiraria, podePlanejarCaldeiraria, podeVerValores } from '@/lib/auth';
 import {
-  AREAS_CALD, situacaoItem, pendenciasItem, hojeISO, fmtData, inicioSemana, somarDias, DIAS_PARADO,
+  AREAS_CALD, situacaoItem, pendenciasItem, passaEmpresa, nomeEmpresa, hojeISO, fmtData, inicioSemana, somarDias, DIAS_PARADO,
   type ItemCald,
 } from '@/lib/caldPlano';
-import { C, CSS, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, fmtBRL, somaPorUnidade, somaValor } from './comum';
+import { C, CSS, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, fmtBRL, somaPorUnidade, somaValor, EmpresaTag, FiltroEmpresa } from './comum';
 import LancarModal from './LancarModal';
 import ItemDetalhe from './ItemDetalhe';
 import ImportarModal from './ImportarModal';
@@ -33,6 +33,7 @@ export default function CaldPlanoPage() {
   const [busca, setBusca] = useState('');
   const [fVend, setFVend] = useState('');
   const [fCli, setFCli] = useState('');
+  const [fEmp, setFEmp] = useState('');
   const [statusLista, setStatusLista] = useState<'ativos' | 'finalizado' | 'cancelado' | 'todos'>('ativos');
   const [lancar, setLancar] = useState(false);
   const [importar, setImportar] = useState(false);
@@ -41,6 +42,27 @@ export default function CaldPlanoPage() {
   const [arrastando, setArrastando] = useState<number | null>(null);
   const [alvoCol, setAlvoCol] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
+  // Arrastar o painel pro lado (clicar no fundo e puxar) — pra ver as colunas fora da tela.
+  const quadroRef = useRef<HTMLDivElement>(null);
+  const pan = useRef<{ x: number; left: number } | null>(null);
+  const [panAtivo, setPanAtivo] = useState(false);
+  function panInicio(e: React.MouseEvent) {
+    const alvo = e.target as HTMLElement;
+    if (e.button !== 0 || alvo.closest('.cp-card, button, a, input, select')) return; // card/botão: não é pan
+    if (!quadroRef.current) return;
+    pan.current = { x: e.clientX, left: quadroRef.current.scrollLeft };
+    setPanAtivo(true);
+    e.preventDefault();
+  }
+  useEffect(() => {
+    if (!panAtivo) return;
+    const mover = (e: MouseEvent) => { if (pan.current && quadroRef.current) quadroRef.current.scrollLeft = pan.current.left - (e.clientX - pan.current.x); };
+    const soltar = () => { pan.current = null; setPanAtivo(false); };
+    window.addEventListener('mousemove', mover);
+    window.addEventListener('mouseup', soltar);
+    return () => { window.removeEventListener('mousemove', mover); window.removeEventListener('mouseup', soltar); };
+  }, [panAtivo]);
+  const rolar = (dx: number) => quadroRef.current?.scrollBy({ left: dx, behavior: 'smooth' });
   const planeja = ok && podePlanejarCaldeiraria();
   const verValores = ok && podeVerValores();
 
@@ -83,6 +105,7 @@ export default function CaldPlanoPage() {
     if (filtro === 'parados' && !s.parado) return false;
     if (filtro === 'terceiro' && !(i.area_atual === 'industrializacao' && i.status === 'andamento')) return false;
     if (filtro === 'faturar' && !(i.prev_faturamento && !i.faturado_em && i.prev_faturamento <= fimSemana)) return false;
+    if (!passaEmpresa(i, fEmp)) return false;
     if (fVend && i.vendedor !== fVend) return false;
     if (fCli && i.cliente !== fCli) return false;
     if (busca) {
@@ -90,7 +113,7 @@ export default function CaldPlanoPage() {
       if (![i.pedido, i.material, i.cliente, i.vendedor, i.obs].some(x => (x || '').toLowerCase().includes(q))) return false;
     }
     return true;
-  }, [sit, filtro, fVend, fCli, busca, fimSemana]);
+  }, [sit, filtro, fVend, fCli, fEmp, busca, fimSemana]);
 
   const cont = useMemo(() => {
     const c = { novos: 0, atrasados: 0, vence: 0, parados: 0, terceiro: 0, terceiroVencido: 0, faturar: 0 };
@@ -167,7 +190,7 @@ export default function CaldPlanoPage() {
     const linhas = lista.map(i => {
       const et = (a: string) => i.etapas.find(e => e.area === a);
       const row: Record<string, unknown> = {
-        Vendedor: i.vendedor || '', Pedido: i.pedido, Material: i.material, Quant: i.quantidade ?? '', Un: i.unidade || '',
+        Empresa: nomeEmpresa(i.empresa), Vendedor: i.vendedor || '', Pedido: i.pedido, Material: i.material, Quant: i.quantidade ?? '', Un: i.unidade || '',
         Cliente: i.cliente || '', Situação: i.status === 'andamento' ? nomeArea(i.area_atual) : STATUS_TXT[i.status]?.txt,
       };
       for (const a of AREAS_CALD) {
@@ -265,6 +288,8 @@ export default function CaldPlanoPage() {
           {filtro !== 'todos' && <button className="cp-btn sm" onClick={() => setFiltro('todos')}><i className="bi bi-x" />Limpar filtro</button>}
         </div>
 
+        <div style={{ marginBottom: 12 }}><FiltroEmpresa valor={fEmp} onChange={setFEmp} /></div>
+
         {carregando && !itens.length ? (
           <div style={{ textAlign: 'center', padding: 40, color: C.cinza }}>Carregando…</div>
         ) : aba === 'painel' ? (
@@ -297,8 +322,13 @@ export default function CaldPlanoPage() {
               </div>
             )}
 
-            {/* Colunas por área */}
-            <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 10, alignItems: 'flex-start' }}>
+            {/* Colunas por área — arraste o fundo pro lado, ou use as setas */}
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginBottom: 6 }}>
+              <button className="cp-btn sm" onClick={() => rolar(-520)} title="Ver colunas à esquerda"><i className="bi bi-chevron-left" /></button>
+              <button className="cp-btn sm" onClick={() => rolar(520)} title="Ver colunas à direita"><i className="bi bi-chevron-right" /></button>
+            </div>
+            <div ref={quadroRef} onMouseDown={panInicio}
+              style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 10, alignItems: 'flex-start', cursor: panAtivo ? 'grabbing' : 'grab', userSelect: panAtivo ? 'none' : undefined }}>
               {colunas.map(col => (
                 <div key={col.codigo} className={`cp-col ${alvoCol === col.codigo ? 'alvo' : ''}`}
                   onDragOver={e => { if (planeja && arrastando) { e.preventDefault(); setAlvoCol(col.codigo); } }}
@@ -330,6 +360,7 @@ export default function CaldPlanoPage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ fontSize: 10.5, fontWeight: 800, color: C.fraco }}>#{idx + 1}</span>
                             <b style={{ color: C.azul, fontSize: 13 }}>{it.pedido}</b>
+                            <EmpresaTag empresa={it.empresa} />
                             {it.prioridade !== 'normal' && <Chip cor="#fff" bg={prio.cor}>{prio.txt}</Chip>}
                             {it.parcial && <Chip cor="#7c3aed" bg="#ede9fe">Parcial</Chip>}
                           </div>
@@ -362,7 +393,7 @@ export default function CaldPlanoPage() {
                 </div>
               ))}
             </div>
-            {planeja && <div style={{ fontSize: 11.5, color: C.fraco, marginTop: 4 }}><i className="bi bi-info-circle" /> Arraste um card pra outra coluna pra registrar a entrada hoje, ou dentro da coluna pra mudar a ordem. Pra outra data, abra o card.</div>}
+            {planeja && <div style={{ fontSize: 11.5, color: C.fraco, marginTop: 4 }}><i className="bi bi-info-circle" /> Arraste um <b>card</b> pra outra coluna pra registrar a entrada hoje, ou dentro da coluna pra mudar a ordem (pra outra data, abra o card). Arraste o <b>fundo</b> do painel pro lado pra ver as outras áreas.</div>}
           </>
         ) : (
           <>
@@ -380,7 +411,7 @@ export default function CaldPlanoPage() {
               <table className="cp-tbl">
                 <thead>
                   <tr>
-                    <th>Pedido</th><th>Vendedor</th><th>Material</th><th>Qtd</th><th>Cliente</th><th>Situação</th>
+                    <th>Pedido</th><th>Empresa</th><th>Vendedor</th><th>Material</th><th>Qtd</th><th>Cliente</th><th>Situação</th>
                     {AREAS_CALD.map(a => <th key={a.codigo} style={{ color: a.cor }}>{a.nome}</th>)}
                     <th>Prev. fat.</th><th>Prev. final.</th><th>Finalizado</th>{verValores && <th>Valor</th>}<th>Obs</th>
                   </tr>
@@ -392,6 +423,7 @@ export default function CaldPlanoPage() {
                     return (
                       <tr key={it.id} className="cl" onClick={() => setAberto(it)}>
                         <td style={{ fontWeight: 800, color: C.azul, whiteSpace: 'nowrap' }}>{it.pedido}</td>
+                        <td><EmpresaTag empresa={it.empresa} /></td>
                         <td>{it.vendedor || '—'}</td>
                         <td style={{ minWidth: 180 }}>{it.material}{it.parcial && <> <Chip cor="#7c3aed" bg="#ede9fe">Parcial</Chip></>}</td>
                         <td style={{ whiteSpace: 'nowrap' }}>{fmtQtd(it.quantidade, it.unidade)}</td>
@@ -438,7 +470,8 @@ export default function CaldPlanoPage() {
           onFechar={() => setCaixa(false)} onAbrirItem={it => setAberto(it)} onAtualizado={atualizarItem} />
       )}
       {aberto && (
-        <ItemDetalhe key={aberto.id} item={aberto} podePlanejar={planeja} verValores={verValores}
+        <ItemDetalhe key={aberto.id} item={aberto}
+          irmaos={itens.filter(x => x.pedido === aberto.pedido && x.id !== aberto.id && x.status !== 'cancelado')} podePlanejar={planeja} verValores={verValores}
           onFechar={() => setAberto(null)} onAtualizado={atualizarItem} />
       )}
     </AuthGuard>

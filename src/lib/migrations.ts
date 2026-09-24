@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 52;
+const SCHEMA_VERSION = 53;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -834,4 +834,11 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
     `);
     await sp.unsafe(`CREATE INDEX IF NOT EXISTS idx_cald_plano_cobranca_item ON producao_cald_plano_cobranca (item_id, criado_em DESC)`);
   }).catch(e => console.error('[migrations] M50 (cobranças caldeiraria) falhou:', e));
+
+  // M51 (24/09): EMPRESA do pedido no PCP Caldeiraria (Aços Vital/Mogi, Aços
+  // Uberaba, Aços HRM) — pra relatórios por empresa. Leitura tolerante em
+  // caldPlanoServer (to_jsonb) caso a coluna ainda não exista.
+  await sql.savepoint(async (sp) => {
+    await sp.unsafe(`ALTER TABLE producao_cald_plano_item ADD COLUMN IF NOT EXISTS empresa TEXT`);
+  }).catch(e => console.error('[migrations] M51 (empresa caldeiraria) falhou:', e));
 }

@@ -5,12 +5,13 @@ import {
   AREAS_CALD, AREA_POR_CODIGO, AREA_TERCEIRO, UNIDADES_CALD, PRIORIDADES_CALD,
   ordenarAreas, situacaoItem, hojeISO, fmtData, diasEntre, type ItemCald, type EtapaCald,
 } from '@/lib/caldPlano';
-import { C, Modal, Campo, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, erroDe } from './comum';
+import { C, Modal, Campo, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, erroDe, SeletorEmpresa } from './comum';
 
 interface Hist { id: number; acao: string; detalhe: string | null; usuario_nome: string | null; criado_em: string }
 
-export default function ItemDetalhe({ item: inicial, podePlanejar, verValores, onFechar, onAtualizado }: {
+export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, verValores, onFechar, onAtualizado }: {
   item: ItemCald;
+  irmaos?: ItemCald[];   // outros itens do MESMO pedido (pra aplicar a empresa em todos)
   podePlanejar: boolean;
   verValores: boolean;
   onFechar: () => void;
@@ -23,6 +24,7 @@ export default function ItemDetalhe({ item: inicial, podePlanejar, verValores, o
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; txt: string } | null>(null);
   const [destino, setDestino] = useState('');
   const [dataAcao, setDataAcao] = useState(hojeISO());
+  const [empTodos, setEmpTodos] = useState(true);
 
   const sit = situacaoItem(item);
   const ativo = item.status !== 'finalizado' && item.status !== 'cancelado';
@@ -44,6 +46,7 @@ export default function ItemDetalhe({ item: inicial, podePlanejar, verValores, o
         prazo_entrega: f.prazo_entrega || null, prev_faturamento: f.prev_faturamento || null,
         faturado_em: f.faturado_em || null, parcial: f.parcial, obs: f.obs,
       };
+      if (f.empresa) body.empresa = f.empresa;
       if (verValores) body.valor = f.valor === '' ? null : f.valor;
       if (podeEditarRoteiro) body.areas = f.areas;
       if (podePlanejar) {
@@ -54,7 +57,17 @@ export default function ItemDetalhe({ item: inicial, podePlanejar, verValores, o
       }
       const r = await api.patch(`/api/cald-plano/${item.id}`, body);
       aplicar(r.data.item);
-      setMsg({ tipo: 'ok', txt: 'Salvo!' });
+      // Empresa é do PEDIDO: aplica nos outros itens do mesmo pedido também.
+      let extra = '';
+      if (f.empresa && f.empresa !== item.empresa && empTodos && irmaos.length) {
+        const outros = irmaos.filter(o => o.empresa !== f.empresa);
+        for (const o of outros) {
+          const ro = await api.patch(`/api/cald-plano/${o.id}`, { empresa: f.empresa });
+          onAtualizado(ro.data.item);
+        }
+        if (outros.length) extra = ` (empresa aplicada em mais ${outros.length} item(ns) do pedido)`;
+      }
+      setMsg({ tipo: 'ok', txt: 'Salvo!' + extra });
     } catch (e) {
       setMsg({ tipo: 'erro', txt: erroDe(e, 'Não foi possível salvar.') });
     } finally { setSalvando(false); }
@@ -166,6 +179,18 @@ export default function ItemDetalhe({ item: inicial, podePlanejar, verValores, o
       )}
 
       {/* Dados */}
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.cinza, textTransform: 'uppercase', letterSpacing: .3, marginBottom: 5 }}>
+          Empresa do pedido {!item.empresa && <span style={{ color: C.vermelho, textTransform: 'none' }}>— não informada</span>}
+        </div>
+        <SeletorEmpresa valor={f.empresa} onChange={v => setF({ ...f, empresa: v })} />
+        {irmaos.length > 0 && f.empresa !== item.empresa && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: C.texto, marginTop: 6 }}>
+            <input type="checkbox" checked={empTodos} onChange={e => setEmpTodos(e.target.checked)} />
+            Aplicar também nos outros {irmaos.length} item(ns) do pedido {item.pedido}
+          </label>
+        )}
+      </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
         <Campo rot="Pedido" largura={120}><input className="cp-in" value={f.pedido} onChange={e => setF({ ...f, pedido: e.target.value })} /></Campo>
         <Campo rot="Vendedor"><input className="cp-in" list="cp-vendedores" value={f.vendedor} onChange={e => setF({ ...f, vendedor: e.target.value })} /></Campo>
@@ -259,7 +284,7 @@ export default function ItemDetalhe({ item: inicial, podePlanejar, verValores, o
 
 function formDe(it: ItemCald) {
   return {
-    pedido: it.pedido, vendedor: it.vendedor || '', cliente: it.cliente || '', material: it.material,
+    pedido: it.pedido, empresa: it.empresa as string | null, vendedor: it.vendedor || '', cliente: it.cliente || '', material: it.material,
     quantidade: it.quantidade === null ? '' : String(it.quantidade), unidade: it.unidade || 'pç',
     valor: it.valor === null ? '' : String(it.valor), prioridade: it.prioridade || 'normal',
     prazo_entrega: it.prazo_entrega || '', prev_faturamento: it.prev_faturamento || '', faturado_em: it.faturado_em || '',

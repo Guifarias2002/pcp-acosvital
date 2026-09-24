@@ -3,7 +3,7 @@ import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { podeLancarCaldeiraria, podePlanejarCaldeiraria, podeVerAnaliseCaldeiraria, podeVerValoresMes } from '@/lib/auth';
 import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
-import { ordenarAreas, isoValida, UNIDADES_CALD, PRIORIDADES_CALD } from '@/lib/caldPlano';
+import { ordenarAreas, isoValida, UNIDADES_CALD, PRIORIDADES_CALD, CODIGOS_EMPRESA } from '@/lib/caldPlano';
 import { carregarItensCald, registrarHistCald } from '@/lib/caldPlanoServer';
 import { runMigrations } from '@/lib/migrations';
 
@@ -65,6 +65,8 @@ export async function POST(req: Request) {
     const prevFin = isoValida(body.prev_finalizacao);
     const prioridade = PRIORIDADES_CALD.includes(body.prioridade as typeof PRIORIDADES_CALD[number]) ? String(body.prioridade) : 'normal';
     const obsPedido = txt(body.obs, 1000);
+    const empresa = CODIGOS_EMPRESA.includes(String(body.empresa)) ? String(body.empresa) : null;
+    if (!empresa) return NextResponse.json({ erro: 'Escolha a empresa do pedido (Aços Vital, Aços Uberaba ou Aços HRM)' }, { status: 400 });
     const itensIn = Array.isArray(body.itens) ? body.itens as Record<string, unknown>[] : [];
     const itens = itensIn
       .map(it => ({
@@ -86,10 +88,10 @@ export async function POST(req: Request) {
           const obs = [it.obs, obsPedido].filter(Boolean).join(' · ') || null;
           const [row] = await tx`
             INSERT INTO producao_cald_plano_item
-              (pedido, vendedor, cliente, material, quantidade, unidade, valor, areas, status, prioridade,
+              (pedido, vendedor, cliente, material, quantidade, unidade, valor, empresa, areas, status, prioridade,
                prazo_entrega, prev_faturamento, prev_finalizacao, obs, criado_por_id, criado_por_nome)
             VALUES
-              (${pedido}, ${vendedor}, ${cliente}, ${it.material}, ${it.quantidade}, ${it.unidade}, ${it.valor},
+              (${pedido}, ${vendedor}, ${cliente}, ${it.material}, ${it.quantidade}, ${it.unidade}, ${it.valor}, ${empresa},
                ${it.areas}::text[], 'novo', ${prioridade},
                ${prazo}, ${prevFat}, ${prevFin}, ${obs}, ${user.id}, ${user.nome || user.username})
             RETURNING id

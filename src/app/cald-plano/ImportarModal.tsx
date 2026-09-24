@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { postIdempotente } from '@/lib/api';
 import { interpretarPlanilha, fmtData, type LinhaImport } from '@/lib/caldPlano';
-import { C, Modal, Chip, nomeArea, fmtQtd, erroDe } from './comum';
+import { C, Modal, Chip, nomeArea, fmtQtd, erroDe, SeletorEmpresa } from './comum';
 
 // Importa / REIMPORTA a planilha do PCP da Caldeiraria (.xlsx). Lê no
 // navegador, pede ao servidor uma SIMULAÇÃO (o que é novo, o que muda campo a
@@ -27,6 +27,18 @@ export default function ImportarModal({ onFechar, onImportado }: { onFechar: () 
   const [erro, setErro] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const [verIguais, setVerIguais] = useState(false);
+  // Empresa pros itens desta planilha que não têm coluna EMPRESA (e pros já
+  // importados que ainda estão sem empresa).
+  const [empresa, setEmpresa] = useState<string | null>(null);
+
+  async function simular(ls: LinhaImport[], emp: string | null) {
+    setOcupado(true); setErro('');
+    try {
+      const r = await postIdempotente<Sim>('/api/cald-plano/importar', { linhas: ls as unknown as Record<string, unknown>[], simular: true, empresa_padrao: emp } as Record<string, unknown>);
+      setSim(r);
+    } catch (e2) { setErro(erroDe(e2, 'Não foi possível comparar com o sistema.')); }
+    finally { setOcupado(false); }
+  }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -41,8 +53,7 @@ export default function ImportarModal({ onFechar, onImportado }: { onFechar: () 
       const r = interpretarPlanilha(rows);
       if (r.erro) { setErro(r.erro); return; }
       setLinhas(r.linhas);
-      const s = await postIdempotente<Sim>('/api/cald-plano/importar', { linhas: r.linhas as unknown as Record<string, unknown>[], simular: true } as Record<string, unknown>);
-      setSim(s);
+      await simular(r.linhas, empresa);
     } catch (e2) {
       setErro(erroDe(e2, 'Erro ao ler o arquivo. Confirme que é um .xlsx válido.'));
     } finally { setOcupado(false); }
@@ -52,7 +63,7 @@ export default function ImportarModal({ onFechar, onImportado }: { onFechar: () 
     if (!linhas?.length) return;
     setOcupado(true); setErro('');
     try {
-      const r = await postIdempotente<Sim>('/api/cald-plano/importar', { linhas: linhas as unknown as Record<string, unknown>[] } as Record<string, unknown>);
+      const r = await postIdempotente<Sim>('/api/cald-plano/importar', { linhas: linhas as unknown as Record<string, unknown>[], empresa_padrao: empresa } as Record<string, unknown>);
       const partes = [`${r.novos} novo(s)`, `${r.atualizados} atualizado(s)`, `${r.iguais} sem mudança`];
       if (r.cancelados) partes.push(`${r.cancelados} cancelado(s) ignorado(s)`);
       onImportado(`Planilha aplicada: ${partes.join(' · ')}.`);
@@ -85,6 +96,12 @@ export default function ImportarModal({ onFechar, onImportado }: { onFechar: () 
         </label>
         {arquivo && <span style={{ fontSize: 13, color: C.texto }}>{arquivo}</span>}
         {ocupado && !sim && <span style={{ fontSize: 13, color: C.cinza }}>Comparando com o sistema…</span>}
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.cinza, textTransform: 'uppercase', letterSpacing: .3, marginBottom: 5 }}>
+          Empresa destes pedidos <span style={{ textTransform: 'none', fontWeight: 500 }}>(se a planilha não tiver a coluna EMPRESA — preenche só quem ainda está sem)</span>
+        </div>
+        <SeletorEmpresa valor={empresa} onChange={v => { setEmpresa(v); if (linhas) simular(linhas, v); }} />
       </div>
       <p style={{ fontSize: 12.5, color: C.cinza, margin: '0 0 12px' }}>
         Pode carregar a planilha quantas vezes precisar: <b>nada é duplicado</b>. Cada linha é comparada com o que já está no sistema

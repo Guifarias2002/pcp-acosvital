@@ -26,6 +26,21 @@ export const AREA_POR_CODIGO: Record<string, AreaCald> = Object.fromEntries(AREA
 export const AREA_TERCEIRO = 'industrializacao';
 
 export const UNIDADES_CALD = ['pç', 'kg', 'm', 'conj', 'm²'];
+
+// Empresa do pedido (pra relatórios só de uma ou de todas).
+export const EMPRESAS_CALD = [
+  { codigo: 'acosvital', nome: 'Aços Vital (Mogi)', curto: 'Vital', cor: '#1d4ed8' },
+  { codigo: 'uberaba',   nome: 'Aços Uberaba',      curto: 'Uberaba', cor: '#0d9488' },
+  { codigo: 'hrm',       nome: 'Aços HRM',          curto: 'HRM', cor: '#c2410c' },
+] as const;
+export const CODIGOS_EMPRESA: string[] = EMPRESAS_CALD.map(e => e.codigo);
+export const nomeEmpresa = (c: string | null | undefined) => EMPRESAS_CALD.find(e => e.codigo === c)?.nome ?? 'Sem empresa';
+// Filtro de empresa usado nas telas: '' = todas · 'sem' = sem empresa informada.
+export function passaEmpresa(it: { empresa?: string | null }, filtro: string): boolean {
+  if (!filtro) return true;
+  if (filtro === 'sem') return !it.empresa;
+  return it.empresa === filtro;
+}
 export const PRIORIDADES_CALD = ['urgente', 'alta', 'normal', 'baixa'] as const;
 
 // Ordena uma lista de áreas pela ordem padrão (descarta código desconhecido).
@@ -52,6 +67,7 @@ export interface ItemCald {
   quantidade: number | null;
   unidade: string | null;
   valor: number | null;            // R$ (opcional — pro relatório da diretoria/contabilidade)
+  empresa: string | null;          // acosvital | uberaba | hrm (EMPRESAS_CALD)
   areas: string[];
   area_atual: string | null;
   status: StatusCald;
@@ -139,6 +155,7 @@ export interface LinhaImport {
   quantidade: number | null;
   unidade: string;
   valor: number | null;            // coluna VALOR (opcional na planilha)
+  empresa: string | null;          // coluna EMPRESA (opcional) ou a escolhida na importação
   areas: string[];
   etapas: EtapaCald[];
   area_atual: string | null;
@@ -231,6 +248,7 @@ export function interpretarPlanilha(rows: unknown[][], anoPadrao = new Date().ge
   const cFin = col(h => h === 'finalizado');
   const cObs = col(h => h.startsWith('obs'));
   const cValor = col(h => h.startsWith('valor'));
+  const cEmp = col(h => h.startsWith('empresa'));
   const colsArea: { idx: number; area: string }[] = [];
   header.forEach((h, idx) => { const a = COLUNA_AREA[h.replace(/\s/g, '')]; if (a) colsArea.push({ idx, area: a }); });
 
@@ -281,6 +299,10 @@ export function interpretarPlanilha(rows: unknown[][], anoPadrao = new Date().ge
       }
     }
 
+    const empTxt = norm(cEmp >= 0 ? row[cEmp] : '');
+    const empresa = !empTxt ? null : empTxt.includes('uberaba') ? 'uberaba' : empTxt.includes('hrm') ? 'hrm' : (empTxt.includes('vital') || empTxt.includes('mogi')) ? 'acosvital' : null;
+    if (empTxt && !empresa) avisos.push(`Empresa "${String(row[cEmp]).trim()}" não reconhecida`);
+
     const pf = lerCelulaData(cPrevFat >= 0 ? row[cPrevFat] : '', anoPadrao);
     let prev_faturamento: string | null = null, faturado_em: string | null = null;
     if (pf.data && /fatur/i.test(pf.resto)) faturado_em = pf.data; else prev_faturamento = pf.data;
@@ -309,7 +331,7 @@ export function interpretarPlanilha(rows: unknown[][], anoPadrao = new Date().ge
       material: material || '(sem material)',
       quantidade: qtd.quantidade,
       unidade: qtd.unidade,
-      valor,
+      valor, empresa,
       areas, etapas, area_atual, status,
       prev_faturamento, faturado_em,
       prev_finalizacao: pfin.data,

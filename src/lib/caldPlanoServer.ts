@@ -14,6 +14,8 @@ export async function carregarItensCald(db: Sql = sql, ids?: number[]): Promise<
     SELECT
       i.id, i.pedido, i.vendedor, i.cliente, i.material,
       i.quantidade::float AS quantidade, i.unidade, i.valor::float AS valor,
+      -- tolerante: coluna da M51 pode não existir ainda numa instância antiga
+      to_jsonb(i)->>'empresa' AS empresa,
       i.areas, i.area_atual, i.status, i.prioridade, i.ordem,
       i.prazo_entrega::text AS prazo_entrega, i.prev_faturamento::text AS prev_faturamento,
       i.faturado_em::text AS faturado_em, i.prev_finalizacao::text AS prev_finalizacao,

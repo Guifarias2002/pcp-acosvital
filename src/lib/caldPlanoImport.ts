@@ -3,11 +3,11 @@
 // Regras (ver o cabeçalho da rota): casamento por pedido + material (desempate
 // pela quantidade; 1 linha + 1 item soltos no mesmo pedido = material
 // renomeado); campo vazio na planilha nunca apaga; finalizado não reabre.
-import { CODIGOS_AREA, AREA_POR_CODIGO, ordenarAreas, isoValida, fmtData, UNIDADES_CALD, type ItemCald } from './caldPlano';
+import { CODIGOS_AREA, AREA_POR_CODIGO, ordenarAreas, isoValida, fmtData, UNIDADES_CALD, CODIGOS_EMPRESA, nomeEmpresa, type ItemCald } from './caldPlano';
 
 export interface Linha {
   linha: number; pedido: string; material: string; vendedor: string | null; cliente: string | null;
-  quantidade: number | null; unidade: string; valor: number | null; areas: string[];
+  quantidade: number | null; unidade: string; valor: number | null; empresa: string | null; areas: string[];
   etapas: { area: string; entrada: string | null; fornecedor: string | null }[];
   prev_faturamento: string | null; faturado_em: string | null; prev_finalizacao: string | null;
   finalizado_em: string | null; parcial: boolean; obs: string | null;
@@ -36,6 +36,7 @@ export function limpar(l: Record<string, unknown>, i: number): Linha | null {
     quantidade: typeof l.quantidade === 'number' && Number.isFinite(l.quantidade) ? l.quantidade : null,
     unidade: UNIDADES_CALD.includes(String(l.unidade)) ? String(l.unidade) : 'pç',
     valor: typeof l.valor === 'number' && Number.isFinite(l.valor) && l.valor >= 0 ? l.valor : null,
+    empresa: CODIGOS_EMPRESA.includes(String(l.empresa)) ? String(l.empresa) : null,
     areas, etapas,
     prev_faturamento: isoValida(l.prev_faturamento), faturado_em: isoValida(l.faturado_em),
     prev_finalizacao: isoValida(l.prev_finalizacao), finalizado_em: isoValida(l.finalizado_em),
@@ -66,7 +67,9 @@ export function casar(linhas: Linha[], existentes: ItemCald[]): Map<number, Item
 }
 
 // O que muda num item existente. Só campos que a planilha TEM e que diferem.
-export function diferencas(l: Linha, it: ItemCald) {
+// empresaPadrao: a escolhida na tela de importação — só preenche item que ainda
+// está SEM empresa (a coluna EMPRESA da planilha, se existir, vale sempre).
+export function diferencas(l: Linha, it: ItemCald, empresaPadrao: string | null = null) {
   const set: Record<string, unknown> = {};
   const mud: string[] = [];
   const cmp = (campo: keyof ItemCald & string, novo: unknown, rot: string, fmt = (v: unknown) => String(v ?? '—')) => {
@@ -84,6 +87,8 @@ export function diferencas(l: Linha, it: ItemCald) {
   cmp('faturado_em', l.faturado_em, 'Faturado', fd);
   cmp('prev_finalizacao', l.prev_finalizacao, 'Prev. finalização', fd);
   cmp('finalizado_em', l.finalizado_em, 'Finalizado', fd);
+  if (l.empresa) cmp('empresa', l.empresa, 'Empresa', v => nomeEmpresa(v as string));
+  else if (empresaPadrao && !it.empresa) { set.empresa = empresaPadrao; mud.push(`Empresa: ${nomeEmpresa(empresaPadrao)}`); }
   if (l.parcial && !it.parcial) { set.parcial = true; mud.push('Marcado PARCIAL'); }
   if (l.obs && !it.obs) { set.obs = l.obs; mud.push(`Obs: ${l.obs}`); }
 

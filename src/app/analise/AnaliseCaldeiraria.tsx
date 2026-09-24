@@ -7,8 +7,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { getToken, podeVerValores, podeLancarCaldeiraria } from '@/lib/auth';
 import {
   AREAS_CALD, AREA_POR_CODIGO, hojeISO, fmtData, inicioSemana, somarDias, dataChegada, diasEntre, DIAS_PARADO,
-  situacaoItem, type ItemCald,
+  situacaoItem, passaEmpresa, nomeEmpresa, type ItemCald,
 } from '@/lib/caldPlano';
+import { FiltroEmpresa } from '@/app/cald-plano/comum';
 
 const C = { azul: '#1a3a5c', azul2: '#1d4ed8', verde: '#16a34a', laranja: '#d97706', vermelho: '#dc2626', roxo: '#7c3aed', cinza: '#64748b', teal: '#0d9488' };
 const nomeArea = (c: string | null) => (c ? AREA_POR_CODIGO[c]?.nome ?? c : '—');
@@ -57,7 +58,10 @@ function daSemana(itens: ItemCald[], ini: string, hoje: string) {
 
 export default function AnaliseCaldeiraria() {
   const hoje = hojeISO();
-  const [itens, setItens] = useState<ItemCald[] | null>(null);
+  const [todosItens, setItens] = useState<ItemCald[] | null>(null);
+  // Empresa: '' = todas (Aços Vital + Uberaba + HRM) · 'sem' = sem empresa.
+  const [fEmp, setFEmp] = useState('');
+  const itens = useMemo(() => (todosItens ? todosItens.filter(i => passaEmpresa(i, fEmp)) : null), [todosItens, fEmp]);
   const [erro, setErro] = useState('');
   const [semana, setSemana] = useState(inicioSemana(hoje));
   const [grupo, setGrupo] = useState<Grupo | null>(null);
@@ -195,11 +199,11 @@ export default function AnaliseCaldeiraria() {
     const prev = previsao.flatMap(p => p.finalizar.map(i => ({ Semana: lblSemana(p.ini), ...linha(i) })));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(prev), 'Previsão próximas semanas');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pedidos.map(p => ({
-      Pedido: p.pedido, Cliente: p.cliente, Vendedor: p.vendedor, Itens: p.itens.length, Quantidade: somaUn(p.itens),
+      Pedido: p.pedido, Empresa: nomeEmpresa(p.itens[0]?.empresa), Cliente: p.cliente, Vendedor: p.vendedor, Itens: p.itens.length, Quantidade: somaUn(p.itens),
       'Onde está': p.aberto ? p.onde.map(o => `${o.nome}${o.dias !== null ? ` (${o.dias}d)` : ''}`).join(', ') : 'Finalizado', Chegou: fmtData(p.chegou), Dias: p.diasTotal ?? '', 'Prev. finalização': fmtData(p.prev),
       Finalizado: fmtData(p.finalizado), Atrasado: p.atrasado ? 'Sim' : '', ...(verValores ? { 'Valor R$': p.valor ?? '' } : {}),
     }))), 'Pedidos');
-    XLSX.writeFile(wb, `caldeiraria_semana_${S.ini}.xlsx`);
+    XLSX.writeFile(wb, `caldeiraria_${fEmp || 'todas'}_semana_${S.ini}.xlsx`);
   }
 
   const card: React.CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 16, marginBottom: 18 };
@@ -242,6 +246,9 @@ export default function AnaliseCaldeiraria() {
 
   return (
     <div>
+      {/* Empresa */}
+      <div className="no-print" style={{ marginBottom: 10 }}><FiltroEmpresa valor={fEmp} onChange={setFEmp} /></div>
+
       {/* Seletor de semana */}
       <div className="no-print" style={{ ...card, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginRight: 4 }}>Semana</span>
@@ -257,7 +264,7 @@ export default function AnaliseCaldeiraria() {
       </div>
 
       <div className="cp-print-bloco" style={{ fontSize: 13, color: C.cinza, margin: '0 0 10px' }}>
-        🏗 <b style={{ color: C.azul }}>Caldeiraria</b> · semana de <b>{lblSemana(S.ini)}</b>{semanaAtual ? ' (em andamento)' : ''} · comparado com a semana anterior ({lblSemana(Sant.ini)})
+        🏗 <b style={{ color: C.azul }}>Caldeiraria</b>{fEmp ? <> · <b style={{ color: C.azul }}>{fEmp === 'sem' ? 'Sem empresa' : nomeEmpresa(fEmp)}</b></> : ' · todas as empresas'} · semana de <b>{lblSemana(S.ini)}</b>{semanaAtual ? ' (em andamento)' : ''} · comparado com a semana anterior ({lblSemana(Sant.ini)})
       </div>
 
       {/* KPIs da semana */}
