@@ -27,8 +27,10 @@ export async function GET(req: Request) {
   if (user.somente_leitura === true) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   const users = await sql`
-    SELECT id, username, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, ve_todos_pedidos, pode_desfazer_recebimento, acesso_hrm, pode_definir_previsao, oculta_valores, acesso_planejamento, acesso_conferencia_hrm
-    FROM usuarios_usuario
+    SELECT id, username, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, ve_todos_pedidos, pode_desfazer_recebimento, acesso_hrm, pode_definir_previsao, oculta_valores, acesso_planejamento,
+      -- via to_jsonb: não quebra a lista se a coluna nova ainda não existir no banco
+      (to_jsonb(u) ->> 'acesso_conferencia_hrm') = 'true' AS acesso_conferencia_hrm
+    FROM usuarios_usuario u
     ORDER BY is_active DESC, nome
   `;
 

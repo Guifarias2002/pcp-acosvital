@@ -77,7 +77,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: 'Usuario e senha obrigatorios' }, { status: 400 });
 
     const buscarUsuario = () => sql`
-      SELECT id, username, password, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, ve_todos_pedidos, pode_desfazer_recebimento, pode_ver_analise, acesso_hrm, pode_definir_previsao, pode_ver_nao_localizados, oculta_valores, acesso_planejamento, acesso_conferencia_hrm
+      SELECT id, username, password, nome, is_staff, is_active, perfil, setor, setores, somente_leitura, ve_todos_pedidos, pode_desfazer_recebimento, pode_ver_analise, acesso_hrm, pode_definir_previsao, pode_ver_nao_localizados, oculta_valores, acesso_planejamento
       FROM usuarios_usuario
       WHERE username = ${String(username).slice(0, 150)}
     `;
@@ -134,7 +134,14 @@ export async function POST(req: Request) {
     const podeVerNaoLocalizados = user.pode_ver_nao_localizados === true;
     const ocultaValores = user.oculta_valores === true;
     const acessoPlanejamento = user.acesso_planejamento === true;
-    const acessoConferenciaHrm = user.acesso_conferencia_hrm === true;
+    // Flag nova lida À PARTE e tolerante a falha: se a coluna ainda não existir
+    // no banco (migração não aplicada), o login segue normal com a flag false —
+    // nunca derruba o login de todo mundo por causa de uma coluna nova.
+    let acessoConferenciaHrm = false;
+    try {
+      const [f] = await sql`SELECT acesso_conferencia_hrm FROM usuarios_usuario WHERE id = ${user.id}`;
+      acessoConferenciaHrm = f?.acesso_conferencia_hrm === true;
+    } catch { /* coluna ainda não existe — segue sem a flag */ }
     const token = await signToken({
       id: user.id,
       username: user.username,
