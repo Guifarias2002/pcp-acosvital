@@ -139,6 +139,86 @@ function produtoDasObservacoes(observacoes: string): { codigo?: string; descrica
   } catch { return null; }
 }
 
+
+// ── Filtro de setores (digitar / colar lista / copiar roteiro) ─────────────
+// Sem acento/maiúscula/pontuação, pra "inspecao" achar "Inspeção".
+const normSetor = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+// Um pedaço de texto → código do setor: nome igual; senão o nome que CONTÉM o
+// texto (ou vice-versa) — o mais curto ganha, pra "Solda" não virar "Inspeção Fit-Up Solda".
+function setorDoTexto(txt: string): string | null {
+  const t = normSetor(txt.replace(/^\s*\d+[.)-]?\s*/, '')); // tira "3. " do começo
+  if (!t) return null;
+  const cands = MENU_SETORES.map(c => ({ c, n: normSetor(NOMES[c] || c) }));
+  const igual = cands.find(x => x.n === t);
+  if (igual) return igual.c;
+  const parciais = cands.filter(x => x.n.includes(t) || t.includes(x.n)).sort((a, b) => a.n.length - b.n.length);
+  return parciais[0]?.c ?? null;
+}
+
+// Campo acima dos setores disponíveis. Digitar filtra (Enter adiciona o 1º);
+// colar uma LISTA (linhas, vírgulas, ";" ou "→") adiciona todos na ordem.
+function FiltroSetores({ roteiro, onChange, onFiltro }: { roteiro: string[]; onChange: (r: string[]) => void; onFiltro: (f: string) => void }) {
+  const [txt, setTxt] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
+  const muda = (v: string) => { setTxt(v); onFiltro(v); };
+  function colou(e: React.ClipboardEvent<HTMLInputElement>) {
+    const colado = e.clipboardData.getData('text');
+    const partes = colado.split(/\r?\n|;|,|→|->|\t/).map(x => x.trim()).filter(Boolean);
+    if (partes.length < 2) return; // 1 palavra só = filtro normal
+    e.preventDefault();
+    const novos: string[] = []; const naoAchou: string[] = [];
+    for (const pt of partes) {
+      const c = setorDoTexto(pt);
+      if (!c) { if (normSetor(pt) !== 'emissao') naoAchou.push(pt); continue; }
+      // Cada setor entra 1x no roteiro (o editor não repete setor).
+      if (roteiro.includes(c) || novos.includes(c)) continue;
+      novos.push(c);
+    }
+    if (novos.length) onChange([...roteiro, ...novos]);
+    setMsg({ ok: !naoAchou.length, t: `${novos.length} setor(es) adicionado(s)${naoAchou.length ? ` · não reconhecido(s): ${naoAchou.join(', ')}` : ''}` });
+    muda('');
+  }
+  async function copiar() {
+    const t = ['Emissão', ...roteiro.map(c => NOMES[c] || c)].join('\n');
+    try { await navigator.clipboard.writeText(t); setMsg({ ok: true, t: 'Roteiro copiado — cole no campo de outro componente.' }); }
+    catch { setMsg({ ok: false, t: 'Não consegui copiar (permissão do navegador).' }); }
+  }
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: '1 1 260px', maxWidth: 420 }}>
+          <i className="bi bi-search" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 13 }} />
+          <input value={txt} onChange={e => muda(e.target.value)} onPaste={colou}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                const alvo = MENU_SETORES.filter(c => !roteiro.includes(c)).find(c => normSetor(NOMES[c] || c).includes(normSetor(txt)));
+                if (txt.trim() && alvo) { onChange([...roteiro, alvo]); muda(''); }
+              }
+              if (e.key === 'Escape') muda('');
+            }}
+            placeholder="Filtrar setor… ou cole uma lista de setores"
+            style={{ width: '100%', border: '1.5px solid #dee2e6', borderRadius: 20, padding: '6px 30px 6px 30px', fontSize: 12.5 }} />
+          {txt && <button type="button" onClick={() => muda('')} title="Limpar" style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer' }}><i className="bi bi-x-circle-fill" /></button>}
+        </div>
+        {roteiro.length > 0 && (
+          <button type="button" onClick={copiar} title="Copia a sequência pra colar em outro componente"
+            style={{ border: '1px solid #c7d7ee', background: '#eef4fb', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, color: '#1a3a5c', cursor: 'pointer' }}>
+            <i className="bi bi-clipboard" style={{ marginRight: 5 }} />Copiar roteiro
+          </button>
+        )}
+      </div>
+      {msg && <div style={{ fontSize: 11.5, marginTop: 4, fontWeight: 600, color: msg.ok ? '#166534' : '#b45309' }}>{msg.t}</div>}
+      <div style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 3 }}>Digite pra filtrar (Enter adiciona o 1º) · cole uma lista (uma por linha, vírgula ou →) pra adicionar todos na ordem</div>
+    </div>
+  );
+}
+// Filtra a lista de disponíveis pelo texto digitado.
+const filtrarSetores = (lista: string[], f: string) => {
+  const t = normSetor(f);
+  return t ? lista.filter(c => normSetor(NOMES[c] || c).includes(t)) : lista;
+};
+
 // Um componente da OP com o próprio roteiro (sub-item = filho do produto).
 interface CompRot { codigo: string; descricao: string; quantidade: string; unidade: string; roteiro: string[]; }
 
@@ -146,6 +226,7 @@ interface CompRot { codigo: string; descricao: string; quantidade: string; unida
 // Sempre começa em "Emissão" (fixo, passo 1). Clica pra adicionar; setinhas pra
 // ordenar; ✕ pra remover.
 function RoteiroPicker({ roteiro, onChange }: { roteiro: string[]; onChange: (r: string[]) => void }) {
+  const [filtro, setFiltro] = useState('');
   const mov = (i: number, dir: -1 | 1) => {
     const j = i + dir; if (j < 0 || j >= roteiro.length) return;
     const n = roteiro.slice(); [n[i], n[j]] = [n[j], n[i]]; onChange(n);
@@ -164,8 +245,10 @@ function RoteiroPicker({ roteiro, onChange }: { roteiro: string[]; onChange: (r:
         ))}
         {roteiro.length === 0 && <span style={{ fontSize: 12, color: '#b45309' }}>sem setor — clique abaixo</span>}
       </div>
+      <FiltroSetores roteiro={roteiro} onChange={onChange} onFiltro={setFiltro} />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {MENU_SETORES.filter(s => !roteiro.includes(s)).map(s => (
+        {filtro && !filtrarSetores(MENU_SETORES.filter(s => !roteiro.includes(s)), filtro).length && <span style={{ fontSize: 12, color: '#94a3b8' }}>Nenhum setor com &quot;{filtro}&quot;.</span>}
+        {filtrarSetores(MENU_SETORES.filter(s => !roteiro.includes(s)), filtro).map(s => (
           <button key={s} type="button" onClick={() => onChange([...roteiro, s])} style={{ border: '1px solid #dee2e6', background: '#fff', borderRadius: 20, padding: '4px 10px', fontSize: 11.5, fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
             + {NOMES[s] || s}
           </button>
@@ -207,6 +290,7 @@ function Conteudo() {
   const [quantidade, setQuantidade] = useState('1');
   const [unidade, setUnidade] = useState('PC');
   const [roteiroSel, setRoteiroSel] = useState<string[]>([]);
+  const [filtroProd, setFiltroProd] = useState(''); // filtro dos setores do produto
   // Rastreio pelo cliente + entrega contratual (pré-preenchidos da leitura da OP:
   // PO = pedido do cliente; entrega = data lida no cabeçalho, já em ISO).
   const [pedCliente, setPedCliente] = useState('');
@@ -916,8 +1000,10 @@ function Conteudo() {
             {/* Disponíveis pra adicionar */}
             {!preview && <div className="no-print">
               <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>Adicionar setor (clique na ordem):</div>
+              <FiltroSetores roteiro={roteiroSel} onChange={setRoteiroSel} onFiltro={setFiltroProd} />
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {MENU_SETORES.filter(s => !roteiroSel.includes(s)).map(s => (
+                {filtroProd && !filtrarSetores(MENU_SETORES.filter(s => !roteiroSel.includes(s)), filtroProd).length && <span style={{ fontSize: 12, color: '#94a3b8' }}>Nenhum setor com &quot;{filtroProd}&quot;.</span>}
+                {filtrarSetores(MENU_SETORES.filter(s => !roteiroSel.includes(s)), filtroProd).map(s => (
                   <button key={s} onClick={() => toggleSetor(s)} style={{ border: '1px solid #dee2e6', background: '#fff', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
                     + {NOMES[s] || s}
                   </button>
