@@ -208,7 +208,7 @@ export default function CaldPlanoPage() {
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
           <div>
             <h4 style={{ margin: 0, fontWeight: 800, color: C.azul, fontSize: 22 }}>
-              <i className="bi bi-kanban" style={{ marginRight: 8 }} />Planejamento da Caldeiraria
+              <i className="bi bi-kanban" style={{ marginRight: 8 }} />PCP Caldeiraria
             </h4>
             <small style={{ color: C.fraco }}>
               {planeja

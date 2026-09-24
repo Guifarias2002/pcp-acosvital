@@ -156,8 +156,9 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
   const podePlan = podePlanejar(user);
   // Conferência do PCP HRM: staff OU flag acesso_conferencia_hrm (ex.: Alan).
   const confHrm = !isAdmin && podeConferirHrm(user);
-  // Planejamento da Caldeiraria (/cald-plano): staff vê no workspace HRM; o
-  // coordenador (lista PLANO_CALD_LOGINS, não-staff) vê sempre.
+  // PCP Caldeiraria (/cald-plano, Planejamento do Val): 1º item do grupo
+  // 🏗 Caldeiraria. Staff vê no workspace HRM; o responsável (lista
+  // PLANO_CALD_LOGINS, não-staff) vê sempre.
   const planCald = !isAdmin && podePlanejarCaldeiraria(user);
   const isVendedor = !isAdmin && user?.perfil === 'vendedor';
   // Conta de VENDAS (visualização): vendedor com ve_todos_pedidos vê TODOS os
@@ -287,10 +288,9 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
 
           {/* PCP HRM — Anexar OP. Admin/PCP vê no workspace HRM; usuário comum
               com a flag acesso_hrm vê sempre (sem seletor de workspace). */}
-          {(emHrm || (!isAdmin && (!!user?.acesso_hrm || confHrm || planCald))) && (
+          {(emHrm || (!isAdmin && (!!user?.acesso_hrm || confHrm))) && (
             <NavGroup label="🏭 PCP HRM" defaultOpen={true}>
-              {(emHrm || !!user?.acesso_hrm || confHrm) && <NavItem href="/pcp-hrm" label="Anexar OP" icon="bi-file-earmark-arrow-up" onNav={fechar} />}
-              {(emHrm || planCald) && <NavItem href="/cald-plano" label="Planejamento Caldeiraria" icon="bi-kanban" onNav={fechar} />}
+              <NavItem href="/pcp-hrm" label="Anexar OP" icon="bi-file-earmark-arrow-up" onNav={fechar} />
               {/* Conferência + visões de PCP: só PCP/admin (no workspace HRM). O
                   perfil restrito (acesso_hrm puro) só anexa OP — não confere nem
                   vê o painel/kanban (a API do painel é staff-only). */}
@@ -322,8 +322,11 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
           ) : null}
 
           {/* Caldeiraria — no workspace HRM pro admin; operador vê sempre (intocado) */}
-          {(!isAdmin || emHrm) && (veTodosSetores || meusSetores.includes('caldeiraria') || meusSetores.some(cod => SETORES_CALDEIRARIA_EXTRA.includes(cod))) && (
+          {/* + o PCP da Caldeiraria (Val) aparece aqui mesmo sem setor da Caldeiraria. */}
+          {(((!isAdmin || emHrm) && (veTodosSetores || meusSetores.includes('caldeiraria') || meusSetores.some(cod => SETORES_CALDEIRARIA_EXTRA.includes(cod)))) || planCald) && (
             <NavGroup label="🏗 Caldeiraria" defaultOpen={true}>
+              {/* PCP da Caldeiraria (Planejamento do Val) — 1º item, acima do Recebimento. */}
+              {(emHrm || planCald) && <NavItem href="/cald-plano" label="PCP Caldeiraria" icon="bi-kanban" onNav={fechar} />}
               {(veTodosSetores || meusSetores.includes('caldeiraria')) && (
                 <NavItem href="/setor/caldeiraria" label="Recebimento" icon={SETOR_ICONS.caldeiraria} onNav={fechar} />
               )}

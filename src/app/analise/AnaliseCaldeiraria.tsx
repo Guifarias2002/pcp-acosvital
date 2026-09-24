@@ -201,7 +201,7 @@ export default function AnaliseCaldeiraria() {
         <button className={`achip ${semana === somarDias(inicioSemana(hoje), -7) ? 'on' : ''}`} onClick={() => setSemana(somarDias(inicioSemana(hoje), -7))}>Semana passada</button>
         <input type="date" value={semana} onChange={e => e.target.value && setSemana(inicioSemana(e.target.value))} style={{ border: '2px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', fontSize: 13, fontWeight: 600, color: C.azul }} title="Escolher qualquer dia da semana" />
         <div style={{ flex: 1 }} />
-        {podeLancarCaldeiraria() && <a href="/cald-plano" className="abtn" style={{ textDecoration: 'none', color: C.azul }}><i className="bi bi-kanban" style={{ marginRight: 6 }} />Planejamento da Caldeiraria</a>}
+        {podeLancarCaldeiraria() && <a href="/cald-plano" className="abtn" style={{ textDecoration: 'none', color: C.azul }}><i className="bi bi-kanban" style={{ marginRight: 6 }} />PCP Caldeiraria</a>}
         <button className="abtn" onClick={exportar}><i className="bi bi-file-earmark-excel" style={{ marginRight: 6 }} />Exportar Excel</button>
       </div>
 
