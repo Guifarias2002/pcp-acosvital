@@ -16,6 +16,7 @@ import { getValoresMes } from '@/lib/api';
 import { getUser, podeVerValoresMes } from '@/lib/auth';
 import { STATUS_LABELS } from '@/lib/types';
 import ValoresCaldeiraria from './ValoresCaldeiraria';
+import { IconeFlange, IconeMascaraSolda } from '@/components/IconesFabrica';
 
 interface ItemProduto {
   codigo: string;
@@ -324,7 +325,8 @@ export default function ValoresMesPage() {
           <button key={o.id} type="button" onClick={() => setFab(o.id)} style={{
             border: 'none', padding: '8px 16px', fontSize: 13, fontWeight: 800, cursor: 'pointer',
             background: fab === o.id ? '#1a3a5c' : '#fff', color: fab === o.id ? '#fff' : '#64748b',
-          }}><i className={`bi ${o.icon}`} style={{ marginRight: 6 }} />{o.rot}</button>
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+          }}>{o.id === 'flange' ? <IconeFlange size={18} /> : <IconeMascaraSolda size={18} />}{o.rot}</button>
         ))}
       </div>
       {cald && (

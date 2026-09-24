@@ -136,6 +136,7 @@ export interface LinhaImport {
   material: string;
   quantidade: number | null;
   unidade: string;
+  valor: number | null;            // coluna VALOR (opcional na planilha)
   areas: string[];
   etapas: EtapaCald[];
   area_atual: string | null;
@@ -227,6 +228,7 @@ export function interpretarPlanilha(rows: unknown[][], anoPadrao = new Date().ge
   const cPrevFin = col(h => h.includes('prev') && h.includes('final'));
   const cFin = col(h => h === 'finalizado');
   const cObs = col(h => h.startsWith('obs'));
+  const cValor = col(h => h.startsWith('valor'));
   const colsArea: { idx: number; area: string }[] = [];
   header.forEach((h, idx) => { const a = COLUNA_AREA[h.replace(/\s/g, '')]; if (a) colsArea.push({ idx, area: a }); });
 
@@ -265,6 +267,18 @@ export function interpretarPlanilha(rows: unknown[][], anoPadrao = new Date().ge
       etapas.push({ area, entrada: data, previsao: null, fornecedor, retorno_previsto: null });
     }
 
+    // Valor (R$) — número do Excel ou texto "R$ 12.345,67".
+    let valor: number | null = null;
+    if (cValor >= 0 && row[cValor] !== '' && row[cValor] != null) {
+      const v = row[cValor];
+      if (typeof v === 'number') valor = v;
+      else {
+        const t = String(v).replace(/[R$\s]/g, '');
+        const n = Number(/,\d{1,2}$/.test(t) ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, ''));
+        if (Number.isFinite(n)) valor = n; else avisos.push(`Valor "${String(v).trim()}" não reconhecido`);
+      }
+    }
+
     const pf = lerCelulaData(cPrevFat >= 0 ? row[cPrevFat] : '', anoPadrao);
     let prev_faturamento: string | null = null, faturado_em: string | null = null;
     if (pf.data && /fatur/i.test(pf.resto)) faturado_em = pf.data; else prev_faturamento = pf.data;
@@ -293,6 +307,7 @@ export function interpretarPlanilha(rows: unknown[][], anoPadrao = new Date().ge
       material: material || '(sem material)',
       quantidade: qtd.quantidade,
       unidade: qtd.unidade,
+      valor,
       areas, etapas, area_atual, status,
       prev_faturamento, faturado_em,
       prev_finalizacao: pfin.data,

@@ -274,6 +274,15 @@ export function podeLancarCaldeiraria(u?: JWTPayload | null): boolean {
   return podePlanejarCaldeiraria(user) || !!user?.is_staff;
 }
 
+// Pode VER a Análise da CALDEIRARIA (Análise PCP → Caldeiraria, só leitura)?
+// Quem vê a Análise PCP inteira + o PCP da Caldeiraria (Val) + quem confere a
+// Caldeiraria HRM (flag acesso_conferencia_hrm, ex.: Alan). Esses dois últimos
+// veem SÓ a aba Caldeiraria (os indicadores do Flange continuam restritos).
+export function podeVerAnaliseCaldeiraria(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return podeVerAnalise(user) || podeLancarCaldeiraria(user) || user?.acesso_conferencia_hrm === true;
+}
+
 // Pode editar/agir no sistema? Falso apenas para usuários somente-leitura.
 // Usado no client para esconder botões de ação. A garantia real está no back.
 export function podeEditar(u?: JWTPayload | null): boolean {

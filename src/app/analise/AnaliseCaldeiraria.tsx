@@ -61,6 +61,10 @@ export default function AnaliseCaldeiraria() {
   const [erro, setErro] = useState('');
   const [semana, setSemana] = useState(inicioSemana(hoje));
   const [grupo, setGrupo] = useState<Grupo | null>(null);
+  // Seção "Pedidos da Caldeiraria": 1 linha por pedido (abre os itens).
+  const [fPed, setFPed] = useState<'aberto' | 'finalizado' | 'todos'>('aberto');
+  const [buscaPed, setBuscaPed] = useState('');
+  const [pedAberto, setPedAberto] = useState<Set<string>>(new Set());
   const verValores = podeVerValores();
 
   useEffect(() => {
@@ -107,6 +111,37 @@ export default function AnaliseCaldeiraria() {
   }, [itens, hoje]);
   const semPrevisao = ativos.filter(i => !i.prev_finalizacao);
 
+  // Pedidos = itens agrupados pelo nº do pedido. "Em aberto" = tem item não
+  // finalizado; "finalizado" = todos os itens finalizados.
+  const pedidos = useMemo(() => {
+    const m = new Map<string, ItemCald[]>();
+    for (const i of itens || []) {
+      if (i.status === 'cancelado') continue;
+      const k = i.pedido;
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(i);
+    }
+    return Array.from(m.entries()).map(([pedido, its]) => {
+      const abertos = its.filter(i => i.status !== 'finalizado');
+      const chegadas = its.map(dataChegada).filter(Boolean) as string[];
+      const prevs = abertos.map(i => i.prev_finalizacao).filter(Boolean) as string[];
+      const fins = its.map(i => i.finalizado_em).filter(Boolean) as string[];
+      const onde = Array.from(new Set(abertos.map(i => i.status === 'andamento' ? nomeArea(i.area_atual) : i.status === 'aguardando' ? 'Chegando' : 'A planejar')));
+      return {
+        pedido, itens: its, aberto: abertos.length > 0,
+        cliente: its.find(i => i.cliente)?.cliente || '—',
+        vendedor: its.find(i => i.vendedor)?.vendedor || '—',
+        chegou: chegadas.sort()[0] || null,
+        prev: prevs.sort()[0] || null,
+        finalizado: abertos.length ? null : (fins.sort().pop() || null),
+        onde, atrasado: abertos.some(i => situacaoItem(i, hoje).atrasado),
+        valor: somaValor(its),
+      };
+    }).sort((a, b) => Number(b.aberto) - Number(a.aberto) || (b.chegou || '').localeCompare(a.chegou || '') || a.pedido.localeCompare(b.pedido, 'pt-BR', { numeric: true }));
+  }, [itens, hoje]);
+  const pedidosVis = pedidos.filter(p => (fPed === 'todos' || (fPed === 'aberto' ? p.aberto : !p.aberto))
+    && (!buscaPed || [p.pedido, p.cliente, p.vendedor, ...p.itens.map(i => i.material)].some(x => (x || '').toLowerCase().includes(buscaPed.toLowerCase()))));
+
   if (erro) return <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: 14, color: C.vermelho }}><i className="bi bi-x-circle-fill" style={{ marginRight: 8 }} />{erro}</div>;
   if (!itens || !S || !Sant) return <div style={{ textAlign: 'center', padding: 40, color: C.cinza }}><i className="bi bi-hourglass-split" style={{ fontSize: 24 }} /><p>Carregando Caldeiraria…</p></div>;
 
@@ -148,6 +183,11 @@ export default function AnaliseCaldeiraria() {
     for (const k of kpis) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(S[k.k].map(linha)), k.rot.slice(0, 30));
     const prev = previsao.flatMap(p => p.finalizar.map(i => ({ Semana: lblSemana(p.ini), ...linha(i) })));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(prev), 'Previsão próximas semanas');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pedidos.map(p => ({
+      Pedido: p.pedido, Cliente: p.cliente, Vendedor: p.vendedor, Itens: p.itens.length, Quantidade: somaUn(p.itens),
+      'Onde está': p.aberto ? p.onde.join(', ') : 'Finalizado', Chegou: fmtData(p.chegou), 'Prev. finalização': fmtData(p.prev),
+      Finalizado: fmtData(p.finalizado), Atrasado: p.atrasado ? 'Sim' : '', ...(verValores ? { 'Valor R$': p.valor ?? '' } : {}),
+    }))), 'Pedidos');
     XLSX.writeFile(wb, `caldeiraria_semana_${S.ini}.xlsx`);
   }
 
@@ -308,6 +348,54 @@ export default function AnaliseCaldeiraria() {
             <i className="bi bi-exclamation-triangle" /> <b>{semPrevisao.length} item(ns) em aberto sem previsão de finalização</b> — não entram na previsão acima. Defina no Planejamento da Caldeiraria.
           </div>
         )}
+      </div>
+
+      {/* Pedidos da Caldeiraria */}
+      <div style={{ ...card, marginTop: 18 }} className="cp-print-bloco">
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+          <Titulo icon="bi-card-list" t="Pedidos da Caldeiraria" s={`${pedidosVis.length} pedido(s) · ${pedidosVis.reduce((a, p) => a + p.itens.length, 0)} item(ns)${temValor && somaValor(pedidosVis.flatMap(p => p.itens)) !== null ? ` · ${fmtBRL(somaValor(pedidosVis.flatMap(p => p.itens))!)}` : ''} — clique no pedido para ver os itens`} />
+          <div className="no-print" style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            {(['aberto', 'finalizado', 'todos'] as const).map(f => (
+              <button key={f} className={`achip ${fPed === f ? 'on' : ''}`} onClick={() => setFPed(f)}>{f === 'aberto' ? 'Em aberto' : f === 'finalizado' ? 'Finalizados' : 'Todos'}</button>
+            ))}
+            <input value={buscaPed} onChange={e => setBuscaPed(e.target.value)} placeholder="Buscar pedido, cliente, material…"
+              style={{ border: '2px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', fontSize: 13, width: 220 }} />
+          </div>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>{['Pedido', 'Cliente', 'Vendedor', 'Itens', 'Quantidade', 'Onde está', 'Chegou', 'Prev. final.', 'Finalizado', ...(verValores ? ['Valor'] : [])].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+            <tbody>
+              {pedidosVis.map(p => {
+                const ab = pedAberto.has(p.pedido);
+                return [
+                  <tr key={p.pedido} style={{ cursor: 'pointer', background: ab ? '#f8fafc' : undefined }}
+                    onClick={() => setPedAberto(v => { const n = new Set(v); if (n.has(p.pedido)) n.delete(p.pedido); else n.add(p.pedido); return n; })}>
+                    <td style={{ ...td, fontWeight: 800, color: C.azul, whiteSpace: 'nowrap' }}><i className={`bi ${ab ? 'bi-chevron-down' : 'bi-chevron-right'}`} style={{ color: '#94a3b8', marginRight: 6 }} />{p.pedido}</td>
+                    <td style={td}>{p.cliente}</td>
+                    <td style={td}>{p.vendedor}</td>
+                    <td style={td}>{p.itens.length}</td>
+                    <td style={{ ...td, whiteSpace: 'nowrap' }}>{somaUn(p.itens)}</td>
+                    <td style={td}>{p.aberto ? p.onde.join(', ') : <span style={{ color: C.verde, fontWeight: 700 }}>Finalizado</span>}
+                      {p.atrasado && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, color: '#fff', background: C.vermelho, borderRadius: 6, padding: '1px 6px' }}>atrasado</span>}</td>
+                    <td style={{ ...td, whiteSpace: 'nowrap' }}>{fmtData(p.chegou) || '—'}</td>
+                    <td style={{ ...td, whiteSpace: 'nowrap' }}>{fmtData(p.prev) || '—'}</td>
+                    <td style={{ ...td, whiteSpace: 'nowrap' }}>{fmtData(p.finalizado) || '—'}</td>
+                    {verValores && <td style={{ ...td, whiteSpace: 'nowrap', textAlign: 'right', fontWeight: 700 }}>{p.valor !== null ? fmtBRL(p.valor) : '—'}</td>}
+                  </tr>,
+                  ab && (
+                    <tr key={p.pedido + '-itens'}>
+                      <td colSpan={verValores ? 10 : 9} style={{ padding: '4px 10px 12px 28px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                        <Tabela lista={p.itens} />
+                      </td>
+                    </tr>
+                  ),
+                ];
+              })}
+              {!pedidosVis.length && <tr><td colSpan={10} style={{ ...td, textAlign: 'center', color: '#cbd5e1' }}>Nenhum pedido.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 4 }}>

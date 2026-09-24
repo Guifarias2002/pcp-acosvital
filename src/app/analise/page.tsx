@@ -1,11 +1,12 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import AuthGuard from '@/components/AuthGuard';
-import { getToken, isAdministrador, podeVerAnalise, getUser, podeVerNaoLocalizados, podeRegistrarParadas } from '@/lib/auth';
+import { getToken, isAdministrador, podeVerAnalise, podeVerAnaliseCaldeiraria, getUser, podeVerNaoLocalizados, podeRegistrarParadas } from '@/lib/auth';
 import { MAQUINAS_POR_SETOR, fotoMaquina } from '@/lib/maquinas';
 import EstoqueDestino from './EstoqueDestino';
 import FaturamentoUpload from './FaturamentoUpload';
 import AnaliseCaldeiraria from './AnaliseCaldeiraria';
+import { IconeFlange, IconeMascaraSolda } from '@/components/IconesFabrica';
 
 const NOMES: Record<string, string> = {
   emissao: 'Emissão', usinagem: 'Usinagem', 'maçarico': 'Corte Maçarico', plasma: 'Corte Plasma',
@@ -209,6 +210,8 @@ export default function AnalisePage() {
   }
   const admin = isAdministrador();
   const podeVer = podeVerAnalise(); // admin OU usuário com a flag pode_ver_analise
+  // Alan (Conferência HRM) / Val (PCP Caldeiraria): entram só na aba Caldeiraria.
+  const soCald = !podeVer && podeVerAnaliseCaldeiraria();
 
   // Fábrica analisada: Flanges (tudo o que já existia) × Caldeiraria (relatório
   // semanal do Planejamento da Caldeiraria — /cald-plano). ?fabrica=caldeiraria
@@ -218,6 +221,7 @@ export default function AnalisePage() {
     let f: string | null = null;
     try { f = new URLSearchParams(window.location.search).get('fabrica') || localStorage.getItem('analise_fabrica'); } catch { /* storage off */ }
     if (f === 'caldeiraria' || f === 'flange') setFabrica(f);
+    if (!podeVerAnalise() && podeVerAnaliseCaldeiraria()) setFabrica('caldeiraria');
   }, []);
   function trocarFabrica(f: 'flange' | 'caldeiraria') {
     setFabrica(f);
@@ -230,7 +234,7 @@ export default function AnalisePage() {
       {([
         { id: 'flange' as const, rot: 'Flanges', sub: 'Indicadores de produção de flanges', icon: 'bi-circle' },
         { id: 'caldeiraria' as const, rot: 'Caldeiraria', sub: 'Chegou, em produção, finalizado e previsto — semana a semana', icon: 'bi-buildings' },
-      ]).map(o => {
+      ]).filter(o => !soCald || o.id === 'caldeiraria').map(o => {
         const on = fabrica === o.id;
         return (
           <button key={o.id} onClick={() => trocarFabrica(o.id)} className={on ? '' : 'no-print'} style={{
@@ -238,7 +242,7 @@ export default function AnalisePage() {
             border: `2px solid ${on ? C.azul : '#e2e8f0'}`, background: on ? C.azul : '#fff', color: on ? '#fff' : '#475569',
             boxShadow: on ? '0 4px 14px rgba(26,58,92,.18)' : 'none',
           }}>
-            <i className={`bi ${o.icon}`} style={{ fontSize: 22, opacity: on ? 1 : .7 }} />
+            <span style={{ display: 'inline-flex', opacity: on ? 1 : .7 }}>{o.id === 'flange' ? <IconeFlange size={30} /> : <IconeMascaraSolda size={30} />}</span>
             <span>
               <span style={{ display: 'block', fontSize: 16, fontWeight: 800 }}>{o.rot}</span>
               <span style={{ display: 'block', fontSize: 12, opacity: .8 }}>{o.sub}</span>
@@ -321,7 +325,7 @@ export default function AnalisePage() {
     setDe(d); setAte(a); carregar(d, a, setores);
   }
 
-  if (!podeVer) return (
+  if (!podeVer && !soCald) return (
     <AuthGuard><div style={{ padding: 40, textAlign: 'center', color: C.cinza }}>
       <i className="bi bi-lock-fill" style={{ fontSize: 32, color: C.vermelho }} />
       <p style={{ marginTop: 12, fontWeight: 700 }}>Acesso restrito.</p>
@@ -341,7 +345,7 @@ export default function AnalisePage() {
   const capMes = capSemana * 4.3;
   const saldoSemana = demSemana - capSemana;
 
-  if (fabrica === 'caldeiraria') return (
+  if (fabrica === 'caldeiraria' || soCald) return (
     <AuthGuard>
       <style>{`@media print{.no-print,#sidebar,.topbar{display:none!important}#main{margin-left:0!important}.analise{padding:0!important}.cp-print-bloco{break-inside:avoid}}
         .abtn{border:1.5px solid #e2e8f0;background:#fff;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;color:#334155;cursor:pointer}

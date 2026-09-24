@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
-import { podeLancarCaldeiraria, podePlanejarCaldeiraria, podeVerAnalise, podeVerValoresMes } from '@/lib/auth';
+import { podeLancarCaldeiraria, podePlanejarCaldeiraria, podeVerAnaliseCaldeiraria, podeVerValoresMes } from '@/lib/auth';
 import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
 import { ordenarAreas, isoValida, UNIDADES_CALD, PRIORIDADES_CALD } from '@/lib/caldPlano';
 import { carregarItensCald, registrarHistCald } from '@/lib/caldPlanoServer';
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 // Planejamento da Caldeiraria.
 // GET  → todos os itens (ativos + finalizados do último ano) com as etapas.
-//        Leitura também pra quem vê a Análise PCP (relatório semanal da Caldeiraria)
+//        Leitura também pra quem vê a Análise da Caldeiraria (inclui Alan/Val)
 //        e o "Valores por Mês" (aba Caldeiraria).
 // POST → LANÇA um pedido (1..N itens). Quem lança: PCP/staff ou o planejador.
 //        O item nasce "novo" (caixa "Aguardando planejamento" do coordenador).
@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
-  if (!podeLancarCaldeiraria(user) && !podeVerAnalise(user) && !podeVerValoresMes(user)) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  if (!podeVerAnaliseCaldeiraria(user) && !podeVerValoresMes(user)) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
   try {
     let itens;
     try {

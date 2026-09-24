@@ -323,10 +323,12 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
 
           {/* Caldeiraria — no workspace HRM pro admin; operador vê sempre (intocado) */}
           {/* + o PCP da Caldeiraria (Val) aparece aqui mesmo sem setor da Caldeiraria. */}
-          {(((!isAdmin || emHrm) && (veTodosSetores || meusSetores.includes('caldeiraria') || meusSetores.some(cod => SETORES_CALDEIRARIA_EXTRA.includes(cod)))) || planCald) && (
+          {(((!isAdmin || emHrm) && (veTodosSetores || meusSetores.includes('caldeiraria') || meusSetores.some(cod => SETORES_CALDEIRARIA_EXTRA.includes(cod)))) || planCald || confHrm) && (
             <NavGroup label="🏗 Caldeiraria" defaultOpen={true}>
               {/* PCP da Caldeiraria (Planejamento do Val) — 1º item, acima do Recebimento. */}
               {(emHrm || planCald) && <NavItem href="/cald-plano" label="PCP Caldeiraria" icon="bi-kanban" onNav={fechar} />}
+              {/* Análise da Caldeiraria (semana a semana + valores) — também pro Alan (Conferência HRM) e o Val. */}
+              {(emHrm || planCald || confHrm) && <NavItem href="/analise?fabrica=caldeiraria" label="Análise Caldeiraria" icon="bi-graph-up-arrow" onNav={fechar} />}
               {(veTodosSetores || meusSetores.includes('caldeiraria')) && (
                 <NavItem href="/setor/caldeiraria" label="Recebimento" icon={SETOR_ICONS.caldeiraria} onNav={fechar} />
               )}

@@ -8,7 +8,7 @@ import {
   AREAS_CALD, situacaoItem, hojeISO, fmtData, inicioSemana, somarDias, DIAS_PARADO,
   type ItemCald,
 } from '@/lib/caldPlano';
-import { C, CSS, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, fmtBRL, somaPorUnidade } from './comum';
+import { C, CSS, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, fmtBRL, somaPorUnidade, somaValor } from './comum';
 import LancarModal from './LancarModal';
 import ItemDetalhe from './ItemDetalhe';
 import ImportarModal from './ImportarModal';
@@ -273,7 +273,7 @@ export default function CaldPlanoPage() {
                         <span style={{ fontSize: 11, color: C.fraco }}>lançado por {it.criado_por_nome || '—'}</span>
                       </div>
                       <div style={{ fontSize: 12.5, fontWeight: 600, color: C.texto, margin: '2px 0' }}>{it.material}</div>
-                      <div style={{ fontSize: 11.5, color: C.cinza }}>{fmtQtd(it.quantidade, it.unidade)} · {it.cliente || '—'}</div>
+                      <div style={{ fontSize: 11.5, color: C.cinza }}>{fmtQtd(it.quantidade, it.unidade)} · {it.cliente || '—'}{verValores && it.valor !== null ? ` · ${fmtBRL(it.valor)}` : ''}</div>
                       <div style={{ fontSize: 11, color: C.fraco, marginTop: 4 }}>{it.areas.map(nomeArea).join(' → ') || 'sem roteiro'}</div>
                       {planeja && it.areas[0] && (
                         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
@@ -301,6 +301,7 @@ export default function CaldPlanoPage() {
                       <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 800, color: '#fff', background: col.itens.length ? col.cor : '#cbd5e1', borderRadius: 10, padding: '1px 9px' }}>{col.itens.length}</span>
                     </div>
                     <div style={{ fontSize: 11, color: C.cinza, marginTop: 3 }}>{col.itens.length ? somaPorUnidade(col.itens) : 'vazia'}</div>
+                    {verValores && somaValor(col.itens) !== null && <div style={{ fontSize: 11, color: '#065f46', fontWeight: 700 }}>{fmtBRL(somaValor(col.itens))}</div>}
                   </div>
                   <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 7, overflowY: 'auto', minHeight: 60 }}>
                     {col.itens.map((it, idx) => {
@@ -324,6 +325,7 @@ export default function CaldPlanoPage() {
                           </div>
                           <div style={{ fontSize: 12.5, fontWeight: 600, color: C.texto, margin: '2px 0', lineHeight: 1.3 }}>{it.material}</div>
                           <div style={{ fontSize: 11.5, color: C.cinza }}>{fmtQtd(it.quantidade, it.unidade)}{it.cliente ? ` · ${it.cliente}` : ''}</div>
+                          {verValores && it.valor !== null && <div style={{ fontSize: 11.5, color: '#065f46', fontWeight: 700 }}>{fmtBRL(it.valor)}</div>}
                           {it.area_atual === 'industrializacao' && et?.fornecedor && (
                             <div style={{ fontSize: 11.5, color: '#475569', marginTop: 2 }}><i className="bi bi-truck" /> {et.fornecedor}{et.retorno_previsto ? ` · volta ${fmtData(et.retorno_previsto)}` : ''}</div>
                           )}
