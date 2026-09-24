@@ -271,7 +271,7 @@ export function podeGerenciarUsuarios(u?: JWTPayload | null): boolean {
 // mexer no SELECT do login. Planejar = distribuir por área, ordem, previsões,
 // andar com o item, finalizar, importar. Administrador sempre pode. Pra liberar
 // o coordenador, adicione o username aqui.
-const PLANO_CALD_LOGINS = new Set<string>(['gabriel.ribeiro', 'pedro.henrique']);
+const PLANO_CALD_LOGINS = new Set<string>(['gabriel.ribeiro', 'pedro.henrique', 'elivaldo.santos']);
 export function podePlanejarCaldeiraria(u?: JWTPayload | null): boolean {
   const user = u ?? getUser();
   return isAdministrador(user) || (!!user && PLANO_CALD_LOGINS.has(user.username));
