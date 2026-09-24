@@ -244,6 +244,19 @@ export async function POST(req: Request, ctx: Ctx) {
           if (!planeja && it.status !== 'novo') return { status: 403, erro: 'Item já planejado — peça ao planejamento pra cancelar' };
           await tx`UPDATE producao_cald_plano_item SET status = 'cancelado', atualizado_em = NOW() WHERE id = ${id}`;
           await registrarHistCald(tx, id, 'cancelar', txt(b.motivo, 300) ? `Cancelado: ${txt(b.motivo, 300)}` : 'Cancelado', quem);
+        } else if (acao === 'cobrar') {
+          // Caixa de pendências: registra quem foi cobrado, o quê e quando deve
+          // responder. Sem nova data de retorno → fica pendente como antes.
+          const quemCob = txt(b.quem, 120);
+          const msg = txt(b.mensagem, 1000);
+          if (!quemCob && !msg) return { status: 400, erro: 'Informe quem foi cobrado ou a mensagem' };
+          const retorno = b.retorno ? isoValida(b.retorno) : null;
+          await tx`
+            INSERT INTO producao_cald_plano_cobranca (item_id, quem, mensagem, retorno, criado_por_nome)
+            VALUES (${id}, ${quemCob}, ${msg}, ${retorno}, ${quem})
+          `;
+          await tx`UPDATE producao_cald_plano_item SET atualizado_em = NOW() WHERE id = ${id}`;
+          await registrarHistCald(tx, id, 'cobrar', `Cobrado${quemCob ? ` ${quemCob}` : ''}${msg ? `: ${msg}` : ''}${retorno ? ` · retorno até ${fmtData(retorno)}` : ''}`, quem);
         } else if (acao === 'restaurar') {
           if (it.status !== 'cancelado') return { status: 400, erro: 'Item não está cancelado' };
           const st = it.finalizado_em ? 'finalizado' : it.area_atual ? 'andamento' : 'novo';

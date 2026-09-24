@@ -32,7 +32,35 @@ export async function carregarItensCald(db: Sql = sql, ids?: number[]): Promise<
            OR i.atualizado_em > NOW() - INTERVAL '400 days')
     ORDER BY i.id
   `;
-  return rows as unknown as ItemCald[];
+  const itens = rows as unknown as ItemCald[];
+  // Última cobrança de cada item — consulta à parte e tolerante (se a tabela da
+  // M50 ainda não existir, a tela continua funcionando sem cobranças).
+  if (itens.length) {
+    const ids = itens.map(i => i.id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const consulta = (q: any) => q`
+      SELECT DISTINCT ON (item_id) item_id, quem, mensagem, retorno::text AS retorno, criado_por_nome, criado_em
+      FROM producao_cald_plano_cobranca
+      WHERE item_id = ANY(${ids}::int[])
+      ORDER BY item_id, criado_em DESC, id DESC
+    `;
+    try {
+      // Dentro de transação, erro de consulta abortaria a transação toda →
+      // isola num SAVEPOINT. Fora dela, consulta direta.
+      const cob: Record<string, unknown>[] = 'savepoint' in db
+        ? await (db as postgres.TransactionSql).savepoint(sp => consulta(sp))
+        : await consulta(db);
+      const porItem = new Map(cob.map(c => [c.item_id as number, c]));
+      for (const it of itens) {
+        const c = porItem.get(it.id);
+        it.cobranca = c ? {
+          quem: (c.quem as string) ?? null, mensagem: (c.mensagem as string) ?? null, retorno: (c.retorno as string) ?? null,
+          criado_por_nome: (c.criado_por_nome as string) ?? null, criado_em: String(c.criado_em),
+        } : null;
+      }
+    } catch { /* sem tabela de cobranças ainda */ }
+  }
+  return itens;
 }
 
 export async function registrarHistCald(db: Sql, itemId: number, acao: string, detalhe: string | null, usuario: string | null) {

@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 51;
+const SCHEMA_VERSION = 52;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -815,4 +815,23 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
     `);
     await sp.unsafe(`CREATE INDEX IF NOT EXISTS idx_cald_plano_hist_item ON producao_cald_plano_hist (item_id, criado_em DESC)`);
   }).catch(e => console.error('[migrations] M49 (planejamento caldeiraria) falhou:', e));
+
+  // M50 (24/09): COBRANÇAS da caixa de pendências do PCP Caldeiraria. Item com
+  // prazo vencido → o coordenador "cobra alguém" (quem, o quê, retorno esperado).
+  // Enquanto o retorno não vence, o item fica em "Cobrados — aguardando". Ver
+  // /api/cald-plano/[id] (acao 'cobrar') e a caixa de pendências em /cald-plano.
+  await sql.savepoint(async (sp) => {
+    await sp.unsafe(`
+      CREATE TABLE IF NOT EXISTS producao_cald_plano_cobranca (
+        id              SERIAL PRIMARY KEY,
+        item_id         INTEGER NOT NULL REFERENCES producao_cald_plano_item(id) ON DELETE CASCADE,
+        quem            TEXT,
+        mensagem        TEXT,
+        retorno         DATE,
+        criado_por_nome TEXT,
+        criado_em       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await sp.unsafe(`CREATE INDEX IF NOT EXISTS idx_cald_plano_cobranca_item ON producao_cald_plano_cobranca (item_id, criado_em DESC)`);
+  }).catch(e => console.error('[migrations] M50 (cobranças caldeiraria) falhou:', e));
 }

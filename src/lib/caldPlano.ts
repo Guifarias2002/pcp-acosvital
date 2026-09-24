@@ -68,6 +68,8 @@ export interface ItemCald {
   criado_em: string;
   atualizado_em: string;
   etapas: EtapaCald[];
+  // Última cobrança da caixa de pendências (null = nunca cobrado).
+  cobranca?: { quem: string | null; mensagem: string | null; retorno: string | null; criado_por_nome: string | null; criado_em: string } | null;
 }
 
 // ── Datas ──────────────────────────────────────────────────────────────────
@@ -316,6 +318,35 @@ export function interpretarPlanilha(rows: unknown[][], anoPadrao = new Date().ge
     });
   }
   return { linhas };
+}
+
+// ── Caixa de pendências (prazo vencido) ────────────────────────────────────
+// Cada motivo vira uma "mensagem" na caixa; o coordenador resolve com nova data,
+// cobrando alguém, ou finalizando. Cobrado com retorno ainda no futuro = fica em
+// "Cobrados — aguardando" (sai da lista de pendentes até o retorno vencer).
+export type MotivoPend = 'prazo_entrega' | 'prev_finalizacao' | 'area' | 'terceiro';
+export const MOTIVO_TXT: Record<MotivoPend, string> = {
+  prazo_entrega: 'Prazo de entrega vencido',
+  prev_finalizacao: 'Previsão de finalização vencida',
+  area: 'Previsão de saída da área vencida',
+  terceiro: 'Retorno do terceiro vencido',
+};
+export interface Pendencia { item: ItemCald; motivos: { motivo: MotivoPend; data: string; dias: number }[]; maiorAtraso: number; aguardandoCobranca: boolean }
+
+export function pendenciasItem(it: ItemCald, hoje = hojeISO()): Pendencia | null {
+  if (it.status === 'finalizado' || it.status === 'cancelado') return null;
+  const m: Pendencia['motivos'] = [];
+  const add = (motivo: MotivoPend, data: string | null | undefined) => { if (data && data < hoje) m.push({ motivo, data, dias: diasEntre(data, hoje) }); };
+  add('prazo_entrega', it.prazo_entrega);
+  add('prev_finalizacao', it.prev_finalizacao);
+  const et = it.area_atual ? it.etapas.find(e => e.area === it.area_atual) : undefined;
+  if (it.status === 'andamento') {
+    add('area', et?.previsao);
+    if (it.area_atual === AREA_TERCEIRO) add('terceiro', et?.retorno_previsto);
+  }
+  if (!m.length) return null;
+  const aguardando = !!it.cobranca?.retorno && it.cobranca.retorno >= hoje;
+  return { item: it, motivos: m, maiorAtraso: Math.max(...m.map(x => x.dias)), aguardandoCobranca: aguardando };
 }
 
 // ── Relatório semanal (diretoria / contabilidade) ──────────────────────────

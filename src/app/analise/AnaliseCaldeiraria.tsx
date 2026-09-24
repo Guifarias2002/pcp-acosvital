@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getToken, podeVerValores, podeLancarCaldeiraria } from '@/lib/auth';
 import {
-  AREAS_CALD, AREA_POR_CODIGO, hojeISO, fmtData, inicioSemana, somarDias, dataChegada,
+  AREAS_CALD, AREA_POR_CODIGO, hojeISO, fmtData, inicioSemana, somarDias, dataChegada, diasEntre, DIAS_PARADO,
   situacaoItem, type ItemCald,
 } from '@/lib/caldPlano';
 
@@ -126,7 +126,18 @@ export default function AnaliseCaldeiraria() {
       const chegadas = its.map(dataChegada).filter(Boolean) as string[];
       const prevs = abertos.map(i => i.prev_finalizacao).filter(Boolean) as string[];
       const fins = its.map(i => i.finalizado_em).filter(Boolean) as string[];
-      const onde = Array.from(new Set(abertos.map(i => i.status === 'andamento' ? nomeArea(i.area_atual) : i.status === 'aguardando' ? 'Chegando' : 'A planejar')));
+      // Onde está + há quantos dias em cada área (o maior, se 2 itens na mesma).
+      const ondeMap = new Map<string, number | null>();
+      for (const i of abertos) {
+        const nome = i.status === 'andamento' ? nomeArea(i.area_atual) : i.status === 'aguardando' ? 'Chegando' : 'A planejar';
+        const d = situacaoItem(i, hoje).diasNaArea;
+        const ant = ondeMap.get(nome);
+        ondeMap.set(nome, d === null ? (ant ?? null) : Math.max(ant ?? 0, d));
+      }
+      const onde = Array.from(ondeMap.entries()).map(([nome, dias]) => ({ nome, dias }));
+      const chegou0 = chegadas.slice().sort()[0] || null;
+      const fimRef = abertos.length ? hoje : (fins.slice().sort().pop() || hoje);
+      const diasTotal = chegou0 ? diasEntre(chegou0, fimRef) : null;
       return {
         pedido, itens: its, aberto: abertos.length > 0,
         cliente: its.find(i => i.cliente)?.cliente || '—',
@@ -134,7 +145,7 @@ export default function AnaliseCaldeiraria() {
         chegou: chegadas.sort()[0] || null,
         prev: prevs.sort()[0] || null,
         finalizado: abertos.length ? null : (fins.sort().pop() || null),
-        onde, atrasado: abertos.some(i => situacaoItem(i, hoje).atrasado),
+        onde, diasTotal, atrasado: abertos.some(i => situacaoItem(i, hoje).atrasado),
         valor: somaValor(its),
       };
     }).sort((a, b) => Number(b.aberto) - Number(a.aberto) || (b.chegou || '').localeCompare(a.chegou || '') || a.pedido.localeCompare(b.pedido, 'pt-BR', { numeric: true }));
@@ -185,7 +196,7 @@ export default function AnaliseCaldeiraria() {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(prev), 'Previsão próximas semanas');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pedidos.map(p => ({
       Pedido: p.pedido, Cliente: p.cliente, Vendedor: p.vendedor, Itens: p.itens.length, Quantidade: somaUn(p.itens),
-      'Onde está': p.aberto ? p.onde.join(', ') : 'Finalizado', Chegou: fmtData(p.chegou), 'Prev. finalização': fmtData(p.prev),
+      'Onde está': p.aberto ? p.onde.map(o => `${o.nome}${o.dias !== null ? ` (${o.dias}d)` : ''}`).join(', ') : 'Finalizado', Chegou: fmtData(p.chegou), Dias: p.diasTotal ?? '', 'Prev. finalização': fmtData(p.prev),
       Finalizado: fmtData(p.finalizado), Atrasado: p.atrasado ? 'Sim' : '', ...(verValores ? { 'Valor R$': p.valor ?? '' } : {}),
     }))), 'Pedidos');
     XLSX.writeFile(wb, `caldeiraria_semana_${S.ini}.xlsx`);
@@ -364,7 +375,7 @@ export default function AnaliseCaldeiraria() {
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead><tr>{['Pedido', 'Cliente', 'Vendedor', 'Itens', 'Quantidade', 'Onde está', 'Chegou', 'Prev. final.', 'Finalizado', ...(verValores ? ['Valor'] : [])].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+            <thead><tr>{['Pedido', 'Cliente', 'Vendedor', 'Itens', 'Quantidade', 'Onde está (dias na área)', 'Chegou', 'Dias', 'Prev. final.', 'Finalizado', ...(verValores ? ['Valor'] : [])].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
             <tbody>
               {pedidosVis.map(p => {
                 const ab = pedAberto.has(p.pedido);
@@ -376,23 +387,30 @@ export default function AnaliseCaldeiraria() {
                     <td style={td}>{p.vendedor}</td>
                     <td style={td}>{p.itens.length}</td>
                     <td style={{ ...td, whiteSpace: 'nowrap' }}>{somaUn(p.itens)}</td>
-                    <td style={td}>{p.aberto ? p.onde.join(', ') : <span style={{ color: C.verde, fontWeight: 700 }}>Finalizado</span>}
+                    <td style={td}>{p.aberto
+                      ? p.onde.map((o, k) => (
+                        <span key={o.nome} style={{ whiteSpace: 'nowrap' }}>{k > 0 && ', '}{o.nome}
+                          {o.dias !== null && <b style={{ marginLeft: 4, color: o.dias > DIAS_PARADO ? C.vermelho : C.cinza }}>· {o.dias}d</b>}
+                        </span>
+                      ))
+                      : <span style={{ color: C.verde, fontWeight: 700 }}>Finalizado</span>}
                       {p.atrasado && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, color: '#fff', background: C.vermelho, borderRadius: 6, padding: '1px 6px' }}>atrasado</span>}</td>
                     <td style={{ ...td, whiteSpace: 'nowrap' }}>{fmtData(p.chegou) || '—'}</td>
+                    <td style={{ ...td, whiteSpace: 'nowrap', fontWeight: 800, color: p.aberto ? C.azul : C.cinza }} title={p.aberto ? 'Dias desde que chegou na Caldeiraria' : 'Dias entre a chegada e a finalização'}>{p.diasTotal !== null ? `${p.diasTotal}d` : '—'}</td>
                     <td style={{ ...td, whiteSpace: 'nowrap' }}>{fmtData(p.prev) || '—'}</td>
                     <td style={{ ...td, whiteSpace: 'nowrap' }}>{fmtData(p.finalizado) || '—'}</td>
                     {verValores && <td style={{ ...td, whiteSpace: 'nowrap', textAlign: 'right', fontWeight: 700 }}>{p.valor !== null ? fmtBRL(p.valor) : '—'}</td>}
                   </tr>,
                   ab && (
                     <tr key={p.pedido + '-itens'}>
-                      <td colSpan={verValores ? 10 : 9} style={{ padding: '4px 10px 12px 28px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                      <td colSpan={verValores ? 11 : 10} style={{ padding: '4px 10px 12px 28px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                         <Tabela lista={p.itens} />
                       </td>
                     </tr>
                   ),
                 ];
               })}
-              {!pedidosVis.length && <tr><td colSpan={10} style={{ ...td, textAlign: 'center', color: '#cbd5e1' }}>Nenhum pedido.</td></tr>}
+              {!pedidosVis.length && <tr><td colSpan={11} style={{ ...td, textAlign: 'center', color: '#cbd5e1' }}>Nenhum pedido.</td></tr>}
             </tbody>
           </table>
         </div>

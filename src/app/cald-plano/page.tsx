@@ -5,13 +5,14 @@ import AuthGuard from '@/components/AuthGuard';
 import api, { postIdempotente } from '@/lib/api';
 import { podeLancarCaldeiraria, podePlanejarCaldeiraria, podeVerValores } from '@/lib/auth';
 import {
-  AREAS_CALD, situacaoItem, hojeISO, fmtData, inicioSemana, somarDias, DIAS_PARADO,
+  AREAS_CALD, situacaoItem, pendenciasItem, hojeISO, fmtData, inicioSemana, somarDias, DIAS_PARADO,
   type ItemCald,
 } from '@/lib/caldPlano';
 import { C, CSS, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, fmtBRL, somaPorUnidade, somaValor } from './comum';
 import LancarModal from './LancarModal';
 import ItemDetalhe from './ItemDetalhe';
 import ImportarModal from './ImportarModal';
+import CaixaPendencias from './CaixaPendencias';
 
 // Planejamento da Caldeiraria — tela do coordenador ("o Reginaldo da
 // Caldeiraria"). PCP / quem sabe do pedido LANÇA; o coordenador vê a carga de
@@ -35,6 +36,7 @@ export default function CaldPlanoPage() {
   const [statusLista, setStatusLista] = useState<'ativos' | 'finalizado' | 'cancelado' | 'todos'>('ativos');
   const [lancar, setLancar] = useState(false);
   const [importar, setImportar] = useState(false);
+  const [caixa, setCaixa] = useState(false);
   const [aberto, setAberto] = useState<ItemCald | null>(null);
   const [arrastando, setArrastando] = useState<number | null>(null);
   const [alvoCol, setAlvoCol] = useState<string | null>(null);
@@ -66,6 +68,9 @@ export default function CaldPlanoPage() {
   const fimSemana = somarDias(inicioSemana(hoje), 6);
   const ativos = useMemo(() => itens.filter(i => i.status !== 'finalizado' && i.status !== 'cancelado'), [itens]);
   const sit = useMemo(() => new Map(itens.map(i => [i.id, situacaoItem(i, hoje)])), [itens, hoje]);
+
+  // Caixa de pendências: prazo vencido e sem cobrança aguardando retorno.
+  const nPend = useMemo(() => itens.filter(i => { const p = pendenciasItem(i, hoje); return p && !p.aguardandoCobranca; }).length, [itens, hoje]);
 
   const vendedores = useMemo(() => Array.from(new Set(itens.map(i => i.vendedor).filter(Boolean) as string[])).sort(), [itens]);
   const clientes = useMemo(() => Array.from(new Set(itens.map(i => i.cliente).filter(Boolean) as string[])).sort(), [itens]);
@@ -217,6 +222,11 @@ export default function CaldPlanoPage() {
             </small>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="cp-btn" onClick={() => setCaixa(true)}
+              style={nPend ? { background: C.vermelho, borderColor: C.vermelho, color: '#fff' } : undefined}
+              title="Tudo o que tem prazo vencido — resolver com nova data ou cobrando alguém">
+              <i className="bi bi-inbox-fill" />Pendências{nPend ? ` (${nPend})` : ''}
+            </button>
             <a href="/analise?fabrica=caldeiraria" className="cp-btn" style={{ textDecoration: 'none' }}><i className="bi bi-graph-up-arrow" />Relatório semanal</a>
             {planeja && <button className="cp-btn" onClick={() => setImportar(true)}><i className="bi bi-file-earmark-arrow-up" />Importar planilha</button>}
             <button className="cp-btn" onClick={() => carregar()} disabled={carregando}><i className="bi bi-arrow-clockwise" />{carregando ? 'Atualizando…' : 'Atualizar'}</button>
@@ -422,6 +432,10 @@ export default function CaldPlanoPage() {
       )}
       {importar && (
         <ImportarModal onFechar={() => setImportar(false)} onImportado={m => { setImportar(false); mostrarAviso(m); carregar(true); }} />
+      )}
+      {caixa && (
+        <CaixaPendencias itens={itens} podePlanejar={planeja}
+          onFechar={() => setCaixa(false)} onAbrirItem={it => setAberto(it)} onAtualizado={atualizarItem} />
       )}
       {aberto && (
         <ItemDetalhe key={aberto.id} item={aberto} podePlanejar={planeja} verValores={verValores}
