@@ -126,6 +126,18 @@ function componentesDasObservacoes(observacoes: string): CompRot[] {
   } catch { return []; }
 }
 
+// Lê o PRODUTO salvo na Anexar OP — bloco "[[PRODUTO]]<json>" nas observações
+// (código/descrição/quantidade/unidade/PO/entrega lidos da OP). Base pros campos
+// do produto quando a OP não reabre do B2.
+function produtoDasObservacoes(observacoes: string): { codigo?: string; descricao?: string; quantidade?: string; unidade?: string; po?: string; entrega?: string } | null {
+  const linha = String(observacoes || '').split('\n').find(l => l.trim().startsWith('[[PRODUTO]]'));
+  if (!linha) return null;
+  try {
+    const o = JSON.parse(linha.trim().slice('[[PRODUTO]]'.length));
+    return o && typeof o === 'object' ? o : null;
+  } catch { return null; }
+}
+
 // Um componente da OP com o próprio roteiro (sub-item = filho do produto).
 interface CompRot { codigo: string; descricao: string; quantidade: string; unidade: string; roteiro: string[]; }
 
@@ -238,6 +250,17 @@ function Conteudo() {
         // o que foi lançado no pedido.
         const itensPed = (ped.itens as Record<string, unknown>[]) || [];
         const it0 = itensPed.find(i => !i.inativo) || itensPed[0];
+        // Produto salvo na Anexar OP (bloco [[PRODUTO]]) — vem antes do item e
+        // do pedido, que sobrescrevem se tiverem valor.
+        const prodSalvo = produtoDasObservacoes(String(ped.observacoes || ''));
+        if (prodSalvo) {
+          if (prodSalvo.codigo) setCodigo(String(prodSalvo.codigo));
+          if (prodSalvo.descricao) setDescricao(String(prodSalvo.descricao));
+          if (prodSalvo.quantidade) setQuantidade(String(prodSalvo.quantidade).replace(',', '.'));
+          if (prodSalvo.unidade) setUnidade(normalizarUnidade(String(prodSalvo.unidade)));
+          if (prodSalvo.po) setPedCliente(String(prodSalvo.po));
+          if (prodSalvo.entrega) setEntregaContratual(String(prodSalvo.entrega));
+        }
         if (it0) {
           if (it0.codigo) setCodigo(String(it0.codigo));
           if (it0.descricao) setDescricao(String(it0.descricao));
@@ -260,7 +283,7 @@ function Conteudo() {
         // Componentes salvos na Anexar OP (bloco [[COMPONENTES]]) — aparecem na
         // tela mesmo se a OP não reabrir (B2 fora). Exclui o que == produto.
         {
-          const prodCod = (it0?.codigo ? String(it0.codigo) : '').trim();
+          const prodCod = (it0?.codigo ? String(it0.codigo) : (prodSalvo?.codigo || '')).trim();
           const compsSalvos = componentesDasObservacoes(String(ped.observacoes || ''))
             .filter(c => !prodCod || c.codigo !== prodCod);
           if (compsSalvos.length) setComponentes(compsSalvos);
@@ -418,7 +441,7 @@ function Conteudo() {
       // Fábrica única (Caldeiraria) — remove a etiqueta Leve/Pesada obsoleta das
       // observações se ela existir de pedidos antigos; nada de novo é gravado.
       const obsLimpa = String(pedido?.observacoes || '').split('\n')
-        .filter(l => !/^Fábrica:/i.test(l.trim()) && !l.trim().startsWith('[[COMPONENTES]]'))
+        .filter(l => !/^Fábrica:/i.test(l.trim()) && !l.trim().startsWith('[[COMPONENTES]]') && !l.trim().startsWith('[[PRODUTO]]'))
         .join('\n');
 
       // Cria o item com roteiro próprio ['emissao', ...setores escolhidos] e

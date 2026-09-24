@@ -203,10 +203,24 @@ export default function PcpHrmPage() {
           });
         });
         const blocoComp = compsLidos.length ? `[[COMPONENTES]]${JSON.stringify(compsLidos)}` : '';
+        // PRODUTO: mesmo esquema — código/descrição/quantidade/unidade + PO e
+        // entrega lidos da OP, pra Conferência preencher "Produto a Fabricar" e
+        // "Rastreio do Cliente" sem reler a OP do B2.
+        const op0 = leitura?.ops?.[0];
+        const prodLido = {
+          codigo: op0?.produto?.codigo || '',
+          descricao: op0?.produto?.descricao || '',
+          quantidade: op0?.identificacao?.quantidade || '',
+          unidade: op0?.identificacao?.unidade || '',
+          po: op0?.cabecalho?.po || '',
+          entrega: op0?.identificacao?.entrega || '',
+        };
+        const blocoProd = Object.values(prodLido).some(v => String(v).trim()) ? `[[PRODUTO]]${JSON.stringify(prodLido)}` : '';
 
         const linhasObs = [
           `Origem: ${origemLabel[origem]}`,
           obs.trim(),
+          blocoProd,
           blocoComp,
         ].filter(Boolean).join('\n');
 
