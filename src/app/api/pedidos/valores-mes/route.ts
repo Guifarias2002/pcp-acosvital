@@ -15,6 +15,13 @@
  * itens, mantido na criação/edição); quando nulo (pedidos antigos/casca), cai no
  * cálculo ao vivo da soma dos itens. Peças = SUM(quantidade) dos itens ativos.
  * Filtros opcionais de período por mês: ?de=YYYY-MM & ?ate=YYYY-MM.
+ *
+ * ?fabrica=flange (padrão) | caldeiraria — separa as fábricas PELO ITEM
+ * (producao_itempedido.fabrica): cada fábrica soma só os itens dela. Pedido
+ * 100% de uma fábrica mantém o valor de sempre (valor_total); pedido MISTO (ex.:
+ * Flange com item avulso da Caldeiraria) é dividido pela soma dos itens de cada
+ * lado. Pedido sem item nenhum vai pra Caldeiraria se nasceu nela (casca do PCP
+ * HRM — 'caldeiraria' no roteiro_base), senão pro Flange.
  */
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
@@ -41,6 +48,7 @@ export async function GET(req: Request) {
     // com_itens=1: anexa os PRODUTOS (itens) de cada pedido — usado só na
     // exportação "com produto" do Excel (na tela normal não é necessário).
     const comItens = searchParams.get('com_itens') === '1';
+    const cald = searchParams.get('fabrica') === 'caldeiraria';
 
     // Uma linha por pedido, com o mês de emissão, valor e peças. A soma dos itens
     // (valor e quantidade) vem de um LEFT JOIN agregado; o valor cai na soma só
@@ -55,13 +63,23 @@ export async function GET(req: Request) {
         p.status,
         p.data_emissao::text                          AS data_emissao,
         to_char(p.data_emissao, 'YYYY-MM')            AS mes,
-        COALESCE(p.valor_total, agg.valor_itens, 0)::float8  AS valor,
-        COALESCE(agg.pecas, 0)::float8                       AS pecas
+        p.valor_total::float8                                AS valor_total,
+        COALESCE(agg.valor_flange, 0)::float8                AS valor_flange,
+        COALESCE(agg.valor_cald, 0)::float8                  AS valor_cald,
+        COALESCE(agg.pecas_flange, 0)::float8                AS pecas_flange,
+        COALESCE(agg.pecas_cald, 0)::float8                  AS pecas_cald,
+        COALESCE(agg.n_flange, 0)::int                       AS n_flange,
+        COALESCE(agg.n_cald, 0)::int                         AS n_cald,
+        COALESCE('caldeiraria' = ANY(p.roteiro_base), false)                AS nasceu_cald
       FROM producao_pedido p
       LEFT JOIN (
         SELECT pedido_id,
-               SUM(quantidade * COALESCE(valor_unitario, 0)) AS valor_itens,
-               SUM(quantidade)                               AS pecas
+               SUM(quantidade * COALESCE(valor_unitario, 0)) FILTER (WHERE COALESCE(fabrica, 'flange') <> 'caldeiraria') AS valor_flange,
+               SUM(quantidade * COALESCE(valor_unitario, 0)) FILTER (WHERE fabrica = 'caldeiraria')                   AS valor_cald,
+               SUM(quantidade) FILTER (WHERE COALESCE(fabrica, 'flange') <> 'caldeiraria') AS pecas_flange,
+               SUM(quantidade) FILTER (WHERE fabrica = 'caldeiraria')                   AS pecas_cald,
+               COUNT(*) FILTER (WHERE COALESCE(fabrica, 'flange') <> 'caldeiraria')    AS n_flange,
+               COUNT(*) FILTER (WHERE fabrica = 'caldeiraria')                         AS n_cald
         FROM producao_itempedido
         WHERE inativo = false
         GROUP BY pedido_id
@@ -109,10 +127,21 @@ export async function GET(req: Request) {
 
     let total_geral = 0;
     let pecas_geral = 0;
+    let count_geral = 0;
     for (const r of rows) {
+      // Separação por fábrica (ver cabeçalho). Pedido que não tem nada da fábrica
+      // pedida é pulado; misto soma só os itens dela.
+      const nF = Number(r.n_flange) || 0, nC = Number(r.n_cald) || 0;
+      const entra = cald
+        ? (nC > 0 || (nF === 0 && r.nasceu_cald === true))
+        : (nF > 0 || (nC === 0 && r.nasceu_cald !== true));
+      if (!entra) continue;
+      const misto = nF > 0 && nC > 0;
+      const somaItens = cald ? Number(r.valor_cald) : Number(r.valor_flange);
+      const valor = (misto ? somaItens : (r.valor_total ?? somaItens)) || 0;
+      const pecas = Number(cald ? r.pecas_cald : r.pecas_flange) || 0;
+      count_geral += 1;
       const mes = r.mes as string;
-      const valor = Number(r.valor) || 0;
-      const pecas = Number(r.pecas) || 0;
       const cliente = (r.cliente as string) || '(sem cliente)';
       total_geral += valor;
       pecas_geral += pecas;
@@ -166,6 +195,7 @@ export async function GET(req: Request) {
                (quantidade * COALESCE(valor_unitario, 0))::float8  AS valor
         FROM producao_itempedido
         WHERE pedido_id = ANY(${ids}) AND inativo = false
+          AND (CASE WHEN ${cald} THEN fabrica = 'caldeiraria' ELSE COALESCE(fabrica, 'flange') <> 'caldeiraria' END)
         ORDER BY pedido_id, id
       `;
       for (const it of itemRows) {
@@ -187,7 +217,7 @@ export async function GET(req: Request) {
       meses: Array.from(mapa.values()),
       total_geral,
       pecas_geral,
-      count_geral: rows.length,
+      count_geral,
     });
   } catch (e) {
     console.error('[GET /api/pedidos/valores-mes]', e);

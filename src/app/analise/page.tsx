@@ -5,6 +5,7 @@ import { getToken, isAdministrador, podeVerAnalise, getUser, podeVerNaoLocalizad
 import { MAQUINAS_POR_SETOR, fotoMaquina } from '@/lib/maquinas';
 import EstoqueDestino from './EstoqueDestino';
 import FaturamentoUpload from './FaturamentoUpload';
+import AnaliseCaldeiraria from './AnaliseCaldeiraria';
 
 const NOMES: Record<string, string> = {
   emissao: 'Emissão', usinagem: 'Usinagem', 'maçarico': 'Corte Maçarico', plasma: 'Corte Plasma',
@@ -209,6 +210,45 @@ export default function AnalisePage() {
   const admin = isAdministrador();
   const podeVer = podeVerAnalise(); // admin OU usuário com a flag pode_ver_analise
 
+  // Fábrica analisada: Flanges (tudo o que já existia) × Caldeiraria (relatório
+  // semanal do Planejamento da Caldeiraria — /cald-plano). ?fabrica=caldeiraria
+  // abre direto; a escolha fica lembrada neste navegador.
+  const [fabrica, setFabrica] = useState<'flange' | 'caldeiraria'>('flange');
+  useEffect(() => {
+    let f: string | null = null;
+    try { f = new URLSearchParams(window.location.search).get('fabrica') || localStorage.getItem('analise_fabrica'); } catch { /* storage off */ }
+    if (f === 'caldeiraria' || f === 'flange') setFabrica(f);
+  }, []);
+  function trocarFabrica(f: 'flange' | 'caldeiraria') {
+    setFabrica(f);
+    try { localStorage.setItem('analise_fabrica', f); } catch { /* storage off */ }
+  }
+  // Abas grandes logo abaixo do título "Análise de PCP": escolhe a fábrica.
+  // Ficam na impressão também (identificam de qual fábrica é o relatório).
+  const seletorFabrica = (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginBottom: 16 }}>
+      {([
+        { id: 'flange' as const, rot: 'Flanges', sub: 'Indicadores de produção de flanges', icon: 'bi-circle' },
+        { id: 'caldeiraria' as const, rot: 'Caldeiraria', sub: 'Chegou, em produção, finalizado e previsto — semana a semana', icon: 'bi-buildings' },
+      ]).map(o => {
+        const on = fabrica === o.id;
+        return (
+          <button key={o.id} onClick={() => trocarFabrica(o.id)} className={on ? '' : 'no-print'} style={{
+            display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', cursor: 'pointer', borderRadius: 12, padding: '12px 16px',
+            border: `2px solid ${on ? C.azul : '#e2e8f0'}`, background: on ? C.azul : '#fff', color: on ? '#fff' : '#475569',
+            boxShadow: on ? '0 4px 14px rgba(26,58,92,.18)' : 'none',
+          }}>
+            <i className={`bi ${o.icon}`} style={{ fontSize: 22, opacity: on ? 1 : .7 }} />
+            <span>
+              <span style={{ display: 'block', fontSize: 16, fontWeight: 800 }}>{o.rot}</span>
+              <span style={{ display: 'block', fontSize: 12, opacity: .8 }}>{o.sub}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   async function abrirDetalhe(tipo: string, chave: string, titulo: string) {
     setDetalhe({ titulo, loading: true, itens: [] });
     try {
@@ -301,6 +341,32 @@ export default function AnalisePage() {
   const capMes = capSemana * 4.3;
   const saldoSemana = demSemana - capSemana;
 
+  if (fabrica === 'caldeiraria') return (
+    <AuthGuard>
+      <style>{`@media print{.no-print,#sidebar,.topbar{display:none!important}#main{margin-left:0!important}.analise{padding:0!important}.cp-print-bloco{break-inside:avoid}}
+        .abtn{border:1.5px solid #e2e8f0;background:#fff;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;color:#334155;cursor:pointer}
+        .abtn:hover{border-color:${C.azul}}
+        .achip{border:1.5px solid #e2e8f0;background:#fff;border-radius:999px;padding:5px 11px;font-size:12px;font-weight:600;color:#475569;cursor:pointer}
+        .achip.on{background:${C.azul};color:#fff;border-color:${C.azul}}
+      `}</style>
+      <div className="analise" style={{ maxWidth: 1080, margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
+          <div>
+            <h4 style={{ margin: 0, fontWeight: 800, color: C.azul, fontSize: 22 }}>
+              <i className="bi bi-graph-up-arrow" style={{ marginRight: 8 }} />Análise de PCP
+            </h4>
+            <small style={{ color: '#94a3b8' }}>Indicadores de produção para decisão de fábrica e diretoria.</small>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <button className="abtn no-print" onClick={() => window.print()}><i className="bi bi-printer" style={{ marginRight: 6 }} />Imprimir / PDF</button>
+          </div>
+        </div>
+        {seletorFabrica}
+        <AnaliseCaldeiraria />
+      </div>
+    </AuthGuard>
+  );
+
   return (
     <AuthGuard>
       <style>{`@media print{.no-print{display:none!important}.analise{padding:0!important}}
@@ -314,7 +380,7 @@ export default function AnalisePage() {
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
           <div>
             <h4 style={{ margin: 0, fontWeight: 800, color: C.azul, fontSize: 22 }}>
-              <i className="bi bi-graph-up-arrow" style={{ marginRight: 8 }} />Análise de PCP — Flanges
+              <i className="bi bi-graph-up-arrow" style={{ marginRight: 8 }} />Análise de PCP
             </h4>
             <small style={{ color: '#94a3b8' }}>
               Indicadores de produção para decisão de fábrica e diretoria. {dados && `Período ${dados.periodo.de} a ${dados.periodo.ate}.`}
@@ -335,6 +401,7 @@ export default function AnalisePage() {
             <button className="abtn no-print" onClick={() => window.print()}><i className="bi bi-printer" style={{ marginRight: 6 }} />Imprimir / PDF</button>
           </div>
         </div>
+        {seletorFabrica}
 
         {/* ── Diagnóstico executivo (ao vivo, histórico inteiro) ─────────────── */}
         {diag && (() => {

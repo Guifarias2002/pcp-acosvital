@@ -15,6 +15,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { getValoresMes } from '@/lib/api';
 import { getUser, podeVerValoresMes } from '@/lib/auth';
 import { STATUS_LABELS } from '@/lib/types';
+import ValoresCaldeiraria from './ValoresCaldeiraria';
 
 interface ItemProduto {
   codigo: string;
@@ -121,6 +122,15 @@ export default function ValoresMesPage() {
   const [expProduto, setExpProduto] = useState(true);
   const [expCliente, setExpCliente] = useState(true);
   const [expGerando, setExpGerando] = useState(false);
+  // Fábrica: Flanges (pedidos do sistema, como sempre foi) × Caldeiraria
+  // (Planejamento da Caldeiraria). Separadas de propósito — não somam juntas.
+  const [fab, setFab] = useState<'flange' | 'caldeiraria'>('flange');
+  const cald = fab === 'caldeiraria';
+  // Na Caldeiraria há 2 fontes que NÃO se somam (o mesmo pedido pode estar nas
+  // duas): 'sistema' = pedidos/OPs do sistema com itens da Caldeiraria (mesma
+  // tela do Flange, separada pelo item) · 'plano' = Planejamento do coordenador.
+  const [fonte, setFonte] = useState<'sistema' | 'plano'>('sistema');
+  const doPlano = cald && fonte === 'plano';
 
   // Gate por login: controle privado (só guilherme.santos). Sem permissão, home.
   useEffect(() => {
@@ -129,7 +139,7 @@ export default function ValoresMesPage() {
 
   const carregar = useCallback((de?: string, ate?: string) => {
     setLoading(true);
-    getValoresMes({ de: de || undefined, ate: ate || undefined })
+    getValoresMes({ de: de || undefined, ate: ate || undefined, fabrica: fab })
       .then((d: Resposta) => {
         setDados(d);
         setErro(null);
@@ -138,9 +148,10 @@ export default function ValoresMesPage() {
       })
       .catch(() => setErro('Não foi possível carregar os valores.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [fab]);
 
-  useEffect(() => { carregar(); }, [carregar]);
+  // Recarrega ao trocar de fábrica (mantém o filtro de período).
+  useEffect(() => { carregar(fDe, fAte); }, [carregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggle(mes: string) {
     setAbertos(prev => {
@@ -250,7 +261,7 @@ export default function ValoresMesPage() {
     const suf = `${comProduto ? '_com-produto' : ''}${comCliente ? '' : '_sem-cliente'}`;
     const a = document.createElement('a');
     a.href = url;
-    a.download = `valores-por-mes${periodo}${suf}.csv`;
+    a.download = `valores-por-mes${cald ? '_caldeiraria' : ''}${periodo}${suf}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -264,7 +275,7 @@ export default function ValoresMesPage() {
     setExpGerando(true);
     try {
       if (expProduto) {
-        const d: Resposta = await getValoresMes({ de: fDe || undefined, ate: fAte || undefined, com_itens: '1' });
+        const d: Resposta = await getValoresMes({ de: fDe || undefined, ate: fAte || undefined, com_itens: '1', fabrica: fab });
         baixarCsv(d.meses, true, expCliente);
       } else {
         baixarCsv(dados.meses, false, expCliente);
@@ -283,25 +294,49 @@ export default function ValoresMesPage() {
       <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <h4 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c' }}>
-            <i className="bi bi-cash-coin" style={{ marginRight: 8 }} />Valores por Mês — FLANGES
+            <i className="bi bi-cash-coin" style={{ marginRight: 8 }} />Valores por Mês — {cald ? 'CALDEIRARIA' : 'FLANGES'}
           </h4>
           <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 3 }}>
-            Todos os pedidos e o valor de cada um, agrupados pelo mês de emissão. <b>Visão privada.</b>
+            {doPlano
+              ? <>Itens do Planejamento da Caldeiraria e o valor de cada um, agrupados pelo mês em que chegaram na Caldeiraria. <b>Visão privada.</b></>
+              : cald
+              ? <>Pedidos/OPs com itens da Caldeiraria e o valor desses itens, agrupados pelo mês de emissão. <b>Visão privada.</b></>
+              : <>Todos os pedidos e o valor de cada um, agrupados pelo mês de emissão. <b>Visão privada.</b></>}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Link href="/pedidos" style={{ border: '1px solid #dee2e6', color: '#666', background: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 13, textDecoration: 'none' }}>
             <i className="bi bi-arrow-left" style={{ marginRight: 4 }} />Voltar
           </Link>
-          <button onClick={() => setShowExport(true)} disabled={dados.meses.length === 0}
+          {!doPlano && <button onClick={() => setShowExport(true)} disabled={dados.meses.length === 0}
             style={{ border: '1px solid #198754', color: '#198754', background: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 13, cursor: dados.meses.length === 0 ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: dados.meses.length === 0 ? 0.5 : 1 }}>
             <i className="bi bi-file-earmark-excel" style={{ marginRight: 4 }} />Extrair Excel
-          </button>
+          </button>}
           <button onClick={() => window.print()} style={{ border: '1px solid #1a3a5c', color: '#1a3a5c', background: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
             <i className="bi bi-printer" style={{ marginRight: 4 }} />Imprimir
           </button>
         </div>
       </div>
+
+      {/* Fábrica: Flanges × Caldeiraria */}
+      <div className="no-print" style={{ display: 'inline-flex', border: '1.5px solid #e2e8f0', borderRadius: 10, overflow: 'hidden', background: '#fff', marginBottom: 14 }}>
+        {([{ id: 'flange' as const, rot: 'Flanges', icon: 'bi-circle' }, { id: 'caldeiraria' as const, rot: 'Caldeiraria', icon: 'bi-buildings' }]).map(o => (
+          <button key={o.id} type="button" onClick={() => setFab(o.id)} style={{
+            border: 'none', padding: '8px 16px', fontSize: 13, fontWeight: 800, cursor: 'pointer',
+            background: fab === o.id ? '#1a3a5c' : '#fff', color: fab === o.id ? '#fff' : '#64748b',
+          }}><i className={`bi ${o.icon}`} style={{ marginRight: 6 }} />{o.rot}</button>
+        ))}
+      </div>
+      {cald && (
+        <div className="no-print" style={{ display: 'inline-flex', gap: 6, marginLeft: 10, marginBottom: 14, verticalAlign: 'top', flexWrap: 'wrap' }}>
+          {([{ id: 'sistema' as const, rot: 'Pedidos do sistema (OPs HRM)' }, { id: 'plano' as const, rot: 'Planejamento do coordenador' }]).map(o => (
+            <button key={o.id} type="button" onClick={() => setFonte(o.id)} style={{
+              border: `1.5px solid ${fonte === o.id ? '#c2410c' : '#e2e8f0'}`, borderRadius: 999, padding: '7px 14px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+              background: fonte === o.id ? '#fff7ed' : '#fff', color: fonte === o.id ? '#c2410c' : '#64748b',
+            }}>{o.rot}</button>
+          ))}
+        </div>
+      )}
 
       {/* Filtro de período */}
       <div className="card no-print" style={{ padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -315,18 +350,18 @@ export default function ValoresMesPage() {
           <input type="month" value={fAte} onChange={e => setFAte(e.target.value)}
             style={{ border: '1px solid #d1d5db', borderRadius: 6, padding: '7px 10px', fontSize: 13 }} />
         </div>
-        <button onClick={() => carregar(fDe, fAte)}
+        {!doPlano && <button onClick={() => carregar(fDe, fAte)}
           style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 5, padding: '8px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
           <i className="bi bi-funnel" style={{ marginRight: 4 }} />Filtrar
-        </button>
+        </button>}
         {(fDe || fAte) && (
-          <button onClick={() => { setFDe(''); setFAte(''); carregar('', ''); }}
+          <button onClick={() => { setFDe(''); setFAte(''); if (!doPlano) carregar('', ''); }}
             style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 13, cursor: 'pointer', color: '#666' }}>
             Limpar
           </button>
         )}
         <div style={{ flex: 1 }} />
-        {aba === 'mes' && dados.meses.length > 0 && (
+        {!doPlano && aba === 'mes' && dados.meses.length > 0 && (
           <button onClick={toggleTodos}
             style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 13, cursor: 'pointer', color: '#1a3a5c', fontWeight: 600 }}>
             {todosAbertos ? 'Recolher todos' : 'Expandir todos'}
@@ -334,6 +369,9 @@ export default function ValoresMesPage() {
         )}
       </div>
 
+      {doPlano && <ValoresCaldeiraria de={fDe} ate={fAte} />}
+
+      {!doPlano && <>
       {/* Chave de visão: Por Mês × Por Vendedor (análise comercial) */}
       <div className="no-print" style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         <button type="button" onClick={() => setAba('mes')}
@@ -517,7 +555,7 @@ export default function ValoresMesPage() {
                   {v.count} pedido{v.count !== 1 ? 's' : ''}
                 </span>
                 <span style={{ fontSize: 12, color: '#7c3aed', background: '#f3e8ff', borderRadius: 20, padding: '2px 10px', fontWeight: 600 }}>
-                  {num(v.pecas)} flanges
+                  {num(v.pecas)} {cald ? 'peças' : 'flanges'}
                 </span>
               </div>
               <span style={{ fontWeight: 800, color: '#065f46', fontSize: 16, whiteSpace: 'nowrap' }}>{brl(v.valor)}</span>
@@ -532,7 +570,7 @@ export default function ValoresMesPage() {
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', color: '#475569' }}>
-                        {['Mês', 'Pedidos', 'Flanges', 'Valor'].map((h, i) => (
+                        {['Mês', 'Pedidos', cald ? 'Peças' : 'Flanges', 'Valor'].map((h, i) => (
                           <th key={h} style={{ padding: '8px 18px', textAlign: i === 0 ? 'left' : 'right', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
                       </tr>
@@ -566,7 +604,7 @@ export default function ValoresMesPage() {
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', color: '#475569' }}>
-                        {['Mês', 'Emissão', 'Pedido', 'OP', 'Cliente', 'Status', 'Flanges', 'Valor'].map((h, i) => (
+                        {['Mês', 'Emissão', 'Pedido', 'OP', 'Cliente', 'Status', cald ? 'Peças' : 'Flanges', 'Valor'].map((h, i) => (
                           <th key={h} style={{ padding: '8px 14px', textAlign: (i === 6 || i === 7) ? 'right' : 'left', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
                       </tr>
@@ -596,6 +634,8 @@ export default function ValoresMesPage() {
           </div>
         );
       })}
+
+      </>}
 
       {/* Modal: opções da exportação Excel */}
       {showExport && (

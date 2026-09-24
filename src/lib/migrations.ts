@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 50;
+const SCHEMA_VERSION = 51;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -754,4 +754,65 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   // do Omie já traz a coluna RASTREAB (hoje descartada no leitor), então dá pra
   // auto-preencher depois. Ver [[project_leitor_op_omie]].
   await sql.unsafe(`ALTER TABLE producao_itempedido ADD COLUMN IF NOT EXISTS numero_rastreabilidade VARCHAR(120)`).catch(() => {});
+
+  // M49 (24/09): PLANEJAMENTO DA CALDEIRARIA — controle do coordenador ("o
+  // Reginaldo da Caldeiraria"), substitui a planilha manual. Módulo SEPARADO do
+  // fluxo pedido/item/parcial (os pedidos vêm do Omie e são lançados aqui pelo
+  // PCP); nenhuma FK pras tabelas de produção. 1 linha por item; `areas` = roteiro
+  // previsto; cada área guarda a DATA DE ENTRADA + previsão de saída
+  // (+ fornecedor/retorno na industrialização). Ver src/lib/caldPlano.ts.
+  // SAVEPOINT: roda na mesma transação das outras — erro aqui não aborta o resto.
+  await sql.savepoint(async (sp) => {
+    await sp.unsafe(`
+      CREATE TABLE IF NOT EXISTS producao_cald_plano_item (
+        id               SERIAL PRIMARY KEY,
+        pedido           TEXT NOT NULL,
+        vendedor         TEXT,
+        cliente          TEXT,
+        material         TEXT NOT NULL,
+        quantidade       NUMERIC,
+        unidade          TEXT,
+        valor            NUMERIC,
+        areas            TEXT[] NOT NULL DEFAULT '{}',
+        area_atual       TEXT,
+        status           TEXT NOT NULL DEFAULT 'novo',
+        prioridade       TEXT NOT NULL DEFAULT 'normal',
+        ordem            INTEGER NOT NULL DEFAULT 0,
+        prazo_entrega    DATE,
+        prev_faturamento DATE,
+        faturado_em      DATE,
+        prev_finalizacao DATE,
+        finalizado_em    DATE,
+        parcial          BOOLEAN NOT NULL DEFAULT false,
+        obs              TEXT,
+        criado_por_id    INTEGER,
+        criado_por_nome  TEXT,
+        criado_em        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        atualizado_em    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await sp.unsafe(`CREATE INDEX IF NOT EXISTS idx_cald_plano_status ON producao_cald_plano_item (status, area_atual)`);
+    await sp.unsafe(`
+      CREATE TABLE IF NOT EXISTS producao_cald_plano_etapa (
+        item_id          INTEGER NOT NULL REFERENCES producao_cald_plano_item(id) ON DELETE CASCADE,
+        area             TEXT NOT NULL,
+        entrada          DATE,
+        previsao         DATE,
+        fornecedor       TEXT,
+        retorno_previsto DATE,
+        PRIMARY KEY (item_id, area)
+      )
+    `);
+    await sp.unsafe(`
+      CREATE TABLE IF NOT EXISTS producao_cald_plano_hist (
+        id           SERIAL PRIMARY KEY,
+        item_id      INTEGER NOT NULL REFERENCES producao_cald_plano_item(id) ON DELETE CASCADE,
+        acao         TEXT NOT NULL,
+        detalhe      TEXT,
+        usuario_nome TEXT,
+        criado_em    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await sp.unsafe(`CREATE INDEX IF NOT EXISTS idx_cald_plano_hist_item ON producao_cald_plano_hist (item_id, criado_em DESC)`);
+  }).catch(e => console.error('[migrations] M49 (planejamento caldeiraria) falhou:', e));
 }

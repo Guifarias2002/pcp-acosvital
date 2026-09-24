@@ -1,0 +1,431 @@
+'use client';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import AuthGuard from '@/components/AuthGuard';
+import api, { postIdempotente } from '@/lib/api';
+import { podeLancarCaldeiraria, podePlanejarCaldeiraria, podeVerValores } from '@/lib/auth';
+import {
+  AREAS_CALD, situacaoItem, hojeISO, fmtData, inicioSemana, somarDias, DIAS_PARADO,
+  type ItemCald,
+} from '@/lib/caldPlano';
+import { C, CSS, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, fmtBRL, somaPorUnidade } from './comum';
+import LancarModal from './LancarModal';
+import ItemDetalhe from './ItemDetalhe';
+import ImportarModal from './ImportarModal';
+
+// Planejamento da Caldeiraria — tela do coordenador ("o Reginaldo da
+// Caldeiraria"). PCP / quem sabe do pedido LANÇA; o coordenador vê a carga de
+// cada área, define a ordem, as previsões e anda com os itens. O relatório
+// semanal (diretoria/contabilidade) fica na Análise PCP → Caldeiraria.
+
+type Filtro = 'todos' | 'novos' | 'atrasados' | 'vence' | 'parados' | 'terceiro' | 'faturar';
+const PRIO_PESO: Record<string, number> = { urgente: 0, alta: 1, normal: 2, baixa: 3 };
+
+export default function CaldPlanoPage() {
+  const router = useRouter();
+  const [itens, setItens] = useState<ItemCald[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
+  const [aviso, setAviso] = useState('');
+  const [aba, setAba] = useState<'painel' | 'lista'>('painel');
+  const [filtro, setFiltro] = useState<Filtro>('todos');
+  const [busca, setBusca] = useState('');
+  const [fVend, setFVend] = useState('');
+  const [fCli, setFCli] = useState('');
+  const [statusLista, setStatusLista] = useState<'ativos' | 'finalizado' | 'cancelado' | 'todos'>('ativos');
+  const [lancar, setLancar] = useState(false);
+  const [importar, setImportar] = useState(false);
+  const [aberto, setAberto] = useState<ItemCald | null>(null);
+  const [arrastando, setArrastando] = useState<number | null>(null);
+  const [alvoCol, setAlvoCol] = useState<string | null>(null);
+  const [ok, setOk] = useState(false);
+  const planeja = ok && podePlanejarCaldeiraria();
+  const verValores = ok && podeVerValores();
+
+  useEffect(() => {
+    if (!podeLancarCaldeiraria()) { router.replace('/'); return; }
+    setOk(true);
+  }, [router]);
+
+  const carregar = useCallback(async (silencioso = false) => {
+    if (!silencioso) setCarregando(true);
+    try {
+      const r = await api.get('/api/cald-plano');
+      setItens(r.data.itens || []);
+      setErro('');
+    } catch {
+      setErro('Não foi possível carregar o planejamento.');
+    } finally { setCarregando(false); }
+  }, []);
+  useEffect(() => { if (ok) carregar(); }, [ok, carregar]);
+
+  const mostrarAviso = (t: string) => { setAviso(t); setTimeout(() => setAviso(''), 4000); };
+  const atualizarItem = (it: ItemCald) => setItens(v => v.map(x => (x.id === it.id ? it : x)));
+
+  const hoje = hojeISO();
+  const fimSemana = somarDias(inicioSemana(hoje), 6);
+  const ativos = useMemo(() => itens.filter(i => i.status !== 'finalizado' && i.status !== 'cancelado'), [itens]);
+  const sit = useMemo(() => new Map(itens.map(i => [i.id, situacaoItem(i, hoje)])), [itens, hoje]);
+
+  const vendedores = useMemo(() => Array.from(new Set(itens.map(i => i.vendedor).filter(Boolean) as string[])).sort(), [itens]);
+  const clientes = useMemo(() => Array.from(new Set(itens.map(i => i.cliente).filter(Boolean) as string[])).sort(), [itens]);
+
+  const passaFiltro = useCallback((i: ItemCald) => {
+    const s = sit.get(i.id)!;
+    if (filtro === 'novos' && i.status !== 'novo') return false;
+    if (filtro === 'atrasados' && !(s.atrasado || s.areaAtrasada)) return false;
+    if (filtro === 'vence' && !s.venceLogo) return false;
+    if (filtro === 'parados' && !s.parado) return false;
+    if (filtro === 'terceiro' && !(i.area_atual === 'industrializacao' && i.status === 'andamento')) return false;
+    if (filtro === 'faturar' && !(i.prev_faturamento && !i.faturado_em && i.prev_faturamento <= fimSemana)) return false;
+    if (fVend && i.vendedor !== fVend) return false;
+    if (fCli && i.cliente !== fCli) return false;
+    if (busca) {
+      const q = busca.toLowerCase();
+      if (![i.pedido, i.material, i.cliente, i.vendedor, i.obs].some(x => (x || '').toLowerCase().includes(q))) return false;
+    }
+    return true;
+  }, [sit, filtro, fVend, fCli, busca, fimSemana]);
+
+  const cont = useMemo(() => {
+    const c = { novos: 0, atrasados: 0, vence: 0, parados: 0, terceiro: 0, terceiroVencido: 0, faturar: 0 };
+    for (const i of ativos) {
+      const s = sit.get(i.id)!;
+      if (i.status === 'novo') c.novos++;
+      if (s.atrasado || s.areaAtrasada) c.atrasados++;
+      if (s.venceLogo) c.vence++;
+      if (s.parado) c.parados++;
+      if (i.area_atual === 'industrializacao' && i.status === 'andamento') c.terceiro++;
+      if (s.terceiroVencido) c.terceiroVencido++;
+    }
+    for (const i of itens) if (i.status !== 'cancelado' && i.prev_faturamento && !i.faturado_em && i.prev_faturamento <= fimSemana) c.faturar++;
+    return c;
+  }, [ativos, itens, sit, fimSemana]);
+
+  const ordenar = (a: ItemCald, b: ItemCald) =>
+    (a.ordem || 9999) - (b.ordem || 9999) || (PRIO_PESO[a.prioridade] ?? 2) - (PRIO_PESO[b.prioridade] ?? 2) || a.id - b.id;
+
+  const colunas = useMemo(() => {
+    const vis = ativos.filter(passaFiltro);
+    const cols: { codigo: string; nome: string; icon: string; cor: string; itens: ItemCald[] }[] = [
+      { codigo: 'aguardando', nome: 'Chegando', icon: 'bi-hourglass-split', cor: '#1d4ed8', itens: vis.filter(i => i.status === 'aguardando').sort(ordenar) },
+      ...AREAS_CALD.map(a => ({ ...a, itens: vis.filter(i => i.status === 'andamento' && i.area_atual === a.codigo).sort(ordenar) })),
+    ];
+    return cols;
+  }, [ativos, passaFiltro]);
+  const novos = useMemo(() => ativos.filter(i => i.status === 'novo').filter(passaFiltro).sort((a, b) => a.id - b.id), [ativos, passaFiltro]);
+
+  async function mover(it: ItemCald, area: string) {
+    try {
+      const r = await postIdempotente<{ item: ItemCald }>(`/api/cald-plano/${it.id}`, area === 'aguardando' ? { acao: 'aguardando' } : { acao: 'mover', area });
+      atualizarItem(r.item);
+      mostrarAviso(`Pedido ${it.pedido} · ${it.material} → ${area === 'aguardando' ? 'Chegando' : nomeArea(area)} (entrada ${fmtData(hoje)})`);
+    } catch { mostrarAviso('Não foi possível mover o item.'); }
+  }
+  async function finalizar(it: ItemCald) {
+    if (!confirm(`Finalizar o item "${it.material}" do pedido ${it.pedido} hoje?`)) return;
+    try {
+      const r = await postIdempotente<{ item: ItemCald }>(`/api/cald-plano/${it.id}`, { acao: 'finalizar' });
+      atualizarItem(r.item);
+      mostrarAviso(`Pedido ${it.pedido} · ${it.material} finalizado.`);
+    } catch { mostrarAviso('Não foi possível finalizar.'); }
+  }
+  async function salvarOrdem(col: string, ids: number[]) {
+    setItens(v => v.map(x => { const k = ids.indexOf(x.id); return k >= 0 ? { ...x, ordem: k + 1 } : x; }));
+    try { await api.post('/api/cald-plano/ordem', { area: col, ids }); } catch { mostrarAviso('Não foi possível salvar a ordem.'); carregar(true); }
+  }
+  function subirDescer(col: string, lista: ItemCald[], idx: number, delta: number) {
+    const ids = lista.map(i => i.id);
+    const j = idx + delta;
+    if (j < 0 || j >= ids.length) return;
+    [ids[idx], ids[j]] = [ids[j], ids[idx]];
+    salvarOrdem(col, ids);
+  }
+  function soltar(colCodigo: string, sobreId: number | null) {
+    const id = arrastando;
+    setArrastando(null); setAlvoCol(null);
+    if (!id) return;
+    const it = itens.find(i => i.id === id);
+    if (!it) return;
+    const colAtual = it.status === 'aguardando' ? 'aguardando' : it.area_atual;
+    if (colAtual !== colCodigo) { mover(it, colCodigo); return; }
+    if (sobreId === null || sobreId === id) return;
+    const lista = colunas.find(c => c.codigo === colCodigo)?.itens || [];
+    const ids = lista.map(i => i.id).filter(x => x !== id);
+    ids.splice(ids.indexOf(sobreId), 0, id);
+    salvarOrdem(colCodigo, ids);
+  }
+
+  async function exportarExcel() {
+    const XLSX = await import('xlsx');
+    const lista = listaFiltrada;
+    const linhas = lista.map(i => {
+      const et = (a: string) => i.etapas.find(e => e.area === a);
+      const row: Record<string, unknown> = {
+        Vendedor: i.vendedor || '', Pedido: i.pedido, Material: i.material, Quant: i.quantidade ?? '', Un: i.unidade || '',
+        Cliente: i.cliente || '', Situação: i.status === 'andamento' ? nomeArea(i.area_atual) : STATUS_TXT[i.status]?.txt,
+      };
+      for (const a of AREAS_CALD) {
+        const e = et(a.codigo);
+        row[a.nome] = !i.areas.includes(a.codigo) ? 'N/A' : e?.entrada ? fmtData(e.entrada) : '';
+        if (a.codigo === 'industrializacao' && e?.fornecedor) row[a.nome] = `${e.fornecedor} ${row[a.nome]}`.trim();
+      }
+      row['Prev. Fatur.'] = fmtData(i.prev_faturamento); row['Faturado'] = fmtData(i.faturado_em);
+      row['Prev. Final.'] = fmtData(i.prev_finalizacao); row['Finalizado'] = fmtData(i.finalizado_em);
+      if (verValores) row['Valor R$'] = i.valor ?? '';
+      row['Parcial'] = i.parcial ? 'Sim' : ''; row['Obs'] = i.obs || '';
+      return row;
+    });
+    const ws = XLSX.utils.json_to_sheet(linhas);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Caldeiraria');
+    XLSX.writeFile(wb, `planejamento_caldeiraria_${hoje}.xlsx`);
+  }
+
+  const listaFiltrada = useMemo(() => itens
+    .filter(i => statusLista === 'todos' ? true : statusLista === 'ativos' ? (i.status !== 'finalizado' && i.status !== 'cancelado') : i.status === statusLista)
+    .filter(passaFiltro)
+    .sort((a, b) => (a.pedido || '').localeCompare(b.pedido || '', 'pt-BR', { numeric: true }) || a.id - b.id),
+  [itens, statusLista, passaFiltro]);
+
+  const tiles: { k: Filtro; rot: string; v: number; cor: string; icon: string; dica: string }[] = [
+    { k: 'novos', rot: 'Novos p/ planejar', v: cont.novos, cor: '#b45309', icon: 'bi-inbox', dica: 'Lançados pelo PCP, ainda sem planejamento' },
+    { k: 'atrasados', rot: 'Atrasados', v: cont.atrasados, cor: C.vermelho, icon: 'bi-exclamation-triangle', dica: 'Prev. finalização ou previsão de saída da área vencida' },
+    { k: 'vence', rot: 'Vencem em 3 dias', v: cont.vence, cor: C.laranja, icon: 'bi-alarm', dica: 'Prev. finalização nos próximos 3 dias' },
+    { k: 'parados', rot: `Parados +${DIAS_PARADO}d`, v: cont.parados, cor: C.roxo, icon: 'bi-pause-circle', dica: `Mais de ${DIAS_PARADO} dias na mesma área` },
+    { k: 'terceiro', rot: 'Em terceiro', v: cont.terceiro, cor: '#475569', icon: 'bi-truck', dica: cont.terceiroVencido ? `${cont.terceiroVencido} com retorno vencido` : 'Na industrialização (fora)' },
+    { k: 'faturar', rot: 'Faturar até domingo', v: cont.faturar, cor: C.verde, icon: 'bi-receipt', dica: 'Prev. faturamento até o fim desta semana, sem faturar' },
+  ];
+
+  if (!ok) return null;
+  return (
+    <AuthGuard>
+      <style>{CSS}</style>
+      <datalist id="cp-vendedores">{vendedores.map(v => <option key={v} value={v} />)}</datalist>
+      <datalist id="cp-clientes">{clientes.map(v => <option key={v} value={v} />)}</datalist>
+      <div style={{ width: '100%' }}>
+        {/* Cabeçalho */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+          <div>
+            <h4 style={{ margin: 0, fontWeight: 800, color: C.azul, fontSize: 22 }}>
+              <i className="bi bi-kanban" style={{ marginRight: 8 }} />Planejamento da Caldeiraria
+            </h4>
+            <small style={{ color: C.fraco }}>
+              {planeja
+                ? <>O PCP lança os pedidos; aqui você distribui por área, define a <b>ordem</b>, as <b>previsões</b> e registra a <b>entrada</b> de cada item em cada área.</>
+                : <>Lance aqui os pedidos que vão pra Caldeiraria — o coordenador planeja e acompanha área por área.</>}
+            </small>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <a href="/analise?fabrica=caldeiraria" className="cp-btn" style={{ textDecoration: 'none' }}><i className="bi bi-graph-up-arrow" />Relatório semanal</a>
+            {planeja && <button className="cp-btn" onClick={() => setImportar(true)}><i className="bi bi-file-earmark-arrow-up" />Importar planilha</button>}
+            <button className="cp-btn" onClick={() => carregar()} disabled={carregando}><i className="bi bi-arrow-clockwise" />{carregando ? 'Atualizando…' : 'Atualizar'}</button>
+            <button className="cp-btn pri" onClick={() => setLancar(true)}><i className="bi bi-plus-lg" />Lançar pedido</button>
+          </div>
+        </div>
+
+        {aviso && <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: C.azul, color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, zIndex: 1100, boxShadow: '0 8px 24px rgba(0,0,0,.25)', maxWidth: '92vw' }}>{aviso}</div>}
+        {erro && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: 12, color: C.vermelho, marginBottom: 12 }}>{erro}</div>}
+
+        {/* Alertas (clica pra filtrar) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, marginBottom: 14 }}>
+          {tiles.map(t => (
+            <button key={t.k} className={`cp-tile ${filtro === t.k ? 'on' : ''}`} title={t.dica} onClick={() => setFiltro(filtro === t.k ? 'todos' : t.k)}
+              style={{ borderLeft: `4px solid ${t.cor}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 800, color: C.cinza, textTransform: 'uppercase', letterSpacing: .3 }}>
+                <i className={`bi ${t.icon}`} style={{ color: t.cor }} />{t.rot}
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: t.v ? t.cor : '#cbd5e1', lineHeight: 1.15 }}>{t.v}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* Abas + filtros */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+          <button className={`cp-tab ${aba === 'painel' ? 'on' : ''}`} onClick={() => setAba('painel')}><i className="bi bi-columns-gap" />Painel por área</button>
+          <button className={`cp-tab ${aba === 'lista' ? 'on' : ''}`} onClick={() => setAba('lista')}><i className="bi bi-table" />Lista (planilha)</button>
+          <div style={{ flex: 1 }} />
+          <input className="cp-in" style={{ width: 220 }} placeholder="Buscar pedido, material, cliente…" value={busca} onChange={e => setBusca(e.target.value)} />
+          <select className="cp-in" style={{ width: 150 }} value={fVend} onChange={e => setFVend(e.target.value)}>
+            <option value="">Todos vendedores</option>{vendedores.map(v => <option key={v}>{v}</option>)}
+          </select>
+          <select className="cp-in" style={{ width: 150 }} value={fCli} onChange={e => setFCli(e.target.value)}>
+            <option value="">Todos clientes</option>{clientes.map(v => <option key={v}>{v}</option>)}
+          </select>
+          {filtro !== 'todos' && <button className="cp-btn sm" onClick={() => setFiltro('todos')}><i className="bi bi-x" />Limpar filtro</button>}
+        </div>
+
+        {carregando && !itens.length ? (
+          <div style={{ textAlign: 'center', padding: 40, color: C.cinza }}>Carregando…</div>
+        ) : aba === 'painel' ? (
+          <>
+            {/* Caixa de novos */}
+            {novos.length > 0 && (
+              <div style={{ border: '1.5px solid #fcd34d', background: '#fffbeb', borderRadius: 12, padding: 12, marginBottom: 14 }}>
+                <div style={{ fontWeight: 800, color: '#92400e', fontSize: 13.5, marginBottom: 8 }}>
+                  <i className="bi bi-inbox-fill" style={{ marginRight: 6 }} />Novos — aguardando planejamento ({novos.length})
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 8 }}>
+                  {novos.map(it => (
+                    <div key={it.id} className="cp-card" onClick={() => setAberto(it)}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+                        <b style={{ color: C.azul, fontSize: 13 }}>{it.pedido}</b>
+                        <span style={{ fontSize: 11, color: C.fraco }}>lançado por {it.criado_por_nome || '—'}</span>
+                      </div>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, color: C.texto, margin: '2px 0' }}>{it.material}</div>
+                      <div style={{ fontSize: 11.5, color: C.cinza }}>{fmtQtd(it.quantidade, it.unidade)} · {it.cliente || '—'}</div>
+                      <div style={{ fontSize: 11, color: C.fraco, marginTop: 4 }}>{it.areas.map(nomeArea).join(' → ') || 'sem roteiro'}</div>
+                      {planeja && it.areas[0] && (
+                        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+                          <button className="cp-btn sm pri" onClick={() => mover(it, it.areas[0])}><i className="bi bi-box-arrow-in-right" />Entrou em {nomeArea(it.areas[0])}</button>
+                          <button className="cp-btn sm" onClick={() => mover(it, 'aguardando')}><i className="bi bi-hourglass-split" />Chegando</button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Colunas por área */}
+            <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 10, alignItems: 'flex-start' }}>
+              {colunas.map(col => (
+                <div key={col.codigo} className={`cp-col ${alvoCol === col.codigo ? 'alvo' : ''}`}
+                  onDragOver={e => { if (planeja && arrastando) { e.preventDefault(); setAlvoCol(col.codigo); } }}
+                  onDragLeave={() => setAlvoCol(a => (a === col.codigo ? null : a))}
+                  onDrop={e => { e.preventDefault(); soltar(col.codigo, null); }}>
+                  <div style={{ padding: '10px 12px', borderBottom: `3px solid ${col.cor}`, background: '#fff', borderRadius: '12px 12px 0 0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <i className={`bi ${col.icon}`} style={{ color: col.cor }} />
+                      <b style={{ fontSize: 13.5, color: C.texto }}>{col.nome}</b>
+                      <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 800, color: '#fff', background: col.itens.length ? col.cor : '#cbd5e1', borderRadius: 10, padding: '1px 9px' }}>{col.itens.length}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: C.cinza, marginTop: 3 }}>{col.itens.length ? somaPorUnidade(col.itens) : 'vazia'}</div>
+                  </div>
+                  <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 7, overflowY: 'auto', minHeight: 60 }}>
+                    {col.itens.map((it, idx) => {
+                      const s = sit.get(it.id)!;
+                      const et = it.etapas.find(e => e.area === it.area_atual);
+                      const prio = PRIO[it.prioridade] || PRIO.normal;
+                      return (
+                        <div key={it.id} className={`cp-card ${arrastando === it.id ? 'drag' : ''}`}
+                          draggable={planeja}
+                          onDragStart={() => setArrastando(it.id)}
+                          onDragEnd={() => { setArrastando(null); setAlvoCol(null); }}
+                          onDragOver={e => { if (planeja && arrastando) e.preventDefault(); }}
+                          onDrop={e => { e.preventDefault(); e.stopPropagation(); soltar(col.codigo, it.id); }}
+                          onClick={() => setAberto(it)}
+                          style={{ borderLeft: `4px solid ${s.atrasado || s.areaAtrasada ? C.vermelho : prio.cor}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 10.5, fontWeight: 800, color: C.fraco }}>#{idx + 1}</span>
+                            <b style={{ color: C.azul, fontSize: 13 }}>{it.pedido}</b>
+                            {it.prioridade !== 'normal' && <Chip cor="#fff" bg={prio.cor}>{prio.txt}</Chip>}
+                            {it.parcial && <Chip cor="#7c3aed" bg="#ede9fe">Parcial</Chip>}
+                          </div>
+                          <div style={{ fontSize: 12.5, fontWeight: 600, color: C.texto, margin: '2px 0', lineHeight: 1.3 }}>{it.material}</div>
+                          <div style={{ fontSize: 11.5, color: C.cinza }}>{fmtQtd(it.quantidade, it.unidade)}{it.cliente ? ` · ${it.cliente}` : ''}</div>
+                          {it.area_atual === 'industrializacao' && et?.fornecedor && (
+                            <div style={{ fontSize: 11.5, color: '#475569', marginTop: 2 }}><i className="bi bi-truck" /> {et.fornecedor}{et.retorno_previsto ? ` · volta ${fmtData(et.retorno_previsto)}` : ''}</div>
+                          )}
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+                            {s.diasNaArea !== null && <Chip cor={s.parado ? '#fff' : C.cinza} bg={s.parado ? C.roxo : '#f1f5f9'} title={`Entrou em ${fmtData(et?.entrada)}`}><i className="bi bi-clock" />{s.diasNaArea}d aqui</Chip>}
+                            {et?.previsao && <Chip cor={s.areaAtrasada ? '#fff' : '#1d4ed8'} bg={s.areaAtrasada ? C.vermelho : '#dbeafe'} title="Previsão de saída desta área">sai {fmtData(et.previsao)}</Chip>}
+                            {it.prev_finalizacao && <Chip cor={s.atrasado ? '#fff' : s.venceLogo ? '#92400e' : '#166534'} bg={s.atrasado ? C.vermelho : s.venceLogo ? '#fef3c7' : '#dcfce7'} title="Previsão de finalização">fim {fmtData(it.prev_finalizacao)}</Chip>}
+                            {s.terceiroVencido && <Chip cor="#fff" bg={C.vermelho}>retorno vencido</Chip>}
+                          </div>
+                          {planeja && (
+                            <div style={{ display: 'flex', gap: 4, marginTop: 7, alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+                              <button className="cp-btn sm" title="Subir na fila" disabled={idx === 0} onClick={() => subirDescer(col.codigo, col.itens, idx, -1)}><i className="bi bi-chevron-up" /></button>
+                              <button className="cp-btn sm" title="Descer na fila" disabled={idx === col.itens.length - 1} onClick={() => subirDescer(col.codigo, col.itens, idx, 1)}><i className="bi bi-chevron-down" /></button>
+                              <div style={{ flex: 1 }} />
+                              {s.proxima
+                                ? <button className="cp-btn sm pri" title={`Registrar entrada em ${nomeArea(s.proxima)} hoje`} onClick={() => mover(it, s.proxima!)}>{nomeArea(s.proxima)}<i className="bi bi-arrow-right" /></button>
+                                : col.codigo !== 'aguardando' && <button className="cp-btn sm ok" onClick={() => finalizar(it)}><i className="bi bi-check2-all" />Finalizar</button>}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {planeja && <div style={{ fontSize: 11.5, color: C.fraco, marginTop: 4 }}><i className="bi bi-info-circle" /> Arraste um card pra outra coluna pra registrar a entrada hoje, ou dentro da coluna pra mudar a ordem. Pra outra data, abra o card.</div>}
+          </>
+        ) : (
+          <>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+              {(['ativos', 'finalizado', 'cancelado', 'todos'] as const).map(s => (
+                <button key={s} className={`cp-btn sm ${statusLista === s ? 'pri' : ''}`} onClick={() => setStatusLista(s)}>
+                  {s === 'ativos' ? 'Em aberto' : s === 'finalizado' ? 'Finalizados' : s === 'cancelado' ? 'Cancelados' : 'Todos'}
+                </button>
+              ))}
+              <span style={{ fontSize: 12, color: C.cinza, marginLeft: 6 }}>{listaFiltrada.length} item(ns)</span>
+              <div style={{ flex: 1 }} />
+              <button className="cp-btn sm" onClick={exportarExcel}><i className="bi bi-file-earmark-excel" />Exportar Excel</button>
+            </div>
+            <div style={{ overflowX: 'auto', border: `1px solid ${C.borda}`, borderRadius: 10, background: '#fff', maxHeight: 'calc(100vh - 330px)' }}>
+              <table className="cp-tbl">
+                <thead>
+                  <tr>
+                    <th>Pedido</th><th>Vendedor</th><th>Material</th><th>Qtd</th><th>Cliente</th><th>Situação</th>
+                    {AREAS_CALD.map(a => <th key={a.codigo} style={{ color: a.cor }}>{a.nome}</th>)}
+                    <th>Prev. fat.</th><th>Prev. final.</th><th>Finalizado</th>{verValores && <th>Valor</th>}<th>Obs</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {listaFiltrada.map(it => {
+                    const s = sit.get(it.id)!;
+                    const st = STATUS_TXT[it.status];
+                    return (
+                      <tr key={it.id} className="cl" onClick={() => setAberto(it)}>
+                        <td style={{ fontWeight: 800, color: C.azul, whiteSpace: 'nowrap' }}>{it.pedido}</td>
+                        <td>{it.vendedor || '—'}</td>
+                        <td style={{ minWidth: 180 }}>{it.material}{it.parcial && <> <Chip cor="#7c3aed" bg="#ede9fe">Parcial</Chip></>}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{fmtQtd(it.quantidade, it.unidade)}</td>
+                        <td>{it.cliente || '—'}</td>
+                        <td><Chip cor={st.cor} bg={st.bg}>{it.status === 'andamento' ? nomeArea(it.area_atual) : st.txt}</Chip>
+                          {(s.atrasado || s.areaAtrasada) && <div><Chip cor="#fff" bg={C.vermelho}>atrasado</Chip></div>}</td>
+                        {AREAS_CALD.map(a => {
+                          const e = it.etapas.find(x => x.area === a.codigo);
+                          const naRota = it.areas.includes(a.codigo);
+                          const atual = it.status === 'andamento' && it.area_atual === a.codigo;
+                          return (
+                            <td key={a.codigo} style={{ whiteSpace: 'nowrap', textAlign: 'center', background: atual ? a.cor + '22' : undefined, fontWeight: atual ? 800 : 500, color: !naRota ? '#cbd5e1' : C.texto }}>
+                              {!naRota ? 'N/A' : e?.entrada ? fmtData(e.entrada) : '·'}
+                              {a.codigo === 'industrializacao' && e?.fornecedor && <div style={{ fontSize: 10.5, color: C.cinza }}>{e.fornecedor}</div>}
+                            </td>
+                          );
+                        })}
+                        <td style={{ whiteSpace: 'nowrap' }}>{it.faturado_em ? <span style={{ color: C.verde, fontWeight: 700 }}>fat. {fmtData(it.faturado_em)}</span> : fmtData(it.prev_faturamento) || '—'}</td>
+                        <td style={{ whiteSpace: 'nowrap', color: s.atrasado ? C.vermelho : undefined, fontWeight: s.atrasado ? 800 : 500 }}>{fmtData(it.prev_finalizacao) || '—'}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{fmtData(it.finalizado_em) || '—'}</td>
+                        {verValores && <td style={{ whiteSpace: 'nowrap' }}>{fmtBRL(it.valor)}</td>}
+                        <td style={{ minWidth: 160, fontSize: 11.5, color: C.cinza }}>{it.obs || ''}</td>
+                      </tr>
+                    );
+                  })}
+                  {!listaFiltrada.length && <tr><td colSpan={20} style={{ textAlign: 'center', color: C.fraco, padding: 24 }}>Nenhum item.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+
+      {lancar && (
+        <LancarModal vendedores={vendedores} clientes={clientes} verValores={verValores}
+          onFechar={() => setLancar(false)}
+          onLancado={n => { setLancar(false); mostrarAviso(`${n} item(ns) lançado(s) — aguardando planejamento.`); carregar(true); }} />
+      )}
+      {importar && (
+        <ImportarModal onFechar={() => setImportar(false)} onImportado={m => { setImportar(false); mostrarAviso(m); carregar(true); }} />
+      )}
+      {aberto && (
+        <ItemDetalhe key={aberto.id} item={aberto} podePlanejar={planeja} verValores={verValores}
+          onFechar={() => setAberto(null)} onAtualizado={atualizarItem} />
+      )}
+    </AuthGuard>
+  );
+}
+
