@@ -730,7 +730,38 @@ function Conteudo() {
             );
           })() : (<>
 
-          {/* Componentes e roteiros — no TOPO. Cada componente é uma linha
+          {/* Produto + quantidade (editável; só-leitura na prévia) */}
+          <div style={card}>
+            <div style={secTitle}><i className="bi bi-box-seam" style={{ marginRight: 6 }} />Produto a fabricar</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginBottom: 12 }}>
+              <div><label style={lblRo}>Código</label>{preview ? <div style={roVal}>{codigo || '—'}</div> : <input value={codigo} onChange={e => setCodigo(e.target.value)} className={inputCls} />}</div>
+              <div><label style={lblRo}>Descrição</label>{preview ? <div style={roVal}>{descricao || '—'}</div> : <input value={descricao} onChange={e => setDescricao(e.target.value)} className={inputCls} />}</div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div><label style={lblRo}>Quantidade</label>{preview ? <div style={roVal}>{quantidade}</div> : <input type="number" value={quantidade} onChange={e => setQuantidade(e.target.value)} style={{ width: 110 }} className={inputCls} />}</div>
+              <div>
+                <label style={lblRo}>Unidade — como vamos mandar</label>
+                {preview ? (
+                  <div style={roVal}>{UNIDADE_LABEL[unidade.toLowerCase()] || unidade}</div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                    {UNIDADES.map(([cod, label, icon]) => {
+                      const ativo = unidade.toLowerCase() === cod;
+                      return (
+                        <button key={cod} type="button" onClick={() => setUnidade(cod)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                            border: `1px solid ${ativo ? '#1a3a5c' : '#dee2e6'}`, background: ativo ? '#1a3a5c' : '#fff', color: ativo ? '#fff' : '#334155' }}>
+                          <i className={`bi ${icon}`} />{label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Componentes e roteiros — logo abaixo do Produto a fabricar. Cada componente é uma linha
               compacta; clicar abre os SETORES dele (e os campos pra editar).
               Sem setores escolhidos, o componente segue o roteiro do produto. */}
           <div style={card}>
@@ -838,37 +869,6 @@ function Conteudo() {
               {ops.length > 1 && <div style={{ marginTop: 10, fontSize: 12, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '6px 10px' }}>Este PDF tem {ops.length} ordens — esta tela lança a 1ª ({op0.produto?.descricao || op0.cabecalho.ns}). As demais podem ser lançadas depois.</div>}
             </div>
           )}
-
-          {/* Produto + quantidade (editável; só-leitura na prévia) */}
-          <div style={card}>
-            <div style={secTitle}><i className="bi bi-box-seam" style={{ marginRight: 6 }} />Produto a fabricar</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginBottom: 12 }}>
-              <div><label style={lblRo}>Código</label>{preview ? <div style={roVal}>{codigo || '—'}</div> : <input value={codigo} onChange={e => setCodigo(e.target.value)} className={inputCls} />}</div>
-              <div><label style={lblRo}>Descrição</label>{preview ? <div style={roVal}>{descricao || '—'}</div> : <input value={descricao} onChange={e => setDescricao(e.target.value)} className={inputCls} />}</div>
-            </div>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <div><label style={lblRo}>Quantidade</label>{preview ? <div style={roVal}>{quantidade}</div> : <input type="number" value={quantidade} onChange={e => setQuantidade(e.target.value)} style={{ width: 110 }} className={inputCls} />}</div>
-              <div>
-                <label style={lblRo}>Unidade — como vamos mandar</label>
-                {preview ? (
-                  <div style={roVal}>{UNIDADE_LABEL[unidade.toLowerCase()] || unidade}</div>
-                ) : (
-                  <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
-                    {UNIDADES.map(([cod, label, icon]) => {
-                      const ativo = unidade.toLowerCase() === cod;
-                      return (
-                        <button key={cod} type="button" onClick={() => setUnidade(cod)}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                            border: `1px solid ${ativo ? '#1a3a5c' : '#dee2e6'}`, background: ativo ? '#1a3a5c' : '#fff', color: ativo ? '#fff' : '#334155' }}>
-                          <i className={`bi ${icon}`} />{label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
 
           {/* Rastreio pelo cliente + entrega contratual (editável, pré-lido da OP) */}
           <div style={card}>

@@ -83,6 +83,14 @@ export default function PcpHrmPage() {
   const [materiaisExcluidos, setMateriaisExcluidos] = useState<Set<string>>(new Set());
   const materialKey = (opIdx: number, matIdx: number) => `${opIdx}:${matIdx}`;
   const materialSelecionado = (opIdx: number, matIdx: number) => !materiaisExcluidos.has(materialKey(opIdx, matIdx));
+  // O material com o MESMO código do produto é o próprio produto (o projeto) —
+  // não é componente: fica fora da lista de seleção, da contagem e do que é salvo.
+  const ehProduto = (op: OPItem, m: { codigo?: string }) => {
+    const p = (op.produto?.codigo || '').trim();
+    return !!p && (m.codigo || '').trim() === p;
+  };
+  // Componentes de verdade da ordem, preservando o índice original (chave da seleção).
+  const componentesDaOp = (op: OPItem) => op.materiais.map((m, i) => ({ m, i })).filter(x => !ehProduto(op, x.m));
   function toggleMaterial(opIdx: number, matIdx: number) {
     setMateriaisExcluidos(prev => {
       const next = new Set(prev);
@@ -91,10 +99,10 @@ export default function PcpHrmPage() {
       return next;
     });
   }
-  function toggleTodosMateriais(opIdx: number, total: number, marcarTodos: boolean) {
+  function toggleTodosMateriais(opIdx: number, indices: number[], marcarTodos: boolean) {
     setMateriaisExcluidos(prev => {
       const next = new Set(prev);
-      for (let i = 0; i < total; i++) {
+      for (const i of indices) {
         const key = materialKey(opIdx, i);
         if (marcarTodos) next.delete(key); else next.add(key);
       }
@@ -198,6 +206,7 @@ export default function PcpHrmPage() {
         (leitura?.ops || []).forEach((op, opIdx) => {
           op.materiais.forEach((m, matIdx) => {
             if (!materialSelecionado(opIdx, matIdx)) return;
+            if (ehProduto(op, m)) return;
             if (!(m.codigo || '').trim() && !(m.descricao || '').trim()) return;
             compsLidos.push({ codigo: m.codigo || '', descricao: m.descricao || '', quantidade: m.quantidade || '1', unidade: m.unidade || 'pc' });
           });
@@ -695,7 +704,7 @@ export default function PcpHrmPage() {
                         )}
                         {!leituraRuim && (
                         <span style={{ fontSize:11.5, fontWeight:700, color:'#1a3a5c', background:'#eef4fb', border:'1px solid #cfe0f2', borderRadius:20, padding:'3px 10px', whiteSpace:'nowrap' }}>
-                          {op.materiais.length} componentes
+                          {componentesDaOp(op).length} componentes
                         </span>
                         )}
                       </button>
@@ -781,21 +790,21 @@ export default function PcpHrmPage() {
                               </ul>
                             </div>
                           )}
-                          {!leituraRuim && op.materiais.length > 0 && (
+                          {!leituraRuim && componentesDaOp(op).length > 0 && (
                             <div style={{ overflowX:'auto', marginTop:16 }}>
                               <span className={labelCls}>Componentes</span>
                               <div style={{ fontSize:12, color:'#1f5f8b', margin:'2px 0 4px' }}>
                                 <i className="bi bi-info-circle" style={{ marginRight:5 }} />
                                 Leitura só pra conferência — o roteiro (por onde a peça passa) é definido pelo PCP na Conferência.
-                                {' '}Desmarque o que não for material de verdade (ex.: o próprio produto) — é só pra você conferir aqui.
+                                {' '}O produto (o projeto) está no cabeçalho acima e não entra aqui. Desmarque o que não for material de verdade.
                               </div>
                               <table style={{ width:'100%', borderCollapse:'collapse', marginTop:6, fontSize:12.5, minWidth:520 }}>
                                 <thead>
                                   <tr style={{ textAlign:'left', color:'#6c757d', borderBottom:'1px solid #e9ecef' }}>
                                     <th style={{ padding:'5px 8px', width:26 }}>
                                       <input type="checkbox"
-                                        checked={op.materiais.every((_, i) => materialSelecionado(idx, i))}
-                                        onChange={e => toggleTodosMateriais(idx, op.materiais.length, e.target.checked)}
+                                        checked={componentesDaOp(op).every(x => materialSelecionado(idx, x.i))}
+                                        onChange={e => toggleTodosMateriais(idx, componentesDaOp(op).map(x => x.i), e.target.checked)}
                                         title="Selecionar/desmarcar todos" style={{ cursor:'pointer' }} />
                                     </th>
                                     <th style={{ padding:'5px 8px' }}>Código</th><th style={{ padding:'5px 8px' }}>Descrição</th>
@@ -803,7 +812,7 @@ export default function PcpHrmPage() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {op.materiais.map((m, i) => {
+                                  {componentesDaOp(op).map(({ m, i }) => {
                                     // Código só quando numericamente coerente; senão "—" (a
                                     // decodificação não recuperou este código).
                                     const codOk = codigoCoerente(m.codigo);
