@@ -219,16 +219,27 @@ function Conteudo() {
   const [qtdDestino, setQtdDestino] = useState<Record<string, string>>({});
   const [token, setToken] = useState('');
   // Roteiro por componente: cada componente (sub-item) pode ter seu próprio
-  // roteiro. `modoRoteiro` = 'mesmo' (todos seguem o roteiro do produto) ou
-  // 'cada' (cada um o seu). Semeado da leitura da OP; editável à mão (funciona
-  // mesmo se a OP não abrir). No lançamento: produto = pai, componentes = filhos.
+  // roteiro; vazio = segue o roteiro do produto. Semeado da leitura da OP;
+  // editável à mão (funciona mesmo se a OP não abrir). No lançamento:
+  // produto = pai, componentes = filhos. `compAbertos` = linhas expandidas
+  // (clicar no componente mostra os setores dele).
   const [componentes, setComponentes] = useState<CompRot[]>([]);
-  const [modoRoteiro, setModoRoteiro] = useState<'mesmo' | 'cada'>('mesmo');
+  const [compAbertos, setCompAbertos] = useState<Set<number>>(new Set());
+  const toggleCompAberto = (i: number) => setCompAbertos(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; });
+  const rotComp = (c: CompRot) => (c.roteiro.length ? c.roteiro : roteiroSel);
 
   const setComp = (i: number, patch: Partial<CompRot>) =>
     setComponentes(cs => cs.map((c, idx) => idx === i ? { ...c, ...patch } : c));
-  const addComp = () => setComponentes(cs => [...cs, { codigo: '', descricao: '', quantidade: '1', unidade: 'pc', roteiro: [] }]);
-  const remComp = (i: number) => setComponentes(cs => cs.filter((_, idx) => idx !== i));
+  const addComp = () => {
+    // Já abre o componente novo, pra digitar código/descrição e escolher setores.
+    setCompAbertos(prev => new Set(prev).add(componentes.length));
+    setComponentes(cs => [...cs, { codigo: '', descricao: '', quantidade: '1', unidade: 'pc', roteiro: [] }]);
+  };
+  const remComp = (i: number) => {
+    setComponentes(cs => cs.filter((_, idx) => idx !== i));
+    // Reindexa as linhas abertas (as de baixo sobem uma posição).
+    setCompAbertos(prev => new Set(Array.from(prev).filter(x => x !== i).map(x => x > i ? x - 1 : x)));
+  };
   // "Repetir o 1º": copia o roteiro do primeiro componente pros demais.
   const repetirPrimeiroRoteiro = () => setComponentes(cs => cs.length ? cs.map((c, i) => i === 0 ? c : { ...c, roteiro: [...cs[0].roteiro] }) : cs);
 
@@ -461,9 +472,8 @@ function Conteudo() {
       // são liberados pro 1º setor do próprio roteiro e aparecem separados em
       // "Onde está cada peça".
       if (componentes.length > 0) {
-        const rotComp = (c: CompRot) => (modoRoteiro === 'mesmo' ? roteiroSel : c.roteiro);
         if (componentes.some(c => rotComp(c).length === 0)) {
-          setErro('Cada componente precisa de um roteiro — ou use "Mesmo roteiro pra todos".');
+          setErro('Cada componente precisa de um roteiro — escolha os setores do produto ou do componente.');
           setLancando(false); return;
         }
         // 1. Cria o produto (pai).
@@ -720,6 +730,99 @@ function Conteudo() {
             );
           })() : (<>
 
+          {/* Componentes e roteiros — no TOPO. Cada componente é uma linha
+              compacta; clicar abre os SETORES dele (e os campos pra editar).
+              Sem setores escolhidos, o componente segue o roteiro do produto. */}
+          <div style={card}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 12, borderBottom: '2px solid #1a3a5c', paddingBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#1a3a5c', textTransform: 'uppercase', letterSpacing: 1 }}>
+                <i className="bi bi-diagram-3" style={{ marginRight: 6 }} />Componentes e roteiros {componentes.length > 0 ? `— ${componentes.length}` : ''}
+              </span>
+              {!preview && componentes.length > 1 && (
+                <button type="button" onClick={repetirPrimeiroRoteiro} title="Copiar o roteiro do 1º componente pros demais"
+                  style={{ borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid #c7d7ee', background: '#eef4fb', color: '#1a3a5c' }}>
+                  <i className="bi bi-arrow-repeat" style={{ marginRight: 4 }} />Repetir o 1º
+                </button>
+              )}
+            </div>
+
+            {componentes.length > 0 && !preview && (
+              <div style={{ fontSize: 12.5, color: '#1e40af', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+                <i className="bi bi-info-circle" style={{ marginRight: 6 }} />Clique no componente pra escolher os <b>setores</b> dele. Sem setores escolhidos, ele segue o <b>roteiro do produto</b>.
+              </div>
+            )}
+
+            {componentes.length === 0 && (
+              <div style={{ fontSize: 13, color: '#7a8aa0', marginBottom: 12 }}>
+                Nenhum componente {op0 ? 'lido da OP' : '(a OP não abriu)'}. Você pode adicionar à mão abaixo.
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {componentes.map((c, i) => {
+                const aberto = compAbertos.has(i);
+                const proprio = c.roteiro.length > 0;
+                const rot = rotComp(c);
+                return (
+                  <div key={i} style={{ border: `1px solid ${aberto ? '#1a3a5c' : '#e2e8f0'}`, borderRadius: 10, background: aberto ? '#fff' : '#fbfdff' }}>
+                    <button type="button" onClick={() => toggleCompAberto(i)}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                      <span style={{ minWidth: 22, height: 22, borderRadius: 11, background: '#1a3a5c', color: '#fff', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', fontSize: 13, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <b>{c.codigo || '—'}</b> {c.descricao} <span style={{ color: '#64748b' }}>· {c.quantidade} {UNIDADE_LABEL[normalizarUnidade(c.unidade)] || c.unidade}</span>
+                        </span>
+                        <span style={{ display: 'block', fontSize: 11.5, marginTop: 2, color: proprio ? '#1a3a5c' : '#64748b' }}>
+                          {['Emissão', ...rot.map(s => NOMES[s] || s)].join(' → ')}
+                          {!proprio && <i> (roteiro do produto)</i>}
+                        </span>
+                      </span>
+                      <i className={`bi ${aberto ? 'bi-chevron-up' : 'bi-chevron-down'}`} style={{ color: '#64748b' }} />
+                    </button>
+                    {aberto && (
+                      <div style={{ padding: '0 12px 12px', borderTop: '1px dashed #e2e8f0' }}>
+                        {!preview && (
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', paddingTop: 10 }}>
+                            <div style={{ flex: '1 1 120px' }}><label style={lblRo}>Código</label><input value={c.codigo} onChange={e => setComp(i, { codigo: e.target.value })} className={inputCls} /></div>
+                            <div style={{ flex: '2 1 220px' }}><label style={lblRo}>Descrição</label><input value={c.descricao} onChange={e => setComp(i, { descricao: e.target.value })} className={inputCls} /></div>
+                            <div style={{ flex: '0 0 80px' }}><label style={lblRo}>Qtd</label><input type="number" value={c.quantidade} onChange={e => setComp(i, { quantidade: e.target.value })} className={inputCls} /></div>
+                            <div style={{ flex: '0 0 90px' }}>
+                              <label style={lblRo}>Un</label>
+                              <select value={normalizarUnidade(c.unidade)} onChange={e => setComp(i, { unidade: e.target.value })} className={inputCls}>
+                                {UNIDADES.map(([cod, label]) => <option key={cod} value={cod}>{label}</option>)}
+                              </select>
+                            </div>
+                            <button type="button" onClick={() => remComp(i)} title="Remover componente" style={{ border: '1px solid #fecaca', background: '#fff', color: '#dc2626', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', fontWeight: 700 }}><i className="bi bi-trash" /></button>
+                          </div>
+                        )}
+                        <div style={{ marginTop: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Setores deste componente</span>
+                            {!preview && proprio && (
+                              <button type="button" onClick={() => setComp(i, { roteiro: [] })}
+                                style={{ border: 'none', background: 'none', color: '#64748b', fontSize: 11.5, cursor: 'pointer', textDecoration: 'underline' }}>
+                                Voltar pro roteiro do produto
+                              </button>
+                            )}
+                          </div>
+                          {preview
+                            ? <div style={{ fontSize: 12.5, color: '#1a3a5c' }}>{['Emissão', ...rot.map(s => NOMES[s] || s)].join(' → ')}</div>
+                            : <RoteiroPicker roteiro={c.roteiro} onChange={r => setComp(i, { roteiro: r })} />}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {!preview && (
+              <button type="button" onClick={addComp} style={{ marginTop: 12, border: '1px dashed #c7d7ee', background: '#fff', color: '#1a3a5c', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                <i className="bi bi-plus-lg" style={{ marginRight: 6 }} />Adicionar componente
+              </button>
+            )}
+          </div>
+
           {/* Identificação da OP */}
           {op0 && (
             <div style={card}>
@@ -819,83 +922,6 @@ function Conteudo() {
             </div>}
           </div>
 
-          {/* Componentes e roteiros — cada componente (sub-item) pode ter o
-              próprio roteiro. Semeado da OP; editável à mão. */}
-          <div style={card}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 12, borderBottom: '2px solid #1a3a5c', paddingBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#1a3a5c', textTransform: 'uppercase', letterSpacing: 1 }}>
-                <i className="bi bi-diagram-3" style={{ marginRight: 6 }} />Componentes e roteiros {componentes.length > 0 ? `— ${componentes.length}` : ''}
-              </span>
-              {!preview && componentes.length > 0 && (
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                  {(['mesmo', 'cada'] as const).map(m => (
-                    <button key={m} type="button" onClick={() => setModoRoteiro(m)}
-                      style={{ borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                        border: `1px solid ${modoRoteiro === m ? '#1a3a5c' : '#dee2e6'}`, background: modoRoteiro === m ? '#1a3a5c' : '#fff', color: modoRoteiro === m ? '#fff' : '#334155' }}>
-                      {m === 'mesmo' ? 'Mesmo roteiro pra todos' : 'Cada um o seu'}
-                    </button>
-                  ))}
-                  {modoRoteiro === 'cada' && (
-                    <button type="button" onClick={repetirPrimeiroRoteiro} title="Copiar o roteiro do 1º componente pros demais"
-                      style={{ borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid #c7d7ee', background: '#eef4fb', color: '#1a3a5c' }}>
-                      <i className="bi bi-arrow-repeat" style={{ marginRight: 4 }} />Repetir o 1º
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {modoRoteiro === 'mesmo' && componentes.length > 0 && (
-              <div style={{ fontSize: 12.5, color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
-                <i className="bi bi-info-circle" style={{ marginRight: 6 }} />Todos os componentes seguem o <b>roteiro do produto</b> (o de cima). Pra dar caminhos diferentes, escolha <b>&quot;Cada um o seu&quot;</b>.
-              </div>
-            )}
-
-            {componentes.length === 0 && (
-              <div style={{ fontSize: 13, color: '#7a8aa0', marginBottom: 12 }}>
-                Nenhum componente {op0 ? 'lido da OP' : '(a OP não abriu)'}. Você pode adicionar à mão abaixo.
-              </div>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {componentes.map((c, i) => (
-                <div key={i} style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, background: '#fbfdff' }}>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                    <span style={{ minWidth: 22, height: 22, borderRadius: 11, background: '#1a3a5c', color: '#fff', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
-                    {preview ? (
-                      <div style={{ flex: 1, fontSize: 13 }}><b>{c.codigo || '—'}</b> {c.descricao} · {c.quantidade} {c.unidade}</div>
-                    ) : (<>
-                      <div style={{ flex: '1 1 120px' }}><label style={lblRo}>Código</label><input value={c.codigo} onChange={e => setComp(i, { codigo: e.target.value })} className={inputCls} /></div>
-                      <div style={{ flex: '2 1 220px' }}><label style={lblRo}>Descrição</label><input value={c.descricao} onChange={e => setComp(i, { descricao: e.target.value })} className={inputCls} /></div>
-                      <div style={{ flex: '0 0 80px' }}><label style={lblRo}>Qtd</label><input type="number" value={c.quantidade} onChange={e => setComp(i, { quantidade: e.target.value })} className={inputCls} /></div>
-                      <div style={{ flex: '0 0 90px' }}>
-                        <label style={lblRo}>Un</label>
-                        <select value={normalizarUnidade(c.unidade)} onChange={e => setComp(i, { unidade: e.target.value })} className={inputCls}>
-                          {UNIDADES.map(([cod, label]) => <option key={cod} value={cod}>{label}</option>)}
-                        </select>
-                      </div>
-                      <button type="button" onClick={() => remComp(i)} title="Remover componente" style={{ border: '1px solid #fecaca', background: '#fff', color: '#dc2626', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', fontWeight: 700 }}><i className="bi bi-trash" /></button>
-                    </>)}
-                  </div>
-                  {modoRoteiro === 'cada' && (
-                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e2e8f0' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>Roteiro deste componente</div>
-                      {preview
-                        ? <div style={{ fontSize: 12.5, color: '#1a3a5c' }}>{['Emissão', ...c.roteiro.map(s => NOMES[s] || s)].join(' → ')}</div>
-                        : <RoteiroPicker roteiro={c.roteiro} onChange={r => setComp(i, { roteiro: r })} />}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {!preview && (
-              <button type="button" onClick={addComp} style={{ marginTop: 12, border: '1px dashed #c7d7ee', background: '#fff', color: '#1a3a5c', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                <i className="bi bi-plus-lg" style={{ marginRight: 6 }} />Adicionar componente
-              </button>
-            )}
-          </div>
-
           {/* Desenho(s) do projeto — ver (inline) e anexar (fora da prévia) */}
           {(() => {
             const desenhos: string[] = (pedido?.desenhos as string[]) || [];
@@ -960,7 +986,7 @@ function Conteudo() {
                   <div style={{ fontSize: 12.5, color: '#4b5563', display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <div><b>{codigo || 'Produto'}</b> — {NOMES[roteiroSel[0]] || roteiroSel[0]} (roteiro do produto)</div>
                     {componentes.map((c, i) => {
-                      const r = modoRoteiro === 'mesmo' ? roteiroSel : c.roteiro;
+                      const r = rotComp(c);
                       return <div key={i}>↳ <b>{c.codigo || `Comp ${i + 1}`}</b> ({c.quantidade} {c.unidade}) → {r.length ? (NOMES[r[0]] || r[0]) : <span style={{ color: '#b45309' }}>sem roteiro!</span>}</div>;
                     })}
                   </div>
