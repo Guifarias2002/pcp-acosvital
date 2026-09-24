@@ -3,6 +3,7 @@ import { useState } from 'react';
 import AuthGuard from '@/components/AuthGuard';
 import { criarPedido } from '@/lib/api';
 import { getToken } from '@/lib/auth';
+import { ehProdutoDaOp } from '@/lib/opProduto';
 
 // ── PCP HRM ─────────────────────────────────────────────────────────────────
 // Porta de entrada da Caldeiraria (modelo novo, empresa que roda o PCP no
@@ -83,12 +84,10 @@ export default function PcpHrmPage() {
   const [materiaisExcluidos, setMateriaisExcluidos] = useState<Set<string>>(new Set());
   const materialKey = (opIdx: number, matIdx: number) => `${opIdx}:${matIdx}`;
   const materialSelecionado = (opIdx: number, matIdx: number) => !materiaisExcluidos.has(materialKey(opIdx, matIdx));
-  // O material com o MESMO código do produto é o próprio produto (o projeto) —
-  // não é componente: fica fora da lista de seleção, da contagem e do que é salvo.
-  const ehProduto = (op: OPItem, m: { codigo?: string }) => {
-    const p = (op.produto?.codigo || '').trim();
-    return !!p && (m.codigo || '').trim() === p;
-  };
+  // O material que é o próprio produto da ordem (o projeto) não é componente:
+  // fica fora da lista de seleção, da contagem e do que é salvo. Regra única
+  // (código/descrição) compartilhada com a Conferência — ver lib/opProduto.
+  const ehProduto = (op: OPItem, m: { codigo?: string; descricao?: string }) => ehProdutoDaOp(op.produto, m);
   // Componentes de verdade da ordem, preservando o índice original (chave da seleção).
   const componentesDaOp = (op: OPItem) => op.materiais.map((m, i) => ({ m, i })).filter(x => !ehProduto(op, x.m));
   function toggleMaterial(opIdx: number, matIdx: number) {

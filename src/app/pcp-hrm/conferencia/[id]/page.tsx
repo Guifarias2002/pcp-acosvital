@@ -5,6 +5,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { getPedido, lerOpDoPedido, editarPedido, itemAcao, iniciarConferenciaHrm } from '@/lib/api';
 import { getUser, getToken } from '@/lib/auth';
 import { FABRICAS, NOMES } from '@/lib/types';
+import { ehProdutoDaOp } from '@/lib/opProduto';
 import VisualizadorDoc, { DocEmbed } from '@/components/VisualizadorDoc';
 
 // ── PCP HRM — Conferência ────────────────────────────────────────────────────
@@ -294,9 +295,12 @@ function Conteudo() {
         // Componentes salvos na Anexar OP (bloco [[COMPONENTES]]) — aparecem na
         // tela mesmo se a OP não reabrir (B2 fora). Exclui o que == produto.
         {
-          const prodCod = (it0?.codigo ? String(it0.codigo) : (prodSalvo?.codigo || '')).trim();
+          const prodRef = {
+            codigo: it0?.codigo ? String(it0.codigo) : (prodSalvo?.codigo || ''),
+            descricao: it0?.descricao ? String(it0.descricao) : (prodSalvo?.descricao || ''),
+          };
           const compsSalvos = componentesDasObservacoes(String(ped.observacoes || ''))
-            .filter(c => !prodCod || c.codigo !== prodCod);
+            .filter(c => !ehProdutoDaOp(prodRef, c));
           if (compsSalvos.length) setComponentes(compsSalvos);
         }
         // Tem algo salvo pra mostrar sem a OP? (produto/componentes da Anexar OP
@@ -322,9 +326,8 @@ function Conteudo() {
             // Semeia os COMPONENTES a partir dos materiais lidos, ignorando o que
             // tem o mesmo código do produto (é o próprio produto, não um filho).
             {
-              const prodCod = (op0.produto?.codigo || '').trim();
               const comps = (op0.materiais || [])
-                .filter(m => (m.codigo || '').trim() && (m.codigo || '').trim() !== prodCod)
+                .filter(m => (m.codigo || '').trim() && !ehProdutoDaOp(op0.produto, m))
                 .map(m => ({
                   codigo: (m.codigo || '').trim(),
                   descricao: (m.descricao || '').trim(),
