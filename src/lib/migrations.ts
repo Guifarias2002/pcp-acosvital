@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 49;
+const SCHEMA_VERSION = 50;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -666,6 +666,31 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
         AND NOT EXISTS (SELECT 1 FROM usuarios_usuario WHERE acesso_conferencia_hrm = true)
     `;
   }).catch(e => console.error('[migrations] M45 (acesso_conferencia_hrm) falhou:', e));
+
+  // M46 (25/09): setores novos da Caldeiraria HRM — Corte Caldeiraria
+  // ('cald_corte') e Usinagem Caldeiraria ('cald_usinagem'). Não precisam de
+  // DDL (setor é texto livre); aqui só ACRESCENTA os dois ao Alan (login
+  // 'alan'), sem tirar nada. Roda 1x: marca 'm46_alan_setores' em
+  // producao_config e só atualiza se a marca acabou de ser criada.
+  await sql.savepoint(async (sp) => {
+    const [marca] = await sp`
+      INSERT INTO producao_config (chave, valor, atualizado_em)
+      VALUES ('m46_alan_setores', 'ok', NOW())
+      ON CONFLICT (chave) DO NOTHING
+      RETURNING chave
+    `;
+    if (!marca) return;
+    await sp`
+      UPDATE usuarios_usuario
+      SET setores = ARRAY(
+        SELECT DISTINCT s FROM unnest(
+          COALESCE(NULLIF(setores, '{}'), CASE WHEN setor IS NOT NULL AND setor <> '' THEN ARRAY[setor::text] ELSE '{}'::text[] END)
+          || ${sp.array(['cald_corte', 'cald_usinagem'])}::text[]
+        ) AS s
+      )
+      WHERE username = 'alan'
+    `;
+  }).catch(e => console.error('[migrations] M46 (setores alan) falhou:', e));
 
   // M44 (14/09): AVISOS DE PRODUÇÃO — "caixa de mensagens" do Planejamento pra
   // Usinagem. O planejador aperta "Avisar Produção" num pedido e cria um aviso

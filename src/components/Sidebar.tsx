@@ -37,11 +37,13 @@ const SETOR_ICONS: Record<string, string> = {
   // Caldeiraria — processo novo (ver types.ts SETORES_CALDEIRARIA_PROCESSO_NOVOS)
   usinagem_final: 'bi-gear-fill',
   cald_corte_oxi: 'bi-scissors',
+  cald_corte: 'bi-scissors',
   cald_identificacao: 'bi-tags',
   cald_transp_externo: 'bi-truck',
   cald_conformacao_int: 'bi-bezier2',
   cald_conformacao_ext: 'bi-bezier',
   cald_pre_usinagem: 'bi-tools',
+  cald_usinagem: 'bi-gear-wide-connected',
   cald_prep_chapas: 'bi-layers',
   cald_revestimento: 'bi-shield-shaded',
   cald_pint_primer: 'bi-paint-bucket',

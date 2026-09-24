@@ -63,6 +63,9 @@ export const SETOR_CHOICES: [string, string][] = [
   // reaproveitados no roteiro e NÃO recriados aqui. Só entram aqui os passos
   // novos. Ver PROCESSO_CALDEIRARIA (ordem do roteiro).
   ['cald_corte_oxi', 'Corte Oxicorte/Plasma/Laser'],
+  // 25/09: setores de trabalho pedidos pela área (com produção — exige Iniciar).
+  ['cald_corte', 'Corte Caldeiraria'],
+  ['cald_usinagem', 'Usinagem Caldeiraria'],
   ['cald_identificacao', 'Identificação dos Materiais'],
   ['cald_transp_externo', 'Transporte p/ Serviço Externo'],
   ['cald_conformacao_int', 'Conformação Interna'],
@@ -114,12 +117,14 @@ export const SETORES_CALDEIRARIA_NOVOS = ['corte_chapas', 'corte_perfis', 'supor
 export const PROCESSO_CALDEIRARIA = [
   'caldeiraria',          // Recebimento
   'cald_corte_oxi',       // Corte Oxicorte/Plasma/Laser
+  'cald_corte',           // Corte Caldeiraria
   'corte_perfis',         // Corte de Perfis
   'cald_identificacao',   // Identificação dos Materiais
   'cald_transp_externo',  // Solicitação transporte p/ Serviço Externo
   'cald_conformacao_int', // Conformação Interna
   'cald_conformacao_ext', // Conformação Externa
   'cald_pre_usinagem',    // Pré-Usinagem
+  'cald_usinagem',        // Usinagem Caldeiraria
   'cald_prep_chapas',     // Prep. Chapas e Perfis (Pré-Montagem)
   'qualidade',            // Inspeção CQ
   'solda',                // Solda
@@ -143,7 +148,7 @@ export const PROCESSO_CALDEIRARIA = [
 
 // Só os passos NOVOS do processo (os 'cald_*' criados agora). Usado pra marcar
 // exclusividade (não vazam pro Flange) e alimentar menu/kanban da Caldeiraria.
-export const SETORES_CALDEIRARIA_PROCESSO_NOVOS = ['cald_corte_oxi', 'cald_identificacao', 'cald_transp_externo', 'cald_conformacao_int', 'cald_conformacao_ext', 'cald_pre_usinagem', 'cald_prep_chapas', 'cald_revestimento', 'cald_pint_primer', 'cald_pint_interm', 'cald_pint_acab', 'cald_pint_antiderr', 'cald_pint_retoques', 'cald_book', 'cald_emissao_nf', 'cald_outros'];
+export const SETORES_CALDEIRARIA_PROCESSO_NOVOS = ['cald_corte_oxi', 'cald_corte', 'cald_identificacao', 'cald_transp_externo', 'cald_conformacao_int', 'cald_conformacao_ext', 'cald_pre_usinagem', 'cald_usinagem', 'cald_prep_chapas', 'cald_revestimento', 'cald_pint_primer', 'cald_pint_interm', 'cald_pint_acab', 'cald_pint_antiderr', 'cald_pint_retoques', 'cald_book', 'cald_emissao_nf', 'cald_outros'];
 
 // Setores da Caldeiraria SEM início de produção (pass-through, 18/09): a peça só
 // é RECEBIDA e ENCAMINHADA ("produzido em outro setor") — não exige "Iniciar"
