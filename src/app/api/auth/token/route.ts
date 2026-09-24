@@ -137,11 +137,19 @@ export async function POST(req: Request) {
     // Flag nova lida À PARTE e tolerante a falha: se a coluna ainda não existir
     // no banco (migração não aplicada), o login segue normal com a flag false —
     // nunca derruba o login de todo mundo por causa de uma coluna nova.
+    // Se a coluna faltar (42703), aproveita pra aplicar as migrações na hora
+    // (runMigrations nunca lança) e tenta 1x de novo; se ainda falhar, segue.
     let acessoConferenciaHrm = false;
-    try {
+    const lerFlagConf = async () => {
       const [f] = await sql`SELECT acesso_conferencia_hrm FROM usuarios_usuario WHERE id = ${user.id}`;
       acessoConferenciaHrm = f?.acesso_conferencia_hrm === true;
-    } catch { /* coluna ainda não existe — segue sem a flag */ }
+    };
+    try { await lerFlagConf(); } catch (e) {
+      if ((e as { code?: string })?.code === '42703') {
+        await runMigrations();
+        try { await lerFlagConf(); } catch { /* segue sem a flag */ }
+      }
+    }
     const token = await signToken({
       id: user.id,
       username: user.username,
