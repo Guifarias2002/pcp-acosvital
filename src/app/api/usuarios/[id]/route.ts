@@ -126,7 +126,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         await tx`UPDATE usuarios_usuario SET acesso_planejamento = ${campos.acesso_planejamento as boolean} WHERE id = ${targetId}`;
       }
       if (campos.acesso_conferencia_hrm !== undefined) {
-        await tx`UPDATE usuarios_usuario SET acesso_conferencia_hrm = ${campos.acesso_conferencia_hrm as boolean} WHERE id = ${targetId}`;
+        // Só grava se a coluna já existir (migração M45) — senão o UPDATE
+        // abortaria a transação e quebraria a edição de QUALQUER usuário.
+        const [col] = await tx`SELECT 1 AS ok FROM information_schema.columns WHERE table_name = 'usuarios_usuario' AND column_name = 'acesso_conferencia_hrm'`;
+        if (col) await tx`UPDATE usuarios_usuario SET acesso_conferencia_hrm = ${campos.acesso_conferencia_hrm as boolean} WHERE id = ${targetId}`;
       }
       if (campos.senha !== undefined) {
         const hashed = await hashPassword(campos.senha as string);
