@@ -76,20 +76,52 @@ export async function b2Upload(fileName: string, contentType: string, bytes: Arr
   if (!putRes.ok) throw new Error(`B2 upload ${putRes.status}: ${await putRes.text().catch(() => '')}`);
 }
 
+/** URL de envio pra o NAVEGADOR mandar o arquivo direto pro B2 (sem passar
+ *  pela Vercel, que limita requisição a 4,5 MB). Vale ~24h. Exige CORS no bucket
+ *  liberando os domínios do sistema (b2_upload_file). */
+export async function b2GetUploadUrl(): Promise<{ uploadUrl: string; authorizationToken: string }> {
+  const auth = await authorize();
+  const r = await fetch(`${auth.apiUrl}/b2api/v2/b2_get_upload_url`, {
+    method: 'POST',
+    headers: { Authorization: auth.authToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bucketId: auth.bucketId }),
+  });
+  if (!r.ok) throw new Error(`B2 get_upload_url ${r.status}: ${await r.text().catch(() => '')}`);
+  const d = await r.json();
+  return { uploadUrl: d.uploadUrl, authorizationToken: d.authorizationToken };
+}
+
+/** Link TEMPORÁRIO direto do B2 pra um arquivo (bucket privado) — usado pra
+ *  abrir arquivo GRANDE sem passar pela Vercel (resposta limitada a 4,5 MB).
+ *  Exige a capability shareFiles na chave. */
+export async function b2LinkTemporario(fileName: string, segundos = 3600): Promise<string> {
+  const auth = await authorize();
+  const r = await fetch(`${auth.apiUrl}/b2api/v2/b2_get_download_authorization`, {
+    method: 'POST',
+    headers: { Authorization: auth.authToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bucketId: auth.bucketId, fileNamePrefix: fileName, validDurationInSeconds: segundos }),
+  });
+  if (!r.ok) throw new Error(`B2 get_download_authorization ${r.status}: ${await r.text().catch(() => '')}`);
+  const { authorizationToken } = await r.json();
+  return `${auth.downloadUrl}/file/${auth.bucketName}/${encodeURIComponent(fileName)}?Authorization=${encodeURIComponent(authorizationToken)}`;
+}
+
 type B2DownloadResult =
   | { ok: true; body: ArrayBuffer; contentType: string }
   // `reason` separa os dois mundos: 'auth' = o b2_authorize_account recusou a
   // chave (B2_KEY_ID/B2_APP_KEY inválida, expirada ou SEM permissão de leitura);
   // 'download' = autorizou, mas o GET do arquivo falhou (403 cota, 404 sumiu…).
   // `detalhe` traz a mensagem crua do B2 pra log/diagnóstico.
-  | { ok: false; status: number; reason: 'auth' | 'download'; detalhe?: string };
+  | { ok: false; status: number; reason: 'auth' | 'download' | 'grande'; detalhe?: string };
 
 /** Baixa um arquivo do bucket (privado). Resiliente: re-autoriza e retenta em
  *  falhas transientes (token expirado = 401, 5xx, 429, erro de rede). Falhas
  *  definitivas (404/403) NÃO retentam — o `status`/`reason` voltam pra quem
  *  chamou diagnosticar (ex.: reason 'auth' = chave recusada; 403 download =
  *  cota de download do B2 estourada). */
-export async function b2Download(fileName: string): Promise<B2DownloadResult> {
+// maxBytes: se o arquivo for MAIOR, não baixa (reason 'grande') — quem chamou
+// manda o navegador pro link temporário (b2LinkTemporario).
+export async function b2Download(fileName: string, opts: { maxBytes?: number } = {}): Promise<B2DownloadResult> {
   let lastStatus = 0;
   let lastReason: 'auth' | 'download' = 'download';
   let lastDetalhe = '';
@@ -117,6 +149,11 @@ export async function b2Download(fileName: string): Promise<B2DownloadResult> {
       });
     } catch { lastStatus = 0; lastReason = 'download'; continue; } // erro de rede — retenta
     if (res.ok) {
+      const tam = Number(res.headers.get('content-length') || 0);
+      if (opts.maxBytes && tam > opts.maxBytes) {
+        try { await res.body?.cancel(); } catch { /* ignora */ }
+        return { ok: false, status: 413, reason: 'grande' };
+      }
       return {
         ok: true,
         body: await res.arrayBuffer(),

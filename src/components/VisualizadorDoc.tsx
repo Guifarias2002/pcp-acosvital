@@ -151,7 +151,7 @@ function DocInline({ url }: { url: string }) {
 // com altura fixa. Desktop usa <iframe> nativo; aparelho de toque desenha o PDF
 // no canvas do PDF.js (o iframe não renderiza PDF no Android). Use pra mostrar a
 // OP já aberta numa tela, sem exigir clique/abrir overlay.
-export function DocEmbed({ url, titulo, height = 560 }: { url: string; titulo: string; height?: number }) {
+export function DocEmbed({ url, titulo, height = 560 }: { url: string; titulo: string; height?: number | string }) {
   const [toque, setToque] = useState(false);
   useEffect(() => { setToque(ehToque()); }, []);
   return (

@@ -219,6 +219,80 @@ const filtrarSetores = (lista: string[], f: string) => {
   return t ? lista.filter(c => normSetor(NOMES[c] || c).includes(t)) : lista;
 };
 
+
+// Nome amigável do desenho: o original fica depois de "__" no nome do arquivo.
+function nomeDesenho(path: string, i: number): string {
+  const f = (path.replace(/^b2:/, '').split('/').pop() || '');
+  const orig = f.includes('__') ? f.slice(f.indexOf('__') + 2) : '';
+  return orig || `Desenho ${i + 1}`;
+}
+
+// Painel do DESENHO (lado esquerdo da Conferência): mostra o desenho aberto,
+// abas se houver mais de um, e anexar (botão ou arrastar o arquivo). Arquivo
+// grande vai direto pro armazenamento (ver uploadDesenho).
+function DesenhoPainel({ desenhos, pedidoId, token, editavel, enviando, progresso, msg, onEnviar, onRemover }: {
+  desenhos: string[]; pedidoId: number | string; token: string; editavel: boolean;
+  enviando: boolean; progresso: number | null; msg: string;
+  onEnviar: (f: File) => void; onRemover: (path: string) => void;
+}) {
+  const [sel, setSel] = useState(0);
+  const [arrastando, setArrastando] = useState(false);
+  useEffect(() => { if (sel >= desenhos.length) setSel(Math.max(0, desenhos.length - 1)); }, [desenhos.length, sel]);
+  const atual = desenhos[sel];
+  const url = atual ? `/api/pedidos/${pedidoId}/desenho?idx=${sel}&token=${encodeURIComponent(token)}` : '';
+  return (
+    <div
+      onDragOver={e => { if (editavel) { e.preventDefault(); setArrastando(true); } }}
+      onDragLeave={() => setArrastando(false)}
+      onDrop={e => { e.preventDefault(); setArrastando(false); const f = e.dataTransfer.files?.[0]; if (f && editavel) onEnviar(f); }}
+      style={{ background: '#fff', border: `2px ${arrastando ? 'dashed #f59e0b' : 'solid #e2e8f0'}`, borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8, height: '100%', minHeight: 420 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: '#1a3a5c', textTransform: 'uppercase', letterSpacing: 1 }}><i className="bi bi-rulers" style={{ marginRight: 6 }} />Desenho{desenhos.length > 1 ? `s — ${desenhos.length}` : ''}</span>
+        <div style={{ flex: 1 }} />
+        {atual && <a href={url} target="_blank" rel="noopener noreferrer" title="Abrir em outra aba" style={{ fontSize: 12, color: '#475569' }}><i className="bi bi-box-arrow-up-right" /></a>}
+        {editavel && (
+          <label style={{ background: '#f59e0b', color: '#fff', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: enviando ? 'wait' : 'pointer' }}>
+            {enviando ? (progresso !== null ? `⏳ ${progresso}%` : '⏳ Enviando…') : '+ Anexar desenho'}
+            <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" style={{ display: 'none' }} disabled={enviando}
+              onChange={e => { const f = e.target.files?.[0]; if (f) onEnviar(f); e.target.value = ''; }} />
+          </label>
+        )}
+      </div>
+      {desenhos.length > 1 && (
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+          {desenhos.map((d, i) => (
+            <button key={d} type="button" onClick={() => setSel(i)} title={nomeDesenho(d, i)} style={{
+              border: `1.5px solid ${i === sel ? '#1a3a5c' : '#e2e8f0'}`, background: i === sel ? '#1a3a5c' : '#fff', color: i === sel ? '#fff' : '#475569',
+              borderRadius: 16, padding: '3px 10px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>{nomeDesenho(d, i)}</button>
+          ))}
+        </div>
+      )}
+      {enviando && progresso !== null && (
+        <div style={{ height: 6, background: '#f1f5f9', borderRadius: 3 }}><div style={{ width: `${progresso}%`, height: 6, background: '#f59e0b', borderRadius: 3, transition: 'width .2s' }} /></div>
+      )}
+      {msg && <div style={{ fontSize: 12, fontWeight: 600, color: msg.includes('sucesso') ? '#16a34a' : '#dc2626' }}>{msg}</div>}
+      {atual ? (
+        <>
+          <div style={{ flex: 1, minHeight: 360, position: 'relative' }}>
+            <div style={{ position: 'absolute', inset: 0 }}><DocEmbed key={url} url={url} titulo={nomeDesenho(atual, sel)} height="100%" /></div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#64748b' }}>
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nomeDesenho(atual, sel)}</span>
+            {editavel && <button type="button" onClick={() => { if (confirm('Remover este desenho?')) onRemover(atual); }} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 12 }}><i className="bi bi-trash" /> Remover</button>}
+          </div>
+        </>
+      ) : (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#94a3b8', border: '2px dashed #e2e8f0', borderRadius: 10, padding: 20, textAlign: 'center' }}>
+          <i className="bi bi-rulers" style={{ fontSize: 34 }} />
+          <div style={{ fontSize: 13 }}>Nenhum desenho anexado.</div>
+          {editavel && <div style={{ fontSize: 12 }}>Clique em <b>+ Anexar desenho</b> ou <b>arraste o arquivo</b> aqui — qualquer tamanho.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Um componente da OP com o próprio roteiro (sub-item = filho do produto).
 interface CompRot { codigo: string; descricao: string; quantidade: string; unidade: string; roteiro: string[]; }
 
@@ -283,6 +357,7 @@ function Conteudo() {
   const [iniciandoConf, setIniciandoConf] = useState(false);
   const [uploadingDesenho, setUploadingDesenho] = useState(false);
   const [desenhoMsg, setDesenhoMsg] = useState('');
+  const [desenhoProg, setDesenhoProg] = useState<number | null>(null);
 
   // Campos editáveis do item a lançar (pré-preenchidos pela leitura da OP)
   const [codigo, setCodigo] = useState('');
@@ -472,16 +547,47 @@ function Conteudo() {
   async function recarregarPedido() {
     try { const ped = await getPedido(pedidoId); setPedido(ped); } catch { /* mantém o atual */ }
   }
+  // Até 4 MB: rota de sempre (passa pelo servidor). Acima: DIRETO pro
+  // Backblaze (a Vercel limita requisição a 4,5 MB) — qualquer tamanho.
   async function uploadDesenho(arquivo: File) {
-    setUploadingDesenho(true); setDesenhoMsg('');
+    setUploadingDesenho(true); setDesenhoMsg(''); setDesenhoProg(null);
+    const auth = { Authorization: `Bearer ${getToken() || ''}` };
     try {
-      const fd = new FormData(); fd.append('arquivo', arquivo);
-      const res = await fetch(`/api/pedidos/${pedidoId}/desenho`, { method: 'POST', headers: { Authorization: `Bearer ${getToken() || ''}` }, body: fd });
-      const data = await res.json();
-      if (data.ok) { setDesenhoMsg('Desenho anexado com sucesso!'); recarregarPedido(); }
-      else setDesenhoMsg(data.erro || `Erro ${res.status}`);
+      if (arquivo.size <= 4 * 1024 * 1024) {
+        const fd = new FormData();
+        fd.append('arquivo', arquivo);
+        const res = await fetch(`/api/pedidos/${pedidoId}/desenho`, { method: 'POST', headers: auth, body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (data.ok) { setDesenhoMsg('Desenho anexado com sucesso!'); recarregarPedido(); }
+        else setDesenhoMsg(data.erro || `Erro ${res.status}`);
+        return;
+      }
+      const r1 = await fetch(`/api/pedidos/${pedidoId}/desenho/direto`, { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'iniciar', nome: arquivo.name, tipo: arquivo.type }) });
+      const up = await r1.json().catch(() => ({}));
+      if (!r1.ok) { setDesenhoMsg(up.erro || `Erro ${r1.status}`); return; }
+      setDesenhoProg(0);
+      const ok = await new Promise<boolean>((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', up.uploadUrl);
+        xhr.setRequestHeader('Authorization', up.authorizationToken);
+        xhr.setRequestHeader('X-Bz-File-Name', encodeURIComponent(up.fileName));
+        xhr.setRequestHeader('Content-Type', arquivo.type || 'b2/x-auto');
+        xhr.setRequestHeader('X-Bz-Content-Sha1', 'do_not_verify');
+        xhr.upload.onprogress = e => { if (e.lengthComputable) setDesenhoProg(Math.round((e.loaded / e.total) * 100)); };
+        xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
+        xhr.onerror = () => resolve(false);
+        xhr.send(arquivo);
+      });
+      if (!ok) {
+        setDesenhoMsg('Não consegui enviar o arquivo grande pro armazenamento — falta liberar o CORS no Backblaze (avise o administrador).');
+        return;
+      }
+      const r2 = await fetch(`/api/pedidos/${pedidoId}/desenho/direto`, { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'confirmar', fileName: up.fileName }) });
+      const d2 = await r2.json().catch(() => ({}));
+      if (d2.ok) { setDesenhoMsg('Desenho anexado com sucesso!'); recarregarPedido(); }
+      else setDesenhoMsg(d2.erro || `Erro ${r2.status}`);
     } catch { setDesenhoMsg('Erro ao enviar o desenho.'); }
-    finally { setUploadingDesenho(false); }
+    finally { setUploadingDesenho(false); setDesenhoProg(null); }
   }
   async function removerDesenho(path: string) {
     try {
@@ -668,9 +774,26 @@ function Conteudo() {
     </div>
   );
 
+  const desenhosPed: string[] = (pedido?.desenhos as string[]) || [];
+  const mostraPainel = !carregando && !preview && pedido != null;
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <style>{`@media print { .no-print { display:none !important; } }`}</style>
+    <div className={mostraPainel ? 'conf-layout' : undefined} style={mostraPainel ? undefined : { maxWidth: 1100, margin: '0 auto' }}>
+      <style>{`@media print { .no-print { display:none !important; } }
+        .conf-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;max-width:1100px;margin:0 auto}
+        .conf-desenho{height:520px}
+        @media (min-width: 1500px){
+          .conf-layout{grid-template-columns:minmax(420px,1fr) minmax(0,1100px);max-width:none}
+          .conf-desenho{position:sticky;top:12px;align-self:start;height:calc(100vh - 90px)}
+        }
+        @media print { .conf-layout{display:block} }`}</style>
+      {mostraPainel && (
+        <aside className="conf-desenho no-print">
+          <DesenhoPainel desenhos={desenhosPed} pedidoId={pedidoId} token={token} editavel={!preview}
+            enviando={uploadingDesenho} progresso={desenhoProg} msg={desenhoMsg}
+            onEnviar={uploadDesenho} onRemover={removerDesenho} />
+        </aside>
+      )}
+      <div style={{ minWidth: 0 }}>
       {visualizando && <VisualizadorDoc url={visualizando.url} titulo={visualizando.titulo} onClose={() => setVisualizando(null)} />}
 
       {/* Cabeçalho */}
@@ -745,16 +868,6 @@ function Conteudo() {
                       <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 3 }}>{codigo && <>Cód. <span style={{ fontFamily: 'monospace' }}>{codigo}</span> · </>}{quantidade} {unidade}</div>
                     </div>
 
-                    {/* Roteiro */}
-                    <div style={card}>
-                      <div style={secTitle}><i className="bi bi-signpost-split" style={{ marginRight: 6 }} />Roteiro — por onde passa</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        <span style={passoChip}>1. Emissão</span>
-                        {roteiroSel.map((s, i) => <span key={s} style={passoChip}>{i + 2}. {NOMES[s] || s}</span>)}
-                        {roteiroSel.length === 0 && <span style={{ fontSize: 12, color: '#b45309' }}>Roteiro ainda não definido — monte na conferência.</span>}
-                      </div>
-                    </div>
-
                     {/* Materiais */}
                     {op0 && op0.materiais.length > 0 && (
                       <div style={card}>
@@ -788,7 +901,7 @@ function Conteudo() {
                         <div style={secTitle}><i className="bi bi-rulers" style={{ marginRight: 6 }} />Desenho(s) do projeto — {desenhos.length}</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                           {desenhos.map((path, di) => {
-                            const nome = path.split('/').pop() || `Desenho ${di + 1}`;
+                            const nome = nomeDesenho(path, di);
                             return (
                               <div key={di} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 10px' }}>
                                 <i className="bi bi-file-earmark" style={{ color: '#6b7280', fontSize: 13 }} />
@@ -1012,47 +1125,6 @@ function Conteudo() {
             </div>}
           </div>
 
-          {/* Desenho(s) do projeto — ver (inline) e anexar (fora da prévia) */}
-          {(() => {
-            const desenhos: string[] = (pedido?.desenhos as string[]) || [];
-            return (
-              <div style={card}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, borderBottom: '2px solid #1a3a5c', paddingBottom: 6 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#1a3a5c', textTransform: 'uppercase', letterSpacing: 1 }}><i className="bi bi-rulers" style={{ marginRight: 6 }} />Desenho(s) do projeto — {desenhos.length}</span>
-                  {!preview && (
-                    <label className="no-print" style={{ background: '#f59e0b', color: '#fff', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: uploadingDesenho ? 'wait' : 'pointer' }}>
-                      {uploadingDesenho ? '⏳ Enviando…' : '+ Anexar'}
-                      <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" style={{ display: 'none' }} disabled={uploadingDesenho}
-                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadDesenho(f); e.target.value = ''; }} />
-                    </label>
-                  )}
-                </div>
-                {desenhos.length === 0 ? (
-                  <div style={{ fontSize: 13, color: '#94a3b8' }}>Nenhum desenho anexado.</div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {desenhos.map((path, di) => {
-                      const nome = path.split('/').pop() || `Desenho ${di + 1}`;
-                      return (
-                        <div key={di} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, padding: '6px 10px' }}>
-                          <i className="bi bi-file-earmark" style={{ color: '#6b7280', fontSize: 13 }} />
-                          <button onClick={() => setVisualizando({ url: `/api/pedidos/${pedidoId}/desenho?idx=${di}&token=${encodeURIComponent(token)}`, titulo: nome })}
-                            style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', fontSize: 13, textDecoration: 'underline', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {nome}
-                          </button>
-                          {!preview && (
-                            <button onClick={() => removerDesenho(path)} className="no-print" style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 13 }} title="Remover"><i className="bi bi-trash" /></button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                {desenhoMsg && <div style={{ fontSize: 12, color: desenhoMsg.includes('sucesso') ? '#16a34a' : '#dc2626', marginTop: 8 }}>{desenhoMsg}</div>}
-              </div>
-            );
-          })()}
-
           {/* Ação — na prévia: iniciar a conferência; no modo trabalho: lançar */}
           {preview ? (
             <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginBottom: 40 }}>
@@ -1178,6 +1250,7 @@ function Conteudo() {
           </>)}
         </>
       )}
+      </div>
     </div>
   );
 }

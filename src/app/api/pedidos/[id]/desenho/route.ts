@@ -2,23 +2,10 @@ import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
-import { b2Upload, b2Download, b2Delete, B2_CONFIGURADO } from '@/lib/b2';
-import { podeAcessarHrm, type JWTPayload } from '@/lib/auth';
+import { b2Upload, b2Download, b2Delete, b2LinkTemporario, B2_CONFIGURADO } from '@/lib/b2';
+import { podeMexerNoDesenho, nomeArquivoDesenho } from '@/lib/desenhoAcesso';
 
 export const dynamic = 'force-dynamic';
-
-// Mesma regra da OP (ordem-producao): o perfil HRM (acesso_hrm, sem ser staff)
-// pode anexar/remover desenho enquanto o pedido ainda é "casca" (sem item ativo)
-// — ou seja, na tela Anexar OP, antes da Conferência. Depois que ganha item,
-// volta a exigir is_staff, o que protege os anexos do Flange (sempre têm item).
-async function podeMexerNoDesenho(user: JWTPayload, pedidoId: number): Promise<boolean> {
-  if (user.is_staff) return true;
-  if (!podeAcessarHrm(user)) return false;
-  const [{ tem_item }] = await sql`
-    SELECT EXISTS(SELECT 1 FROM producao_itempedido WHERE pedido_id = ${pedidoId} AND inativo = false) AS tem_item
-  `;
-  return !tem_item;
-}
 
 // Anexos NOVOS vão pro Backblaze B2 (não contam no egress do Supabase, que
 // estourou a cota e travou o Storage). No banco ficam com o prefixo "b2:";
@@ -66,8 +53,21 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   // Arquivo novo (Backblaze) — marcado com prefixo "b2:"
   if (storagePath.startsWith('b2:')) {
-    const r = await b2Download(storagePath.slice(3));
-    if (!r.ok) return new Response('Não foi possível abrir o arquivo.', { status: 502 });
+    // Resposta da Vercel é limitada a 4,5 MB: acima disso manda o navegador
+    // direto pro B2 com um link temporário (1h).
+    const r = await b2Download(storagePath.slice(3), { maxBytes: 4 * 1024 * 1024 });
+    if (!r.ok && r.reason === 'grande') {
+      try {
+        return Response.redirect(await b2LinkTemporario(storagePath.slice(3), 3600), 302);
+      } catch (e) {
+        console.error('[desenho GET] link temporário falhou', e);
+        return new Response('Arquivo grande: não foi possível gerar o link (chave do B2 sem permissão shareFiles).', { status: 502 });
+      }
+    }
+    if (!r.ok) {
+      console.error(`[desenho GET] B2 ${r.reason} status=${r.status} detalhe=${r.detalhe || ''}`);
+      return new Response(`Não foi possível abrir o arquivo (B2 ${r.reason === 'auth' ? 'credenciais ' : ''}${r.status}).`, { status: 502 });
+    }
     const extB2 = r.contentType.split('/')[1] || 'bin';
     return new Response(r.body, {
       headers: {
@@ -128,11 +128,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (arquivo.size > MAX_SIZE)
       return NextResponse.json({ erro: 'Arquivo muito grande (máx 20 MB)' }, { status: 400 });
 
-    // Nome plano (sem barras) pro Backblaze, único por anexo.
-    const ext = arquivo.type.split('/')[1] || 'bin';
-    const ts = Date.now();
-    const rnd = Math.random().toString(36).slice(2, 8);
-    const fileName = `pedido_${pedidoId}_desenho_${ts}_${rnd}.${ext}`;
+    // Nome plano (sem barras) pro Backblaze, único por anexo, com o nome original.
+    const fileName = nomeArquivoDesenho(pedidoId, arquivo.name || 'desenho', arquivo.type);
     const bytes = await arquivo.arrayBuffer();
 
     try {

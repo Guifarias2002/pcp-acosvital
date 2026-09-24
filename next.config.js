@@ -13,7 +13,11 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
       "font-src 'self' https://cdn.jsdelivr.net",
       "img-src 'self' data: blob: https:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+      // + Backblaze B2 (25/09): envio direto de desenho grande (pod-*.backblaze.com)
+      // e leitura do arquivo grande por link temporário (f*.backblazeb2.com).
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.backblazeb2.com https://*.backblaze.com",
+      // iframe: as próprias páginas + o link temporário do desenho grande no B2.
+      "frame-src 'self' https://*.backblazeb2.com",
       // worker do PDF.js (leitor de OP em tablet/celular, ver VisualizadorDoc):
       // servido do próprio domínio (/pdfjs/pdf.worker.min.js); blob: cobre o caso
       // de o PDF.js embrulhar o worker num Blob.
