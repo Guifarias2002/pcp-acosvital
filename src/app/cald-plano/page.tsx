@@ -5,7 +5,7 @@ import AuthGuard from '@/components/AuthGuard';
 import api, { postIdempotente } from '@/lib/api';
 import { podeLancarCaldeiraria, podePlanejarCaldeiraria, podeVerValores } from '@/lib/auth';
 import {
-  AREAS_CALD, situacaoItem, pendenciasItem, passaEmpresa, nomeEmpresa, hojeISO, fmtData, inicioSemana, somarDias, DIAS_PARADO,
+  AREAS_CALD, EMPRESAS_CALD, PRIORIDADES_CALD, situacaoItem, pendenciasItem, passaEmpresa, nomeEmpresa, hojeISO, fmtData, inicioSemana, somarDias, DIAS_PARADO,
   type ItemCald,
 } from '@/lib/caldPlano';
 import { C, CSS, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, fmtBRL, somaPorUnidade, somaValor, EmpresaTag, FiltroEmpresa } from './comum';
@@ -38,6 +38,9 @@ export default function CaldPlanoPage() {
   const [lancar, setLancar] = useState(false);
   const [importar, setImportar] = useState(false);
   const [caixa, setCaixa] = useState(false);
+  // Seleção em massa na Lista (definir empresa / prioridade de vários de uma vez).
+  const [sel, setSel] = useState<Set<number>>(new Set());
+  const [aplicandoLote, setAplicandoLote] = useState(false);
   const [aberto, setAberto] = useState<ItemCald | null>(null);
   const [arrastando, setArrastando] = useState<number | null>(null);
   const [alvoCol, setAlvoCol] = useState<string | null>(null);
@@ -182,6 +185,21 @@ export default function CaldPlanoPage() {
     const ids = lista.map(i => i.id).filter(x => x !== id);
     ids.splice(ids.indexOf(sobreId), 0, id);
     salvarOrdem(colCodigo, ids);
+  }
+
+  async function aplicarLote(body: { empresa?: string; prioridade?: string }, rotulo: string) {
+    const ids = Array.from(sel);
+    if (!ids.length) return;
+    if (!confirm(`${rotulo} em ${ids.length} item(ns) selecionado(s)?`)) return;
+    setAplicandoLote(true);
+    try {
+      const r = await api.post('/api/cald-plano/lote', { ids, ...body });
+      const novos = new Map<number, ItemCald>((r.data.itens || []).map((i: ItemCald) => [i.id, i]));
+      setItens(v => v.map(x => novos.get(x.id) || x));
+      mostrarAviso(`${rotulo}: ${r.data.alterados} item(ns) alterado(s).`);
+      setSel(new Set());
+    } catch { mostrarAviso('Não foi possível aplicar a alteração.'); }
+    finally { setAplicandoLote(false); }
   }
 
   async function exportarExcel() {
@@ -406,6 +424,23 @@ export default function CaldPlanoPage() {
                 </button>
               ))}
               <span style={{ fontSize: 12, color: C.cinza, marginLeft: 6 }}>{listaFiltrada.length} item(ns)</span>
+              {planeja && sel.size > 0 && (
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', background: '#eff6ff', border: `1.5px solid ${C.azul2}`, borderRadius: 10, padding: '5px 10px', marginLeft: 8 }}>
+                  <b style={{ fontSize: 12.5, color: C.azul }}>{sel.size} selecionado(s)</b>
+                  <span style={{ fontSize: 12, color: C.cinza }}>· Empresa:</span>
+                  {EMPRESAS_CALD.map(e => (
+                    <button key={e.codigo} className="cp-btn sm" disabled={aplicandoLote} style={{ borderColor: e.cor, color: e.cor }}
+                      onClick={() => aplicarLote({ empresa: e.codigo }, `Definir empresa ${e.nome}`)}>{e.nome}</button>
+                  ))}
+                  <span style={{ fontSize: 12, color: C.cinza }}>· Prioridade:</span>
+                  <select className="cp-in" style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }} value="" disabled={aplicandoLote}
+                    onChange={e => e.target.value && aplicarLote({ prioridade: e.target.value }, `Prioridade ${PRIO[e.target.value]?.txt}`)}>
+                    <option value="">escolher…</option>
+                    {PRIORIDADES_CALD.map(p => <option key={p} value={p}>{PRIO[p].txt}</option>)}
+                  </select>
+                  <button className="cp-btn sm" onClick={() => setSel(new Set())}><i className="bi bi-x" />Limpar seleção</button>
+                </div>
+              )}
               <div style={{ flex: 1 }} />
               <button className="cp-btn sm" onClick={exportarExcel}><i className="bi bi-file-earmark-excel" />Exportar Excel</button>
             </div>
@@ -413,6 +448,13 @@ export default function CaldPlanoPage() {
               <table className="cp-tbl">
                 <thead>
                   <tr>
+                    {planeja && (
+                      <th style={{ width: 28 }}>
+                        <input type="checkbox" title="Selecionar todos os itens da lista"
+                          checked={listaFiltrada.length > 0 && listaFiltrada.every(i => sel.has(i.id))}
+                          onChange={e => setSel(e.target.checked ? new Set(listaFiltrada.map(i => i.id)) : new Set())} />
+                      </th>
+                    )}
                     <th>Pedido</th><th>Empresa</th><th>Vendedor</th><th>Material</th><th>Qtd</th><th>Cliente</th><th>Situação</th>
                     {AREAS_CALD.map(a => <th key={a.codigo} style={{ color: a.cor }}>{a.nome}</th>)}
                     <th>Prev. fat.</th><th>Prev. final.</th><th>Finalizado</th>{verValores && <th>Valor</th>}<th>Obs</th>
@@ -423,7 +465,13 @@ export default function CaldPlanoPage() {
                     const s = sit.get(it.id)!;
                     const st = STATUS_TXT[it.status];
                     return (
-                      <tr key={it.id} className="cl" onClick={() => setAberto(it)}>
+                      <tr key={it.id} className="cl" onClick={() => setAberto(it)} style={sel.has(it.id) ? { background: '#eff6ff' } : undefined}>
+                        {planeja && (
+                          <td onClick={e => e.stopPropagation()}>
+                            <input type="checkbox" checked={sel.has(it.id)}
+                              onChange={() => setSel(v => { const n = new Set(v); if (n.has(it.id)) n.delete(it.id); else n.add(it.id); return n; })} />
+                          </td>
+                        )}
                         <td style={{ fontWeight: 800, color: C.azul, whiteSpace: 'nowrap' }}>{it.pedido}</td>
                         <td><EmpresaTag empresa={it.empresa} /></td>
                         <td>{it.vendedor || '—'}</td>
@@ -451,7 +499,7 @@ export default function CaldPlanoPage() {
                       </tr>
                     );
                   })}
-                  {!listaFiltrada.length && <tr><td colSpan={20} style={{ textAlign: 'center', color: C.fraco, padding: 24 }}>Nenhum item.</td></tr>}
+                  {!listaFiltrada.length && <tr><td colSpan={22} style={{ textAlign: 'center', color: C.fraco, padding: 24 }}>Nenhum item.</td></tr>}
                 </tbody>
               </table>
             </div>
