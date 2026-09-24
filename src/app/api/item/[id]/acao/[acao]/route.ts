@@ -1,7 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
-import { podeAcessarSetor, podeRedirecionarCorteLivre } from '@/lib/auth';
+import { podeAcessarSetor, podeRedirecionarCorteLivre, podeConferirHrm } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
 import { SETOR_CHOICES, injetarQuarentena, SETORES_CORTE, DESTINOS_PERMITIDOS_CORTE } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
@@ -210,7 +210,13 @@ async function handlePOST(
   if (item.inativo)
     return NextResponse.json({ erro: 'Item inativado — reative-o antes de movimentar.' }, { status: 409 });
 
-  if (!user.is_staff && !podeAcessarSetor(user, item.setor_atual))
+  // Conferência do PCP HRM (flag acesso_conferencia_hrm, ex.: Alan): pode tirar
+  // da Emissão (liberar / enviar parcial) item da Caldeiraria — é o "Lançar"
+  // da Conferência. Fora isso, vale a regra do setor.
+  const lancaConferenciaHrm = !user.is_staff && podeConferirHrm(user)
+    && item.setor_atual === 'emissao' && item.fabrica === 'caldeiraria'
+    && (acao === 'liberar' || acao === 'enviar_parcial');
+  if (!user.is_staff && !lancaConferenciaHrm && !podeAcessarSetor(user, item.setor_atual))
     return NextResponse.json({ erro: 'Acesso negado' }, { status: 403 });
 
   const statusesPermitidos = TRANSICOES[acao] || [];

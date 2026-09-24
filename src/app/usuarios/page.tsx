@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import AuthGuard from '@/components/AuthGuard';
 import { getUser, getToken, podeEditar } from '@/lib/auth';
-import { SETOR_CHOICES, NOMES } from '@/lib/types';
+import { SETOR_CHOICES, NOMES, SETORES_CALDEIRARIA_MENU } from '@/lib/types';
 
 interface Usuario {
   id: number;
@@ -22,6 +22,7 @@ interface Usuario {
   pode_definir_previsao: boolean;
   oculta_valores: boolean;
   acesso_planejamento: boolean;
+  acesso_conferencia_hrm: boolean;
 }
 
 const PERFIL_BADGE: Record<string, { bg: string; cor: string }> = {
@@ -36,10 +37,12 @@ const PERFIL_BADGE: Record<string, { bg: string; cor: string }> = {
 const PERFIS = ['administrador', 'pcp', 'lider', 'operador', 'vendedor', 'apontador'];
 
 // Separação por fábrica: os setores são agrupados no seletor para deixar claro
-// o que é Flanges x Caldeiraria (e os compartilhados). A Caldeiraria hoje tem só
-// o "Recebimento"; conforme novos setores forem criados lá, é só acrescentar aqui.
+// o que é Flanges x Caldeiraria (e os compartilhados). A Caldeiraria mostra o
+// "Recebimento" + as etapas da Caldeiraria HRM (ver SETORES_CALDEIRARIA abaixo).
 const SETORES_COMPARTILHADOS = ['beneficiadores', 'recebimento'];
-const SETORES_CALDEIRARIA = ['caldeiraria']; // exibido como "Recebimento" na fábrica Caldeiraria
+// 'caldeiraria' é exibido como "Recebimento"; os demais são as etapas da
+// Caldeiraria HRM (SETORES_CALDEIRARIA_MENU), agrupadas aqui em vez de no Flanges.
+const SETORES_CALDEIRARIA = SETORES_CALDEIRARIA_MENU;
 const GRUPOS_FABRICA: { titulo: string; setores: [string, string][] }[] = [
   {
     titulo: '🔩 Flanges',
@@ -47,7 +50,7 @@ const GRUPOS_FABRICA: { titulo: string; setores: [string, string][] }[] = [
   },
   {
     titulo: '🏗 Caldeiraria',
-    setores: [['caldeiraria', 'Recebimento']],
+    setores: SETORES_CALDEIRARIA.map(c => [c, c === 'caldeiraria' ? 'Recebimento' : (NOMES[c] || c)] as [string, string]),
   },
   {
     titulo: '🔗 Compartilhados',
@@ -120,12 +123,12 @@ export default function UsuariosPage() {
   const [copiadoId, setCopiadoId] = useState<number | null>(null);
   const [copiadoLogin, setCopiadoLogin] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] as string[], somente_leitura: false, ve_todos_pedidos: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false, oculta_valores: false, acesso_planejamento: false });
+  const [form, setForm] = useState({ username: '', nome: '', senha: '', perfil: 'operador', setores: [] as string[], somente_leitura: false, ve_todos_pedidos: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false, oculta_valores: false, acesso_planejamento: false, acesso_conferencia_hrm: false });
   const [salvando, setSalvando] = useState(false);
   const [formMsg, setFormMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   // Edição de usuário existente
   const [editUser, setEditUser] = useState<Usuario | null>(null);
-  const [editForm, setEditForm] = useState({ nome: '', perfil: 'operador', setores: [] as string[], is_active: true, senha: '', somente_leitura: false, ve_todos_pedidos: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false, oculta_valores: false, acesso_planejamento: false });
+  const [editForm, setEditForm] = useState({ nome: '', perfil: 'operador', setores: [] as string[], is_active: true, senha: '', somente_leitura: false, ve_todos_pedidos: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false, oculta_valores: false, acesso_planejamento: false, acesso_conferencia_hrm: false });
   // "Olho" pra ver a senha digitada (admin). Só revela o que está sendo digitado
   // — a senha salva fica criptografada no banco e não dá pra recuperar.
   const [verSenhaForm, setVerSenhaForm] = useState(false);
@@ -178,7 +181,7 @@ export default function UsuariosPage() {
         setFormMsg({ tipo: 'erro', texto: data.erro || 'Erro ao criar usuário.' });
       } else {
         setFormMsg({ tipo: 'ok', texto: 'Usuário criado com sucesso!' });
-        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setores: [], somente_leitura: false, ve_todos_pedidos: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false, oculta_valores: false, acesso_planejamento: false });
+        setForm({ username: '', nome: '', senha: '', perfil: 'operador', setores: [], somente_leitura: false, ve_todos_pedidos: false, pode_desfazer_recebimento: false, acesso_hrm: false, pode_definir_previsao: false, oculta_valores: false, acesso_planejamento: false, acesso_conferencia_hrm: false });
         setShowForm(false);
         carregarUsuarios();
       }
@@ -204,6 +207,7 @@ export default function UsuariosPage() {
       pode_definir_previsao: u.pode_definir_previsao || false,
       oculta_valores: u.oculta_valores || false,
       acesso_planejamento: u.acesso_planejamento || false,
+      acesso_conferencia_hrm: u.acesso_conferencia_hrm || false,
     });
     setEditMsg(null);
   }
@@ -226,6 +230,7 @@ export default function UsuariosPage() {
         pode_definir_previsao: editForm.pode_definir_previsao,
         oculta_valores: editForm.oculta_valores,
         acesso_planejamento: editForm.acesso_planejamento,
+        acesso_conferencia_hrm: editForm.acesso_conferencia_hrm,
       };
       if (editForm.senha) body.senha = editForm.senha;
       const res = await fetch(`/api/usuarios/${editUser.id}`, {
@@ -435,6 +440,16 @@ export default function UsuariosPage() {
                 </div>
               </div>
 
+              <div style={{ marginBottom: 20, background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 6, padding: '10px 12px' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#047857', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={form.acesso_conferencia_hrm} onChange={e => setForm(f => ({ ...f, acesso_conferencia_hrm: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                  <span><i className="bi bi-clipboard-check" style={{ marginRight: 6 }}></i>Conferência HRM (conferir e lançar)</span>
+                </label>
+                <div style={{ fontSize: 12, color: '#059669', marginTop: 4, paddingLeft: 24 }}>
+                  Libera a Conferência do PCP HRM — conferir e LANÇAR as OPs da Caldeiraria pra produção — e o "Onde está cada OP". Não vale pra pedidos do Flange.
+                </div>
+              </div>
+
               {formMsg && (
                 <div style={{
                   marginBottom: 14, padding: '8px 12px', borderRadius: 6, fontSize: 13,
@@ -619,6 +634,16 @@ export default function UsuariosPage() {
                 </label>
                 <div style={{ fontSize: 12, color: '#4f46e5', marginTop: 4, paddingLeft: 24 }}>
                   Libera a tela de Planejamento (fila + painel de máquinas) e o poder de definir máquina/ordem da Usinagem — que o operador não reverte.
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 20, background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 6, padding: '10px 12px' }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#047857', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={editForm.acesso_conferencia_hrm} onChange={e => setEditForm(f => ({ ...f, acesso_conferencia_hrm: e.target.checked }))} style={{ cursor: 'pointer' }} />
+                  <span><i className="bi bi-clipboard-check" style={{ marginRight: 6 }}></i>Conferência HRM (conferir e lançar)</span>
+                </label>
+                <div style={{ fontSize: 12, color: '#059669', marginTop: 4, paddingLeft: 24 }}>
+                  Libera a Conferência do PCP HRM — conferir e LANÇAR as OPs da Caldeiraria pra produção — e o "Onde está cada OP". Não vale pra pedidos do Flange.
                 </div>
               </div>
 

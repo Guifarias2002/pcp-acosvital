@@ -3,7 +3,7 @@ import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
 import { getPedidoComItens } from '@/lib/queries';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
-import { vendedorRestrito } from '@/lib/auth';
+import { vendedorRestrito, podeConferirHrm } from '@/lib/auth';
 import { SETOR_CHOICES, FABRICAS, TIPOS_PRODUTO_CALDEIRARIA } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -79,7 +79,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // normalmente em tudo mais no setor deles.
   const somenteObservacao = Object.keys(body).length > 0 && Object.keys(body).every(k => k === 'observacoes');
   const podeEditarLeve = somenteObservacao && user.somente_leitura !== true;
-  if (!user.is_staff && !podeEditarLeve)
+  // Conferência do PCP HRM sem ser staff (flag acesso_conferencia_hrm, ex.:
+  // Alan): só os campos que o lançamento da Conferência grava, só itens de
+  // fabrica='caldeiraria' e só em pedido da Caldeiraria (sem item de outra
+  // fábrica). Checado no banco logo abaixo, depois de validar o id.
+  const CAMPOS_CONF_HRM = ['observacoes', 'numero_pedido_cliente', 'entrega_contratual', 'roteiro_base', 'itens'];
+  const viaConferenciaHrm = !user.is_staff && !podeEditarLeve && podeConferirHrm(user)
+    && Object.keys(body).length > 0 && Object.keys(body).every(k => CAMPOS_CONF_HRM.includes(k))
+    && (body.itens === undefined || (Array.isArray(body.itens) && body.itens.every((it: { fabrica?: string }) => it?.fabrica === 'caldeiraria')));
+  if (!user.is_staff && !podeEditarLeve && !viaConferenciaHrm)
     return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   if (!checkMutationRateLimit(getClientIp(req)))
@@ -92,6 +100,24 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const [pedido] = await sql`SELECT id, data_emissao::text AS data_emissao FROM producao_pedido WHERE id = ${pedidoId}`;
   if (!pedido) return NextResponse.json({ erro: 'Pedido nao encontrado' }, { status: 404 });
+
+  if (viaConferenciaHrm) {
+    // Pedido da Caldeiraria HRM = nenhum item de outra fábrica E ('caldeiraria'
+    // no roteiro_base — o casca — OU já tem item da Caldeiraria; o 1º passo do
+    // lançamento troca o roteiro_base pelo montado na Conferência, que pode não
+    // ter 'caldeiraria'). Qualquer outro pedido continua só pra staff.
+    const [ok] = await sql`
+      SELECT NOT EXISTS (
+        SELECT 1 FROM producao_itempedido i
+        WHERE i.pedido_id = p.id AND COALESCE(i.fabrica, '') <> 'caldeiraria'
+      ) AND (
+        'caldeiraria' = ANY(COALESCE(p.roteiro_base, '{}'))
+        OR EXISTS (SELECT 1 FROM producao_itempedido i WHERE i.pedido_id = p.id AND i.fabrica = 'caldeiraria')
+      ) AS hrm
+      FROM producao_pedido p WHERE p.id = ${pedidoId}
+    `;
+    if (!ok?.hrm) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  }
 
   // Guard: previsao de faturamento (prazo_entrega) nao pode ser ANTERIOR a
   // emissao do pedido. Evita reintroduzir as "ordens erradas".

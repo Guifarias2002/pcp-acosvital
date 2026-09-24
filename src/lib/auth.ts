@@ -45,6 +45,10 @@ export interface JWTPayload {
   // máquinas) e poder de definir máquina/ordem que o operador não reverte.
   // Ver `podePlanejar` abaixo.
   acesso_planejamento?: boolean;
+  // Conferência do PCP HRM (conferir E lançar OP pra produção) sem ser staff
+  // (ex.: Alan, líder). Só vale pra pedidos da Caldeiraria HRM — o servidor
+  // barra o resto. Ver `podeConferirHrm` abaixo.
+  acesso_conferencia_hrm?: boolean;
 }
 
 // Um vendedor "restrito" só pode ver/filtrar os próprios pedidos (por nome).
@@ -232,7 +236,15 @@ export function podeVerRomaneios(u?: JWTPayload | null): boolean {
 // seletor de workspace; além deles, usuários comuns com a flag `acesso_hrm`.
 export function podeAcessarHrm(u?: JWTPayload | null): boolean {
   const user = u ?? getUser();
-  return !!user && (!!user.is_staff || user.acesso_hrm === true);
+  return !!user && (!!user.is_staff || user.acesso_hrm === true || user.acesso_conferencia_hrm === true);
+}
+
+// Pode CONFERIR e LANÇAR OPs na Conferência do PCP HRM (e ver "Onde está cada
+// OP")? Staff sempre; além dele, a flag `acesso_conferencia_hrm` (ex.: Alan).
+// Nas APIs, quem entra só pela flag fica restrito a pedidos da Caldeiraria.
+export function podeConferirHrm(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return !!user && (!!user.is_staff || user.acesso_conferencia_hrm === true);
 }
 
 // Pode PLANEJAR a Usinagem? Administrador sempre; além dele, usuários com a

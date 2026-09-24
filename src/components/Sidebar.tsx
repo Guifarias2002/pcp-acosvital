@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerNaoLocalizados, podeVerRomaneios, podePlanejar } from '@/lib/auth';
+import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerNaoLocalizados, podeVerRomaneios, podePlanejar, podeConferirHrm } from '@/lib/auth';
 import { SETOR_CHOICES, NOMES, SETORES_CALDEIRARIA_MENU, SETORES_EXCLUSIVOS_CALDEIRARIA } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { JWTPayload } from '@/lib/auth';
@@ -152,6 +152,8 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
   const podeRomaneios = podeVerRomaneios(user);
   // Planejamento da Usinagem: admin OU flag acesso_planejamento (ex.: Reginaldo).
   const podePlan = podePlanejar(user);
+  // Conferência do PCP HRM: staff OU flag acesso_conferencia_hrm (ex.: Alan).
+  const confHrm = !isAdmin && podeConferirHrm(user);
   const isVendedor = !isAdmin && user?.perfil === 'vendedor';
   // Conta de VENDAS (visualização): vendedor com ve_todos_pedidos vê TODOS os
   // pedidos E as ÁREAS/setores no menu (pra saber onde cada pedido está), mas
@@ -280,14 +282,15 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
 
           {/* PCP HRM — Anexar OP. Admin/PCP vê no workspace HRM; usuário comum
               com a flag acesso_hrm vê sempre (sem seletor de workspace). */}
-          {(emHrm || (!isAdmin && !!user?.acesso_hrm)) && (
+          {(emHrm || (!isAdmin && (!!user?.acesso_hrm || confHrm))) && (
             <NavGroup label="🏭 PCP HRM" defaultOpen={true}>
               <NavItem href="/pcp-hrm" label="Anexar OP" icon="bi-file-earmark-arrow-up" onNav={fechar} />
               {/* Conferência + visões de PCP: só PCP/admin (no workspace HRM). O
                   perfil restrito (acesso_hrm puro) só anexa OP — não confere nem
                   vê o painel/kanban (a API do painel é staff-only). */}
-              {emHrm && <NavItem href="/pcp-hrm/conferencia" label="Conferência" icon="bi-clipboard-check" onNav={fechar} />}
-              {emHrm && <NavItem href="/pcp-hrm/painel" label="Onde está cada OP" icon="bi-signpost-split" onNav={fechar} />}
+              {/* ...exceto quem tem a flag acesso_conferencia_hrm (ex.: Alan). */}
+              {(emHrm || confHrm) && <NavItem href="/pcp-hrm/conferencia" label="Conferência" icon="bi-clipboard-check" onNav={fechar} />}
+              {(emHrm || confHrm) && <NavItem href="/pcp-hrm/painel" label="Onde está cada OP" icon="bi-signpost-split" onNav={fechar} />}
               {emHrm && <NavItem href="/kanban?fabrica=caldeiraria" label="Kanban" icon="bi-kanban" onNav={fechar} />}
             </NavGroup>
           )}

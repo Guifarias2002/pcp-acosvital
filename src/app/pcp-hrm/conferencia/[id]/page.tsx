@@ -3,7 +3,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedido, lerOpDoPedido, editarPedido, itemAcao, iniciarConferenciaHrm } from '@/lib/api';
-import { getUser, getToken } from '@/lib/auth';
+import { getUser, getToken, podeConferirHrm } from '@/lib/auth';
 import { FABRICAS, NOMES } from '@/lib/types';
 import { ehProdutoDaOp } from '@/lib/opProduto';
 import VisualizadorDoc, { DocEmbed } from '@/components/VisualizadorDoc';
@@ -184,7 +184,8 @@ function Conteudo() {
   const params = useParams();
   const searchParams = useSearchParams();
   const pedidoId = Number(params.id);
-  const staff = !!getUser()?.is_staff;
+  // Pode lançar: PCP/admin OU flag acesso_conferencia_hrm (ex.: Alan).
+  const staff = podeConferirHrm(getUser());
   // Prévia (?preview=1): só-leitura. Abre pela lista ao clicar no card, pra
   // CONSULTAR (OP, descrição, componentes, desenhos) sem iniciar a conferência.
   const preview = searchParams.get('preview') === '1';

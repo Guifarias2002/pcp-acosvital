@@ -4,6 +4,7 @@
  */
 import postgres from 'postgres';
 import sql from './db';
+import { SETORES_CALDEIRARIA_MENU } from './types';
 
 // Execução memoizada: várias chamadas concorrentes (ex.: várias pessoas logando
 // no mesmo cold start logo após um deploy) compartilham a MESMA execução e todas
@@ -639,6 +640,28 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
       AND acesso_planejamento = false
       AND NOT EXISTS (SELECT 1 FROM usuarios_usuario WHERE acesso_planejamento = true)
   `.catch(() => {});
+
+  // M45 (24/09): CONFERÊNCIA HRM sem ser staff — flag acesso_conferencia_hrm
+  // libera a Conferência do PCP HRM (conferir + lançar OP da Caldeiraria) e o
+  // "Onde está cada OP". Semeia o Alan (login 'alan', líder) e ACRESCENTA a ele
+  // os setores da Caldeiraria HRM (SETORES_CALDEIRARIA_MENU) sem tirar os que
+  // já tem. Guarda NOT EXISTS: roda só no 1º deploy (enquanto ninguém tem a
+  // flag) — não re-liga nem re-adiciona setores se desmarcarem depois.
+  await sql.unsafe(`ALTER TABLE usuarios_usuario ADD COLUMN IF NOT EXISTS acesso_conferencia_hrm BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
+  await sql`
+    UPDATE usuarios_usuario
+    SET acesso_conferencia_hrm = true,
+        setores = ARRAY(
+          SELECT DISTINCT s FROM unnest(
+            COALESCE(NULLIF(setores, '{}'), CASE WHEN setor IS NOT NULL AND setor <> '' THEN ARRAY[setor] ELSE '{}'::text[] END)
+            || ${SETORES_CALDEIRARIA_MENU}::text[]
+          ) AS s
+        ),
+        setor = COALESCE(NULLIF(setor, ''), 'caldeiraria')
+    WHERE username = 'alan'
+      AND acesso_conferencia_hrm = false
+      AND NOT EXISTS (SELECT 1 FROM usuarios_usuario WHERE acesso_conferencia_hrm = true)
+  `.catch(e => console.error('[migrations] M45 seed alan falhou:', e));
 
   // M44 (14/09): AVISOS DE PRODUÇÃO — "caixa de mensagens" do Planejamento pra
   // Usinagem. O planejador aperta "Avisar Produção" num pedido e cria um aviso

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
+import { podeConferirHrm } from '@/lib/auth';
 import { autenticar } from '@/lib/middleware';
 import { withTimeout } from '@/lib/queryTimeout';
 import { SETORES_EXCLUSIVOS_CALDEIRARIA } from '@/lib/types';
@@ -40,7 +41,8 @@ export async function GET(req: Request) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
   // Overview de PCP — só staff (admin/PCP). Operador usa a tela do próprio setor.
-  if (!user.is_staff) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  // + quem tem a flag acesso_conferencia_hrm (ex.: Alan) — o painel é só da Caldeiraria.
+  if (!podeConferirHrm(user)) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
   const incluirEntregues = searchParams.get('entregues') === '1';
