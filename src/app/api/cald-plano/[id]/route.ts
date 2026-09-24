@@ -71,7 +71,8 @@ function areaPelaUltimaEntrada(areas: string[], etapas: { area: string; entrada:
 export async function PATCH(req: Request, ctx: Ctx) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
-  if (!podeLancarCaldeiraria(user)) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
+  // Alterar é só de quem planeja (PCP de visualização só olha — decisão 24/09).
+  if (!podePlanejarCaldeiraria(user)) return NextResponse.json({ erro: 'Somente visualização' }, { status: 403 });
   const planeja = podePlanejarCaldeiraria(user);
   const id = idDe(ctx);
   if (!id) return NextResponse.json({ erro: 'Item inválido' }, { status: 400 });
@@ -200,7 +201,7 @@ export async function POST(req: Request, ctx: Ctx) {
     try { b = await req.json(); } catch { return NextResponse.json({ erro: 'JSON inválido' }, { status: 400 }); }
     const acao = String(b.acao || '');
     const planeja = podePlanejarCaldeiraria(user);
-    if (!planeja && acao !== 'cancelar') return NextResponse.json({ erro: 'Só o planejamento da Caldeiraria pode fazer isso' }, { status: 403 });
+    if (!planeja) return NextResponse.json({ erro: 'Só o planejamento da Caldeiraria pode fazer isso' }, { status: 403 });
     const data = b.data ? isoValida(b.data) : hojeISO();
     if (!data) return NextResponse.json({ erro: 'Data inválida' }, { status: 400 });
     const quem = user.nome || user.username;

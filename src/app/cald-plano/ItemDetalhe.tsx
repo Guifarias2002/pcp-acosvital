@@ -105,7 +105,9 @@ export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, 
       rodape={<>
         {msg && <span style={{ color: msg.tipo === 'ok' ? C.verde : C.vermelho, fontSize: 13, fontWeight: 700, marginRight: 'auto', alignSelf: 'center' }}>{msg.txt}</span>}
         <button className="cp-btn" onClick={onFechar}>Fechar</button>
-        <button className="cp-btn pri" onClick={salvar} disabled={salvando}><i className="bi bi-check2" />{salvando ? 'Salvando…' : 'Salvar alterações'}</button>
+        {podePlanejar
+          ? <button className="cp-btn pri" onClick={salvar} disabled={salvando}><i className="bi bi-check2" />{salvando ? 'Salvando…' : 'Salvar alterações'}</button>
+          : <span style={{ fontSize: 12.5, color: C.cinza, alignSelf: 'center' }}><i className="bi bi-eye" /> Somente visualização</span>}
       </>}
     >
       {/* Linha do tempo por área */}
@@ -164,13 +166,6 @@ export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, 
           {!item.faturado_em && <button className="cp-btn" disabled={salvando} onClick={() => acao('faturar', { data: dataAcao })}><i className="bi bi-receipt" />Faturado</button>}
           <button className="cp-btn perigo" style={{ marginLeft: 'auto' }} disabled={salvando} onClick={() => { const m = prompt('Motivo do cancelamento (opcional):'); if (m !== null) acao('cancelar', { motivo: m }); }}>
             <i className="bi bi-x-circle" />Cancelar item
-          </button>
-        </div>
-      )}
-      {!podePlanejar && item.status === 'novo' && (
-        <div style={{ marginBottom: 12 }}>
-          <button className="cp-btn perigo" disabled={salvando} onClick={() => { const m = prompt('Motivo do cancelamento (opcional):'); if (m !== null) acao('cancelar', { motivo: m }); }}>
-            <i className="bi bi-x-circle" />Cancelar lançamento
           </button>
         </div>
       )}

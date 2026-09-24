@@ -276,8 +276,10 @@ export function podePlanejarCaldeiraria(u?: JWTPayload | null): boolean {
   const user = u ?? getUser();
   return isAdministrador(user) || (!!user && PLANO_CALD_LOGINS.has(user.username));
 }
-// LANÇAR pedidos no Planejamento da Caldeiraria (e ver o painel/relatório):
-// quem planeja + staff (PCP/admin), que é quem sabe dos pedidos que vão pra lá.
+// VER o PCP Caldeiraria (painel, lista, pendências): quem planeja + staff.
+// Decisão 24/09: o PCP "de visualização" (staff fora de PLANO_CALD_LOGINS) SÓ
+// OLHA — lançar e alterar é só de quem planeja (podePlanejarCaldeiraria).
+// (Nome histórico "Lancar": antes o staff também lançava.)
 export function podeLancarCaldeiraria(u?: JWTPayload | null): boolean {
   const user = u ?? getUser();
   return podePlanejarCaldeiraria(user) || !!user?.is_staff;

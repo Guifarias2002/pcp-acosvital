@@ -241,7 +241,7 @@ export default function CaldPlanoPage() {
             <small style={{ color: C.fraco }}>
               {planeja
                 ? <>O PCP lança os pedidos; aqui você distribui por área, define a <b>ordem</b>, as <b>previsões</b> e registra a <b>entrada</b> de cada item em cada área.</>
-                : <>Lance aqui os pedidos que vão pra Caldeiraria — o coordenador planeja e acompanha área por área.</>}
+                : <>Acompanhe onde está cada pedido da Caldeiraria, área por área. <b>Somente visualização</b> — quem lança e movimenta é o PCP da Caldeiraria.</>}
             </small>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -253,7 +253,9 @@ export default function CaldPlanoPage() {
             <a href="/analise?fabrica=caldeiraria" className="cp-btn" style={{ textDecoration: 'none' }}><i className="bi bi-graph-up-arrow" />Relatório semanal</a>
             {planeja && <button className="cp-btn" onClick={() => setImportar(true)}><i className="bi bi-file-earmark-arrow-up" />Importar planilha</button>}
             <button className="cp-btn" onClick={() => carregar()} disabled={carregando}><i className="bi bi-arrow-clockwise" />{carregando ? 'Atualizando…' : 'Atualizar'}</button>
-            <button className="cp-btn pri" onClick={() => setLancar(true)}><i className="bi bi-plus-lg" />Lançar pedido</button>
+            {planeja
+              ? <button className="cp-btn pri" onClick={() => setLancar(true)}><i className="bi bi-plus-lg" />Lançar pedido</button>
+              : <span className="cp-btn" style={{ cursor: 'default', color: C.cinza }}><i className="bi bi-eye" />Somente visualização</span>}
           </div>
         </div>
 
