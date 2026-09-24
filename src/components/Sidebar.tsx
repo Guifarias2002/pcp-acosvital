@@ -36,6 +36,7 @@ const SETOR_ICONS: Record<string, string> = {
   pintura: 'bi-paint-bucket',
   // Caldeiraria — processo novo (ver types.ts SETORES_CALDEIRARIA_PROCESSO_NOVOS)
   usinagem_final: 'bi-gear-fill',
+  cald_compras: 'bi-cart3',
   cald_corte_oxi: 'bi-scissors',
   cald_corte: 'bi-scissors',
   cald_identificacao: 'bi-tags',

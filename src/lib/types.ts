@@ -62,6 +62,9 @@ export const SETOR_CHOICES: [string, string][] = [
   // conjuntos, qualidade=Inspeção CQ, logistica=Coleta/Entrega) são
   // reaproveitados no roteiro e NÃO recriados aqui. Só entram aqui os passos
   // novos. Ver PROCESSO_CALDEIRARIA (ordem do roteiro).
+  // 25/09: Compras SÓ da Caldeiraria HRM (o 'compras' é o do Flange — pedido
+  // HRM caía lá). Responsável: Mario.
+  ['cald_compras', 'Compras HRM'],
   ['cald_corte_oxi', 'Corte Oxicorte/Plasma/Laser'],
   // 25/09: setores de trabalho pedidos pela área (com produção — exige Iniciar).
   ['cald_corte', 'Corte Caldeiraria'],
@@ -142,7 +145,7 @@ export const PROCESSO_CALDEIRARIA = [
   // 25/09: ORDEM da lista "Componentes e roteiros" passada pela área. Corte
   // Caldeiraria e Usinagem Caldeiraria (fora da lista, mantidos) ficam junto do
   // corte e da pré-usinagem. Inspeção de Qualidade ('qualidade') repete.
-  'compras',              // Compras
+  'cald_compras',         // Compras HRM (NÃO o 'compras' do Flange)
   'corte_perfis',         // Corte de Perfis
   'cald_corte_oxi',       // Corte Oxicorte/Plasma/Laser
   'cald_corte',           // Corte Caldeiraria
@@ -196,7 +199,7 @@ export const PROCESSO_CALDEIRARIA = [
 
 // Só os passos NOVOS do processo (os 'cald_*' criados agora). Usado pra marcar
 // exclusividade (não vazam pro Flange) e alimentar menu/kanban da Caldeiraria.
-export const SETORES_CALDEIRARIA_PROCESSO_NOVOS = ['cald_corte_oxi', 'cald_corte', 'cald_identificacao', 'cald_transp_externo', 'cald_conformacao_int', 'cald_conformacao_ext', 'cald_pre_usinagem', 'cald_usinagem', 'cald_prep_chapas', 'cald_revestimento', 'cald_pint_primer', 'cald_pint_interm', 'cald_pint_acab', 'cald_pint_antiderr', 'cald_pint_retoques', 'cald_book', 'cald_emissao_nf', 'cald_outros', 'cald_pre_montagem', 'cald_insp_fitup', 'cald_insp_terceiros', 'cald_montagem_interm', 'cald_montagem_final', 'cald_insp_visual', 'cald_insp_lp', 'cald_insp_pm', 'cald_insp_us', 'cald_insp_dimensional', 'cald_tipagem', 'cald_conj_insp_cliente', 'cald_insp_dim_cliente', 'cald_teste_carga', 'cald_teste_queda', 'cald_lab_externo', 'cald_insp_pintura', 'cald_insp_final_cliente', 'cald_book_insp_cliente', 'cald_book_postagem', 'cald_book_ag_aprov', 'cald_book_aprovado'];
+export const SETORES_CALDEIRARIA_PROCESSO_NOVOS = ['cald_compras', 'cald_corte_oxi', 'cald_corte', 'cald_identificacao', 'cald_transp_externo', 'cald_conformacao_int', 'cald_conformacao_ext', 'cald_pre_usinagem', 'cald_usinagem', 'cald_prep_chapas', 'cald_revestimento', 'cald_pint_primer', 'cald_pint_interm', 'cald_pint_acab', 'cald_pint_antiderr', 'cald_pint_retoques', 'cald_book', 'cald_emissao_nf', 'cald_outros', 'cald_pre_montagem', 'cald_insp_fitup', 'cald_insp_terceiros', 'cald_montagem_interm', 'cald_montagem_final', 'cald_insp_visual', 'cald_insp_lp', 'cald_insp_pm', 'cald_insp_us', 'cald_insp_dimensional', 'cald_tipagem', 'cald_conj_insp_cliente', 'cald_insp_dim_cliente', 'cald_teste_carga', 'cald_teste_queda', 'cald_lab_externo', 'cald_insp_pintura', 'cald_insp_final_cliente', 'cald_book_insp_cliente', 'cald_book_postagem', 'cald_book_ag_aprov', 'cald_book_aprovado'];
 
 // Setores da Caldeiraria SEM início de produção (pass-through, 18/09): a peça só
 // é RECEBIDA e ENCAMINHADA ("produzido em outro setor") — não exige "Iniciar"
@@ -205,6 +208,7 @@ export const SETORES_CALDEIRARIA_PROCESSO_NOVOS = ['cald_corte_oxi', 'cald_corte
 // Flange fica igual. Ajustar esta lista se uma área passar a produzir de fato.
 export const SETORES_CALD_SEM_PRODUCAO = [
   'caldeiraria',          // Recebimento
+  'cald_compras',         // Compras HRM (aguarda material → encaminha)
   'cald_identificacao',   // Identificação dos Materiais
   'cald_transp_externo',  // Transporte p/ Serviço Externo
   'cald_revestimento',    // Serviço Externo — Revestimento

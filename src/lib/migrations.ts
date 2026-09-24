@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 56;
+const SCHEMA_VERSION = 57;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -898,4 +898,40 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
       WHERE username = 'alan'
     `;
   }).catch(e => console.error('[migrations] M54 (setores novos alan) falhou:', e));
+
+  // M55 (25/09): COMPRAS HRM ('cald_compras'). A M54/roteiro de 25/09 usou o
+  // 'compras' do FLANGE no roteiro da Caldeiraria e peças HRM caíram na tela de
+  // Compras do Flange. Move SÓ o que é da Caldeiraria (item fabrica =
+  // 'caldeiraria'): parciais/itens parados em 'compras' → 'cald_compras' e troca
+  // 'compras' por 'cald_compras' no roteiro desses itens e no roteiro_base de
+  // pedido que só tem item da Caldeiraria. Flange não é tocado. Roda 1x.
+  await sql.savepoint(async (sp) => {
+    const [marca] = await sp`
+      INSERT INTO producao_config (chave, valor, atualizado_em)
+      VALUES ('m55_cald_compras', 'ok', NOW())
+      ON CONFLICT (chave) DO NOTHING
+      RETURNING chave
+    `;
+    if (!marca) return;
+    await sp`
+      UPDATE producao_itemparcial pa SET setor_atual = 'cald_compras'
+      FROM producao_itempedido i
+      WHERE pa.item_pedido_id = i.id AND i.fabrica = 'caldeiraria' AND pa.setor_atual = 'compras'
+    `;
+    await sp`
+      UPDATE producao_itempedido
+      SET setor_atual = CASE WHEN setor_atual = 'compras' THEN 'cald_compras' ELSE setor_atual END,
+          roteiro_proprio = array_replace(roteiro_proprio, 'compras', 'cald_compras')
+      WHERE fabrica = 'caldeiraria'
+        AND (setor_atual = 'compras' OR 'compras' = ANY(COALESCE(roteiro_proprio, '{}')))
+    `;
+    await sp`
+      UPDATE producao_pedido p
+      SET roteiro_base = array_replace(roteiro_base, 'compras', 'cald_compras'),
+          setor_atual = CASE WHEN p.setor_atual = 'compras' THEN 'cald_compras' ELSE p.setor_atual END
+      WHERE 'compras' = ANY(COALESCE(p.roteiro_base, '{}'))
+        AND EXISTS (SELECT 1 FROM producao_itempedido i WHERE i.pedido_id = p.id AND i.fabrica = 'caldeiraria')
+        AND NOT EXISTS (SELECT 1 FROM producao_itempedido i WHERE i.pedido_id = p.id AND COALESCE(i.fabrica, 'flange') <> 'caldeiraria')
+    `;
+  }).catch(e => console.error('[migrations] M55 (compras HRM) falhou:', e));
 }
