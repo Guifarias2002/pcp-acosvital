@@ -20,6 +20,7 @@ import ProgressoRoteiro, { RoteiroCirculo } from '@/components/workspace/Progres
 import LinhaDoTempo from '@/components/workspace/LinhaDoTempo';
 import OndeEstaoPecas from '@/components/workspace/OndeEstaoPecas';
 import RastreabilidadeParciais from '@/components/workspace/RastreabilidadeParciais';
+import OpcoesSetorAgrupadas from '@/components/OpcoesSetorAgrupadas';
 
 function corStatusClass(cor: string): string {
   if (cor === 'info')    return 'bg-blue-500 text-white';
@@ -844,7 +845,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                       <select value={setorDev} onChange={e => setSetorDev(e.target.value)}
                         className="border rounded px-3 py-2 text-sm w-full">
                         <option value="">Selecione o setor...</option>
-                        {SETOR_CHOICES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                        <OpcoesSetorAgrupadas opcoes={SETOR_CHOICES} />
                       </select>
                       <button onClick={() => {
                         if (!motivoDivergencia.trim() || !setorDev) return;
@@ -872,7 +873,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
                   <select value={setorDev} onChange={e => setSetorDev(e.target.value)}
                     className="border rounded px-3 py-2 text-sm w-full">
                     <option value="">Selecione o setor...</option>
-                    {SETOR_CHOICES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    <OpcoesSetorAgrupadas opcoes={SETOR_CHOICES} />
                   </select>
                   <input value={obs} onChange={e => setObs(e.target.value)} placeholder="Motivo..."
                     className="border rounded px-3 py-2 text-sm w-full" />

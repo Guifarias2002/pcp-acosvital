@@ -78,6 +78,7 @@ import ObservacaoPedidoModal from '@/components/ObservacaoPedidoModal';
 import MontarReceitaModal from '@/components/MontarReceitaModal';
 import ChecklistProcessoModal from '@/components/ChecklistProcessoModal';
 import DestinoSetorPicker from '@/components/DestinoSetorPicker';
+import OpcoesSetorAgrupadas from '@/components/OpcoesSetorAgrupadas';
 
 // Setores internos da Caldeiraria (Recebimento + etapas próprias) — entre eles
 // o envio manual pode ir pra qualquer um dos outros, mais Qualidade, Acabamento,
@@ -695,9 +696,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
           <select value={setorDev} onChange={e => setSetorDev(e.target.value)}
             style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13, marginBottom: 8 }}>
             <option value="">Selecione o setor...</option>
-            {SETOR_CHOICES.map(([cod, nome]) => (
-              <option key={cod} value={cod}>{nome}</option>
-            ))}
+            <OpcoesSetorAgrupadas opcoes={SETOR_CHOICES} />
           </select>
           <label style={{ fontSize: 11, fontWeight: 600, color: item.status === 'reprovado' ? '#92400e' : '#842029', display: 'block', marginBottom: 4 }}>
             {item.status === 'reprovado' ? 'Motivo do retrabalho:' : 'Motivo do retorno:'} <span style={{ color: '#dc2626' }}>*</span>
@@ -2183,9 +2182,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
               <select value={setorRetrabalho} onChange={e => setSetorRetrabalho(e.target.value)}
                 style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 12 }}>
                 <option value="">Selecione o setor...</option>
-                {destinosEnvio(parcial.setor_atual).map(([cod, nome]) => (
-                  <option key={cod} value={cod}>{nome}</option>
-                ))}
+                <OpcoesSetorAgrupadas opcoes={destinosEnvio(parcial.setor_atual)} />
               </select>
               <button onClick={() => {
                 if (!setorRetrabalho) return;
@@ -2211,9 +2208,7 @@ function ParcialCard({ parcial, onRefresh, hideHeader, setor }: { parcial: ItemP
           <select value={setorDev} onChange={e => setSetorDev(e.target.value)}
             style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13, marginBottom: 8 }}>
             <option value="">Selecione o setor...</option>
-            {destinosEnvio(parcial.setor_atual).map(([cod, nome]) => (
-              <option key={cod} value={cod}>{nome}</option>
-            ))}
+            <OpcoesSetorAgrupadas opcoes={destinosEnvio(parcial.setor_atual)} />
           </select>
           <label style={{ fontSize: 11, fontWeight: 600, color: '#842029', display: 'block', marginBottom: 4 }}>
             Quantidade a devolver:
@@ -3183,9 +3178,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
               <select value={setorRetrabalhoGrupo === '__open__' ? '' : setorRetrabalhoGrupo} onChange={e => setSetorRetrabalhoGrupo(e.target.value)}
                 style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 12, marginBottom: 6 }}>
                 <option value="">Selecione o setor...</option>
-                {destinosEnvio(p0.setor_atual).map(([cod, nome]) => (
-                  <option key={cod} value={cod}>{nome}</option>
-                ))}
+                <OpcoesSetorAgrupadas opcoes={destinosEnvio(p0.setor_atual)} />
               </select>
               <button onClick={() => {
                 if (!motivoDivGrupo.trim()) { mostrarErroGrupo('Informe o motivo da divergência.'); return; }
@@ -3215,9 +3208,7 @@ function ParcialGrupoCard({ parciais, onRefresh, setor }: { parciais: ItemParcia
           <select value={setorDev} onChange={e => setSetorDev(e.target.value)}
             style={{ width: '100%', border: '1px solid #dee2e6', borderRadius: 5, padding: '6px 8px', fontSize: 13, marginBottom: 8 }}>
             <option value="">Selecione o setor...</option>
-            {destinosEnvio(p0.setor_atual).map(([cod, nome]) => (
-              <option key={cod} value={cod}>{nome}</option>
-            ))}
+            <OpcoesSetorAgrupadas opcoes={destinosEnvio(p0.setor_atual)} />
           </select>
           <label style={{ fontSize: 11, fontWeight: 600, color: '#842029', display: 'block', marginBottom: 4 }}>
             Motivo do retorno: <span style={{ color: '#dc2626' }}>*</span>

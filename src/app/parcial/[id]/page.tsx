@@ -19,6 +19,7 @@ import ReceberModal from '@/components/ReceberModal';
 import IniciarProducaoModal from '@/components/IniciarProducaoModal';
 import DestinoSetorPicker from '@/components/DestinoSetorPicker';
 import { temMaquinas } from '@/lib/maquinas';
+import OpcoesSetorAgrupadas from '@/components/OpcoesSetorAgrupadas';
 
 // Shape returned by GET /api/parcial/[id]
 interface ParcialDetalhe {
@@ -779,9 +780,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                     <select value={setorRetrabalho === '__open__' ? '' : setorRetrabalho} onChange={e => setSetorRetrabalho(e.target.value)}
                       className="border rounded px-3 py-2 text-sm w-full">
                       <option value="">Selecione o setor...</option>
-                      {SETOR_CHOICES.filter(([cod]) => cod !== parcial.setor_atual).map(([cod, nome]) => (
-                        <option key={cod} value={cod}>{nome}</option>
-                      ))}
+                      <OpcoesSetorAgrupadas opcoes={SETOR_CHOICES.filter(([cod]) => cod !== parcial.setor_atual)} />
                     </select>
                     <button onClick={() => {
                       if (!motivoDiv.trim()) { setErroAcao('Informe o motivo da divergência.'); return; }
@@ -811,9 +810,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                 <select value={setorDevolver} onChange={e => setSetorDevolver(e.target.value)}
                   className="w-full border rounded px-2 py-1.5 text-sm">
                   <option value="">Selecione o setor...</option>
-                  {setoresDisponiveis.map(([cod, nome]) => (
-                    <option key={cod} value={cod}>{nome}</option>
-                  ))}
+                  <OpcoesSetorAgrupadas opcoes={setoresDisponiveis} />
                 </select>
                 <button
                   onClick={() => {
