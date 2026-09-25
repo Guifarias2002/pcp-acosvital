@@ -139,12 +139,15 @@ export default function CaldPlanoPage() {
   const colunas = useMemo(() => {
     const vis = ativos.filter(passaFiltro);
     const cols: { codigo: string; nome: string; icon: string; cor: string; itens: ItemCald[] }[] = [
+      // Entrada do Val: itens lançados pelo PCP ainda sem planejamento (status
+      // 'novo'). Daqui ele arrasta pra qualquer área ou pra Chegando. Não recebe
+      // drop (item que já entrou numa área não volta a ser novo).
+      { codigo: 'novo', nome: 'Com o Val — a planejar', icon: 'bi-inbox-fill', cor: '#d97706', itens: vis.filter(i => i.status === 'novo').sort((a, b) => a.id - b.id) },
       { codigo: 'aguardando', nome: 'Chegando', icon: 'bi-hourglass-split', cor: '#1d4ed8', itens: vis.filter(i => i.status === 'aguardando').sort(ordenar) },
       ...AREAS_CALD.map(a => ({ ...a, itens: vis.filter(i => i.status === 'andamento' && i.area_atual === a.codigo).sort(ordenar) })),
     ];
     return cols;
   }, [ativos, passaFiltro]);
-  const novos = useMemo(() => ativos.filter(i => i.status === 'novo').filter(passaFiltro).sort((a, b) => a.id - b.id), [ativos, passaFiltro]);
 
   async function mover(it: ItemCald, area: string) {
     try {
@@ -178,7 +181,8 @@ export default function CaldPlanoPage() {
     if (!id) return;
     const it = itens.find(i => i.id === id);
     if (!it) return;
-    const colAtual = it.status === 'aguardando' ? 'aguardando' : it.area_atual;
+    if (colCodigo === 'novo') return;
+    const colAtual = it.status === 'novo' ? 'novo' : it.status === 'aguardando' ? 'aguardando' : it.area_atual;
     if (colAtual !== colCodigo) { mover(it, colCodigo); return; }
     if (sobreId === null || sobreId === id) return;
     const lista = colunas.find(c => c.codigo === colCodigo)?.itens || [];
@@ -336,34 +340,6 @@ export default function CaldPlanoPage() {
           <div style={{ textAlign: 'center', padding: 40, color: C.cinza }}>Carregando…</div>
         ) : aba === 'painel' ? (
           <>
-            {/* Caixa de novos */}
-            {novos.length > 0 && (
-              <div style={{ border: '1.5px solid #fcd34d', background: '#fffbeb', borderRadius: 12, padding: 12, marginBottom: 14 }}>
-                <div style={{ fontWeight: 800, color: '#92400e', fontSize: 13.5, marginBottom: 8 }}>
-                  <i className="bi bi-inbox-fill" style={{ marginRight: 6 }} />Novos — aguardando planejamento ({novos.length})
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 8 }}>
-                  {novos.map(it => (
-                    <div key={it.id} className="cp-card" onClick={() => setAberto(it)}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
-                        <b style={{ color: C.azul, fontSize: 13 }}>{it.pedido}</b>
-                        <span style={{ fontSize: 11, color: C.fraco }}>lançado por {it.criado_por_nome || '—'}</span>
-                      </div>
-                      <div style={{ fontSize: 12.5, fontWeight: 600, color: C.texto, margin: '2px 0' }}>{it.material}</div>
-                      <div style={{ fontSize: 11.5, color: C.cinza }}>{fmtQtd(it.quantidade, it.unidade)} · {it.cliente || '—'}{verValores && it.valor !== null ? ` · ${fmtBRL(it.valor)}` : ''}</div>
-                      <div style={{ fontSize: 11, color: C.fraco, marginTop: 4 }}>{it.areas.map(nomeArea).join(' → ') || 'sem roteiro'}</div>
-                      {planeja && it.areas[0] && (
-                        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
-                          <button className="cp-btn sm pri" onClick={() => mover(it, it.areas[0])}><i className="bi bi-box-arrow-in-right" />Entrou em {nomeArea(it.areas[0])}</button>
-                          <button className="cp-btn sm" onClick={() => mover(it, 'aguardando')}><i className="bi bi-hourglass-split" />Chegando</button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Colunas por área — arraste o fundo pro lado, ou use as setas */}
             <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginBottom: 6 }}>
               <button className="cp-btn sm" onClick={() => rolar(-520)} title="Ver colunas à esquerda"><i className="bi bi-chevron-left" /></button>
@@ -373,7 +349,7 @@ export default function CaldPlanoPage() {
               style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 10, alignItems: 'flex-start', cursor: panAtivo ? 'grabbing' : 'grab', userSelect: panAtivo ? 'none' : undefined }}>
               {colunas.map(col => (
                 <div key={col.codigo} className={`cp-col ${alvoCol === col.codigo ? 'alvo' : ''}`}
-                  onDragOver={e => { if (planeja && arrastando) { e.preventDefault(); setAlvoCol(col.codigo); } }}
+                  onDragOver={e => { if (planeja && arrastando && col.codigo !== 'novo') { e.preventDefault(); setAlvoCol(col.codigo); } }}
                   onDragLeave={() => setAlvoCol(a => (a === col.codigo ? null : a))}
                   onDrop={e => { e.preventDefault(); soltar(col.codigo, null); }}>
                   <div style={{ padding: '10px 12px', borderBottom: `3px solid ${col.cor}`, background: '#fff', borderRadius: '12px 12px 0 0' }}>
@@ -395,7 +371,7 @@ export default function CaldPlanoPage() {
                           draggable={planeja}
                           onDragStart={() => setArrastando(it.id)}
                           onDragEnd={() => { setArrastando(null); setAlvoCol(null); }}
-                          onDragOver={e => { if (planeja && arrastando) e.preventDefault(); }}
+                          onDragOver={e => { if (planeja && arrastando && col.codigo !== 'novo') e.preventDefault(); }}
                           onDrop={e => { e.preventDefault(); e.stopPropagation(); soltar(col.codigo, it.id); }}
                           onClick={() => setAberto(it)}
                           style={{ borderLeft: `4px solid ${s.atrasado || s.areaAtrasada ? C.vermelho : prio.cor}` }}>
@@ -409,6 +385,11 @@ export default function CaldPlanoPage() {
                           <div style={{ fontSize: 12.5, fontWeight: 600, color: C.texto, margin: '2px 0', lineHeight: 1.3 }}>{it.material}</div>
                           <div style={{ fontSize: 11.5, color: C.cinza }}>{fmtQtd(it.quantidade, it.unidade)}{it.cliente ? ` · ${it.cliente}` : ''}</div>
                           {verValores && it.valor !== null && <div style={{ fontSize: 11.5, color: '#065f46', fontWeight: 700 }}>{fmtBRL(it.valor)}</div>}
+                          {col.codigo === 'novo' && (
+                            <div style={{ fontSize: 11, color: C.fraco, marginTop: 2 }}>
+                              {it.areas.map(nomeArea).join(' → ') || 'sem roteiro'}{it.criado_por_nome ? ` · lançado por ${it.criado_por_nome}` : ''}
+                            </div>
+                          )}
                           {it.area_atual === 'industrializacao' && et?.fornecedor && (
                             <div style={{ fontSize: 11.5, color: '#475569', marginTop: 2 }}><i className="bi bi-truck" /> {et.fornecedor}{et.retorno_previsto ? ` · volta ${fmtData(et.retorno_previsto)}` : ''}</div>
                           )}
@@ -420,12 +401,16 @@ export default function CaldPlanoPage() {
                           </div>
                           {planeja && (
                             <div style={{ display: 'flex', gap: 4, marginTop: 7, alignItems: 'center' }} onClick={e => e.stopPropagation()}>
-                              <button className="cp-btn sm" title="Subir na fila" disabled={idx === 0} onClick={() => subirDescer(col.codigo, col.itens, idx, -1)}><i className="bi bi-chevron-up" /></button>
-                              <button className="cp-btn sm" title="Descer na fila" disabled={idx === col.itens.length - 1} onClick={() => subirDescer(col.codigo, col.itens, idx, 1)}><i className="bi bi-chevron-down" /></button>
+                              {col.codigo === 'novo'
+                                ? <button className="cp-btn sm" title="Marcar como chegando (ainda não entrou em nenhuma área)" onClick={() => mover(it, 'aguardando')}><i className="bi bi-hourglass-split" />Chegando</button>
+                                : <>
+                                  <button className="cp-btn sm" title="Subir na fila" disabled={idx === 0} onClick={() => subirDescer(col.codigo, col.itens, idx, -1)}><i className="bi bi-chevron-up" /></button>
+                                  <button className="cp-btn sm" title="Descer na fila" disabled={idx === col.itens.length - 1} onClick={() => subirDescer(col.codigo, col.itens, idx, 1)}><i className="bi bi-chevron-down" /></button>
+                                </>}
                               <div style={{ flex: 1 }} />
                               {s.proxima
                                 ? <button className="cp-btn sm pri" title={`Registrar entrada em ${nomeArea(s.proxima)} hoje`} onClick={() => mover(it, s.proxima!)}>{nomeArea(s.proxima)}<i className="bi bi-arrow-right" /></button>
-                                : col.codigo !== 'aguardando' && <button className="cp-btn sm ok" onClick={() => finalizar(it)}><i className="bi bi-check2-all" />Finalizar</button>}
+                                : col.codigo !== 'aguardando' && col.codigo !== 'novo' && <button className="cp-btn sm ok" onClick={() => finalizar(it)}><i className="bi bi-check2-all" />Finalizar</button>}
                             </div>
                           )}
                         </div>
