@@ -64,7 +64,7 @@ export const SETOR_CHOICES: [string, string][] = [
   // novos. Ver PROCESSO_CALDEIRARIA (ordem do roteiro).
   // 25/09: Compras SÓ da Caldeiraria HRM (o 'compras' é o do Flange — pedido
   // HRM caía lá). Responsável: Mario.
-  ['cald_compras', 'Compras HRM'],
+  ['cald_compras', 'Requisição HRM'],
   ['cald_corte_oxi', 'Corte Oxicorte/Plasma/Laser'],
   // 25/09: setores de trabalho pedidos pela área (com produção — exige Iniciar).
   ['cald_corte', 'Corte Caldeiraria'],
@@ -145,7 +145,7 @@ export const PROCESSO_CALDEIRARIA = [
   // 25/09: ORDEM da lista "Componentes e roteiros" passada pela área. Corte
   // Caldeiraria e Usinagem Caldeiraria (fora da lista, mantidos) ficam junto do
   // corte e da pré-usinagem. Inspeção de Qualidade ('qualidade') repete.
-  'cald_compras',         // Compras HRM (NÃO o 'compras' do Flange)
+  'cald_compras',         // Requisição HRM (ex-Compras HRM; NÃO o 'compras' do Flange)
   'corte_perfis',         // Corte de Perfis
   'cald_corte_oxi',       // Corte Oxicorte/Plasma/Laser
   'cald_corte',           // Corte Caldeiraria
@@ -208,7 +208,7 @@ export const SETORES_CALDEIRARIA_PROCESSO_NOVOS = ['cald_compras', 'cald_corte_o
 // Flange fica igual. Ajustar esta lista se uma área passar a produzir de fato.
 export const SETORES_CALD_SEM_PRODUCAO = [
   'caldeiraria',          // Recebimento
-  'cald_compras',         // Compras HRM (aguarda material → encaminha)
+  'cald_compras',         // Requisição HRM (aguarda material → encaminha)
   'cald_identificacao',   // Identificação dos Materiais
   'cald_transp_externo',  // Transporte p/ Serviço Externo
   'cald_revestimento',    // Serviço Externo — Revestimento
