@@ -145,11 +145,12 @@ export const PROCESSO_CALDEIRARIA = [
   // 25/09: ORDEM da lista "Componentes e roteiros" passada pela área. Corte
   // Caldeiraria e Usinagem Caldeiraria (fora da lista, mantidos) ficam junto do
   // corte e da pré-usinagem. Inspeção de Qualidade ('qualidade') repete.
-  'cald_compras',         // Requisição HRM (ex-Compras HRM; NÃO o 'compras' do Flange)
+  // 25/09 (tarde): Requisição → RECEBIMENTO (acompanha a compra) → cortes.
+  'cald_compras',         // Requisição HRM (ex-Compras HRM; NÃO o 'compras' do Flange) — Alan
+  'caldeiraria',          // Caldeiraria (Recebimento) — acompanhamento da compra
   'corte_perfis',         // Corte de Perfis
   'cald_corte_oxi',       // Corte Oxicorte/Plasma/Laser
   'cald_corte',           // Corte Caldeiraria
-  'caldeiraria',          // Caldeiraria (Recebimento)
   'cald_identificacao',   // Identificação dos Materiais
   'cald_conformacao_int', // Conformação Interna
   'cald_transp_externo',  // Transporte p/ Serviço Externo

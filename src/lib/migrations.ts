@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 58;
+const SCHEMA_VERSION = 59;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -957,4 +957,49 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
     `);
     await sp.unsafe(`CREATE INDEX IF NOT EXISTS producao_cald_plano_recado_pend ON producao_cald_plano_recado (item_id) WHERE verificado_em IS NULL`);
   }).catch(e => console.error('[migrations] M56 (sub-setor + recados caldeiraria) falhou:', e));
+
+  // M57 (25/09): REQUISIÇÃO HRM. O Compras não faz a requisição da Caldeiraria —
+  // quem faz é o Alan (tem acesso ao Omie): registra aqui nº/data da requisição
+  // e os itens; no Recebimento acompanha a compra (criada → comprado / não será
+  // comprado → chegou). Tabela própria (não mexe em pedido/item). + dá ao
+  // login 'alan' o setor Requisição HRM ('cald_compras'), 1x, sem tirar nada.
+  await sql.savepoint(async (sp) => {
+    await sp.unsafe(`
+      CREATE TABLE IF NOT EXISTS producao_cald_requisicao (
+        id                  SERIAL PRIMARY KEY,
+        pedido_id           INTEGER NOT NULL,
+        numero              TEXT NOT NULL,
+        data                DATE,
+        itens               INTEGER[] NOT NULL DEFAULT '{}',
+        situacao            TEXT NOT NULL DEFAULT 'criada',
+        pedido_compra       TEXT,
+        previsao_chegada    DATE,
+        chegou_em           DATE,
+        motivo              TEXT,
+        obs                 TEXT,
+        criado_por_nome     TEXT,
+        criado_em           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        atualizado_por_nome TEXT,
+        atualizado_em       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await sp.unsafe(`CREATE INDEX IF NOT EXISTS producao_cald_requisicao_pedido ON producao_cald_requisicao (pedido_id)`);
+    const [marca] = await sp`
+      INSERT INTO producao_config (chave, valor, atualizado_em)
+      VALUES ('m57_alan_requisicao', 'ok', NOW())
+      ON CONFLICT (chave) DO NOTHING
+      RETURNING chave
+    `;
+    if (!marca) return;
+    await sp`
+      UPDATE usuarios_usuario
+      SET setores = ARRAY(
+        SELECT DISTINCT s FROM unnest(
+          COALESCE(NULLIF(setores, '{}'), CASE WHEN setor IS NOT NULL AND setor <> '' THEN ARRAY[setor::text] ELSE '{}'::text[] END)
+          || ARRAY['cald_compras']::text[]
+        ) AS s
+      )
+      WHERE username = 'alan'
+    `;
+  }).catch(e => console.error('[migrations] M57 (requisição HRM) falhou:', e));
 }

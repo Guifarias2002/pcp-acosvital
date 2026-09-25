@@ -54,6 +54,8 @@ function Cronometro({ desde }: { desde: string }) {
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, registrarSinetePedido, setPesosPallets, setEmbalagemResumo, inativarItem, editarPedido, solicitarInspecao } from '@/lib/api';
 import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento, podeDefinirPrevisao, podeVerNaoLocalizados, podeDefinirPrazoSetor, podePlanejar } from '@/lib/auth';
 import { definirPrazoSetor } from '@/lib/api';
+import RequisicaoPedido from '@/components/RequisicaoPedido';
+import { SETORES_REQUISICAO } from '@/lib/requisicaoHrm';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA, TIPOS_INSPECAO, SETOR_NAO_LOCALIZADO, SETORES_CALD_SEM_PRODUCAO } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
@@ -4918,6 +4920,21 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
                             );
                           })()}
                         </div>
+                        {/* Requisição HRM (Alan): registrar a requisição do Omie e
+                            acompanhar a compra — só nos setores Requisição HRM e
+                            Recebimento. Só avisa se faltar; não trava o envio. */}
+                        {SETORES_REQUISICAO.includes(setor) && !pedidosColapsados.has(pedido_id) && (
+                          <RequisicaoPedido pedidoId={pedido_id} setor={setor}
+                            itens={[
+                              ...grupos.map(g => ({
+                                id: g[0].item_pedido_id, codigo: g[0].item_codigo || '', descricao: g[0].item_descricao || '',
+                                quantidade: g.reduce((sm, p) => sm + (Number(p.quantidade) || 0), 0), unidade: g[0].unidade,
+                              })),
+                              ...data.itens
+                                .filter(i => i.pedido_id === pedido_id && !parciais.some(p => p.item_pedido_id === i.id))
+                                .map(i => ({ id: i.id, codigo: i.codigo, descricao: i.descricao, quantidade: Number(i.quantidade_pendente ?? i.quantidade) || undefined, unidade: i.unidade })),
+                            ]} />
+                        )}
                         {/* Painel "Enviar Tudo" do pedido — escolher o setor destino
                             aplicado a TODAS as parciais enviáveis (qualquer setor). */}
                         {enviarTudoAberto === pedido_id && podeEditar() && (() => {
