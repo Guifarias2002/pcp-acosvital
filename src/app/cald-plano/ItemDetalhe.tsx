@@ -155,9 +155,16 @@ export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, 
             <button className="cp-btn pri" disabled={!destino || salvando} onClick={() => acao('mover', { area: destino, data: dataAcao })}>
               <i className="bi bi-box-arrow-in-right" />Entrou em {destino ? nomeArea(destino) : '…'}
             </button>
-            <button className="cp-btn ok" disabled={salvando} onClick={() => acao('finalizar', { data: dataAcao })}><i className="bi bi-check2-all" />Finalizar</button>
+            <button className="cp-btn ok" disabled={salvando} onClick={() => { if (confirm(`Finalizar o item "${item.material}" do pedido ${item.pedido}?
+
+Ele sai do painel e vai pra lista de Finalizados.`)) acao('finalizar', { data: dataAcao }); }}><i className="bi bi-check2-all" />Finalizar</button>
           </>}
           {item.status === 'finalizado' && <button className="cp-btn" disabled={salvando} onClick={() => acao('reabrir')}><i className="bi bi-arrow-counterclockwise" />Reabrir</button>}
+          {item.status === 'finalizado' && (
+            <div style={{ flexBasis: '100%', fontSize: 12.5, color: '#166534', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 8, padding: '7px 10px' }}>
+              <i className="bi bi-check2-all" style={{ marginRight: 6 }} />Item <b>FINALIZADO</b> — não aparece no painel. Pra voltar pra produção, clique <b>Reabrir</b> (ou registre a entrada numa área nova).
+            </div>
+          )}
           {!item.faturado_em && <button className="cp-btn" disabled={salvando} onClick={() => acao('faturar', { data: dataAcao })}><i className="bi bi-receipt" />Faturado</button>}
           <button className="cp-btn perigo" style={{ marginLeft: 'auto' }} disabled={salvando} onClick={() => { const m = prompt('Motivo do cancelamento (opcional):'); if (m !== null) acao('cancelar', { motivo: m }); }}>
             <i className="bi bi-x-circle" />Cancelar item

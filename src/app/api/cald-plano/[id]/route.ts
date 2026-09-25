@@ -165,6 +165,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
       // Etapas (datas de entrada / previsões / terceiro) — só o planejador.
       let etapasMudaram = false;
+      let maiorEntradaNova = '';  // maior data de entrada gravada/alterada agora
       if ('etapas' in b && Array.isArray(b.etapas) && planeja) {
         for (const raw of b.etapas as Record<string, unknown>[]) {
           const area = String(raw.area || '');
@@ -181,6 +182,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
             && (ant.fornecedor || null) === nova.fornecedor && ant.retorno_previsto === nova.retorno_previsto;
           if (igual || (!ant && !nova.entrada && !nova.previsao && !nova.fornecedor && !nova.retorno_previsto)) continue;
           etapasMudaram = true;
+          if (nova.entrada && nova.entrada !== (ant?.entrada ?? null) && nova.entrada > maiorEntradaNova) maiorEntradaNova = nova.entrada;
           await tx`
             INSERT INTO producao_cald_plano_etapa (item_id, area, entrada, previsao, fornecedor, retorno_previsto)
             VALUES (${id}, ${area}, ${nova.entrada}, ${nova.previsao}, ${nova.fornecedor}, ${nova.retorno_previsto})
@@ -199,7 +201,18 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
       // Editou datas de entrada/roteiro de um item em produção → recalcula a
       // área atual pela entrada mais recente (mesma regra da importação).
-      if ((etapasMudaram || set.areas) && (atual.status === 'andamento' || atual.status === 'aguardando')) {
+      // Item FINALIZADO que ganhou entrada de área nova (no dia da finalização ou
+      // depois) → volta pra produção. Antes ficava "finalizado" e sumia do painel
+      // (pedido 27427, 25/09: Finalizar clicado por engano e depois a entrada na
+      // Solda editada no detalhe).
+      if (atual.status === 'finalizado' && maiorEntradaNova && (!atual.finalizado_em || maiorEntradaNova >= atual.finalizado_em)) {
+        const ets = await tx`SELECT area, entrada::text AS entrada FROM producao_cald_plano_etapa WHERE item_id = ${id}`;
+        const nova = areaPelaUltimaEntrada(areas, ets as unknown as { area: string; entrada: string | null }[]);
+        set.area_atual = nova;
+        set.status = nova ? 'andamento' : 'aguardando';
+        set.finalizado_em = null;
+        mud.push(`Reaberto (nova entrada em ${nomeArea(nova)} depois de finalizado)`);
+      } else if ((etapasMudaram || set.areas) && (atual.status === 'andamento' || atual.status === 'aguardando')) {
         const ets = await tx`SELECT area, entrada::text AS entrada FROM producao_cald_plano_etapa WHERE item_id = ${id}`;
         const nova = areaPelaUltimaEntrada(areas, ets as unknown as { area: string; entrada: string | null }[]);
         if (nova !== atual.area_atual) {
