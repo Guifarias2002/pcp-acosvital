@@ -26,9 +26,11 @@ export default function EncaminharModal({ item, area: areaIni, modo, onConfirmar
   const escolher = (a: string, s: string | null) => { setArea(a); setSub(s); };
   const opcao = (a: string, s: string | null, rot: string, negrito: boolean, cor: string) => {
     const on = area === a && sub === s;
-    if (a === aqui) return negrito ? (
-      <div key={`${a}|${s}`} style={{ padding: '6px 10px', fontWeight: 800, color: C.fraco, fontSize: 13.5 }}>{rot} <span style={{ fontSize: 11, fontWeight: 600 }}>— está aqui</span></div>
-    ) : null;
+    // Área atual: o cabeçalho não é destino (regravaria a entrada), mas os
+    // setores dela são — escolher um só troca o setor dentro da área.
+    if (a === aqui && negrito) return (
+      <div key={`${a}|${s}`} style={{ padding: '6px 10px', fontWeight: 800, color: cor, fontSize: 13.5 }}>{rot} <span style={{ fontSize: 11, fontWeight: 600, color: C.fraco }}>— está aqui{(SUBSETORES_CALD[a] || []).length ? ' (pode trocar o setor abaixo)' : ''}</span></div>
+    );
     const alan = !!s && SUBSETORES_VERIFICAR_ALAN.has(s);
     return (
       <label key={`${a}|${s}`} style={{
@@ -49,7 +51,7 @@ export default function EncaminharModal({ item, area: areaIni, modo, onConfirmar
       rodape={<>
         <button className="cp-btn" onClick={onFechar}>Cancelar</button>
         <button className="cp-btn pri" disabled={!area} onClick={() => onConfirmar({ area, sub_setor: sub, obs: obs.trim() })}>
-          <i className="bi bi-box-arrow-in-right" />{modo === 'mover' ? (area ? `Entrou em ${sub ? nomeSubsetor(sub) : nomeArea(area)}` : 'Escolha a área') : 'Salvar setor'}
+          <i className="bi bi-box-arrow-in-right" />{modo === 'mover' && area !== aqui ? (area ? `Entrou em ${sub ? nomeSubsetor(sub) : nomeArea(area)}` : 'Escolha a área') : 'Salvar setor'}
         </button>
       </>}>
       <div style={{ fontSize: 12, color: C.cinza, marginBottom: 10 }}>

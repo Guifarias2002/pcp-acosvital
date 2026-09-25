@@ -169,31 +169,18 @@ export default function CaldPlanoPage() {
     if (!enc) return;
     const { it, modo } = enc;
     setEnc(null);
-    if (modo === 'mover') return mover(it, e.area, { sub_setor: e.sub_setor, obs: e.obs });
+    // "Mover" pra um setor da MESMA área em que o item já está = só troca o setor.
+    const mesmaArea = it.status === 'andamento' && e.area === it.area_atual;
+    if (modo === 'mover' && !mesmaArea) return mover(it, e.area, { sub_setor: e.sub_setor, obs: e.obs });
     try {
       const r = await postIdempotente<{ item: ItemCald }>(`/api/cald-plano/${it.id}`, { acao: 'subsetor', sub_setor: e.sub_setor, obs: e.obs });
       atualizarItem(r.item);
       mostrarAviso(`Pedido ${it.pedido}: ${nomeArea(it.area_atual)}${e.sub_setor ? ` › ${nomeSubsetor(e.sub_setor)}` : ''}`);
     } catch { mostrarAviso('Não foi possível trocar o setor.'); }
   }
-  async function finalizar(it: ItemCald) {
-    if (!confirm(`Finalizar o item "${it.material}" do pedido ${it.pedido} hoje?`)) return;
-    try {
-      const r = await postIdempotente<{ item: ItemCald }>(`/api/cald-plano/${it.id}`, { acao: 'finalizar' });
-      atualizarItem(r.item);
-      mostrarAviso(`Pedido ${it.pedido} · ${it.material} finalizado.`);
-    } catch { mostrarAviso('Não foi possível finalizar.'); }
-  }
   async function salvarOrdem(col: string, ids: number[]) {
     setItens(v => v.map(x => { const k = ids.indexOf(x.id); return k >= 0 ? { ...x, ordem: k + 1 } : x; }));
     try { await api.post('/api/cald-plano/ordem', { area: col, ids }); } catch { mostrarAviso('Não foi possível salvar a ordem.'); carregar(true); }
-  }
-  function subirDescer(col: string, lista: ItemCald[], idx: number, delta: number) {
-    const ids = lista.map(i => i.id);
-    const j = idx + delta;
-    if (j < 0 || j >= ids.length) return;
-    [ids[idx], ids[j]] = [ids[j], ids[idx]];
-    salvarOrdem(col, ids);
   }
   function soltar(colCodigo: string, sobreId: number | null) {
     const id = arrastando;
@@ -434,19 +421,15 @@ export default function CaldPlanoPage() {
                             {s.terceiroVencido && <Chip cor="#fff" bg={C.vermelho}>retorno vencido</Chip>}
                           </div>
                           {planeja && (
-                            <div style={{ display: 'flex', gap: 4, marginTop: 7, alignItems: 'center' }} onClick={e => e.stopPropagation()}>
-                              {col.codigo !== 'novo' && <>
-                                  <button className="cp-btn sm" title="Subir na fila" disabled={idx === 0} onClick={() => subirDescer(col.codigo, col.itens, idx, -1)}><i className="bi bi-chevron-up" /></button>
-                                  <button className="cp-btn sm" title="Descer na fila" disabled={idx === col.itens.length - 1} onClick={() => subirDescer(col.codigo, col.itens, idx, 1)}><i className="bi bi-chevron-down" /></button>
-                                </>}
-                              <button className="cp-btn sm" title="Mover pra outra área — escolhe na lista (sem arrastar)" onClick={() => setEnc({ it, area: s.proxima || (col.codigo !== 'novo' ? col.codigo : AREAS_CALD[0].codigo), modo: 'mover' })}><i className="bi bi-arrow-left-right" />Mover</button>
-                              {col.codigo !== 'novo' && (SUBSETORES_CALD[col.codigo] || []).length > 0 && (
-                                <button className="cp-btn sm" title="Escolher/trocar o setor dentro desta área (ou mandar recado pro Alan)" onClick={() => setEnc({ it, area: col.codigo, modo: 'subsetor' })}><i className="bi bi-diagram-3" />Setor</button>
-                              )}
-                              <div style={{ flex: 1 }} />
-                              {s.proxima
-                                ? <button className="cp-btn sm pri" title={`Registrar entrada em ${nomeArea(s.proxima)} hoje`} onClick={() => encaminhar(it, s.proxima!)}>{nomeArea(s.proxima)}<i className="bi bi-arrow-right" /></button>
-                                : col.codigo !== 'novo' && <button className="cp-btn sm ok" onClick={() => finalizar(it)}><i className="bi bi-check2-all" />Finalizar</button>}
+                            <div style={{ marginTop: 7 }} onClick={e => e.stopPropagation()}>
+                              {/* Card só com "Mover" (pedido do usuário 25/09): área/setor na
+                                  lista, sem arrastar. Ordem na fila = arrastar; finalizar e
+                                  demais ações ficam no detalhe (clique no card). */}
+                              <button className="cp-btn sm pri" style={{ width: '100%', justifyContent: 'center' }}
+                                title="Mover pra outra área ou setor — escolhe na lista"
+                                onClick={() => setEnc({ it, area: s.proxima || (col.codigo !== 'novo' ? col.codigo : AREAS_CALD[0].codigo), modo: 'mover' })}>
+                                <i className="bi bi-arrow-left-right" />Mover{s.proxima ? ` (próx.: ${nomeArea(s.proxima)})` : ''}
+                              </button>
                             </div>
                           )}
                         </div>
