@@ -694,7 +694,7 @@ function Conteudo() {
           });
           // Acha o pai recém-criado (emitido, sem pai, ainda não usado).
           const pedPai = await getPedido(pedidoId);
-          const pais = (pedPai.itens || []).filter((i: Record<string, unknown>) => i.status === 'emitido' && !i.item_pai_id && !paisCriados.has(i.id as number));
+          const pais = (pedPai.itens || []).filter((i: Record<string, unknown>) => i.status === 'emitido' && !i.inativo && !i.item_pai_id && !paisCriados.has(i.id as number));
           const pai = pais.sort((a: Record<string, unknown>, b: Record<string, unknown>) => (a.id as number) - (b.id as number))[pais.length - 1];
           if (!pai) { setErro(`Produto do projeto ${k} criado, mas não encontrei pra vincular os componentes — abra o pedido.`); setLancando(false); return; }
           const paiId = pai.id as number;
@@ -711,7 +711,7 @@ function Conteudo() {
         }
         // 3. Libera o pai + cada filho pro 1º setor do roteiro de cada um.
         const pedFinal = await getPedido(pedidoId);
-        const emitidos = (pedFinal.itens || []).filter((i: Record<string, unknown>) => i.status === 'emitido');
+        const emitidos = (pedFinal.itens || []).filter((i: Record<string, unknown>) => i.status === 'emitido' && !i.inativo);
         for (const it of emitidos) {
           const rp = Array.isArray(it.roteiro_proprio) ? (it.roteiro_proprio as string[]) : [];
           const destino = rp.find(s => s !== 'emissao') || roteiroSel[0];
@@ -740,7 +740,7 @@ function Conteudo() {
       // Lança pra produção: pega o item recém-criado e MANDA pro(s) setor(es)
       // escolhido(s) no quadro de confirmação.
       const ped = await getPedido(pedidoId);
-      const emitidos = (ped.itens || []).filter((i: Record<string, unknown>) => i.status === 'emitido');
+      const emitidos = (ped.itens || []).filter((i: Record<string, unknown>) => i.status === 'emitido' && !i.inativo);
       if (!emitidos.length) { setErro('Item criado mas não encontrei pra lançar — abra o pedido e libere por lá.'); setLancando(false); return; }
       const dests = destinos.length ? destinos : [roteiroSel[0]];
       // Um item por projeto — cada um é distribuído igual (fatias por projeto).

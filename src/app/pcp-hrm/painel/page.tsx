@@ -5,6 +5,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { useRealtime } from '@/hooks/useRealtime';
 import { api } from '@/lib/api';
 import { NOMES, PRIORIDADE_COR, PROCESSO_CALDEIRARIA } from '@/lib/types';
+import { getUser } from '@/lib/auth';
 
 interface PedidoPainel {
   id: number;
@@ -76,6 +77,27 @@ export default function PainelCaldeirariaPage() {
   const [busca, setBusca] = useState('');
   const [entregues, setEntregues] = useState(false);
   const [filtroSetor, setFiltroSetor] = useState<string>('');
+  const [devolvendo, setDevolvendo] = useState<number | null>(null);
+  // Devolver OP pra Conferência (pedido inteiro) — só administrador/PCP.
+  const u = getUser();
+  const podeDevolver = !!u && (u.is_staff || u.perfil === 'administrador');
+  async function devolverConferencia(p: PedidoPainel) {
+    const motivo = window.prompt(`Devolver a OP ${p.numero} INTEIRA pra Conferência?
+
+Os itens lançados saem da produção (ficam inativos, dá pra reverter) e a OP volta pra lista da Conferência pra ser conferida e lançada de novo.
+
+Motivo:`);
+    if (motivo === null) return;
+    if (!motivo.trim()) { alert('Informe o motivo.'); return; }
+    setDevolvendo(p.id);
+    try {
+      const r = await api.post(`/api/pcp-hrm/conferencia/${p.id}/devolver`, { motivo });
+      alert(r.data.mensagem || 'Devolvido pra Conferência.');
+      carregar();
+    } catch (e) {
+      alert((e as { response?: { data?: { erro?: string } } })?.response?.data?.erro || 'Não consegui devolver pra Conferência.');
+    } finally { setDevolvendo(null); }
+  }
 
   const carregar = useCallback(() => {
     api.get(`/api/caldeiraria/painel${entregues ? '?entregues=1' : ''}`)
@@ -274,13 +296,21 @@ export default function PainelCaldeirariaPage() {
 
               {/* Linha final: prazos de referência (a previsão de fabricação já
                   está em destaque no topo do card). */}
-              {(p.entrega_contratual_iso || p.prazo_iso) && (
+              {(p.entrega_contratual_iso || p.prazo_iso || (podeDevolver && !entregue)) && (
                 <div className="flex items-center gap-x-5 gap-y-1 flex-wrap mt-3 text-xs">
                   {p.entrega_contratual_iso && (
                     <span className="text-gray-500"><i className="bi bi-calendar-check mr-1" />Contratual {fmtBR(p.entrega_contratual_iso)}</span>
                   )}
                   {p.prazo_iso && (
                     <span className="text-gray-400"><i className="bi bi-cash-coin mr-1" />Faturamento {fmtBR(p.prazo_iso)}</span>
+                  )}
+                  {podeDevolver && !entregue && (
+                    <button type="button" disabled={devolvendo === p.id}
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); devolverConferencia(p); }}
+                      title="Desfaz o lançamento: a OP inteira volta pra Conferência do PCP HRM"
+                      style={{ marginLeft: 'auto', background: '#fff', color: '#b45309', border: '1px solid #fcd34d', borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                      <i className="bi bi-arrow-return-left" /> {devolvendo === p.id ? 'Devolvendo…' : 'Devolver pra Conferência'}
+                    </button>
                   )}
                 </div>
               )}
