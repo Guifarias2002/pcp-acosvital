@@ -360,6 +360,12 @@ export default function CaldPlanoPage() {
                     </div>
                     <div style={{ fontSize: 11, color: C.cinza, marginTop: 3 }}>{col.itens.length ? somaPorUnidade(col.itens) : 'vazia'}</div>
                     {verValores && somaValor(col.itens) !== null && <div style={{ fontSize: 11, color: '#065f46', fontWeight: 700 }}>{fmtBRL(somaValor(col.itens))}</div>}
+                    {col.codigo === 'novo' && planeja && (
+                      <button className="cp-btn sm pri" style={{ marginTop: 8, width: '100%', justifyContent: 'center' }} onMouseDown={e => e.stopPropagation()}
+                        onClick={() => setLancar(true)} title="Lançar pedido novo — cai aqui no Início pra você planejar e mandar pras áreas">
+                        <i className="bi bi-plus-lg" />Lançar pedido
+                      </button>
+                    )}
                   </div>
                   <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 7, overflowY: 'auto', minHeight: 60 }}>
                     {col.itens.map((it, idx) => {
