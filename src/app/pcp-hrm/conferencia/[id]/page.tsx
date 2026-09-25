@@ -296,6 +296,19 @@ function DesenhoPainel({ desenhos, pedidoId, token, editavel, enviando, progress
 // Um componente da OP com o próprio roteiro (sub-item = filho do produto).
 interface CompRot { codigo: string; descricao: string; quantidade: string; unidade: string; roteiro: string[]; }
 
+// OP DEVOLVIDA pra Conferência (/api/pcp-hrm/conferencia/[id]/devolver): o que
+// tinha sido lançado — produto + componentes com o roteiro de cada um — fica no
+// bloco "[[ROTEIRO_LANCADO]]<json>". A Conferência reabre JÁ com esses setores.
+interface RoteiroLancado { produto: { codigo: string; descricao: string; quantidade: string; unidade: string; roteiro: string[] }; componentes: CompRot[] }
+function roteiroLancadoDasObservacoes(observacoes: string): RoteiroLancado | null {
+  const linha = String(observacoes || '').split('\n').find(l => l.trim().startsWith('[[ROTEIRO_LANCADO]]'));
+  if (!linha) return null;
+  try {
+    const o = JSON.parse(linha.trim().slice('[[ROTEIRO_LANCADO]]'.length)) as RoteiroLancado;
+    return o && o.produto ? { produto: o.produto, componentes: Array.isArray(o.componentes) ? o.componentes : [] } : null;
+  } catch { return null; }
+}
+
 // Seletor de roteiro compacto e reutilizável (produto e cada componente usam).
 // Sempre começa em "Emissão" (fixo, passo 1). Clica pra adicionar; setinhas pra
 // ordenar; ✕ pra remover.
@@ -526,6 +539,25 @@ function Conteudo() {
             ? 'Os campos abaixo vieram do que foi lançado no pedido — confira antes de lançar.'
             : 'Esta OP não tem produto nem materiais salvos (foi anexada antes da atualização ou a leitura falhou na Anexar OP). Anexe a OP de novo pela Anexar OP, ou preencha os campos à mão.'));
         }
+        // OP devolvida pra Conferência: o que foi lançado antes tem prioridade
+        // sobre a releitura da OP — produto, componentes e os SETORES escolhidos.
+        const lancado = roteiroLancadoDasObservacoes(String(ped.observacoes || ''));
+        if (lancado && vivo) {
+          const rot = (r: string[]) => (r || []).filter(x => x !== 'emissao' && MENU_SETORES.includes(x));
+          const pr = lancado.produto;
+          if (pr.codigo) setCodigo(pr.codigo);
+          if (pr.descricao) setDescricao(pr.descricao);
+          if (pr.quantidade) setQuantidade(String(pr.quantidade));
+          if (pr.unidade) setUnidade(normalizarUnidade(pr.unidade));
+          if (rot(pr.roteiro).length) setRoteiroSel(rot(pr.roteiro));
+          if (lancado.componentes.length) {
+            setComponentes(lancado.componentes.map(c => ({
+              codigo: c.codigo || '', descricao: c.descricao || '', quantidade: String(c.quantidade || '1'),
+              unidade: normalizarUnidade(c.unidade || 'pc'), roteiro: rot(c.roteiro),
+            })));
+          }
+          setAvisoLeitura('OP devolvida pra Conferência — produto, componentes e setores vieram do que tinha sido lançado. Ajuste o que precisar e lance de novo.');
+        }
       } catch (e) {
         const ax = e as { response?: { data?: { erro?: string } } };
         setErro(ax?.response?.data?.erro || 'Não consegui carregar o pedido.');
@@ -657,7 +689,7 @@ function Conteudo() {
       // Fábrica única (Caldeiraria) — remove a etiqueta Leve/Pesada obsoleta das
       // observações se ela existir de pedidos antigos; nada de novo é gravado.
       const obsLimpa = String(pedido?.observacoes || '').split('\n')
-        .filter(l => !/^Fábrica:/i.test(l.trim()) && !l.trim().startsWith('[[COMPONENTES]]') && !l.trim().startsWith('[[PRODUTO]]'))
+        .filter(l => !/^Fábrica:/i.test(l.trim()) && !l.trim().startsWith('[[COMPONENTES]]') && !l.trim().startsWith('[[PRODUTO]]') && !l.trim().startsWith('[[ROTEIRO_LANCADO]]'))
         .join('\n');
 
       // Cria o item com roteiro próprio ['emissao', ...setores escolhidos] e
