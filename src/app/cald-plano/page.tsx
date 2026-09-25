@@ -222,6 +222,12 @@ export default function CaldPlanoPage() {
       row['Parcial'] = i.parcial ? 'Sim' : ''; row['Obs'] = i.obs || '';
       return row;
     });
+    if (verValores && linhas.length) {
+      const tot: Record<string, unknown> = {};
+      for (const k of Object.keys(linhas[0])) tot[k] = '';
+      tot.Empresa = 'TOTAL'; tot['Vlr total R$'] = lista.reduce((s, i) => s + (i.valor || 0), 0);
+      linhas.push(tot);
+    }
     const ws = XLSX.utils.json_to_sheet(linhas);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Caldeiraria');
@@ -233,6 +239,22 @@ export default function CaldPlanoPage() {
     .filter(passaFiltro)
     .sort((a, b) => (a.pedido || '').localeCompare(b.pedido || '', 'pt-BR', { numeric: true }) || a.id - b.id),
   [itens, statusLista, passaFiltro]);
+
+  // Totais da lista na tela (respeita todos os filtros). Item sem valor entra na
+  // contagem mas não soma. Quebra por empresa só quando "Todas as empresas".
+  const totais = useMemo(() => {
+    const porEmp = new Map<string, { itens: number; valor: number }>();
+    let valor = 0, semValor = 0;
+    for (const i of listaFiltrada) {
+      if (i.valor === null) semValor++; else valor += i.valor;
+      const k = i.empresa || 'sem';
+      const e = porEmp.get(k) || { itens: 0, valor: 0 };
+      e.itens++; e.valor += i.valor || 0; porEmp.set(k, e);
+    }
+    const empresas = [...EMPRESAS_CALD.map(e => ({ k: e.codigo as string, nome: e.curto as string, cor: e.cor as string })), { k: 'sem', nome: 'Sem empresa', cor: C.cinza }]
+      .filter(e => porEmp.has(e.k)).map(e => ({ ...e, ...porEmp.get(e.k)! }));
+    return { valor, semValor, itens: listaFiltrada.length, pedidos: new Set(listaFiltrada.map(i => i.pedido)).size, empresas };
+  }, [listaFiltrada]);
 
   const tiles: { k: Filtro; rot: string; v: number; cor: string; icon: string; dica: string }[] = [
     { k: 'novos', rot: 'Novos p/ planejar', v: cont.novos, cor: '#b45309', icon: 'bi-inbox', dica: 'Lançados pelo PCP, ainda sem planejamento' },
@@ -442,6 +464,20 @@ export default function CaldPlanoPage() {
                 </div>
               )}
               <div style={{ flex: 1 }} />
+              {verValores && totais.itens > 0 && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', background: '#ecfdf5', border: '1.5px solid #a7f3d0', borderRadius: 10, padding: '5px 12px' }}
+                  title="Soma do Vlr total dos itens da lista abaixo (conforme os filtros)">
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#065f46', textTransform: 'uppercase', letterSpacing: .3 }}><i className="bi bi-cash-coin" /> Valor total</span>
+                  <b style={{ fontSize: 15, color: '#065f46' }}>{fmtBRL(totais.valor)}</b>
+                  <span style={{ fontSize: 11.5, color: C.cinza }}>{totais.pedidos} pedido(s) · {totais.itens} item(ns)</span>
+                  {totais.semValor > 0 && <span style={{ fontSize: 11.5, color: '#92400e' }} title="Itens sem valor não entram no total">· {totais.semValor} sem valor</span>}
+                  {!fEmp && totais.empresas.length > 1 && totais.empresas.map(e => (
+                    <span key={e.k} style={{ fontSize: 11.5, color: C.texto, borderLeft: `1px solid #a7f3d0`, paddingLeft: 8 }}>
+                      <b style={{ color: e.cor }}>{e.nome}</b> {fmtBRL(e.valor)}
+                    </span>
+                  ))}
+                </div>
+              )}
               <button className="cp-btn sm" onClick={exportarExcel}><i className="bi bi-file-earmark-excel" />Exportar Excel</button>
             </div>
             <div style={{ overflowX: 'auto', border: `1px solid ${C.borda}`, borderRadius: 10, background: '#fff', maxHeight: 'calc(100vh - 330px)' }}>
@@ -501,6 +537,18 @@ export default function CaldPlanoPage() {
                   })}
                   {!listaFiltrada.length && <tr><td colSpan={24} style={{ textAlign: 'center', color: C.fraco, padding: 24 }}>Nenhum item.</td></tr>}
                 </tbody>
+                {verValores && listaFiltrada.length > 0 && (
+                  <tfoot>
+                    <tr style={{ background: '#ecfdf5', position: 'sticky', bottom: 0 }}>
+                      <td colSpan={(planeja ? 1 : 0) + 7 + AREAS_CALD.length + 3} style={{ fontWeight: 800, color: '#065f46', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        TOTAL · {totais.itens} item(ns){totais.semValor > 0 ? ` (${totais.semValor} sem valor)` : ''}
+                      </td>
+                      <td />
+                      <td style={{ whiteSpace: 'nowrap', textAlign: 'right', fontWeight: 800, color: '#065f46' }}>{fmtBRL(totais.valor)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </>

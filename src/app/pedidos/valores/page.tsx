@@ -16,6 +16,7 @@ import { getValoresMes } from '@/lib/api';
 import { getUser, podeVerValoresMes } from '@/lib/auth';
 import { STATUS_LABELS } from '@/lib/types';
 import ValoresCaldeiraria from './ValoresCaldeiraria';
+import ValoresJuntos from './ValoresJuntos';
 import { IconeFlange, IconeMascaraSolda } from '@/components/IconesFabrica';
 
 interface ItemProduto {
@@ -124,14 +125,18 @@ export default function ValoresMesPage() {
   const [expCliente, setExpCliente] = useState(true);
   const [expGerando, setExpGerando] = useState(false);
   // Fábrica: Flanges (pedidos do sistema, como sempre foi) × Caldeiraria
-  // (Planejamento da Caldeiraria). Separadas de propósito — não somam juntas.
-  const [fab, setFab] = useState<'flange' | 'caldeiraria'>('flange');
+  // (Planejamento da Caldeiraria) × as duas juntas ('juntos' = Flanges +
+  // Planejamento da Caldeiraria, ver ValoresJuntos — não usa OPs HRM pra não duplicar).
+  const [fab, setFab] = useState<'flange' | 'caldeiraria' | 'juntos'>('flange');
   const cald = fab === 'caldeiraria';
+  const juntos = fab === 'juntos';
   // Na Caldeiraria há 2 fontes que NÃO se somam (o mesmo pedido pode estar nas
   // duas): 'sistema' = pedidos/OPs do sistema com itens da Caldeiraria (mesma
   // tela do Flange, separada pelo item) · 'plano' = Planejamento do coordenador.
   const [fonte, setFonte] = useState<'sistema' | 'plano'>('sistema');
   const doPlano = cald && fonte === 'plano';
+  // Visões com componente próprio (não usam a lista/total desta página).
+  const semLista = doPlano || juntos;
 
   // Gate por login: controle privado (só guilherme.santos). Sem permissão, home.
   useEffect(() => {
@@ -139,8 +144,9 @@ export default function ValoresMesPage() {
   }, [router]);
 
   const carregar = useCallback((de?: string, ate?: string) => {
+    if (fab === 'juntos') return;
     setLoading(true);
-    getValoresMes({ de: de || undefined, ate: ate || undefined, fabrica: fab })
+    getValoresMes({ de: de || undefined, ate: ate || undefined, fabrica: fab as 'flange' | 'caldeiraria' })
       .then((d: Resposta) => {
         setDados(d);
         setErro(null);
@@ -276,7 +282,7 @@ export default function ValoresMesPage() {
     setExpGerando(true);
     try {
       if (expProduto) {
-        const d: Resposta = await getValoresMes({ de: fDe || undefined, ate: fAte || undefined, com_itens: '1', fabrica: fab });
+        const d: Resposta = await getValoresMes({ de: fDe || undefined, ate: fAte || undefined, com_itens: '1', fabrica: fab as 'flange' | 'caldeiraria' });
         baixarCsv(d.meses, true, expCliente);
       } else {
         baixarCsv(dados.meses, false, expCliente);
@@ -295,10 +301,12 @@ export default function ValoresMesPage() {
       <div className="no-print" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <h4 style={{ margin: 0, fontWeight: 700, color: '#1a3a5c' }}>
-            <i className="bi bi-cash-coin" style={{ marginRight: 8 }} />Valores por Mês — {cald ? 'CALDEIRARIA' : 'FLANGES'}
+            <i className="bi bi-cash-coin" style={{ marginRight: 8 }} />Valores por Mês — {juntos ? 'FLANGES + CALDEIRARIA' : cald ? 'CALDEIRARIA' : 'FLANGES'}
           </h4>
           <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 3 }}>
-            {doPlano
+            {juntos
+              ? <>Flanges e Caldeiraria lado a lado e o total das duas, mês a mês. <b>Visão privada.</b></>
+              : doPlano
               ? <>Itens do Planejamento da Caldeiraria e o valor de cada um, agrupados pelo mês em que chegaram na Caldeiraria. <b>Visão privada.</b></>
               : cald
               ? <>Pedidos/OPs com itens da Caldeiraria e o valor desses itens, agrupados pelo mês de emissão. <b>Visão privada.</b></>
@@ -309,7 +317,7 @@ export default function ValoresMesPage() {
           <Link href="/pedidos" style={{ border: '1px solid #dee2e6', color: '#666', background: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 13, textDecoration: 'none' }}>
             <i className="bi bi-arrow-left" style={{ marginRight: 4 }} />Voltar
           </Link>
-          {!doPlano && <button onClick={() => setShowExport(true)} disabled={dados.meses.length === 0}
+          {!semLista && <button onClick={() => setShowExport(true)} disabled={dados.meses.length === 0}
             style={{ border: '1px solid #198754', color: '#198754', background: 'none', borderRadius: 5, padding: '6px 14px', fontSize: 13, cursor: dados.meses.length === 0 ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: dados.meses.length === 0 ? 0.5 : 1 }}>
             <i className="bi bi-file-earmark-excel" style={{ marginRight: 4 }} />Extrair Excel
           </button>}
@@ -321,12 +329,12 @@ export default function ValoresMesPage() {
 
       {/* Fábrica: Flanges × Caldeiraria */}
       <div className="no-print" style={{ display: 'inline-flex', border: '1.5px solid #e2e8f0', borderRadius: 10, overflow: 'hidden', background: '#fff', marginBottom: 14 }}>
-        {([{ id: 'flange' as const, rot: 'Flanges', icon: 'bi-circle' }, { id: 'caldeiraria' as const, rot: 'Caldeiraria', icon: 'bi-buildings' }]).map(o => (
+        {([{ id: 'flange' as const, rot: 'Flanges' }, { id: 'caldeiraria' as const, rot: 'Caldeiraria' }, { id: 'juntos' as const, rot: 'Flanges + Caldeiraria' }]).map(o => (
           <button key={o.id} type="button" onClick={() => setFab(o.id)} style={{
             border: 'none', padding: '8px 16px', fontSize: 13, fontWeight: 800, cursor: 'pointer',
             background: fab === o.id ? '#1a3a5c' : '#fff', color: fab === o.id ? '#fff' : '#64748b',
             display: 'inline-flex', alignItems: 'center', gap: 7,
-          }}>{o.id === 'flange' ? <IconeFlange size={18} /> : <IconeMascaraSolda size={18} />}{o.rot}</button>
+          }}>{o.id === 'flange' ? <IconeFlange size={18} /> : o.id === 'caldeiraria' ? <IconeMascaraSolda size={18} /> : <i className="bi bi-plus-circle" />}{o.rot}</button>
         ))}
       </div>
       {cald && (
@@ -352,18 +360,18 @@ export default function ValoresMesPage() {
           <input type="month" value={fAte} onChange={e => setFAte(e.target.value)}
             style={{ border: '1px solid #d1d5db', borderRadius: 6, padding: '7px 10px', fontSize: 13 }} />
         </div>
-        {!doPlano && <button onClick={() => carregar(fDe, fAte)}
+        {!semLista && <button onClick={() => carregar(fDe, fAte)}
           style={{ background: '#1a3a5c', color: '#fff', border: 'none', borderRadius: 5, padding: '8px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
           <i className="bi bi-funnel" style={{ marginRight: 4 }} />Filtrar
         </button>}
         {(fDe || fAte) && (
-          <button onClick={() => { setFDe(''); setFAte(''); if (!doPlano) carregar('', ''); }}
+          <button onClick={() => { setFDe(''); setFAte(''); if (!semLista) carregar('', ''); }}
             style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 13, cursor: 'pointer', color: '#666' }}>
             Limpar
           </button>
         )}
         <div style={{ flex: 1 }} />
-        {!doPlano && aba === 'mes' && dados.meses.length > 0 && (
+        {!semLista && aba === 'mes' && dados.meses.length > 0 && (
           <button onClick={toggleTodos}
             style={{ border: '1px solid #dee2e6', background: 'none', borderRadius: 5, padding: '8px 12px', fontSize: 13, cursor: 'pointer', color: '#1a3a5c', fontWeight: 600 }}>
             {todosAbertos ? 'Recolher todos' : 'Expandir todos'}
@@ -372,8 +380,9 @@ export default function ValoresMesPage() {
       </div>
 
       {doPlano && <ValoresCaldeiraria de={fDe} ate={fAte} />}
+      {juntos && <ValoresJuntos de={fDe} ate={fAte} />}
 
-      {!doPlano && <>
+      {!semLista && <>
       {/* Chave de visão: Por Mês × Por Vendedor (análise comercial) */}
       <div className="no-print" style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         <button type="button" onClick={() => setAba('mes')}
