@@ -19,9 +19,19 @@ export default function EncaminharModal({ item, area: areaIni, modo, onConfirmar
   const [area, setArea] = useState(areaIni === aqui ? '' : areaIni);
   const [sub, setSub] = useState<string | null>(modo === 'subsetor' ? item.sub_setor ?? null : null);
   const [obs, setObs] = useState('');
+  // Filtro da lista: a área aparece se o nome dela ou de algum setor bater; se
+  // bater a própria área, mostra todos os setores dela.
+  const [busca, setBusca] = useState('');
   const verificar = !!sub && SUBSETORES_VERIFICAR_ALAN.has(sub);
   // No modo "trocar setor" só vale a área atual; no "mover", todas as áreas.
   const areas = modo === 'subsetor' ? AREAS_CALD.filter(a => a.codigo === areaIni) : AREAS_CALD;
+  const norm = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const q = norm(busca.trim());
+  const areasFiltradas = areas.map(a => {
+    const todos = SUBSETORES_CALD[a.codigo] || [];
+    if (!q || norm(a.nome).includes(q)) return { a, subs: todos };
+    return { a, subs: todos.filter(s => norm(nomeSubsetor(s)).includes(q)) };
+  }).filter(x => !q || norm(x.a.nome).includes(q) || x.subs.length > 0);
 
   const escolher = (a: string, s: string | null) => { setArea(a); setSub(s); };
   const opcao = (a: string, s: string | null, rot: string, negrito: boolean, cor: string) => {
@@ -57,13 +67,19 @@ export default function EncaminharModal({ item, area: areaIni, modo, onConfirmar
       <div style={{ fontSize: 12, color: C.cinza, marginBottom: 10 }}>
         Escolha a <b>área geral</b> (em negrito) ou um <b>setor</b> dela. {modo === 'mover' && 'A entrada é registrada hoje.'}
       </div>
+      <div style={{ position: 'relative', marginBottom: 8 }}>
+        <i className="bi bi-search" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: C.fraco, fontSize: 13 }} />
+        <input className="cp-in" autoFocus value={busca} onChange={e => setBusca(e.target.value)}
+          placeholder="Filtrar área ou setor… (ex.: solda, pintura, ultrassom)" style={{ paddingLeft: 30 }} />
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: '48vh', overflowY: 'auto', border: `1px solid ${C.borda}`, borderRadius: 10, padding: 6 }}>
-        {areas.map(a => (
+        {areasFiltradas.map(({ a, subs }) => (
           <div key={a.codigo} style={{ paddingBottom: 4, borderBottom: `1px solid #f1f5f9` }}>
             {opcao(a.codigo, null, a.nome, true, a.cor)}
-            {(SUBSETORES_CALD[a.codigo] || []).map(s => opcao(a.codigo, s, nomeSubsetor(s), false, a.cor))}
+            {subs.map(s => opcao(a.codigo, s, nomeSubsetor(s), false, a.cor))}
           </div>
         ))}
+        {!areasFiltradas.length && <div style={{ padding: 16, textAlign: 'center', color: C.fraco, fontSize: 13 }}>Nenhuma área ou setor com “{busca}”.</div>}
       </div>
 
       {verificar && (
