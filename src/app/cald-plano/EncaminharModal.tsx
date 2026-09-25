@@ -14,7 +14,9 @@ export default function EncaminharModal({ item, area: areaIni, modo, onConfirmar
   item: ItemCald; area: string; modo: 'mover' | 'subsetor';
   onConfirmar: (e: Encaminhamento) => void; onFechar: () => void;
 }) {
-  const [area, setArea] = useState(areaIni);
+  // No "mover", a área em que o item JÁ está não é destino (regravaria a entrada).
+  const aqui = modo === 'mover' && item.status === 'andamento' ? item.area_atual : null;
+  const [area, setArea] = useState(areaIni === aqui ? '' : areaIni);
   const [sub, setSub] = useState<string | null>(modo === 'subsetor' ? item.sub_setor ?? null : null);
   const [obs, setObs] = useState('');
   const verificar = !!sub && SUBSETORES_VERIFICAR_ALAN.has(sub);
@@ -24,6 +26,9 @@ export default function EncaminharModal({ item, area: areaIni, modo, onConfirmar
   const escolher = (a: string, s: string | null) => { setArea(a); setSub(s); };
   const opcao = (a: string, s: string | null, rot: string, negrito: boolean, cor: string) => {
     const on = area === a && sub === s;
+    if (a === aqui) return negrito ? (
+      <div key={`${a}|${s}`} style={{ padding: '6px 10px', fontWeight: 800, color: C.fraco, fontSize: 13.5 }}>{rot} <span style={{ fontSize: 11, fontWeight: 600 }}>— está aqui</span></div>
+    ) : null;
     const alan = !!s && SUBSETORES_VERIFICAR_ALAN.has(s);
     return (
       <label key={`${a}|${s}`} style={{
@@ -43,8 +48,8 @@ export default function EncaminharModal({ item, area: areaIni, modo, onConfirmar
       titulo={<>{modo === 'mover' ? 'Encaminhar' : 'Trocar setor'} — pedido {item.pedido}<div style={{ fontSize: 12, fontWeight: 500, color: C.cinza }}>{item.material}</div></>}
       rodape={<>
         <button className="cp-btn" onClick={onFechar}>Cancelar</button>
-        <button className="cp-btn pri" onClick={() => onConfirmar({ area, sub_setor: sub, obs: obs.trim() })}>
-          <i className="bi bi-box-arrow-in-right" />{modo === 'mover' ? `Entrou em ${sub ? nomeSubsetor(sub) : nomeArea(area)}` : 'Salvar setor'}
+        <button className="cp-btn pri" disabled={!area} onClick={() => onConfirmar({ area, sub_setor: sub, obs: obs.trim() })}>
+          <i className="bi bi-box-arrow-in-right" />{modo === 'mover' ? (area ? `Entrou em ${sub ? nomeSubsetor(sub) : nomeArea(area)}` : 'Escolha a área') : 'Salvar setor'}
         </button>
       </>}>
       <div style={{ fontSize: 12, color: C.cinza, marginBottom: 10 }}>
