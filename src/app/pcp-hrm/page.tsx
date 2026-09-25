@@ -3,7 +3,7 @@ import { useState } from 'react';
 import AuthGuard from '@/components/AuthGuard';
 import { criarPedido } from '@/lib/api';
 import { getToken } from '@/lib/auth';
-import { ehProdutoDaOp } from '@/lib/opProduto';
+import { ehProdutoDaOp, ROTULO_QTD_ESTRUTURAS } from '@/lib/opProduto';
 
 // ── PCP HRM ─────────────────────────────────────────────────────────────────
 // Porta de entrada da Caldeiraria (modelo novo, empresa que roda o PCP no
@@ -50,6 +50,9 @@ export default function PcpHrmPage() {
   const [origem] = useState<Origem>('omie'); // Caldeiraria = só Omie (origem fixa)
   const [numero, setNumero] = useState('');
   const [cliente, setCliente] = useState('');
+  // Qtd. de estruturas/projetos da OP — só INFORMATIVA (não vira quantidade do
+  // produto). Vai numa linha das observações; a Conferência lê e mostra.
+  const [qtdEstruturas, setQtdEstruturas] = useState('');
   const [semPrazo, setSemPrazo] = useState(false);
   const [prazo, setPrazo] = useState('');
   const [obs, setObs] = useState('');
@@ -227,6 +230,7 @@ export default function PcpHrmPage() {
 
         const linhasObs = [
           `Origem: ${origemLabel[origem]}`,
+          Number(qtdEstruturas) > 0 ? `${ROTULO_QTD_ESTRUTURAS}: ${Number(qtdEstruturas)}` : '',
           obs.trim(),
           blocoProd,
           blocoComp,
@@ -300,7 +304,7 @@ export default function PcpHrmPage() {
         produto: leitura?.ops[0]?.produto?.descricao || '',
       }]);
       // reset pra próxima OP
-      setNumero(''); setCliente(''); setPrazo(''); setSemPrazo(false); setObs('');
+      setNumero(''); setCliente(''); setQtdEstruturas(''); setPrazo(''); setSemPrazo(false); setObs('');
       setArquivo(null); setDesenhos([]);
       setLeitura(null); setErroLeitura(''); setCriadoId(null); setComponentesAbertos(new Set());
       setFileKey(k => k + 1);
@@ -430,6 +434,12 @@ export default function PcpHrmPage() {
                 <label className={labelCls}>Cliente</label>
                 <input value={cliente} onChange={e => setCliente(e.target.value)} placeholder="opcional" className={inputCls} />
               </div>
+            </div>
+            <div style={{ marginTop:12 }}>
+              <label className={labelCls}>Quantidade de estruturas / projetos</label>
+              <input type="number" min={1} step={1} inputMode="numeric" value={qtdEstruturas}
+                onChange={e => setQtdEstruturas(e.target.value.replace(/\D/g, ''))}
+                placeholder="opcional" className={inputCls} style={{ maxWidth:180 }} />
             </div>
           </div>
 

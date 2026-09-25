@@ -38,3 +38,13 @@ export function ehProdutoDaOp(produto: CodDesc | null | undefined, m: CodDesc): 
   }
   return false;
 }
+
+// Qtd. de estruturas/projetos informada na Anexar OP — só INFORMATIVA (não é a
+// quantidade do produto). Gravada como linha "<rótulo>: N" nas observações do
+// pedido; a Conferência lê de volta com qtdEstruturasDasObservacoes.
+export const ROTULO_QTD_ESTRUTURAS = 'Qtd. de estruturas/projetos';
+export function qtdEstruturasDasObservacoes(observacoes?: string | null): number | null {
+  const linha = String(observacoes || '').split('\n').find(l => l.trim().startsWith(`${ROTULO_QTD_ESTRUTURAS}:`));
+  const n = linha ? parseInt(linha.split(':')[1], 10) : NaN;
+  return n > 0 ? n : null;
+}

@@ -5,7 +5,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { getPedido, lerOpDoPedido, editarPedido, itemAcao, iniciarConferenciaHrm } from '@/lib/api';
 import { getUser, getToken, podeConferirHrm } from '@/lib/auth';
 import { FABRICAS, NOMES } from '@/lib/types';
-import { ehProdutoDaOp } from '@/lib/opProduto';
+import { ehProdutoDaOp, qtdEstruturasDasObservacoes } from '@/lib/opProduto';
 import VisualizadorDoc, { DocEmbed } from '@/components/VisualizadorDoc';
 
 // ── PCP HRM — Conferência ────────────────────────────────────────────────────
@@ -767,6 +767,8 @@ function Conteudo() {
   const lblRo: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block' };
   const roVal: React.CSSProperties = { fontSize: 14, color: '#0f172a', fontWeight: 600, padding: '6px 2px' };
   const passoChip: React.CSSProperties = { background: '#eef4fb', border: '1px solid #c7d7ee', color: '#1a3a5c', borderRadius: 20, padding: '5px 12px', fontSize: 12.5, fontWeight: 600 };
+  // Qtd. de estruturas/projetos informada na Anexar OP (só informativa).
+  const qtdEstruturas = qtdEstruturasDasObservacoes(String(pedido?.observacoes || ''));
   const Chip = (label: string, value: string) => (
     <div key={label} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#0f172a' }}>
       <span style={{ fontSize: 10.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: .5, marginRight: 6 }}>{label}</span>
@@ -845,6 +847,7 @@ function Conteudo() {
                   {entregaFmt && Chip('Entrega', entregaFmt)}
                   {pedCliente && Chip('Pedido cliente', pedCliente)}
                   {situacao && Chip('Situação', situacao)}
+                  {qtdEstruturas && Chip('Estruturas / projetos', String(qtdEstruturas))}
                 </div>
 
                 {ops.length > 1 && <div style={{ marginBottom: 16, fontSize: 12, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px' }}>Este PDF tem {ops.length} ordens — a conferência lança a 1ª ({op0?.produto?.descricao || op0?.cabecalho.ns}). As demais podem ser lançadas depois.</div>}
@@ -934,6 +937,11 @@ function Conteudo() {
           {/* Produto + quantidade (editável; só-leitura na prévia) */}
           <div style={card}>
             <div style={secTitle}><i className="bi bi-box-seam" style={{ marginRight: 6 }} />Produto a fabricar</div>
+            {qtdEstruturas && (
+              <div style={{ marginBottom: 12, fontSize: 13, color: '#1e3a8a', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px' }}>
+                <i className="bi bi-diagram-3" style={{ marginRight: 6 }} />Quantidade de estruturas / projetos (informada na Anexar OP): <b>{qtdEstruturas}</b>
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginBottom: 12 }}>
               <div><label style={lblRo}>Código</label>{preview ? <div style={roVal}>{codigo || '—'}</div> : <input value={codigo} onChange={e => setCodigo(e.target.value)} className={inputCls} />}</div>
               <div><label style={lblRo}>Descrição</label>{preview ? <div style={roVal}>{descricao || '—'}</div> : <input value={descricao} onChange={e => setDescricao(e.target.value)} className={inputCls} />}</div>
