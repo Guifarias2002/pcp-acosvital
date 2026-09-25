@@ -201,7 +201,7 @@ export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, 
               )}
               {destino && (
                 <input className="cp-in" style={{ marginTop: 8 }} value={obsDest} onChange={e => setObsDest(e.target.value)} maxLength={1000}
-                  placeholder="Observação pro Alan (opcional — se preencher, vira recado pra ele)" />
+                  placeholder="Observação pra área (opcional — se preencher, vira recado pra quem é do setor)" />
               )}
             </div>
             <input type="date" className="cp-in" style={{ width: 150 }} value={dataAcao} onChange={e => setDataAcao(e.target.value)} title="Data de entrada na área / da ação" />

@@ -6,7 +6,7 @@ import api, { postIdempotente } from '@/lib/api';
 import { podeLancarCaldeiraria, podePlanejarCaldeiraria, podeVerValores } from '@/lib/auth';
 import {
   AREAS_CALD, EMPRESAS_CALD, valorUnitario, PRIORIDADES_CALD, situacaoItem, pendenciasItem, passaEmpresa, nomeEmpresa, hojeISO, fmtData, inicioSemana, somarDias, DIAS_PARADO,
-  SUBSETORES_CALD, nomeSubsetor, subsetorValido, type ItemCald,
+  SUBSETORES_CALD, SUBSETORES_VERIFICAR_ALAN, nomeSubsetor, subsetorValido, type ItemCald,
 } from '@/lib/caldPlano';
 import { C, CSS, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, fmtBRL, somaPorUnidade, somaValor, EmpresaTag, FiltroEmpresa } from './comum';
 import LancarModal from './LancarModal';
@@ -402,8 +402,8 @@ export default function CaldPlanoPage() {
                             <div style={{ fontSize: 11.5, marginTop: 3 }}><b style={{ color: col.cor }}>{col.nome}</b> <span style={{ color: C.texto }}>› {nomeSubsetor(it.sub_setor)}</span></div>
                           )}
                           {it.recado && (
-                            <div style={{ marginTop: 4 }} title={`Recado pro Alan${it.recado.mensagem ? `: ${it.recado.mensagem}` : ''} (${it.recado.criado_por_nome || ''})`}>
-                              <Chip cor="#92400e" bg="#fef3c7"><i className="bi bi-person-check" />verificar com Alan</Chip>
+                            <div style={{ marginTop: 4 }} title={`Recado pra área${it.recado.mensagem ? `: ${it.recado.mensagem}` : ''} (${it.recado.criado_por_nome || ''})`}>
+                              <Chip cor="#92400e" bg="#fef3c7"><i className="bi bi-person-check" />{it.recado.sub_setor && SUBSETORES_VERIFICAR_ALAN.has(it.recado.sub_setor) ? 'verificar com Alan' : 'recado p/ área'}</Chip>
                             </div>
                           )}
                           {col.codigo === 'novo' && (
@@ -520,7 +520,7 @@ export default function CaldPlanoPage() {
                         <td>{it.cliente || '—'}</td>
                         <td><Chip cor={st.cor} bg={st.bg}>{it.status === 'andamento' ? nomeArea(it.area_atual) : st.txt}</Chip>
                           {it.status === 'andamento' && subsetorValido(it.area_atual || '', it.sub_setor) && <div style={{ fontSize: 11, color: C.cinza, whiteSpace: 'nowrap' }}>› {nomeSubsetor(it.sub_setor)}</div>}
-                          {it.recado && <div><Chip cor="#92400e" bg="#fef3c7">verificar c/ Alan</Chip></div>}
+                          {it.recado && <div><Chip cor="#92400e" bg="#fef3c7">{it.recado.sub_setor && SUBSETORES_VERIFICAR_ALAN.has(it.recado.sub_setor) ? 'verificar c/ Alan' : 'recado p/ área'}</Chip></div>}
                           {(s.atrasado || s.areaAtrasada) && <div><Chip cor="#fff" bg={C.vermelho}>atrasado</Chip></div>}</td>
                         {AREAS_CALD.map(a => {
                           const e = it.etapas.find(x => x.area === a.codigo);

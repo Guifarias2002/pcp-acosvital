@@ -73,7 +73,7 @@ export default function EncaminharModal({ item, area: areaIni, modo, onConfirmar
         </div>
       )}
       <label style={{ display: 'block', marginTop: 12 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: C.cinza, textTransform: 'uppercase', letterSpacing: .3 }}>Observação pro Alan {verificar ? '' : '(opcional — se preencher, vira recado pra ele)'}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: C.cinza, textTransform: 'uppercase', letterSpacing: .3 }}>Observação pra área {verificar ? '(vai pro Alan e pra quem é do setor)' : '(opcional — se preencher, vira recado pra quem é do setor)'}</span>
         <textarea className="cp-in" rows={2} value={obs} onChange={e => setObs(e.target.value)} maxLength={1000}
           placeholder="Ex.: conferir chanfro antes de soldar; cliente vem inspecionar dia 30…" style={{ marginTop: 4, resize: 'vertical' }} />
       </label>

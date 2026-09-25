@@ -13,18 +13,21 @@ interface Recado {
 }
 const fmtDH = (s: string) => new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-export default function RecadosPcp() {
+// `setor` = tela de um setor: só os recados dele, e quem é do setor verifica.
+export default function RecadosPcp({ setor }: { setor?: string } = {}) {
   const [recados, setRecados] = useState<Recado[] | null>(null);
   const [resposta, setResposta] = useState<Record<number, string>>({});
   const [salvando, setSalvando] = useState<number | null>(null);
   const [verAntigos, setVerAntigos] = useState(false);
   const [erro, setErro] = useState('');
-  const pode = podeConferirHrm(getUser());
+  const u = getUser();
+  const meus = u?.setores?.length ? u.setores : (u?.setor ? [u.setor] : []);
+  const pode = podeConferirHrm(u) || !!u?.is_staff || u?.perfil === 'administrador' || (!!setor && meus.includes(setor));
 
   const carregar = useCallback(() => {
-    fetch('/api/cald-plano/recados', { headers: { Authorization: `Bearer ${getToken() || ''}` } })
+    fetch(`/api/cald-plano/recados${setor ? `?setor=${encodeURIComponent(setor)}` : ''}`, { headers: { Authorization: `Bearer ${getToken() || ''}` } })
       .then(r => r.json()).then(j => setRecados(j.recados || [])).catch(() => setRecados([]));
-  }, []);
+  }, [setor]);
   useEffect(() => { carregar(); }, [carregar]);
 
   async function verificar(id: number) {
@@ -47,7 +50,7 @@ export default function RecadosPcp() {
   return (
     <div style={{ background: '#fffbeb', border: '1.5px solid #fcd34d', borderRadius: 12, padding: 14, marginBottom: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: pend.length ? 10 : 0, flexWrap: 'wrap' }}>
-        <b style={{ color: '#92400e', fontSize: 14 }}><i className="bi bi-chat-left-text-fill" style={{ marginRight: 6 }} />Recados do PCP Caldeiraria</b>
+        <b style={{ color: '#92400e', fontSize: 14 }}><i className="bi bi-chat-left-text-fill" style={{ marginRight: 6 }} />Recados do PCP Caldeiraria{setor ? ' pra este setor' : ''}</b>
         <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', background: pend.length ? '#d97706' : '#cbd5e1', borderRadius: 10, padding: '1px 9px' }}>{pend.length}</span>
         <span style={{ fontSize: 12, color: '#92400e' }}>{pend.length ? 'pra conferir e verificar' : 'nenhum pendente'}</span>
         <div style={{ flex: 1 }} />

@@ -55,6 +55,9 @@ import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adici
 import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento, podeDefinirPrevisao, podeVerNaoLocalizados, podeDefinirPrazoSetor, podePlanejar } from '@/lib/auth';
 import { definirPrazoSetor } from '@/lib/api';
 import RequisicaoPedido from '@/components/RequisicaoPedido';
+import RecadosPcp from '@/app/pcp-hrm/conferencia/RecadosPcp';
+import { SUBSETORES_CALD } from '@/lib/caldPlano';
+const SETORES_COM_RECADO = new Set(Object.values(SUBSETORES_CALD).flat());
 import { SETORES_REQUISICAO } from '@/lib/requisicaoHrm';
 import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA, TIPOS_INSPECAO, SETOR_NAO_LOCALIZADO, SETORES_CALD_SEM_PRODUCAO } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
@@ -4229,6 +4232,8 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
           Os ENCAMINHADOS agora fixam o próprio card do pedido no topo da fila
           (ver o sort + a faixa verde no card), sem caixa separada. */}
       {setor === 'usinagem' && <AvisosSetor setor={setor} />}
+      {/* Recados do PCP Caldeiraria (Val) pra este setor — qualquer pessoa do setor vê e verifica. */}
+      {SETORES_COM_RECADO.has(setor) && <RecadosPcp setor={setor} />}
 
       {/* Filtro de pedido — todos os setores (busca por PV/código/descrição) */}
       {data && (
