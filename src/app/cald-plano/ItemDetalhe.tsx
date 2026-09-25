@@ -4,6 +4,7 @@ import api, { postIdempotente } from '@/lib/api';
 import {
   AREAS_CALD, AREA_POR_CODIGO, AREA_TERCEIRO, UNIDADES_CALD, PRIORIDADES_CALD,
   ordenarAreas, situacaoItem, hojeISO, fmtData, diasEntre, type ItemCald, type EtapaCald,
+  SUBSETORES_CALD, SUBSETORES_VERIFICAR_ALAN, nomeSubsetor,
 } from '@/lib/caldPlano';
 import { C, Modal, Campo, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, erroDe, SeletorEmpresa, CampoValor, calcTotal, calcUnit, qtdNum } from './comum';
 
@@ -23,6 +24,8 @@ export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, 
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; txt: string } | null>(null);
   const [destino, setDestino] = useState('');
+  const [subDest, setSubDest] = useState<string | null>(null);
+  const [obsDest, setObsDest] = useState('');
   const [dataAcao, setDataAcao] = useState(hojeISO());
   const [empTodos, setEmpTodos] = useState(true);
 
@@ -30,7 +33,7 @@ export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, 
   const ativo = item.status !== 'finalizado' && item.status !== 'cancelado';
   const podeEditarRoteiro = podePlanejar || item.status === 'novo';
 
-  useEffect(() => { setDestino(sit.proxima || ''); }, [item.id, item.area_atual, item.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setDestino(sit.proxima || ''); setSubDest(null); }, [item.id, item.area_atual, item.status]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     api.get(`/api/cald-plano/${item.id}`).then(r => setHist(r.data.historico || [])).catch(() => {});
   }, [item.id, item.atualizado_em]);
@@ -147,13 +150,63 @@ export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, 
         <div style={{ border: `1.5px solid ${C.azul}33`, background: '#f8fbff', borderRadius: 10, padding: 10, marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           <span style={{ fontSize: 11, fontWeight: 800, color: C.azul, textTransform: 'uppercase', letterSpacing: .3 }}>Ações</span>
           {ativo && <>
-            <select className="cp-in" style={{ width: 'auto' }} value={destino} onChange={e => setDestino(e.target.value)}>
-              <option value="">Mover para…</option>
-              {AREAS_CALD.map(a => <option key={a.codigo} value={a.codigo}>{a.nome}{!item.areas.includes(a.codigo) ? ' (fora do roteiro)' : ''}</option>)}
-            </select>
+            {/* MOVER PARA — áreas em LISTA (modelo do roteiro do Flange): clica na
+                área (e, se quiser, no setor dela) e registra a entrada. Sem arrastar. */}
+            <div style={{ flexBasis: '100%' }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, textTransform: 'uppercase', letterSpacing: .3, marginBottom: 6 }}>Mover para — clique na área</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 6 }}>
+                {[...AREAS_CALD.filter(a => item.areas.includes(a.codigo)), ...AREAS_CALD.filter(a => !item.areas.includes(a.codigo))].map(a => {
+                  const aqui = item.status === 'andamento' && item.area_atual === a.codigo;
+                  const sel = destino === a.codigo;
+                  const noRot = item.areas.includes(a.codigo);
+                  const ehProx = sit.proxima === a.codigo;
+                  const et = item.etapas.find(e => e.area === a.codigo);
+                  return (
+                    <button key={a.codigo} type="button" disabled={aqui || salvando} onClick={() => { setDestino(a.codigo); setSubDest(null); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, textAlign: 'left', cursor: aqui ? 'default' : 'pointer',
+                        border: sel ? `2px solid ${a.cor}` : `1px solid ${aqui ? a.cor : C.borda}`,
+                        background: aqui ? a.cor + '22' : sel ? a.cor + '14' : noRot ? '#fff' : '#f8fafc', opacity: noRot || sel ? 1 : .8,
+                      }}>
+                      <i className={`bi ${a.icon}`} style={{ color: a.cor, fontSize: 15 }} />
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: C.texto }}>{a.nome}</span>
+                        <span style={{ display: 'block', fontSize: 10.5, color: aqui ? a.cor : ehProx ? '#1d4ed8' : C.fraco, fontWeight: aqui || ehProx ? 800 : 500 }}>
+                          {aqui ? 'está aqui' : ehProx ? 'próxima do roteiro' : noRot ? (et?.entrada ? `entrou ${fmtData(et.entrada)}` : 'no roteiro') : 'fora do roteiro'}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {destino && (SUBSETORES_CALD[destino] || []).length > 0 && (
+                <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+                  <b style={{ fontSize: 12, color: AREA_POR_CODIGO[destino]?.cor }}>{nomeArea(destino)}</b>
+                  <span style={{ fontSize: 11.5, color: C.cinza }}>› setor (opcional):</span>
+                  {[null, ...(SUBSETORES_CALD[destino] || [])].map(s => {
+                    const on = subDest === s;
+                    return (
+                      <button key={s || '_'} type="button" onClick={() => setSubDest(s)}
+                        style={{ fontSize: 11.5, fontWeight: 700, borderRadius: 7, padding: '3px 8px', cursor: 'pointer', border: `1.5px solid ${on ? C.azul : C.borda}`, background: on ? C.azul : '#fff', color: on ? '#fff' : C.texto }}>
+                        {s ? nomeSubsetor(s) : 'só a área'}{s && SUBSETORES_VERIFICAR_ALAN.has(s) ? ' · Alan confere' : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {subDest && SUBSETORES_VERIFICAR_ALAN.has(subDest) && (
+                <div style={{ marginTop: 8, fontSize: 12.5, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '7px 10px' }}>
+                  <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 6 }} /><b>{nomeSubsetor(subDest)}</b> é conferida pelo <b>Alan</b> — verifique com ele. Vai um recado pra Conferência dele.
+                </div>
+              )}
+              {destino && (
+                <input className="cp-in" style={{ marginTop: 8 }} value={obsDest} onChange={e => setObsDest(e.target.value)} maxLength={1000}
+                  placeholder="Observação pro Alan (opcional — se preencher, vira recado pra ele)" />
+              )}
+            </div>
             <input type="date" className="cp-in" style={{ width: 150 }} value={dataAcao} onChange={e => setDataAcao(e.target.value)} title="Data de entrada na área / da ação" />
-            <button className="cp-btn pri" disabled={!destino || salvando} onClick={() => acao('mover', { area: destino, data: dataAcao })}>
-              <i className="bi bi-box-arrow-in-right" />Entrou em {destino ? nomeArea(destino) : '…'}
+            <button className="cp-btn pri" disabled={!destino || salvando} onClick={() => { acao('mover', { area: destino, data: dataAcao, sub_setor: subDest, obs: obsDest }); setObsDest(''); }}>
+              <i className="bi bi-box-arrow-in-right" />Entrou em {destino ? `${nomeArea(destino)}${subDest ? ` › ${nomeSubsetor(subDest)}` : ''}` : '… (escolha a área)'}
             </button>
             <button className="cp-btn ok" disabled={salvando} onClick={() => { if (confirm(`Finalizar o item "${item.material}" do pedido ${item.pedido}?
 
