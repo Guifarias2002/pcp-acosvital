@@ -439,6 +439,7 @@ export default function CaldPlanoPage() {
                                   <button className="cp-btn sm" title="Subir na fila" disabled={idx === 0} onClick={() => subirDescer(col.codigo, col.itens, idx, -1)}><i className="bi bi-chevron-up" /></button>
                                   <button className="cp-btn sm" title="Descer na fila" disabled={idx === col.itens.length - 1} onClick={() => subirDescer(col.codigo, col.itens, idx, 1)}><i className="bi bi-chevron-down" /></button>
                                 </>}
+                              <button className="cp-btn sm" title="Mover pra outra área — escolhe na lista (sem arrastar)" onClick={() => setEnc({ it, area: s.proxima || (col.codigo !== 'novo' ? col.codigo : AREAS_CALD[0].codigo), modo: 'mover' })}><i className="bi bi-arrow-left-right" />Mover</button>
                               {col.codigo !== 'novo' && (SUBSETORES_CALD[col.codigo] || []).length > 0 && (
                                 <button className="cp-btn sm" title="Escolher/trocar o setor dentro desta área (ou mandar recado pro Alan)" onClick={() => setEnc({ it, area: col.codigo, modo: 'subsetor' })}><i className="bi bi-diagram-3" />Setor</button>
                               )}
