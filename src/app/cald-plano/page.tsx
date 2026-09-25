@@ -6,10 +6,11 @@ import api, { postIdempotente } from '@/lib/api';
 import { podeLancarCaldeiraria, podePlanejarCaldeiraria, podeVerValores } from '@/lib/auth';
 import {
   AREAS_CALD, EMPRESAS_CALD, valorUnitario, PRIORIDADES_CALD, situacaoItem, pendenciasItem, passaEmpresa, nomeEmpresa, hojeISO, fmtData, inicioSemana, somarDias, DIAS_PARADO,
-  type ItemCald,
+  SUBSETORES_CALD, nomeSubsetor, subsetorValido, type ItemCald,
 } from '@/lib/caldPlano';
 import { C, CSS, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, fmtBRL, somaPorUnidade, somaValor, EmpresaTag, FiltroEmpresa } from './comum';
 import LancarModal from './LancarModal';
+import EncaminharModal, { type Encaminhamento } from './EncaminharModal';
 import ItemDetalhe from './ItemDetalhe';
 import ImportarModal from './ImportarModal';
 import CaixaPendencias from './CaixaPendencias';
@@ -42,6 +43,9 @@ export default function CaldPlanoPage() {
   const [sel, setSel] = useState<Set<number>>(new Set());
   const [aplicandoLote, setAplicandoLote] = useState(false);
   const [aberto, setAberto] = useState<ItemCald | null>(null);
+  // Encaminhar (área geral + sub-setor opcional) — abre ao arrastar/avançar pra
+  // área com sub-setores, ou no botão "Setor" do card (troca dentro da área).
+  const [enc, setEnc] = useState<{ it: ItemCald; area: string; modo: 'mover' | 'subsetor' } | null>(null);
   const [arrastando, setArrastando] = useState<number | null>(null);
   const [alvoCol, setAlvoCol] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
@@ -149,12 +153,28 @@ export default function CaldPlanoPage() {
     return cols;
   }, [ativos, passaFiltro]);
 
-  async function mover(it: ItemCald, area: string) {
+  async function mover(it: ItemCald, area: string, extra?: { sub_setor: string | null; obs: string }) {
     try {
-      const r = await postIdempotente<{ item: ItemCald }>(`/api/cald-plano/${it.id}`, area === 'aguardando' ? { acao: 'aguardando' } : { acao: 'mover', area });
+      const r = await postIdempotente<{ item: ItemCald }>(`/api/cald-plano/${it.id}`, area === 'aguardando' ? { acao: 'aguardando' } : { acao: 'mover', area, ...extra });
       atualizarItem(r.item);
-      mostrarAviso(`Pedido ${it.pedido} · ${it.material} → ${area === 'aguardando' ? 'Chegando' : nomeArea(area)} (entrada ${fmtData(hoje)})`);
+      mostrarAviso(`Pedido ${it.pedido} · ${it.material} → ${area === 'aguardando' ? 'Chegando' : nomeArea(area)}${extra?.sub_setor ? ` › ${nomeSubsetor(extra.sub_setor)}` : ''} (entrada ${fmtData(hoje)})`);
     } catch { mostrarAviso('Não foi possível mover o item.'); }
+  }
+  // Área com sub-setores → pergunta o setor (e observação pro Alan); sem → move direto.
+  function encaminhar(it: ItemCald, area: string) {
+    if ((SUBSETORES_CALD[area] || []).length) setEnc({ it, area, modo: 'mover' });
+    else mover(it, area);
+  }
+  async function confirmarEnc(e: Encaminhamento) {
+    if (!enc) return;
+    const { it, modo } = enc;
+    setEnc(null);
+    if (modo === 'mover') return mover(it, e.area, { sub_setor: e.sub_setor, obs: e.obs });
+    try {
+      const r = await postIdempotente<{ item: ItemCald }>(`/api/cald-plano/${it.id}`, { acao: 'subsetor', sub_setor: e.sub_setor, obs: e.obs });
+      atualizarItem(r.item);
+      mostrarAviso(`Pedido ${it.pedido}: ${nomeArea(it.area_atual)}${e.sub_setor ? ` › ${nomeSubsetor(e.sub_setor)}` : ''}`);
+    } catch { mostrarAviso('Não foi possível trocar o setor.'); }
   }
   async function finalizar(it: ItemCald) {
     if (!confirm(`Finalizar o item "${it.material}" do pedido ${it.pedido} hoje?`)) return;
@@ -183,7 +203,7 @@ export default function CaldPlanoPage() {
     if (!it) return;
     if (colCodigo === 'novo') return;
     const colAtual = it.status === 'novo' || it.status === 'aguardando' ? 'novo' : it.area_atual;
-    if (colAtual !== colCodigo) { mover(it, colCodigo); return; }
+    if (colAtual !== colCodigo) { encaminhar(it, colCodigo); return; }
     if (sobreId === null || sobreId === id) return;
     const lista = colunas.find(c => c.codigo === colCodigo)?.itens || [];
     const ids = lista.map(i => i.id).filter(x => x !== id);
@@ -391,6 +411,14 @@ export default function CaldPlanoPage() {
                           <div style={{ fontSize: 12.5, fontWeight: 600, color: C.texto, margin: '2px 0', lineHeight: 1.3 }}>{it.material}</div>
                           <div style={{ fontSize: 11.5, color: C.cinza }}>{fmtQtd(it.quantidade, it.unidade)}{it.cliente ? ` · ${it.cliente}` : ''}</div>
                           {verValores && it.valor !== null && <div style={{ fontSize: 11.5, color: '#065f46', fontWeight: 700 }}>{fmtBRL(it.valor)}</div>}
+                          {col.codigo !== 'novo' && subsetorValido(col.codigo, it.sub_setor) && (
+                            <div style={{ fontSize: 11.5, marginTop: 3 }}><b style={{ color: col.cor }}>{col.nome}</b> <span style={{ color: C.texto }}>› {nomeSubsetor(it.sub_setor)}</span></div>
+                          )}
+                          {it.recado && (
+                            <div style={{ marginTop: 4 }} title={`Recado pro Alan${it.recado.mensagem ? `: ${it.recado.mensagem}` : ''} (${it.recado.criado_por_nome || ''})`}>
+                              <Chip cor="#92400e" bg="#fef3c7"><i className="bi bi-person-check" />verificar com Alan</Chip>
+                            </div>
+                          )}
                           {col.codigo === 'novo' && (
                             <div style={{ fontSize: 11, color: C.fraco, marginTop: 2 }}>
                               {it.areas.map(nomeArea).join(' → ') || 'sem roteiro'}{it.criado_por_nome ? ` · lançado por ${it.criado_por_nome}` : ''}
@@ -411,9 +439,12 @@ export default function CaldPlanoPage() {
                                   <button className="cp-btn sm" title="Subir na fila" disabled={idx === 0} onClick={() => subirDescer(col.codigo, col.itens, idx, -1)}><i className="bi bi-chevron-up" /></button>
                                   <button className="cp-btn sm" title="Descer na fila" disabled={idx === col.itens.length - 1} onClick={() => subirDescer(col.codigo, col.itens, idx, 1)}><i className="bi bi-chevron-down" /></button>
                                 </>}
+                              {col.codigo !== 'novo' && (SUBSETORES_CALD[col.codigo] || []).length > 0 && (
+                                <button className="cp-btn sm" title="Escolher/trocar o setor dentro desta área (ou mandar recado pro Alan)" onClick={() => setEnc({ it, area: col.codigo, modo: 'subsetor' })}><i className="bi bi-diagram-3" />Setor</button>
+                              )}
                               <div style={{ flex: 1 }} />
                               {s.proxima
-                                ? <button className="cp-btn sm pri" title={`Registrar entrada em ${nomeArea(s.proxima)} hoje`} onClick={() => mover(it, s.proxima!)}>{nomeArea(s.proxima)}<i className="bi bi-arrow-right" /></button>
+                                ? <button className="cp-btn sm pri" title={`Registrar entrada em ${nomeArea(s.proxima)} hoje`} onClick={() => encaminhar(it, s.proxima!)}>{nomeArea(s.proxima)}<i className="bi bi-arrow-right" /></button>
                                 : col.codigo !== 'novo' && <button className="cp-btn sm ok" onClick={() => finalizar(it)}><i className="bi bi-check2-all" />Finalizar</button>}
                             </div>
                           )}
@@ -504,6 +535,8 @@ export default function CaldPlanoPage() {
                         <td style={{ whiteSpace: 'nowrap' }}>{fmtQtd(it.quantidade, it.unidade)}</td>
                         <td>{it.cliente || '—'}</td>
                         <td><Chip cor={st.cor} bg={st.bg}>{it.status === 'andamento' ? nomeArea(it.area_atual) : st.txt}</Chip>
+                          {it.status === 'andamento' && subsetorValido(it.area_atual || '', it.sub_setor) && <div style={{ fontSize: 11, color: C.cinza, whiteSpace: 'nowrap' }}>› {nomeSubsetor(it.sub_setor)}</div>}
+                          {it.recado && <div><Chip cor="#92400e" bg="#fef3c7">verificar c/ Alan</Chip></div>}
                           {(s.atrasado || s.areaAtrasada) && <div><Chip cor="#fff" bg={C.vermelho}>atrasado</Chip></div>}</td>
                         {AREAS_CALD.map(a => {
                           const e = it.etapas.find(x => x.area === a.codigo);
@@ -544,6 +577,7 @@ export default function CaldPlanoPage() {
         )}
       </div>
 
+      {enc && <EncaminharModal item={enc.it} area={enc.area} modo={enc.modo} onConfirmar={confirmarEnc} onFechar={() => setEnc(null)} />}
       {lancar && (
         <LancarModal vendedores={vendedores} clientes={clientes} verValores={verValores}
           onFechar={() => setLancar(false)}

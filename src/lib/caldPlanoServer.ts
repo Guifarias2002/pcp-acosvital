@@ -17,6 +17,7 @@ export async function carregarItensCald(db: Sql = sql, ids?: number[]): Promise<
       -- tolerante: coluna da M51 pode não existir ainda numa instância antiga
       to_jsonb(i)->>'empresa' AS empresa,
       (to_jsonb(i)->>'valor_unitario')::float AS valor_unitario,
+      to_jsonb(i)->>'sub_setor' AS sub_setor,
       i.areas, i.area_atual, i.status, i.prioridade, i.ordem,
       i.prazo_entrega::text AS prazo_entrega, i.prev_faturamento::text AS prev_faturamento,
       i.faturado_em::text AS faturado_em, i.prev_finalizacao::text AS prev_finalizacao,
@@ -62,6 +63,28 @@ export async function carregarItensCald(db: Sql = sql, ids?: number[]): Promise<
         } : null;
       }
     } catch { /* sem tabela de cobranças ainda */ }
+
+    // Recado ao Alan pendente (mais recente) — tolerante como as cobranças (M56).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const consultaRec = (q: any) => q`
+      SELECT DISTINCT ON (item_id) id, item_id, sub_setor, mensagem, criado_por_nome, criado_em
+      FROM producao_cald_plano_recado
+      WHERE item_id = ANY(${ids}::int[]) AND verificado_em IS NULL
+      ORDER BY item_id, criado_em DESC, id DESC
+    `;
+    try {
+      const rec: Record<string, unknown>[] = 'savepoint' in db
+        ? await (db as postgres.TransactionSql).savepoint(sp => consultaRec(sp))
+        : await consultaRec(db);
+      const porItem = new Map(rec.map(r => [r.item_id as number, r]));
+      for (const it of itens) {
+        const r = porItem.get(it.id);
+        it.recado = r ? {
+          id: r.id as number, sub_setor: (r.sub_setor as string) ?? null, mensagem: (r.mensagem as string) ?? null,
+          criado_por_nome: (r.criado_por_nome as string) ?? null, criado_em: String(r.criado_em),
+        } : null;
+      }
+    } catch { /* sem tabela de recados ainda */ }
   }
   return itens;
 }

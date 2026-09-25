@@ -5,6 +5,8 @@
 // item registrando a DATA DE ENTRADA em cada área (substitui a planilha manual).
 // Tabelas: producao_cald_plano_item / _etapa / _hist (migration M49).
 
+import { NOMES } from './types';
+
 export interface AreaCald { codigo: string; nome: string; icon: string; cor: string }
 
 // Ordem padrão das áreas (a mesma da planilha do coordenador).
@@ -19,7 +21,37 @@ export const AREAS_CALD: AreaCald[] = [
   { codigo: 'retrabalho',       nome: 'Retrabalho',       icon: 'bi-arrow-repeat',     cor: '#b45309' },
   { codigo: 'industrializacao', nome: 'Industrialização', icon: 'bi-truck',            cor: '#475569' },
   { codigo: 'pintura',          nome: 'Pintura',          icon: 'bi-palette',          cor: '#db2777' },
+  { codigo: 'expedicao',        nome: 'Expedição / Book', icon: 'bi-journal-check',    cor: '#0f766e' },
 ];
+
+// ── Sub-setores (25/09) ────────────────────────────────────────────────────
+// O Val enxerga as áreas GERAIS (kanban resumido); ao encaminhar escolhe,
+// opcionalmente, o SUB-SETOR — que é o setor real da Caldeiraria HRM do Alan
+// (códigos de SETOR_CHOICES em types.ts). Desenho e Retrabalho não têm.
+export const SUBSETORES_CALD: Record<string, string[]> = {
+  compras:          ['cald_compras', 'caldeiraria'],
+  desenho:          [],
+  corte:            ['corte_perfis', 'cald_corte_oxi', 'cald_corte', 'cald_identificacao', 'cald_prep_chapas', 'cald_conformacao_int', 'cald_pre_usinagem', 'cald_usinagem'],
+  montagem:         ['cald_pre_montagem', 'cald_montagem_interm', 'cald_montagem_final', 'cald_conj_insp_cliente', 'conjuntos'],
+  solda:            ['solda'],
+  acabamento:       ['jateamento', 'acabamento_geral'],
+  inspecao:         ['cald_insp_fitup', 'cald_insp_terceiros', 'cald_insp_visual', 'cald_insp_lp', 'cald_insp_pm', 'cald_insp_us', 'cald_insp_dimensional', 'cald_tipagem', 'cald_insp_dim_cliente', 'cald_teste_carga', 'cald_teste_queda', 'qualidade', 'cald_insp_pintura', 'cald_insp_final_cliente'],
+  retrabalho:       [],
+  industrializacao: ['cald_transp_externo', 'cald_conformacao_ext', 'cald_lab_externo', 'cald_revestimento'],
+  pintura:          ['cald_pint_primer', 'cald_pint_interm', 'cald_pint_acab', 'cald_pint_antiderr', 'cald_pint_retoques'],
+  expedicao:        ['cald_book', 'cald_book_insp_cliente', 'cald_book_postagem', 'cald_book_ag_aprov', 'cald_book_aprovado', 'cald_emissao_nf', 'cald_outros'],
+};
+// Sub-setores "mais a fundo" — quem confere é o Alan. Encaminhar pra um deles
+// mostra o aviso "verificar com o Alan" e gera um RECADO pra ele (tabela
+// producao_cald_plano_recado), que ele marca como verificado na Conferência.
+export const SUBSETORES_VERIFICAR_ALAN = new Set<string>([
+  'cald_insp_fitup', 'cald_insp_terceiros', 'cald_insp_visual', 'cald_insp_lp', 'cald_insp_pm', 'cald_insp_us',
+  'cald_insp_dimensional', 'cald_tipagem', 'cald_insp_dim_cliente', 'qualidade', 'cald_insp_pintura', 'cald_insp_final_cliente',
+  'cald_teste_carga', 'cald_teste_queda', 'cald_lab_externo',
+  'cald_book', 'cald_book_insp_cliente', 'cald_book_postagem', 'cald_book_ag_aprov', 'cald_book_aprovado',
+]);
+export const nomeSubsetor = (c: string | null | undefined): string => (c ? (c === 'caldeiraria' ? 'Recebimento' : NOMES[c] || c) : '');
+export const subsetorValido = (area: string, sub: string | null | undefined): boolean => !!sub && (SUBSETORES_CALD[area] || []).includes(sub);
 export const CODIGOS_AREA = AREAS_CALD.map(a => a.codigo);
 export const AREA_POR_CODIGO: Record<string, AreaCald> = Object.fromEntries(AREAS_CALD.map(a => [a.codigo, a]));
 // Industrialização = serviço de TERCEIRO (fornecedor + retorno previsto).
@@ -85,6 +117,10 @@ export interface ItemCald {
   criado_em: string;
   atualizado_em: string;
   etapas: EtapaCald[];
+  // Sub-setor da área atual (código do setor HRM; null = só a área geral).
+  sub_setor?: string | null;
+  // Recado ao Alan ainda não verificado (null = nenhum pendente).
+  recado?: { id: number; sub_setor: string | null; mensagem: string | null; criado_por_nome: string | null; criado_em: string } | null;
   // Última cobrança da caixa de pendências (null = nunca cobrado).
   cobranca?: { quem: string | null; mensagem: string | null; retorno: string | null; criado_por_nome: string | null; criado_em: string } | null;
 }

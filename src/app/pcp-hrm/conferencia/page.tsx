@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { listarConferenciaHrm, iniciarConferenciaHrm } from '@/lib/api';
 import { getToken, getUser } from '@/lib/auth';
+import RecadosPcp from './RecadosPcp';
 
 // Lista das OPs aguardando Conferência (pedidos "casca" do HRM na Emissão).
 export default function ConferenciaListaPage() {
@@ -92,6 +93,8 @@ function Conteudo() {
       <p style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
         OPs anexadas que caíram na Emissão e ainda não foram lançadas pra produção. Abra pra conferir os materiais/roteiro e lançar.
       </p>
+
+      <RecadosPcp />
 
       {carregando && <div style={{ padding: 30, textAlign: 'center', color: '#1a3a5c' }}><i className="bi bi-arrow-repeat" style={{ marginRight: 8 }} />Carregando…</div>}
       {erro && <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>{erro}</div>}

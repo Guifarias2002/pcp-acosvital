@@ -6,6 +6,7 @@ import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
 import {
   AREA_POR_CODIGO, CODIGOS_AREA, ordenarAreas, isoValida, hojeISO, fmtData,
   UNIDADES_CALD, PRIORIDADES_CALD, CODIGOS_EMPRESA, nomeEmpresa, lerValorBR, type EtapaCald,
+  SUBSETORES_VERIFICAR_ALAN, nomeSubsetor, subsetorValido,
 } from '@/lib/caldPlano';
 import { carregarItensCald, registrarHistCald } from '@/lib/caldPlanoServer';
 
@@ -36,6 +37,36 @@ function num(v: unknown): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 const nomeArea = (c: string | null) => (c ? AREA_POR_CODIGO[c]?.nome ?? c : '—');
+
+// Grava o sub-setor (setor HRM dentro da área geral) e, se for um setor "mais a
+// fundo" (SUBSETORES_VERIFICAR_ALAN) ou vier observação, abre um RECADO pro
+// Alan. Tudo em SAVEPOINT: se a M56 ainda não rodou, o encaminhamento da área
+// continua valendo e só o sub-setor/recado fica de fora. Devolve o texto pro
+// histórico ('' = nada gravado).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function aplicarSubsetor(tx: any, id: number, area: string, subRaw: unknown, obsRaw: unknown, quem: string): Promise<string> {
+  const sub = subsetorValido(area, String(subRaw || '')) ? String(subRaw) : null;
+  const obs = txt(obsRaw, 1000);
+  const partes: string[] = [];
+  try {
+    await tx.savepoint(async (sp: typeof tx) => {
+      await sp`UPDATE producao_cald_plano_item SET sub_setor = ${sub} WHERE id = ${id}`;
+    });
+    if (sub) partes.push(`setor ${nomeSubsetor(sub)}`);
+  } catch (e) { console.error('[cald-plano] sub_setor (M56?)', e); }
+  if ((sub && SUBSETORES_VERIFICAR_ALAN.has(sub)) || obs) {
+    try {
+      await tx.savepoint(async (sp: typeof tx) => {
+        await sp`
+          INSERT INTO producao_cald_plano_recado (item_id, area, sub_setor, mensagem, criado_por_nome)
+          VALUES (${id}, ${area}, ${sub}, ${obs}, ${quem})
+        `;
+      });
+      partes.push(`recado pro Alan${obs ? `: ${obs}` : ''}`);
+    } catch (e) { console.error('[cald-plano] recado (M56?)', e); }
+  }
+  return partes.join(' · ');
+}
 
 export async function GET(req: Request, ctx: Ctx) {
   const user = await autenticar(req);
@@ -233,7 +264,14 @@ export async function POST(req: Request, ctx: Ctx) {
                 finalizado_em = NULL, atualizado_em = NOW()
             WHERE id = ${id}
           `;
-          await registrarHistCald(tx, id, 'mover', `${nomeArea(it.area_atual)} → ${nomeArea(area)} (entrada ${fmtData(data)})`, quem);
+          const extra = await aplicarSubsetor(tx, id, area, b.sub_setor, b.obs, quem);
+          await registrarHistCald(tx, id, 'mover', `${nomeArea(it.area_atual)} → ${nomeArea(area)} (entrada ${fmtData(data)})${extra ? ` · ${extra}` : ''}`, quem);
+        } else if (acao === 'subsetor') {
+          // Troca o sub-setor dentro da área ATUAL (sem nova entrada de área).
+          if (it.status !== 'andamento' || !it.area_atual) return { status: 400, erro: 'O item não está em nenhuma área' };
+          const extra = await aplicarSubsetor(tx, id, it.area_atual, b.sub_setor, b.obs, quem);
+          await tx`UPDATE producao_cald_plano_item SET atualizado_em = NOW() WHERE id = ${id}`;
+          await registrarHistCald(tx, id, 'subsetor', `${nomeArea(it.area_atual)}: ${extra || 'só a área geral'}`, quem);
         } else if (acao === 'aguardando') {
           await tx`UPDATE producao_cald_plano_item SET status = 'aguardando', area_atual = NULL, atualizado_em = NOW() WHERE id = ${id}`;
           await registrarHistCald(tx, id, 'aguardando', 'Planejado — aguardando chegar na Caldeiraria', quem);

@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 57;
+const SCHEMA_VERSION = 58;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -934,4 +934,27 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
         AND NOT EXISTS (SELECT 1 FROM producao_itempedido i WHERE i.pedido_id = p.id AND COALESCE(i.fabrica, 'flange') <> 'caldeiraria')
     `;
   }).catch(e => console.error('[migrations] M55 (compras HRM) falhou:', e));
+
+  // M56 (25/09): SUB-SETOR no PCP Caldeiraria do Val (setor HRM dentro da área
+  // geral) + RECADOS ao Alan (sub-setores "mais a fundo": inspeções/testes/
+  // laboratório/Book). Tabelas pequenas do módulo; leitura tolerante em
+  // caldPlanoServer (to_jsonb + consulta de recados em savepoint).
+  await sql.savepoint(async (sp) => {
+    await sp.unsafe(`ALTER TABLE producao_cald_plano_item ADD COLUMN IF NOT EXISTS sub_setor TEXT`);
+    await sp.unsafe(`
+      CREATE TABLE IF NOT EXISTS producao_cald_plano_recado (
+        id                  SERIAL PRIMARY KEY,
+        item_id             INTEGER NOT NULL REFERENCES producao_cald_plano_item(id) ON DELETE CASCADE,
+        area                TEXT,
+        sub_setor           TEXT,
+        mensagem            TEXT,
+        criado_por_nome     TEXT,
+        criado_em           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        verificado_em       TIMESTAMPTZ,
+        verificado_por_nome TEXT,
+        resposta            TEXT
+      )
+    `);
+    await sp.unsafe(`CREATE INDEX IF NOT EXISTS producao_cald_plano_recado_pend ON producao_cald_plano_recado (item_id) WHERE verificado_em IS NULL`);
+  }).catch(e => console.error('[migrations] M56 (sub-setor + recados caldeiraria) falhou:', e));
 }
