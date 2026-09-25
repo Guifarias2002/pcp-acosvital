@@ -22,11 +22,11 @@ export interface RequisicaoHrm {
   atualizado_por_nome: string | null; atualizado_em: string;
 }
 
-// Quem registra/atualiza: staff, quem confere a Caldeiraria HRM (Alan) ou quem
+// Quem registra/atualiza: staff/administrador, quem confere a Caldeiraria HRM (Alan) ou quem
 // tem o setor Requisição HRM / Recebimento no cadastro.
 export function podeRegistrarRequisicao(u: JWTPayload | null | undefined): boolean {
   if (!u) return false;
-  if (u.is_staff || u.acesso_conferencia_hrm === true) return true;
+  if (u.is_staff || u.perfil === 'administrador' || u.acesso_conferencia_hrm === true) return true;
   const setores = u.setores?.length ? u.setores : (u.setor ? [u.setor] : []);
   return setores.some(s => SETORES_REQUISICAO.includes(s));
 }
