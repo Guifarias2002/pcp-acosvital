@@ -142,7 +142,7 @@ export default function CaldPlanoPage() {
       // Entrada do Val: itens lançados pelo PCP ainda sem planejamento (status
       // 'novo'). Daqui ele arrasta pra qualquer área ou pra Chegando. Não recebe
       // drop (item que já entrou numa área não volta a ser novo).
-      { codigo: 'novo', nome: 'Início', icon: 'bi-inbox-fill', cor: '#d97706', itens: vis.filter(i => i.status === 'novo').sort((a, b) => a.id - b.id) },
+      { codigo: 'novo', nome: 'Início — A planejar', icon: 'bi-inbox-fill', cor: '#d97706', itens: vis.filter(i => i.status === 'novo').sort((a, b) => a.id - b.id) },
       { codigo: 'aguardando', nome: 'Chegando', icon: 'bi-hourglass-split', cor: '#1d4ed8', itens: vis.filter(i => i.status === 'aguardando').sort(ordenar) },
       ...AREAS_CALD.map(a => ({ ...a, itens: vis.filter(i => i.status === 'andamento' && i.area_atual === a.codigo).sort(ordenar) })),
     ];
