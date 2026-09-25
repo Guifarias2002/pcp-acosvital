@@ -139,11 +139,11 @@ export default function CaldPlanoPage() {
   const colunas = useMemo(() => {
     const vis = ativos.filter(passaFiltro);
     const cols: { codigo: string; nome: string; icon: string; cor: string; itens: ItemCald[] }[] = [
-      // Entrada do Val: itens lançados pelo PCP ainda sem planejamento (status
-      // 'novo'). Daqui ele arrasta pra qualquer área ou pra Chegando. Não recebe
-      // drop (item que já entrou numa área não volta a ser novo).
-      { codigo: 'novo', nome: 'Início — A planejar', icon: 'bi-inbox-fill', cor: '#d97706', itens: vis.filter(i => i.status === 'novo').sort((a, b) => a.id - b.id) },
-      { codigo: 'aguardando', nome: 'Chegando', icon: 'bi-hourglass-split', cor: '#1d4ed8', itens: vis.filter(i => i.status === 'aguardando').sort(ordenar) },
+      // Entrada do Val: itens ainda fora de qualquer área — lançados (status
+      // 'novo') ou 'aguardando' (a coluna "Chegando" saiu em 25/09, mas o servidor
+      // ainda põe o item nesse status ao tirar etapas/reabrir; mostra aqui pra não
+      // sumir). Daqui ele arrasta pra qualquer área. Não recebe drop.
+      { codigo: 'novo', nome: 'Início — A planejar', icon: 'bi-inbox-fill', cor: '#d97706', itens: vis.filter(i => i.status === 'novo' || i.status === 'aguardando').sort((a, b) => a.id - b.id) },
       ...AREAS_CALD.map(a => ({ ...a, itens: vis.filter(i => i.status === 'andamento' && i.area_atual === a.codigo).sort(ordenar) })),
     ];
     return cols;
@@ -182,7 +182,7 @@ export default function CaldPlanoPage() {
     const it = itens.find(i => i.id === id);
     if (!it) return;
     if (colCodigo === 'novo') return;
-    const colAtual = it.status === 'novo' ? 'novo' : it.status === 'aguardando' ? 'aguardando' : it.area_atual;
+    const colAtual = it.status === 'novo' || it.status === 'aguardando' ? 'novo' : it.area_atual;
     if (colAtual !== colCodigo) { mover(it, colCodigo); return; }
     if (sobreId === null || sobreId === id) return;
     const lista = colunas.find(c => c.codigo === colCodigo)?.itens || [];
@@ -407,16 +407,14 @@ export default function CaldPlanoPage() {
                           </div>
                           {planeja && (
                             <div style={{ display: 'flex', gap: 4, marginTop: 7, alignItems: 'center' }} onClick={e => e.stopPropagation()}>
-                              {col.codigo === 'novo'
-                                ? <button className="cp-btn sm" title="Marcar como chegando (ainda não entrou em nenhuma área)" onClick={() => mover(it, 'aguardando')}><i className="bi bi-hourglass-split" />Chegando</button>
-                                : <>
+                              {col.codigo !== 'novo' && <>
                                   <button className="cp-btn sm" title="Subir na fila" disabled={idx === 0} onClick={() => subirDescer(col.codigo, col.itens, idx, -1)}><i className="bi bi-chevron-up" /></button>
                                   <button className="cp-btn sm" title="Descer na fila" disabled={idx === col.itens.length - 1} onClick={() => subirDescer(col.codigo, col.itens, idx, 1)}><i className="bi bi-chevron-down" /></button>
                                 </>}
                               <div style={{ flex: 1 }} />
                               {s.proxima
                                 ? <button className="cp-btn sm pri" title={`Registrar entrada em ${nomeArea(s.proxima)} hoje`} onClick={() => mover(it, s.proxima!)}>{nomeArea(s.proxima)}<i className="bi bi-arrow-right" /></button>
-                                : col.codigo !== 'aguardando' && col.codigo !== 'novo' && <button className="cp-btn sm ok" onClick={() => finalizar(it)}><i className="bi bi-check2-all" />Finalizar</button>}
+                                : col.codigo !== 'novo' && <button className="cp-btn sm ok" onClick={() => finalizar(it)}><i className="bi bi-check2-all" />Finalizar</button>}
                             </div>
                           )}
                         </div>

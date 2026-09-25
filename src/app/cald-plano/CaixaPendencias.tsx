@@ -89,7 +89,7 @@ export default function CaixaPendencias({ itens, podePlanejar, onFechar, onAbrir
       <tr>
         <td><b>${esc(p.item.pedido)}</b></td>
         <td>${esc(p.item.material)}<br><small>${esc(fmtQtd(p.item.quantidade, p.item.unidade))}${p.item.cliente ? ' · ' + esc(p.item.cliente) : ''}</small></td>
-        <td>${esc(p.item.status === 'andamento' ? nomeArea(p.item.area_atual) : p.item.status === 'aguardando' ? 'Chegando' : 'A planejar')}</td>
+        <td>${esc(p.item.status === 'andamento' ? nomeArea(p.item.area_atual) : 'A planejar')}</td>
         <td>${p.motivos.map(m => `${esc(MOTIVO_TXT[m.motivo])}: <b>${fmtData(m.data)}</b> (${m.dias}d)`).join('<br>')}</td>
         <td>${p.item.cobranca ? `${esc(p.item.cobranca.quem || '')} ${p.item.cobranca.retorno ? '· até ' + fmtData(p.item.cobranca.retorno) : ''}` : '—'}</td>
         <td class="anot"></td>
@@ -148,7 +148,7 @@ export default function CaixaPendencias({ itens, podePlanejar, onFechar, onAbrir
                     <span style={{ fontSize: 12, color: C.cinza }}>{fmtQtd(it.quantidade, it.unidade)}{it.cliente ? ` · ${it.cliente}` : ''}</span>
                   </div>
                   <div style={{ fontSize: 12, color: C.cinza, margin: '2px 0 6px' }}>
-                    Está em: <b>{it.status === 'andamento' ? nomeArea(it.area_atual) : it.status === 'aguardando' ? 'Chegando' : 'A planejar'}</b>
+                    Está em: <b>{it.status === 'andamento' ? nomeArea(it.area_atual) : 'A planejar'}</b>
                   </div>
                   <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                     {p.motivos.map(m => (

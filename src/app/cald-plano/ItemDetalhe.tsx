@@ -155,11 +155,6 @@ export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, 
             <button className="cp-btn pri" disabled={!destino || salvando} onClick={() => acao('mover', { area: destino, data: dataAcao })}>
               <i className="bi bi-box-arrow-in-right" />Entrou em {destino ? nomeArea(destino) : '…'}
             </button>
-            {item.status === 'novo' && (
-              <button className="cp-btn" disabled={salvando} onClick={() => acao('aguardando')} title="Planejado, mas ainda não chegou fisicamente na Caldeiraria">
-                <i className="bi bi-hourglass-split" />Planejado (chegando)
-              </button>
-            )}
             <button className="cp-btn ok" disabled={salvando} onClick={() => acao('finalizar', { data: dataAcao })}><i className="bi bi-check2-all" />Finalizar</button>
           </>}
           {item.status === 'finalizado' && <button className="cp-btn" disabled={salvando} onClick={() => acao('reabrir')}><i className="bi bi-arrow-counterclockwise" />Reabrir</button>}

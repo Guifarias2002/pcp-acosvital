@@ -18,7 +18,7 @@ export const PRIO: Record<string, { txt: string; cor: string }> = {
 
 export const STATUS_TXT: Record<string, { txt: string; cor: string; bg: string }> = {
   novo:       { txt: 'Novo — planejar', cor: '#92400e', bg: '#fef3c7' },
-  aguardando: { txt: 'Chegando',        cor: '#1d4ed8', bg: '#dbeafe' },
+  aguardando: { txt: 'A planejar',        cor: '#1d4ed8', bg: '#dbeafe' },
   andamento:  { txt: 'Em produção',     cor: '#166534', bg: '#dcfce7' },
   finalizado: { txt: 'Finalizado',      cor: '#334155', bg: '#e2e8f0' },
   cancelado:  { txt: 'Cancelado',       cor: '#991b1b', bg: '#fee2e2' },

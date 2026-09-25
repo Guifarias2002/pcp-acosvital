@@ -155,7 +155,7 @@ export default function ValoresCaldeiraria({ de, ate }: { de: string; ate: strin
                       <td style={{ padding: '8px 14px', color: '#666' }}>{it.vendedor || '—'}</td>
                       <td style={{ padding: '8px 14px', color: '#444' }}>{it.material}</td>
                       <td style={{ padding: '8px 14px', textAlign: 'right', whiteSpace: 'nowrap', color: '#c2410c', fontWeight: 600 }}>{it.quantidade !== null ? `${num(it.quantidade)} ${it.unidade || ''}` : '—'}</td>
-                      <td style={{ padding: '8px 14px', color: '#666', fontSize: 12 }}>{it.status === 'andamento' ? AREA_POR_CODIGO[it.area_atual || '']?.nome : it.status === 'finalizado' ? `Finalizado ${fmtD(it.finalizado_em)}` : it.status === 'aguardando' ? 'Chegando' : 'A planejar'}</td>
+                      <td style={{ padding: '8px 14px', color: '#666', fontSize: 12 }}>{it.status === 'andamento' ? AREA_POR_CODIGO[it.area_atual || '']?.nome : it.status === 'finalizado' ? `Finalizado ${fmtD(it.finalizado_em)}` : 'A planejar'}</td>
                       <td style={{ padding: '8px 14px', textAlign: 'right', color: '#475569', whiteSpace: 'nowrap' }}>{valorUnitario(it) !== null ? brl(valorUnitario(it)!) : '—'}</td>
                       <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 700, color: it.valor ? '#065f46' : '#cbd5e1', whiteSpace: 'nowrap' }}>{it.valor !== null ? brl(it.valor) : 'sem valor'}</td>
                     </tr>
