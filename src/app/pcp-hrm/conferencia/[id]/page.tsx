@@ -648,6 +648,11 @@ function Conteudo() {
     const qtd = Number(quantidade);
     if (!qtd || qtd <= 0) { setErro('Quantidade inválida.'); return; }
     setLancando(true); setErro('');
+    // Qtd. de estruturas/projetos (Anexar OP): cada projeto vira um PRODUTO
+    // separado ("— Projeto k/N"), cada um com as quantidades da OP (por projeto)
+    // e os seus próprios componentes. 1 (ou vazio) = como sempre foi.
+    const nProj = qtdEstruturasDasObservacoes(String(pedido?.observacoes || '')) || 1;
+    const descProj = (k: number) => (nProj > 1 ? `${descricao.trim()} — Projeto ${k}/${nProj}` : descricao.trim());
     try {
       // Fábrica única (Caldeiraria) — remove a etiqueta Leve/Pesada obsoleta das
       // observações se ela existir de pedidos antigos; nada de novo é gravado.
@@ -670,33 +675,40 @@ function Conteudo() {
           setErro('Cada componente precisa de um roteiro — escolha os setores do produto ou do componente.');
           setLancando(false); return;
         }
-        // 1. Cria o produto (pai).
-        await editarPedido(pedidoId, {
-          observacoes: obsLimpa,
-          numero_pedido_cliente: pedCliente,
-          entrega_contratual: entregaContratual,
-          roteiro_base: ['emissao', ...roteiroSel],
-          itens: [{
-            codigo: codigo.trim() || 'S/COD', descricao: descricao.trim(),
-            quantidade: qtd, unidade: (unidade.trim() || 'pc').toLowerCase(),
-            fabrica: 'caldeiraria', roteiro_proprio: ['emissao', ...roteiroSel],
-          }],
-        });
-        // Acha o pai recém-criado (emitido, sem pai).
-        const pedPai = await getPedido(pedidoId);
-        const pais = (pedPai.itens || []).filter((i: Record<string, unknown>) => i.status === 'emitido' && !i.item_pai_id);
-        const pai = pais[pais.length - 1];
-        if (!pai) { setErro('Produto criado, mas não encontrei pra vincular os componentes — abra o pedido.'); setLancando(false); return; }
-        const paiId = pai.id as number;
-        // 2. Cria os componentes (filhos), cada um com seu roteiro.
-        await editarPedido(pedidoId, {
-          itens: componentes.map(c => ({
-            codigo: c.codigo.trim() || 'S/COD', descricao: c.descricao.trim(),
-            quantidade: Number(c.quantidade) || 1, unidade: (c.unidade || 'pc').toLowerCase(),
-            fabrica: 'caldeiraria', item_pai_id: paiId,
-            roteiro_proprio: ['emissao', ...rotComp(c)],
-          })),
-        });
+        // Um produto (pai) + seus componentes (filhos) POR PROJETO.
+        const paisCriados = new Set<number>();
+        for (let k = 1; k <= nProj; k++) {
+          // 1. Cria o produto (pai) do projeto k.
+          await editarPedido(pedidoId, {
+            ...(k === 1 ? {
+              observacoes: obsLimpa,
+              numero_pedido_cliente: pedCliente,
+              entrega_contratual: entregaContratual,
+              roteiro_base: ['emissao', ...roteiroSel],
+            } : {}),
+            itens: [{
+              codigo: codigo.trim() || 'S/COD', descricao: descProj(k),
+              quantidade: qtd, unidade: (unidade.trim() || 'pc').toLowerCase(),
+              fabrica: 'caldeiraria', roteiro_proprio: ['emissao', ...roteiroSel],
+            }],
+          });
+          // Acha o pai recém-criado (emitido, sem pai, ainda não usado).
+          const pedPai = await getPedido(pedidoId);
+          const pais = (pedPai.itens || []).filter((i: Record<string, unknown>) => i.status === 'emitido' && !i.item_pai_id && !paisCriados.has(i.id as number));
+          const pai = pais.sort((a: Record<string, unknown>, b: Record<string, unknown>) => (a.id as number) - (b.id as number))[pais.length - 1];
+          if (!pai) { setErro(`Produto do projeto ${k} criado, mas não encontrei pra vincular os componentes — abra o pedido.`); setLancando(false); return; }
+          const paiId = pai.id as number;
+          paisCriados.add(paiId);
+          // 2. Cria os componentes (filhos) do projeto k, cada um com seu roteiro.
+          await editarPedido(pedidoId, {
+            itens: componentes.map(c => ({
+              codigo: c.codigo.trim() || 'S/COD', descricao: c.descricao.trim(),
+              quantidade: Number(c.quantidade) || 1, unidade: (c.unidade || 'pc').toLowerCase(),
+              fabrica: 'caldeiraria', item_pai_id: paiId,
+              roteiro_proprio: ['emissao', ...rotComp(c)],
+            })),
+          });
+        }
         // 3. Libera o pai + cada filho pro 1º setor do roteiro de cada um.
         const pedFinal = await getPedido(pedidoId);
         const emitidos = (pedFinal.itens || []).filter((i: Record<string, unknown>) => i.status === 'emitido');
@@ -715,25 +727,25 @@ function Conteudo() {
         numero_pedido_cliente: pedCliente,
         entrega_contratual: entregaContratual,
         roteiro_base: ['emissao', ...roteiroSel],
-        itens: [{
+        itens: Array.from({ length: nProj }, (_, i) => ({
           codigo: codigo.trim() || 'S/COD',
-          descricao: descricao.trim(),
+          descricao: descProj(i + 1),
           quantidade: qtd,
           unidade: (unidade.trim() || 'pc').toLowerCase(),
           fabrica: 'caldeiraria',
           roteiro_proprio: ['emissao', ...roteiroSel],
-        }],
+        })),
       });
 
       // Lança pra produção: pega o item recém-criado e MANDA pro(s) setor(es)
       // escolhido(s) no quadro de confirmação.
       const ped = await getPedido(pedidoId);
       const emitidos = (ped.itens || []).filter((i: Record<string, unknown>) => i.status === 'emitido');
-      const it = emitidos[0];
-      if (!it) { setErro('Item criado mas não encontrei pra lançar — abra o pedido e libere por lá.'); setLancando(false); return; }
-      const itId = it.id as number;
+      if (!emitidos.length) { setErro('Item criado mas não encontrei pra lançar — abra o pedido e libere por lá.'); setLancando(false); return; }
       const dests = destinos.length ? destinos : [roteiroSel[0]];
-
+      // Um item por projeto — cada um é distribuído igual (fatias por projeto).
+      for (const it of emitidos) {
+      const itId = it.id as number;
       if (dests.length <= 1) {
         // Um setor: manda a peça inteira pra lá (o "liberar" aceita destino
         // arbitrário do roteiro; por padrão é o 1º setor).
@@ -752,6 +764,7 @@ function Conteudo() {
         }
         await itemAcao(itId, 'liberar', { setor_destino: dests[dests.length - 1] });
       }
+      }
       router.push('/pcp-hrm/painel');
     } catch (e) {
       const ax = e as { response?: { data?: { erro?: string } } };
@@ -767,7 +780,8 @@ function Conteudo() {
   const lblRo: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#64748b', display: 'block' };
   const roVal: React.CSSProperties = { fontSize: 14, color: '#0f172a', fontWeight: 600, padding: '6px 2px' };
   const passoChip: React.CSSProperties = { background: '#eef4fb', border: '1px solid #c7d7ee', color: '#1a3a5c', borderRadius: 20, padding: '5px 12px', fontSize: 12.5, fontWeight: 600 };
-  // Qtd. de estruturas/projetos informada na Anexar OP (só informativa).
+  // Qtd. de estruturas/projetos informada na Anexar OP — cada uma é lançada como
+  // um projeto separado (ver lancar()).
   const qtdEstruturas = qtdEstruturasDasObservacoes(String(pedido?.observacoes || ''));
   const Chip = (label: string, value: string) => (
     <div key={label} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#0f172a' }}>
@@ -939,7 +953,8 @@ function Conteudo() {
             <div style={secTitle}><i className="bi bi-box-seam" style={{ marginRight: 6 }} />Produto a fabricar</div>
             {qtdEstruturas && (
               <div style={{ marginBottom: 12, fontSize: 13, color: '#1e3a8a', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px' }}>
-                <i className="bi bi-diagram-3" style={{ marginRight: 6 }} />Quantidade de estruturas / projetos (informada na Anexar OP): <b>{qtdEstruturas}</b>
+                <i className="bi bi-diagram-3" style={{ marginRight: 6 }} /><b>{qtdEstruturas} estrutura(s) / projeto(s)</b> (informado na Anexar OP)
+                {qtdEstruturas > 1 && <> — vão ser lançados <b>{qtdEstruturas} produtos separados</b> (&quot;Projeto 1/{qtdEstruturas}&quot;…), cada um com as quantidades abaixo{componentes.length ? ' e os seus componentes' : ''}. As quantidades são <b>por projeto</b>.</>}
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginBottom: 12 }}>
@@ -1230,6 +1245,7 @@ function Conteudo() {
                       const temComp = componentes.length > 0;
                       const podeConfirmar = temComp ? !lancando : (!lancando && !bloqueiaMulti && somaConfere);
                       const rotulo = lancando ? 'Lançando…'
+                        : (qtdEstruturas || 1) > 1 ? `Confirmar — lançar ${qtdEstruturas} projetos separados${temComp ? ` (produto + ${componentes.length} componente${componentes.length > 1 ? 's' : ''} cada)` : ''}`
                         : temComp ? `Confirmar — lançar produto + ${componentes.length} componente${componentes.length > 1 ? 's' : ''}`
                         : multiDestino ? `Confirmar — lançar para ${destinos.length} setores`
                         : `Confirmar — lançar para ${NOMES[destinos[0]] || destinos[0]}`;

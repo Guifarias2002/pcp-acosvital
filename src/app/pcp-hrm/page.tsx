@@ -440,6 +440,7 @@ export default function PcpHrmPage() {
               <input type="number" min={1} step={1} inputMode="numeric" value={qtdEstruturas}
                 onChange={e => setQtdEstruturas(e.target.value.replace(/\D/g, ''))}
                 placeholder="opcional" className={inputCls} style={{ maxWidth:180 }} />
+              {Number(qtdEstruturas) > 1 && <div style={{ fontSize:11.5, color:'#92400e', marginTop:4 }}>Cada projeto vira um produto separado, com as quantidades da OP.</div>}
             </div>
           </div>
 
@@ -807,6 +808,12 @@ export default function PcpHrmPage() {
                                 Leitura só pra conferência — o roteiro (por onde a peça passa) é definido pelo PCP na Conferência.
                                 {' '}O produto (o projeto) está no cabeçalho acima e não entra aqui. Desmarque o que não for material de verdade.
                               </div>
+                              {Number(qtdEstruturas) > 1 && (
+                                <div style={{ fontSize:12.5, color:'#92400e', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:8, padding:'7px 10px', margin:'6px 0' }}>
+                                  <i className="bi bi-diagram-3" style={{ marginRight:6 }} />
+                                  <b>{Number(qtdEstruturas)} projetos</b> — cada projeto é lançado <b>separado</b> (Projeto 1/{Number(qtdEstruturas)}, 2/{Number(qtdEstruturas)}…), cada um com o produto e estas quantidades. As quantidades abaixo são <b>por projeto</b>.
+                                </div>
+                              )}
                               <table style={{ width:'100%', borderCollapse:'collapse', marginTop:6, fontSize:12.5, minWidth:520 }}>
                                 <thead>
                                   <tr style={{ textAlign:'left', color:'#6c757d', borderBottom:'1px solid #e9ecef' }}>
