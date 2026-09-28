@@ -4,7 +4,7 @@
 // (mesmo padrão da Caixa de Pendências).
 import { useMemo, useState } from 'react';
 import { AREAS_CALD, EMPRESAS_CALD, passaEmpresa, nomeEmpresa, hojeISO, fmtData, diasEntre, nomeSubsetor, type ItemCald } from '@/lib/caldPlano';
-import { C, Modal, Campo, nomeArea, fmtQtd, fmtBRL } from './comum';
+import { C, Modal, Campo, nomeArea, fmtQtd, fmtBRL, somaPorUnidade } from './comum';
 
 type Modo = 'todos' | 'pedido' | 'area' | 'vendedor';
 
@@ -106,6 +106,46 @@ export default function ImprimirModal({ itens, verValores, onFechar }: { itens: 
         .map(([p, l]) => tabelaPedido(p, l.sort((a, b) => a.id - b.id))).join('');
     }
     const nPed = new Set(selecionados.map(i => i.pedido)).size;
+
+    // ── TOTAIS no fim do relatório (sempre) ──
+    // 1) deste relatório (com os filtros escolhidos); 2) GERAIS da Caldeiraria,
+    // sem filtro nenhum (todas as situações, empresas e vendedores; cancelados fora).
+    const nPeds = (l: ItemCald[]) => new Set(l.map(i => i.pedido)).size;
+    const linhaTot = (rot: string, l: ItemCald[], negrito = false) => {
+      const b = negrito ? 'font-weight:700;background:#f8fafc' : '';
+      return `<tr style="${b}"><td>${esc(rot)}</td><td class="n">${nPeds(l)}</td><td class="n">${l.length}</td><td>${esc(somaPorUnidade(l))}</td>${verValores ? `<td class="n">${fmtBRL(soma(l))}</td>` : ''}</tr>`;
+    };
+    const tabelaTot = (titulo: string, linhas: string) => `
+      <div class="bloco"><div class="sub" style="font-weight:700;color:#1a3a5c;margin-top:8px">${titulo}</div>
+      <table><thead><tr><th>${''}</th><th>Pedidos</th><th>Materiais</th><th>Quantidade</th>${verValores ? '<th>Valor</th>' : ''}</tr></thead><tbody>${linhas}</tbody></table></div>`;
+    const agrupa = (l: ItemCald[], chave: (i: ItemCald) => string) => {
+      const m = new Map<string, ItemCald[]>();
+      for (const i of l) { const k = chave(i); m.set(k, [...(m.get(k) || []), i]); }
+      return m;
+    };
+    const geral = itens.filter(i => i.status !== 'cancelado');
+    const abertos = geral.filter(i => i.status !== 'finalizado');
+    const situacoes: [string, (i: ItemCald) => boolean][] = [
+      ['Início — A planejar', i => i.status === 'novo' || i.status === 'aguardando'],
+      ...AREAS_CALD.map(a => [a.nome, (i: ItemCald) => i.status === 'andamento' && i.area_atual === a.codigo] as [string, (i: ItemCald) => boolean]),
+      ['Finalizados', i => i.status === 'finalizado'],
+    ];
+    const porSit = situacoes.map(([rot, f]) => [rot, geral.filter(f)] as [string, ItemCald[]]).filter(([, l]) => l.length)
+      .map(([rot, l]) => linhaTot(rot, l)).join('');
+    const porEmp = Array.from(agrupa(geral, i => nomeEmpresa(i.empresa)).entries()).sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
+      .map(([k, l]) => linhaTot(k, l)).join('');
+    const porVen = Array.from(agrupa(geral, i => i.vendedor || 'Sem vendedor').entries()).sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
+      .map(([k, l]) => linhaTot(k, l)).join('');
+    const totais = `
+      <div style="page-break-before:auto;margin-top:26px;border-top:3px solid #1a3a5c;padding-top:10px">
+        <h2 style="font-size:17px">📊 Totais</h2>
+        ${tabelaTot('Deste relatório (filtros escolhidos)', linhaTot('Total impresso', selecionados, true))}
+        <h2 style="font-size:15px;margin-top:16px">Totais gerais da Caldeiraria <span style="font-weight:400;font-size:12px;color:#64748b">— todas as situações, empresas e vendedores (sem filtro · cancelados fora)</span></h2>
+        ${tabelaTot('Resumo', linhaTot('Em aberto (em produção + a planejar)', abertos, true) + linhaTot('Finalizados', geral.filter(i => i.status === 'finalizado')) + linhaTot('TOTAL GERAL', geral, true))}
+        ${tabelaTot('Por situação / área', porSit)}
+        ${tabelaTot('Por empresa', porEmp)}
+        ${tabelaTot('Por vendedor', porVen)}
+      </div>`;
     const w = window.open('', '_blank');
     if (!w) return;
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Caldeiraria — ${esc(titulo)} ${fmtData(hoje)}</title>
@@ -116,7 +156,7 @@ export default function ImprimirModal({ itens, verValores, onFechar }: { itens: 
       td.n{text-align:right;white-space:nowrap}td.anot{width:16%}</style></head>
       <body onload="window.print()"><h2>🏗 PCP Caldeiraria — ${esc(titulo)}</h2>
       <p>${nPed} pedido(s) · ${selecionados.length} material(is)${verValores ? ' · total ' + fmtBRL(soma(selecionados)) : ''}${emp ? ' · ' + esc(emp === 'sem' ? 'Sem empresa' : nomeEmpresa(emp)) : ''}${vend ? ' · vendedor: ' + esc(vend === '__sem' ? 'sem vendedor' : vend) : ''}${comFinalizados ? ' · inclui finalizados' : ''} · impresso em ${fmtData(hoje)}</p>
-      ${corpo || '<p>Nenhum material.</p>'}</body></html>`);
+      ${corpo || '<p>Nenhum material.</p>'}${totais}</body></html>`);
     w.document.close();
   }
 
