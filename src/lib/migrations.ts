@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 60;
+const SCHEMA_VERSION = 61;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -1010,4 +1010,26 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
   await sql.savepoint(async (sp) => {
     await sp.unsafe(`ALTER TABLE producao_cald_plano_hist ADD COLUMN IF NOT EXISTS antes JSONB`);
   }).catch(e => console.error('[migrations] M58 (desfazer caldeiraria) falhou:', e));
+
+  // M59 (28/09): MÁQUINA PARADA (quebrada / manutenção). O Planejamento (Reginaldo)
+  // registra a parada com motivo; enquanto liberada_em IS NULL a máquina não pode
+  // ser escolhida ao iniciar/retomar na Usinagem/Furação (o servidor recusa e o
+  // modal mostra o motivo). "Voltou a funcionar" preenche liberada_em — a linha
+  // fica como histórico. Ver src/lib/maquinasParadas.ts e /api/maquinas/paradas.
+  await sql.savepoint(async (sp) => {
+    await sp.unsafe(`
+      CREATE TABLE IF NOT EXISTS producao_maquina_parada (
+        id                SERIAL PRIMARY KEY,
+        maquina           TEXT NOT NULL,
+        motivo            TEXT NOT NULL,
+        previsao_retorno  DATE,
+        desde             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        criado_por_nome   TEXT,
+        liberada_em       TIMESTAMPTZ,
+        liberada_por_nome TEXT,
+        obs_liberacao     TEXT
+      )
+    `);
+    await sp.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS producao_maquina_parada_ativa ON producao_maquina_parada (maquina) WHERE liberada_em IS NULL`);
+  }).catch(e => console.error('[migrations] M59 (máquina parada) falhou:', e));
 }

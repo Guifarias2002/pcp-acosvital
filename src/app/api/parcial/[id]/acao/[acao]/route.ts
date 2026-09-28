@@ -19,6 +19,7 @@ import { SETOR_CHOICES, nomeInspecao, SETOR_NAO_LOCALIZADO, SETORES_CORTE, DESTI
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
 import { temMaquinas } from '@/lib/maquinas';
+import { paradaDaMaquina, msgMaquinaParada } from '@/lib/maquinasParadas';
 
 export const dynamic = 'force-dynamic';
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
@@ -447,6 +448,11 @@ async function handlePOST(
     }
     if (temMaquinas(parcial.setor_atual) && (!maquina || !operador))
       return NextResponse.json({ erro: 'Informe a máquina e o operador para iniciar a produção.' }, { status: 400 });
+    // Máquina PARADA (quebrada/manutenção, registrada pelo Planejamento) não inicia.
+    if (temMaquinas(parcial.setor_atual)) {
+      const parada = await paradaDaMaquina(maquina);
+      if (parada) return NextResponse.json({ erro: msgMaquinaParada(parada) }, { status: 409 });
+    }
 
     await sql.begin(async (tx) => {
       await tx`
@@ -819,6 +825,11 @@ async function handlePOST(
     // já estava na parcial (COALESCE abaixo).
     const maquinaNova = typeof body.maquina === 'string' && body.maquina.trim() ? body.maquina.trim() : null;
     const operadorNovo = typeof body.operador === 'string' && body.operador.trim() ? body.operador.trim() : null;
+    // Retomar numa máquina PARADA (a nova, ou a mesma de antes) não pode.
+    if (temMaquinas(parcial.setor_atual)) {
+      const parada = await paradaDaMaquina(maquinaNova || parcial.maquina);
+      if (parada) return NextResponse.json({ erro: msgMaquinaParada(parada) }, { status: 409 });
+    }
 
     // Quantidade a dar continuidade: ausente = retoma tudo. Menor que o total da
     // parcial = divide (o restante fica pausado no mesmo setor). A soma não muda.

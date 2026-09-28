@@ -5,6 +5,7 @@ import AuthGuard from '@/components/AuthGuard';
 import VisualizadorDoc from '@/components/VisualizadorDoc';
 import { useRealtime } from '@/hooks/useRealtime';
 import { getToken, podePlanejar, podeVerCliente } from '@/lib/auth';
+import { MAQUINAS_POR_SETOR } from '@/lib/maquinas';
 
 const C = { azul: '#1a3a5c', azul2: '#1d4ed8', verde: '#16a34a', laranja: '#d97706', vermelho: '#dc2626', roxo: '#7c3aed', cinza: '#64748b' };
 
@@ -131,6 +132,49 @@ export default function PlanejamentoPage() {
   // Busca da Fila — filtra por nº do pedido, cliente, código ou descrição.
   const [buscaFila, setBuscaFila] = useState('');
   const podeVerCli = podeVerCliente();
+
+  // MÁQUINAS PARADAS (quebrada / manutenção) — M59, /api/maquinas/paradas. O
+  // Planejamento registra com motivo; a máquina some da escolha na produção até
+  // clicar "Voltou a funcionar".
+  interface Parada { id: number; maquina: string; motivo: string; previsao_retorno: string | null; desde: string; criado_por_nome: string | null }
+  const [paradas, setParadas] = useState<Record<string, Parada>>({});
+  const [modalParada, setModalParada] = useState<{ maquina: string; motivo: string; previsao: string } | null>(null);
+  const [salvandoParada, setSalvandoParada] = useState(false);
+  const [erroParada, setErroParada] = useState('');
+  const aplicarParadas = (lista: Parada[]) => setParadas(Object.fromEntries((lista || []).map(p => [p.maquina, p])));
+  const carregarParadas = useCallback(async () => {
+    try {
+      const r = await fetch('/api/maquinas/paradas', { headers: { Authorization: `Bearer ${getToken() || ''}` } });
+      if (r.ok) aplicarParadas((await r.json()).ativas);
+    } catch { /* segue sem */ }
+  }, []);
+  async function postParada(body: Record<string, unknown>): Promise<boolean> {
+    setSalvandoParada(true); setErroParada('');
+    try {
+      const r = await fetch('/api/maquinas/paradas', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` }, body: JSON.stringify(body),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setErroParada(d.erro || 'Não foi possível salvar.'); return false; }
+      aplicarParadas(d.ativas);
+      return true;
+    } catch { setErroParada('Falha de conexão.'); return false; }
+    finally { setSalvandoParada(false); }
+  }
+  async function registrarParada() {
+    if (!modalParada) return;
+    if (!modalParada.maquina) { setErroParada('Escolha a máquina.'); return; }
+    if (!modalParada.motivo.trim()) { setErroParada('Informe o motivo.'); return; }
+    if (await postParada({ acao: 'parar', maquina: modalParada.maquina, motivo: modalParada.motivo, previsao_retorno: modalParada.previsao || null })) setModalParada(null);
+  }
+  async function liberarMaquina(p: Parada) {
+    if (!confirm(`A máquina ${p.maquina} voltou a funcionar?\n\nEla volta a aparecer normalmente pra produção.`)) return;
+    await postParada({ acao: 'liberar', id: p.id });
+  }
+  useEffect(() => { carregarParadas(); }, [carregarParadas]);
+  const fmtDia = (d: string | null) => (d ? d.slice(0, 10).split('-').reverse().join('/') : '');
+  const listaParadas = Object.values(paradas);
+  const todasMaquinas = Object.entries(MAQUINAS_POR_SETOR).flatMap(([setor, gs]) => gs.map(g => ({ ...g, setor })));
 
   const carregar = useCallback(async (silencioso = false) => {
     if (!silencioso) setCarregando(true);
@@ -482,10 +526,18 @@ export default function PlanejamentoPage() {
                           <option value="">— sem máquina —</option>
                           {grupos.map(g => (
                             <optgroup key={g.categoria} label={g.categoria}>
-                              {g.maquinas.map(m => <option key={m} value={m}>{m}</option>)}
+                              {g.maquinas.map(m => (
+                                <option key={m} value={m} disabled={!!paradas[m] && m !== pc.maquina_planejada}>
+                                  {paradas[m] ? `⛔ ${m} — PARADA` : m}
+                                </option>
+                              ))}
                             </optgroup>
                           ))}
                         </select>
+                        {pc.maquina_planejada && paradas[pc.maquina_planejada] && (
+                          <i className="bi bi-exclamation-octagon-fill" style={{ color: C.vermelho, fontSize: 14 }}
+                            title={`${pc.maquina_planejada} está PARADA: ${paradas[pc.maquina_planejada].motivo} — troque a máquina desta peça`} />
+                        )}
                         {salvandoMaq === pc.item_id
                           ? <i className="bi bi-arrow-repeat" style={{ color: '#94a3b8', fontSize: 14 }} title="Salvando…" />
                           : salvoMaq === pc.item_id
@@ -549,21 +601,42 @@ export default function PlanejamentoPage() {
 
   const renderMaquina = (mq: PainelMaquina) => {
     const ocupada = mq.pecas.length > 0;
+    const parada = paradas[mq.maquina];
+    const corTopo = parada ? C.vermelho : ocupada ? C.azul2 : '#f1f5f9';
     return (
       <div
         key={mq.maquina}
         onClick={ocupada ? () => setMaquinaModal(mq) : undefined}
         title={ocupada ? 'Clique para ver os pedidos desta máquina' : undefined}
-        style={{ border: `2px solid ${ocupada ? C.azul2 : '#e2e8f0'}`, borderRadius: 12, overflow: 'hidden', background: '#fff', cursor: ocupada ? 'pointer' : 'default' }}
+        style={{ border: `2px solid ${parada ? C.vermelho : ocupada ? C.azul2 : '#e2e8f0'}`, borderRadius: 12, overflow: 'hidden', background: parada ? '#fef2f2' : '#fff', cursor: ocupada ? 'pointer' : 'default' }}
       >
-        <div style={{ background: ocupada ? C.azul2 : '#f1f5f9', color: ocupada ? '#fff' : '#64748b', padding: '8px 12px', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <i className={`bi ${ocupada ? 'bi-gear-fill' : 'bi-gear'}`} />
+        <div style={{ background: corTopo, color: parada || ocupada ? '#fff' : '#64748b', padding: '8px 12px', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <i className={`bi ${parada ? 'bi-tools' : ocupada ? 'bi-gear-fill' : 'bi-gear'}`} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mq.maquina}</span>
-          {ocupada && <span style={{ marginLeft: 'auto', fontSize: 10.5, background: 'rgba(255,255,255,.25)', borderRadius: 10, padding: '1px 7px' }}>{mq.pecas.length}</span>}
+          {parada && <span style={{ marginLeft: 'auto', fontSize: 10.5, background: 'rgba(255,255,255,.25)', borderRadius: 10, padding: '1px 7px' }}>PARADA</span>}
+          {!parada && ocupada && <span style={{ marginLeft: 'auto', fontSize: 10.5, background: 'rgba(255,255,255,.25)', borderRadius: 10, padding: '1px 7px' }}>{mq.pecas.length}</span>}
         </div>
+        {parada && (
+          <div style={{ padding: '8px 10px 0', fontSize: 12, color: '#991b1b' }} onClick={e => e.stopPropagation()}>
+            <div><b>Motivo:</b> {parada.motivo}</div>
+            <div style={{ fontSize: 11, color: '#b91c1c', marginTop: 2 }}>
+              desde {fmtDia(parada.desde)}{parada.criado_por_nome ? ` · por ${parada.criado_por_nome}` : ''}{parada.previsao_retorno ? ` · previsão ${fmtDia(parada.previsao_retorno)}` : ''}
+            </div>
+            <button className="pl-btn" style={{ marginTop: 6, width: '100%', borderColor: C.verde, color: C.verde }} disabled={salvandoParada} onClick={() => liberarMaquina(parada)}>
+              <i className="bi bi-check-circle" style={{ marginRight: 5 }} />Voltou a funcionar
+            </button>
+          </div>
+        )}
         <div style={{ padding: 8 }}>
           {!ocupada ? (
-            <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '10px 0', fontWeight: 600 }}>Livre</div>
+            parada ? null : (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 12, color: '#94a3b8', padding: '6px 0', fontWeight: 600 }}>Livre</div>
+                <button className="pl-btn" style={{ fontSize: 11.5, padding: '4px 10px', color: C.vermelho }} onClick={e => { e.stopPropagation(); setErroParada(''); setModalParada({ maquina: mq.maquina, motivo: '', previsao: '' }); }}>
+                  <i className="bi bi-tools" style={{ marginRight: 4 }} />Registrar parada
+                </button>
+              </div>
+            )
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {mq.pecas.map((p, i) => (
@@ -579,6 +652,11 @@ export default function PlanejamentoPage() {
                   </div>
                 </div>
               ))}
+              {!parada && (
+                <button className="pl-btn" style={{ fontSize: 11.5, padding: '4px 10px', color: C.vermelho }} onClick={e => { e.stopPropagation(); setErroParada(''); setModalParada({ maquina: mq.maquina, motivo: '', previsao: '' }); }}>
+                  <i className="bi bi-tools" style={{ marginRight: 4 }} />Registrar parada
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -611,10 +689,72 @@ export default function PlanejamentoPage() {
               Defina a <b>ordem</b> e a <b>máquina</b> de cada peça. O operador segue o plano — não pode trocar máquina nem furar a fila.
             </small>
           </div>
-          <button className="pl-btn" onClick={() => carregar()} disabled={carregando}>
-            <i className="bi bi-arrow-clockwise" style={{ marginRight: 5 }} />{carregando ? 'Atualizando…' : 'Atualizar'}
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="pl-btn" style={{ color: C.vermelho, borderColor: '#fecaca' }} onClick={() => { setErroParada(''); setModalParada({ maquina: '', motivo: '', previsao: '' }); }}>
+              <i className="bi bi-tools" style={{ marginRight: 5 }} />Registrar máquina parada
+            </button>
+            <button className="pl-btn" onClick={() => { carregar(); carregarParadas(); }} disabled={carregando}>
+              <i className="bi bi-arrow-clockwise" style={{ marginRight: 5 }} />{carregando ? 'Atualizando…' : 'Atualizar'}
+            </button>
+          </div>
         </div>
+
+        {/* Máquinas PARADAS agora — motivo + "Voltou a funcionar" */}
+        {listaParadas.length > 0 && (
+          <div style={{ background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: 12, padding: '10px 14px', marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#991b1b', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 6 }}>
+              <i className="bi bi-exclamation-octagon-fill" style={{ marginRight: 6 }} />Máquinas paradas ({listaParadas.length}) — não podem ser escolhidas na produção
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {listaParadas.map(p => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: '#fff', border: '1px solid #fecaca', borderRadius: 8, padding: '6px 10px' }}>
+                  <b style={{ color: C.vermelho, fontSize: 13 }}><i className="bi bi-tools" style={{ marginRight: 5 }} />{p.maquina}</b>
+                  <span style={{ fontSize: 12.5, color: '#334155', flex: 1, minWidth: 180 }}>{p.motivo}</span>
+                  <span style={{ fontSize: 11.5, color: C.cinza }}>
+                    desde {fmtDia(p.desde)}{p.criado_por_nome ? ` · ${p.criado_por_nome}` : ''}{p.previsao_retorno ? ` · previsão ${fmtDia(p.previsao_retorno)}` : ''}
+                  </span>
+                  <button className="pl-btn" style={{ borderColor: C.verde, color: C.verde, padding: '4px 10px' }} disabled={salvandoParada} onClick={() => liberarMaquina(p)}>
+                    <i className="bi bi-check-circle" style={{ marginRight: 4 }} />Voltou a funcionar
+                  </button>
+                </div>
+              ))}
+            </div>
+            {erroParada && !modalParada && <div style={{ color: C.vermelho, fontSize: 12.5, marginTop: 6 }}>{erroParada}</div>}
+          </div>
+        )}
+
+        {/* Modal: registrar máquina parada */}
+        {modalParada && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => !salvandoParada && setModalParada(null)}>
+            <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: 460, maxWidth: '94vw', boxShadow: '0 8px 32px rgba(0,0,0,.18)' }} onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: C.vermelho, marginBottom: 4 }}><i className="bi bi-tools" style={{ marginRight: 8 }} />Registrar máquina parada</div>
+              <div style={{ fontSize: 12.5, color: C.cinza, marginBottom: 14 }}>Enquanto estiver parada, ninguém consegue escolher essa máquina ao iniciar/retomar na produção — e o motivo aparece pro operador.</div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#555', display: 'block', marginBottom: 5 }}>Máquina</label>
+              <select className="pl-sel" style={{ maxWidth: 'none', width: '100%', marginBottom: 12 }} value={modalParada.maquina} onChange={e => setModalParada({ ...modalParada, maquina: e.target.value })}>
+                <option value="">Escolha a máquina…</option>
+                {todasMaquinas.map(g => (
+                  <optgroup key={`${g.setor}-${g.categoria}`} label={`${g.categoria}${g.setor === 'furacao' ? ' (Furação)' : ''}`}>
+                    {g.maquinas.map(m => <option key={m} value={m} disabled={!!paradas[m]}>{paradas[m] ? `${m} — já parada` : m}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#555', display: 'block', marginBottom: 5 }}>Motivo *</label>
+              <textarea rows={3} value={modalParada.motivo} onChange={e => setModalParada({ ...modalParada, motivo: e.target.value })} maxLength={500} autoFocus
+                placeholder="Ex.: placa do CNC queimada; aguardando técnico / peça de reposição"
+                style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box', marginBottom: 12, resize: 'vertical' }} />
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#555', display: 'block', marginBottom: 5 }}>Previsão de volta (opcional)</label>
+              <input type="date" value={modalParada.previsao} onChange={e => setModalParada({ ...modalParada, previsao: e.target.value })}
+                style={{ border: '1px solid #cbd5e1', borderRadius: 8, padding: '7px 10px', fontSize: 13, marginBottom: 14 }} />
+              {erroParada && <div style={{ color: C.vermelho, fontSize: 12.5, fontWeight: 600, marginBottom: 10 }}>{erroParada}</div>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="pl-btn" style={{ flex: 1 }} disabled={salvandoParada} onClick={() => setModalParada(null)}>Cancelar</button>
+                <button className="pl-btn" style={{ flex: 2, background: C.vermelho, borderColor: C.vermelho, color: '#fff' }} disabled={salvandoParada} onClick={registrarParada}>
+                  <i className="bi bi-tools" style={{ marginRight: 5 }} />{salvandoParada ? 'Salvando…' : 'Registrar parada'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Abas — Fila × Painel de Máquinas (clica pra abrir) */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
@@ -634,6 +774,11 @@ export default function PlanejamentoPage() {
                 }}
               >
                 <i className={`bi ${t.icon}`} />{t.rot}
+                {t.id === 'maquinas' && listaParadas.length > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 800, background: C.vermelho, color: '#fff', borderRadius: 10, padding: '1px 8px' }}>
+                    {listaParadas.length} parada(s)
+                  </span>
+                )}
                 {t.id === 'maquinas' && maquinasEmUso > 0 && (
                   <span style={{ fontSize: 11, fontWeight: 800, background: ativa ? 'rgba(255,255,255,.22)' : '#eef2ff', color: ativa ? '#fff' : C.azul2, borderRadius: 10, padding: '1px 8px' }}>
                     {maquinasEmUso} em uso

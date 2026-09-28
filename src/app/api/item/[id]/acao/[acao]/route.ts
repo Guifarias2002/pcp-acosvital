@@ -7,6 +7,7 @@ import { SETOR_CHOICES, injetarQuarentena, SETORES_CORTE, DESTINOS_PERMITIDOS_CO
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
 import { temMaquinas } from '@/lib/maquinas';
+import { paradaDaMaquina, msgMaquinaParada } from '@/lib/maquinasParadas';
 
 export const dynamic = 'force-dynamic';
 const SETORES_VALIDOS = SETOR_CHOICES.map(([cod]) => cod);
@@ -878,6 +879,11 @@ async function handlePOST(
     }
     if (temMaquinas(item.setor_atual) && (!maquina || !operador))
       return NextResponse.json({ erro: 'Informe a máquina e o operador para iniciar a produção.' }, { status: 400 });
+    // Máquina PARADA (quebrada/manutenção, registrada pelo Planejamento) não inicia.
+    if (temMaquinas(item.setor_atual)) {
+      const parada = await paradaDaMaquina(maquina);
+      if (parada) return NextResponse.json({ erro: msgMaquinaParada(parada) }, { status: 409 });
+    }
 
     await sql.begin(async (tx) => {
       await tx`

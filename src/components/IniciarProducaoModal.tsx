@@ -38,6 +38,26 @@ export default function IniciarProducaoModal({
   // Máquina travada pelo Planejamento (só Usinagem). null = sem plano.
   const [maquinaPlano, setMaquinaPlano] = useState<string | null>(null);
   const grupos = MAQUINAS_POR_SETOR[setor] || [];
+  // Máquinas PARADAS (quebradas/manutenção) registradas pelo Planejamento: não
+  // podem ser escolhidas; o motivo aparece pro operador. O servidor também recusa.
+  const [paradas, setParadas] = useState<Record<string, { motivo: string; previsao_retorno: string | null }>>({});
+  useEffect(() => {
+    if (!grupos.length) return;
+    let vivo = true;
+    fetch('/api/maquinas/paradas', { headers: { Authorization: `Bearer ${getToken() || ''}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!vivo || !d?.ativas) return;
+        const m: Record<string, { motivo: string; previsao_retorno: string | null }> = {};
+        for (const p of d.ativas as { maquina: string; motivo: string; previsao_retorno: string | null }[]) m[p.maquina] = p;
+        setParadas(m);
+      })
+      .catch(() => { /* sem lista — o servidor ainda bloqueia */ });
+    return () => { vivo = false; };
+  }, [grupos.length]);
+  const paradasDoSetor = grupos.flatMap(g => g.maquinas).filter(m => paradas[m]);
+  const selecionadaParada = maquina ? paradas[maquina] : undefined;
+  const fmtDt = (d: string | null) => (d ? d.split('-').reverse().join('/') : '');
 
   useEffect(() => {
     if (setor !== 'usinagem' || !itemPedidoId) return;
@@ -54,7 +74,7 @@ export default function IniciarProducaoModal({
   }, [setor, itemPedidoId]);
   const qtdNum = Number(qtd);
   const qtdOk = !mostrarQuantidade || (qtd !== '' && qtdNum > 0 && qtdNum <= (quantidadeMax ?? Infinity));
-  const podeConfirmar = maquina.trim() !== '' && operador.trim() !== '' && qtdOk;
+  const podeConfirmar = maquina.trim() !== '' && operador.trim() !== '' && qtdOk && !selecionadaParada;
 
   return (
     <div style={{
@@ -89,10 +109,28 @@ export default function IniciarProducaoModal({
           <option value="">Selecione a máquina...</option>
           {grupos.map(g => (
             <optgroup key={g.categoria} label={g.categoria}>
-              {g.maquinas.map(m => <option key={m} value={m}>{m}</option>)}
+              {g.maquinas.map(m => (
+                <option key={m} value={m} disabled={!!paradas[m] && m !== maquina}>
+                  {paradas[m] ? `⛔ ${m} — PARADA: ${paradas[m].motivo}` : m}
+                </option>
+              ))}
             </optgroup>
           ))}
         </select>
+        {selecionadaParada && (
+          <div style={{ fontSize: 12.5, color: '#991b1b', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 10px', margin: '0 0 14px' }}>
+            <i className="bi bi-exclamation-octagon-fill" style={{ marginRight: 6 }} />
+            <b>{maquina}</b> está <b>PARADA</b>: {selecionadaParada.motivo}
+            {selecionadaParada.previsao_retorno && <> · previsão de volta {fmtDt(selecionadaParada.previsao_retorno)}</>}.
+            {' '}{maquinaPlano ? 'Peça ao Planejamento pra trocar a máquina desta peça.' : 'Escolha outra máquina.'}
+          </div>
+        )}
+        {!selecionadaParada && paradasDoSetor.length > 0 && (
+          <div style={{ fontSize: 11.5, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '6px 10px', margin: '-8px 0 14px' }}>
+            <i className="bi bi-tools" style={{ marginRight: 5 }} />
+            <b>Paradas:</b> {paradasDoSetor.map(m => `${m} (${paradas[m].motivo})`).join(' · ')}
+          </div>
+        )}
         {maquinaPlano && (
           <p style={{ fontSize: 11.5, color: '#6b21a8', margin: '0 0 16px' }}>
             Esta peça foi planejada para a máquina <b>{maquinaPlano}</b>. Só o Planejamento pode alterar.
