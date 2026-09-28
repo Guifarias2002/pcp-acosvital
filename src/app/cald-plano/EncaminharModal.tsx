@@ -6,18 +6,26 @@
 // recado pra ele; a observação também vira recado.
 import { useState } from 'react';
 import { AREAS_CALD, SUBSETORES_CALD, SUBSETORES_VERIFICAR_ALAN, nomeSubsetor, type ItemCald } from '@/lib/caldPlano';
-import { C, Modal, nomeArea } from './comum';
+import { C, Modal, nomeArea, fmtQtd, qtdNum } from './comum';
 
-export interface Encaminhamento { area: string; sub_setor: string | null; obs: string }
+// quantidade: só com 1 material — menor que o total = PARCIAL (só essa parte anda).
+export interface Encaminhamento { area: string; sub_setor: string | null; obs: string; quantidade?: number | null }
 // Destino especial "Finalizados" (não é área): o painel trata como Finalizar.
 export const DESTINO_FINALIZADO = '__finalizado';
 
-export default function EncaminharModal({ item, area: areaIni, modo, onConfirmar, onFechar }: {
-  item: ItemCald; area: string; modo: 'mover' | 'subsetor';
+export default function EncaminharModal({ item, lista, area: areaIni, modo, onConfirmar, onFechar }: {
+  item: ItemCald; lista?: ItemCald[]; area: string; modo: 'mover' | 'subsetor';
   onConfirmar: (e: Encaminhamento) => void; onFechar: () => void;
 }) {
   // No "mover", a área em que o item JÁ está não é destino (regravaria a entrada).
-  const aqui = modo === 'mover' && item.status === 'andamento' ? item.area_atual : null;
+  const varios = (lista?.length || 1) > 1;
+  const aqui = modo === 'mover' && !varios && item.status === 'andamento' ? item.area_atual : null;
+  // Parcial: 1 material com quantidade → pode mandar só parte dela.
+  const podeParcial = modo === 'mover' && !varios && !!item.quantidade && item.quantidade > 0;
+  const [qtd, setQtd] = useState(item.quantidade ? String(item.quantidade) : '');
+  const qEnvio = qtdNum(qtd);
+  const qtdInvalida = podeParcial && (qEnvio === null || qEnvio > (item.quantidade || 0));
+  const ehParcial = podeParcial && qEnvio !== null && qEnvio < (item.quantidade || 0);
   const [area, setArea] = useState(areaIni === aqui ? '' : areaIni);
   const [sub, setSub] = useState<string | null>(modo === 'subsetor' ? item.sub_setor ?? null : null);
   const [obs, setObs] = useState('');
@@ -59,16 +67,29 @@ export default function EncaminharModal({ item, area: areaIni, modo, onConfirmar
 
   return (
     <Modal largura={620} onFechar={onFechar}
-      titulo={<>{modo === 'mover' ? 'Encaminhar' : 'Trocar setor'} — pedido {item.pedido}<div style={{ fontSize: 12, fontWeight: 500, color: C.cinza }}>{item.material}</div></>}
+      titulo={<>{modo === 'mover' ? 'Encaminhar' : 'Trocar setor'} — pedido {item.pedido}<div style={{ fontSize: 12, fontWeight: 500, color: C.cinza }}>{varios ? `${lista!.length} materiais: ${lista!.map(i => i.material).join(' · ')}` : item.material}</div></>}
       rodape={<>
         <button className="cp-btn" onClick={onFechar}>Cancelar</button>
-        <button className="cp-btn pri" disabled={!area} onClick={() => onConfirmar({ area, sub_setor: sub, obs: obs.trim() })}>
-          <i className="bi bi-box-arrow-in-right" />{area === DESTINO_FINALIZADO ? 'Mandar pra Finalizados' : modo === 'mover' && area !== aqui ? (area ? `Entrou em ${sub ? nomeSubsetor(sub) : nomeArea(area)}` : 'Escolha a área') : 'Salvar setor'}
+        <button className="cp-btn pri" disabled={!area || qtdInvalida} onClick={() => onConfirmar({ area, sub_setor: sub, obs: obs.trim(), quantidade: ehParcial ? qEnvio : null })}>
+          <i className="bi bi-box-arrow-in-right" />{ehParcial ? `Parcial ${fmtQtd(qEnvio, item.unidade)} · ` : varios ? `${lista!.length} materiais · ` : ''}{area === DESTINO_FINALIZADO ? 'Mandar pra Finalizados' : modo === 'mover' && area !== aqui ? (area ? `Entrou em ${sub ? nomeSubsetor(sub) : nomeArea(area)}` : 'Escolha a área') : 'Salvar setor'}
         </button>
       </>}>
       <div style={{ fontSize: 12, color: C.cinza, marginBottom: 10 }}>
         Escolha a <b>área geral</b> (em negrito) ou um <b>setor</b> dela. {modo === 'mover' && 'A entrada é registrada hoje.'}
       </div>
+      {podeParcial && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10, background: ehParcial ? '#f5f3ff' : '#f8fafc', border: `1.5px solid ${ehParcial ? '#a78bfa' : C.borda}`, borderRadius: 10, padding: '8px 10px' }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: C.texto }}>Quantidade a mandar:</span>
+          <input className="cp-in" inputMode="decimal" value={qtd} onChange={e => setQtd(e.target.value)} style={{ width: 90 }} />
+          <span style={{ fontSize: 12.5, color: C.cinza }}>de {fmtQtd(item.quantidade, item.unidade)}</span>
+          <button type="button" className="cp-btn sm" onClick={() => setQtd(String(item.quantidade))}>Tudo</button>
+          <span style={{ flexBasis: '100%', fontSize: 11.5, color: qtdInvalida ? C.vermelho : ehParcial ? '#6d28d9' : C.fraco }}>
+            {qtdInvalida ? `Informe uma quantidade entre 0 e ${fmtQtd(item.quantidade, item.unidade)}.`
+              : ehParcial ? `Parcial: vão ${fmtQtd(qEnvio, item.unidade)} e ficam ${fmtQtd((item.quantidade || 0) - (qEnvio || 0), item.unidade)} onde está (igual ao Flange).`
+              : 'Vai a quantidade toda. Diminua pra mandar só uma parte (parcial).'}
+          </span>
+        </div>
+      )}
       <div style={{ position: 'relative', marginBottom: 8 }}>
         <i className="bi bi-search" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: C.fraco, fontSize: 13 }} />
         <input className="cp-in" autoFocus value={busca} onChange={e => setBusca(e.target.value)}
@@ -81,7 +102,7 @@ export default function EncaminharModal({ item, area: areaIni, modo, onConfirmar
             {subs.map(s => opcao(a.codigo, s, nomeSubsetor(s), false, a.cor))}
           </div>
         ))}
-        {modo === 'mover' && item.status !== 'finalizado' && (!q || norm('finalizados').includes(q)) && (
+        {modo === 'mover' && (varios ? lista!.some(i => i.status !== 'finalizado') : item.status !== 'finalizado') && (!q || norm('finalizados').includes(q)) && (
           <label style={{
             display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', borderRadius: 8, padding: '6px 10px', marginTop: 2,
             background: area === DESTINO_FINALIZADO ? '#16a34a1a' : undefined, border: `1.5px solid ${area === DESTINO_FINALIZADO ? C.verde : 'transparent'}`,

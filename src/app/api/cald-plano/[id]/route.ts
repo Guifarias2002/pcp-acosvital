@@ -277,10 +277,52 @@ export async function POST(req: Request, ctx: Ctx) {
     if (!data) return NextResponse.json({ erro: 'Data inválida' }, { status: 400 });
     const quem = user.nome || user.username;
 
+    // Item devolvido na resposta: muda quando separa uma parcial (o item novo) ou
+    // quando desfaz uma parcial (volta pro item de origem).
+    let idFinal = id;
     try {
       const res = await sql.begin(async (tx) => {
-        const [it] = await carregarItensCald(tx, [id]);
-        if (!it) return { status: 404, erro: 'Item não encontrado' };
+        const [it0] = await carregarItensCald(tx, [id]);
+        if (!it0) return { status: 404, erro: 'Item não encontrado' };
+        let it = it0;
+
+        // PARCIAL (igual ao Flange): mover/finalizar só PARTE da quantidade. Separa
+        // um item novo com a quantidade enviada (valor proporcional, mesmas etapas)
+        // e é ELE que anda; o original fica com o resto. O 'desfazer' junta de volta.
+        let parcialDe: { id: number; qtd: number; valor: number | null } | null = null;
+        const qEnvio = (acao === 'mover' || acao === 'finalizar') ? num(b.quantidade) : null;
+        if (qEnvio !== null && qEnvio > 0 && it0.quantidade && qEnvio < it0.quantidade) {
+          const vParte = it0.valor !== null ? Math.round((it0.valor * qEnvio / it0.quantidade) * 100) / 100 : null;
+          const [novo] = await tx`
+            INSERT INTO producao_cald_plano_item
+              (pedido, vendedor, cliente, material, quantidade, unidade, valor, valor_unitario, empresa, areas, area_atual, status,
+               prioridade, ordem, prazo_entrega, prev_faturamento, faturado_em, prev_finalizacao, finalizado_em, parcial, obs,
+               criado_por_id, criado_por_nome, sub_setor)
+            SELECT pedido, vendedor, cliente, material, ${qEnvio}, unidade, ${vParte}, valor_unitario, empresa, areas, area_atual, status,
+               prioridade, ordem, prazo_entrega, prev_faturamento, faturado_em, prev_finalizacao, finalizado_em, true, obs,
+               criado_por_id, criado_por_nome, sub_setor
+            FROM producao_cald_plano_item WHERE id = ${id}
+            RETURNING id
+          `;
+          await tx`
+            INSERT INTO producao_cald_plano_etapa (item_id, area, entrada, previsao, fornecedor, retorno_previsto)
+            SELECT ${novo.id}, area, entrada, previsao, fornecedor, retorno_previsto FROM producao_cald_plano_etapa WHERE item_id = ${id}
+          `;
+          await tx`
+            UPDATE producao_cald_plano_item
+            SET quantidade = quantidade - ${qEnvio}, valor = CASE WHEN valor IS NULL THEN NULL ELSE valor - ${vParte ?? 0} END,
+                parcial = true, atualizado_em = NOW()
+            WHERE id = ${id}
+          `;
+          const resto = it0.quantidade - qEnvio;
+          await registrarHistCald(tx, id, 'parcial', `Parcial: ${qEnvio} ${it0.unidade || 'pç'} separados (item #${novo.id}) · ficam ${resto} ${it0.unidade || 'pç'} aqui`, quem);
+          await registrarHistCald(tx, novo.id, 'parcial', `Parcial de ${qEnvio} ${it0.unidade || 'pç'} separada do item #${id} (${it0.quantidade} no total)`, quem);
+          parcialDe = { id, qtd: qEnvio, valor: vParte };
+          idFinal = novo.id as number;
+          [it] = await carregarItensCald(tx, [idFinal]);
+        }
+        const idAlvo = it.id;
+        const antesDe = (area?: string) => ({ ...fotoAntes(it, area), parcial_de: parcialDe });
 
         if (acao === 'mover') {
           const area = String(b.area || '');
@@ -291,17 +333,17 @@ export async function POST(req: Request, ctx: Ctx) {
             WHERE area_atual = ${area} AND status = 'andamento'
           `;
           await tx`
-            INSERT INTO producao_cald_plano_etapa (item_id, area, entrada) VALUES (${id}, ${area}, ${data})
+            INSERT INTO producao_cald_plano_etapa (item_id, area, entrada) VALUES (${idAlvo}, ${area}, ${data})
             ON CONFLICT (item_id, area) DO UPDATE SET entrada = EXCLUDED.entrada
           `;
           await tx`
             UPDATE producao_cald_plano_item
             SET area_atual = ${area}, status = 'andamento', areas = ${areas}::text[], ordem = ${prox},
                 finalizado_em = NULL, atualizado_em = NOW()
-            WHERE id = ${id}
+            WHERE id = ${idAlvo}
           `;
-          const extra = await aplicarSubsetor(tx, id, area, b.sub_setor, b.obs, quem);
-          await registrarHistCald(tx, id, 'mover', `${nomeEstado(it)} → ${nomeArea(area)} (entrada ${fmtData(data)})${extra ? ` · ${extra}` : ''}`, quem, fotoAntes(it, area));
+          const extra = await aplicarSubsetor(tx, idAlvo, area, b.sub_setor, b.obs, quem);
+          await registrarHistCald(tx, idAlvo, 'mover', `${parcialDe ? `Parcial ${parcialDe.qtd} ${it.unidade || 'pç'}: ` : ''}${nomeEstado(it)} → ${nomeArea(area)} (entrada ${fmtData(data)})${extra ? ` · ${extra}` : ''}`, quem, antesDe(area));
         } else if (acao === 'subsetor') {
           // Troca o sub-setor dentro da área ATUAL (sem nova entrada de área).
           if (it.status !== 'andamento' || !it.area_atual) return { status: 400, erro: 'O item não está em nenhuma área' };
@@ -312,8 +354,8 @@ export async function POST(req: Request, ctx: Ctx) {
           await tx`UPDATE producao_cald_plano_item SET status = 'aguardando', area_atual = NULL, atualizado_em = NOW() WHERE id = ${id}`;
           await registrarHistCald(tx, id, 'aguardando', 'Planejado — aguardando chegar na Caldeiraria', quem, fotoAntes(it));
         } else if (acao === 'finalizar') {
-          await tx`UPDATE producao_cald_plano_item SET status = 'finalizado', finalizado_em = ${data}, atualizado_em = NOW() WHERE id = ${id}`;
-          await registrarHistCald(tx, id, 'finalizar', `Finalizado em ${fmtData(data)}`, quem, fotoAntes(it));
+          await tx`UPDATE producao_cald_plano_item SET status = 'finalizado', finalizado_em = ${data}, atualizado_em = NOW() WHERE id = ${idAlvo}`;
+          await registrarHistCald(tx, idAlvo, 'finalizar', `${parcialDe ? `Parcial ${parcialDe.qtd} ${it.unidade || 'pç'}: ` : ''}Finalizado em ${fmtData(data)}`, quem, antesDe());
         } else if (acao === 'reabrir') {
           const st = it.area_atual ? 'andamento' : 'aguardando';
           await tx`UPDATE producao_cald_plano_item SET status = ${st}, finalizado_em = NULL, atualizado_em = NOW() WHERE id = ${id}`;
@@ -333,7 +375,26 @@ export async function POST(req: Request, ctx: Ctx) {
             await tx`UPDATE producao_cald_plano_item SET status = ${st}, finalizado_em = NULL, atualizado_em = NOW() WHERE id = ${id}`;
             await registrarHistCald(tx, id, 'desfazer', `Desfeito: finalização (volta pra ${nomeEstado({ status: st, area_atual: it.area_atual })})`, quem);
           } else {
-            const a = (typeof h.antes === 'string' ? JSON.parse(h.antes) : h.antes) as FotoAntes;
+            const a = (typeof h.antes === 'string' ? JSON.parse(h.antes) : h.antes) as FotoAntes & { parcial_de?: { id: number; qtd: number; valor: number | null } | null };
+            // Movimentação de uma PARCIAL: junta a quantidade de volta no item de
+            // origem (se ele ainda existe) e apaga a parcial.
+            const [orig] = a.parcial_de
+              ? await tx`SELECT id FROM producao_cald_plano_item WHERE id = ${a.parcial_de.id} AND status <> 'cancelado'`
+              : [];
+            if (a.parcial_de && orig) {
+              const pd = a.parcial_de;
+              await tx`
+                UPDATE producao_cald_plano_item
+                SET quantidade = COALESCE(quantidade, 0) + ${pd.qtd},
+                    valor = CASE WHEN ${pd.valor}::numeric IS NULL THEN valor ELSE COALESCE(valor, 0) + ${pd.valor}::numeric END,
+                    atualizado_em = NOW()
+                WHERE id = ${pd.id}
+              `;
+              await tx`DELETE FROM producao_cald_plano_item WHERE id = ${id}`;
+              await registrarHistCald(tx, pd.id, 'desfazer', `Desfeito: ${h.detalhe || 'parcial'} — ${pd.qtd} ${it.unidade || 'pç'} voltaram pra este item`, quem);
+              idFinal = pd.id;
+              return { status: 200 };
+            }
             await tx`
               UPDATE producao_cald_plano_item
               SET status = ${a.status}, area_atual = ${a.area_atual}, ordem = ${a.ordem ?? 0},
@@ -382,8 +443,8 @@ export async function POST(req: Request, ctx: Ctx) {
         return { status: 200 };
       });
       if (res.status !== 200) return NextResponse.json({ erro: res.erro }, { status: res.status });
-      const [item] = await carregarItensCald(sql, [id]);
-      return NextResponse.json({ ok: true, item });
+      const [item] = await carregarItensCald(sql, [idFinal]);
+      return NextResponse.json({ ok: true, item, separado: idFinal !== id ? id : undefined });
     } catch (e) {
       console.error('[cald-plano/:id POST]', e);
       return NextResponse.json({ erro: 'Erro ao executar a ação' }, { status: 500 });

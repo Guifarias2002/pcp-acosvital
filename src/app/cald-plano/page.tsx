@@ -23,6 +23,12 @@ import CaixaPendencias from './CaixaPendencias';
 
 type Filtro = 'todos' | 'novos' | 'atrasados' | 'vence' | 'parados' | 'terceiro' | 'faturar';
 const PRIO_PESO: Record<string, number> = { urgente: 0, alta: 1, normal: 2, baixa: 3 };
+// Agrupa os materiais de uma coluna por pedido, na ordem em que aparecem.
+function agruparPorPedido(l: ItemCald[]): { pedido: string; lista: ItemCald[] }[] {
+  const m = new Map<string, ItemCald[]>();
+  for (const i of l) m.set(i.pedido, [...(m.get(i.pedido) || []), i]);
+  return Array.from(m, ([pedido, lista]) => ({ pedido, lista }));
+}
 
 export default function CaldPlanoPage() {
   const router = useRouter();
@@ -47,8 +53,10 @@ export default function CaldPlanoPage() {
   const [aberto, setAberto] = useState<ItemCald | null>(null);
   // Encaminhar (área geral + sub-setor opcional) — abre ao arrastar/avançar pra
   // área com sub-setores, ou no botão "Setor" do card (troca dentro da área).
-  const [enc, setEnc] = useState<{ it: ItemCald; area: string; modo: 'mover' | 'subsetor' } | null>(null);
-  const [arrastando, setArrastando] = useState<number | null>(null);
+  const [enc, setEnc] = useState<{ it: ItemCald; lista?: ItemCald[]; area: string; modo: 'mover' | 'subsetor' } | null>(null);
+  // Materiais marcados dentro dos cards de pedido (mover só os selecionados).
+  const [marcados, setMarcados] = useState<Set<number>>(new Set());
+  const [arrastando, setArrastando] = useState<number[] | null>(null);
   const [alvoCol, setAlvoCol] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
   // Arrastar o painel pro lado (clicar no fundo e puxar) — pra ver as colunas fora da tela.
@@ -92,21 +100,23 @@ export default function CaldPlanoPage() {
   }, []);
   useEffect(() => { if (ok) carregar(); }, [ok, carregar]);
 
-  // Aviso no rodapé. Depois de mover, leva o botão "Desfazer" (fica 10s).
-  const [avisoDesfazer, setAvisoDesfazer] = useState<ItemCald | null>(null);
+  // Aviso no rodapé. Depois de mover, leva o botão "Desfazer" (fica 10s) —
+  // desfaz a última movimentação de cada material movido.
+  const [avisoDesfazer, setAvisoDesfazer] = useState<ItemCald[] | null>(null);
   const avisoTimer = useRef<ReturnType<typeof setTimeout>>();
-  const mostrarAviso = (t: string, desfazer: ItemCald | null = null) => {
-    setAviso(t); setAvisoDesfazer(desfazer);
+  const mostrarAviso = (t: string, desfazer: ItemCald[] | null = null) => {
+    setAviso(t); setAvisoDesfazer(desfazer && desfazer.length ? desfazer : null);
     clearTimeout(avisoTimer.current);
     avisoTimer.current = setTimeout(() => { setAviso(''); setAvisoDesfazer(null); }, desfazer ? 10000 : 4000);
   };
-  async function desfazerMov(it: ItemCald) {
+  async function desfazerMov(lista: ItemCald[]) {
     setAviso(''); setAvisoDesfazer(null);
-    try {
-      const r = await postIdempotente<{ item: ItemCald }>(`/api/cald-plano/${it.id}`, { acao: 'desfazer' });
-      atualizarItem(r.item);
-      mostrarAviso(`Desfeito — pedido ${it.pedido} · ${it.material} voltou.`);
-    } catch (e) { mostrarAviso(erroDe(e, 'Não foi possível desfazer.')); }
+    let ok = 0;
+    for (const it of lista) {
+      try { await postIdempotente(`/api/cald-plano/${it.id}`, { acao: 'desfazer' }); ok++; } catch { /* segue */ }
+    }
+    await carregar(true);
+    mostrarAviso(ok === lista.length ? `Desfeito — ${ok} material(is) voltaram.` : `Desfeito ${ok} de ${lista.length} — confira os demais no detalhe.`);
   }
   const atualizarItem = (it: ItemCald) => setItens(v => v.map(x => (x.id === it.id ? it : x)));
 
@@ -175,34 +185,46 @@ export default function CaldPlanoPage() {
     return cols;
   }, [ativos, itens, hoje, passaFiltro]);
 
-  async function finalizar(it: ItemCald) {
-    try {
-      const r = await postIdempotente<{ item: ItemCald }>(`/api/cald-plano/${it.id}`, { acao: 'finalizar' });
-      atualizarItem(r.item);
-      mostrarAviso(`Pedido ${it.pedido} · ${it.material} → Finalizados (${fmtData(hoje)})`, r.item);
-    } catch (e) { mostrarAviso(erroDe(e, 'Não foi possível finalizar o item.')); }
+  // Move/finaliza UM OU VÁRIOS materiais. `quantidade` (só com 1 material) =
+  // PARCIAL: o servidor separa essa quantidade e só ela anda (igual ao Flange).
+  async function moverVarios(lista: ItemCald[], area: string, extra?: { sub_setor: string | null; obs: string }, quantidade?: number | null) {
+    const movidos: ItemCald[] = [];
+    let separou = false;
+    for (const it of lista) {
+      try {
+        const body = area === DESTINO_FINALIZADO ? { acao: 'finalizar' }
+          : area === 'aguardando' ? { acao: 'aguardando' } : { acao: 'mover', area, ...extra };
+        const r = await postIdempotente<{ item: ItemCald; separado?: number }>(`/api/cald-plano/${it.id}`,
+          lista.length === 1 && quantidade ? { ...body, quantidade } : body);
+        if (r.separado) separou = true; else atualizarItem(r.item);
+        movidos.push(r.item);
+      } catch { /* conta abaixo */ }
+    }
+    if (separou) await carregar(true);
+    setMarcados(v => { const n = new Set(v); lista.forEach(i => n.delete(i.id)); return n; });
+    const destino = area === DESTINO_FINALIZADO ? 'Finalizados' : area === 'aguardando' ? 'Chegando' : `${nomeArea(area)}${extra?.sub_setor ? ` › ${nomeSubsetor(extra.sub_setor)}` : ''}`;
+    const p = lista[0];
+    const oque = lista.length === 1
+      ? `${p.material}${quantidade && p.quantidade && quantidade < p.quantidade ? ` (parcial ${fmtQtd(quantidade, p.unidade)} de ${fmtQtd(p.quantidade, p.unidade)})` : ''}`
+      : `${movidos.length} materiais`;
+    if (!movidos.length) { mostrarAviso('Não foi possível mover.'); return; }
+    mostrarAviso(`Pedido ${p.pedido} · ${oque} → ${destino} (${fmtData(hoje)})${movidos.length < lista.length ? ` · ${lista.length - movidos.length} falharam` : ''}`, movidos);
   }
-
-  async function mover(it: ItemCald, area: string, extra?: { sub_setor: string | null; obs: string }) {
-    try {
-      const r = await postIdempotente<{ item: ItemCald }>(`/api/cald-plano/${it.id}`, area === 'aguardando' ? { acao: 'aguardando' } : { acao: 'mover', area, ...extra });
-      atualizarItem(r.item);
-      mostrarAviso(`Pedido ${it.pedido} · ${it.material} → ${area === 'aguardando' ? 'Chegando' : nomeArea(area)}${extra?.sub_setor ? ` › ${nomeSubsetor(extra.sub_setor)}` : ''} (entrada ${fmtData(hoje)})`, r.item);
-    } catch { mostrarAviso('Não foi possível mover o item.'); }
-  }
+  const finalizar = (lista: ItemCald[]) => moverVarios(lista, DESTINO_FINALIZADO);
   // Área com sub-setores → pergunta o setor (e observação pro Alan); sem → move direto.
-  function encaminhar(it: ItemCald, area: string) {
-    if ((SUBSETORES_CALD[area] || []).length) setEnc({ it, area, modo: 'mover' });
-    else mover(it, area);
+  function encaminhar(lista: ItemCald[], area: string) {
+    if ((SUBSETORES_CALD[area] || []).length) setEnc({ it: lista[0], lista, area, modo: 'mover' });
+    else moverVarios(lista, area);
   }
   async function confirmarEnc(e: Encaminhamento) {
     if (!enc) return;
     const { it, modo } = enc;
+    const lista = enc.lista || [it];
     setEnc(null);
-    if (e.area === DESTINO_FINALIZADO) return finalizar(it);
+    if (e.area === DESTINO_FINALIZADO) return moverVarios(lista, DESTINO_FINALIZADO, undefined, e.quantidade);
     // "Mover" pra um setor da MESMA área em que o item já está = só troca o setor.
-    const mesmaArea = it.status === 'andamento' && e.area === it.area_atual;
-    if (modo === 'mover' && !mesmaArea) return mover(it, e.area, { sub_setor: e.sub_setor, obs: e.obs });
+    const mesmaArea = lista.length === 1 && it.status === 'andamento' && e.area === it.area_atual;
+    if (modo === 'mover' && !mesmaArea) return moverVarios(lista.filter(x => !(x.status === 'andamento' && x.area_atual === e.area)), e.area, { sub_setor: e.sub_setor, obs: e.obs }, e.quantidade);
     try {
       const r = await postIdempotente<{ item: ItemCald }>(`/api/cald-plano/${it.id}`, { acao: 'subsetor', sub_setor: e.sub_setor, obs: e.obs });
       atualizarItem(r.item);
@@ -213,24 +235,27 @@ export default function CaldPlanoPage() {
     setItens(v => v.map(x => { const k = ids.indexOf(x.id); return k >= 0 ? { ...x, ordem: k + 1 } : x; }));
     try { await api.post('/api/cald-plano/ordem', { area: col, ids }); } catch { mostrarAviso('Não foi possível salvar a ordem.'); carregar(true); }
   }
-  function soltar(colCodigo: string, sobreId: number | null) {
-    const id = arrastando;
+  const colDe = (it: ItemCald) => it.status === 'novo' || it.status === 'aguardando' ? 'novo' : it.status === 'finalizado' ? DESTINO_FINALIZADO : it.area_atual;
+  // Solta o CARD DO PEDIDO (todos os materiais dele naquela coluna) em outra
+  // coluna = move tudo; na mesma coluna, sobre outro pedido = muda a ordem.
+  function soltar(colCodigo: string, sobrePedido: string | null) {
+    const ids = arrastando;
     setArrastando(null); setAlvoCol(null);
-    if (!id) return;
-    const it = itens.find(i => i.id === id);
-    if (!it) return;
-    if (colCodigo === 'novo') return;
-    const colAtual = it.status === 'novo' || it.status === 'aguardando' ? 'novo' : it.status === 'finalizado' ? DESTINO_FINALIZADO : it.area_atual;
+    if (!ids?.length) return;
+    const lista = itens.filter(i => ids.includes(i.id));
+    if (!lista.length || colCodigo === 'novo') return;
+    const colAtual = colDe(lista[0]);
     if (colCodigo === DESTINO_FINALIZADO) {
-      if (colAtual !== DESTINO_FINALIZADO) finalizar(it);
+      if (colAtual !== DESTINO_FINALIZADO) finalizar(lista);
       return;
     }
-    if (colAtual !== colCodigo) { encaminhar(it, colCodigo); return; }
-    if (sobreId === null || sobreId === id) return;
-    const lista = colunas.find(c => c.codigo === colCodigo)?.itens || [];
-    const ids = lista.map(i => i.id).filter(x => x !== id);
-    ids.splice(ids.indexOf(sobreId), 0, id);
-    salvarOrdem(colCodigo, ids);
+    if (colAtual !== colCodigo) { encaminhar(lista, colCodigo); return; }
+    if (!sobrePedido || sobrePedido === lista[0].pedido) return;
+    const naCol = colunas.find(c => c.codigo === colCodigo)?.itens || [];
+    const resto = naCol.filter(i => !ids.includes(i.id));
+    const k = resto.findIndex(i => i.pedido === sobrePedido);
+    const nova = [...resto.slice(0, k < 0 ? resto.length : k), ...lista, ...resto.slice(k < 0 ? resto.length : k)];
+    salvarOrdem(colCodigo, nova.map(i => i.id));
   }
 
   async function aplicarLote(body: { empresa?: string; prioridade?: string }, rotulo: string) {
@@ -406,9 +431,9 @@ export default function CaldPlanoPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <i className={`bi ${col.icon}`} style={{ color: col.cor }} />
                       <b style={{ fontSize: 13.5, color: C.texto }}>{col.nome}</b>
-                      <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 800, color: '#fff', background: col.itens.length ? col.cor : '#cbd5e1', borderRadius: 10, padding: '1px 9px' }}>{col.itens.length}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 800, color: '#fff', background: col.itens.length ? col.cor : '#cbd5e1', borderRadius: 10, padding: '1px 9px' }} title="Pedidos nesta coluna">{new Set(col.itens.map(i => i.pedido)).size}</span>
                     </div>
-                    <div style={{ fontSize: 11, color: C.cinza, marginTop: 3 }}>{col.itens.length ? somaPorUnidade(col.itens) : 'vazia'}</div>
+                    <div style={{ fontSize: 11, color: C.cinza, marginTop: 3 }}>{col.itens.length ? `${col.itens.length} ${col.itens.length === 1 ? 'material' : 'materiais'} · ${somaPorUnidade(col.itens)}` : 'vazia'}</div>
                     {verValores && somaValor(col.itens) !== null && <div style={{ fontSize: 11, color: '#065f46', fontWeight: 700 }}>{fmtBRL(somaValor(col.itens))}</div>}
                     {col.codigo === 'novo' && planeja && (
                       <button className="cp-btn sm pri" style={{ marginTop: 8, width: '100%', justifyContent: 'center' }} onMouseDown={e => e.stopPropagation()}
@@ -418,67 +443,109 @@ export default function CaldPlanoPage() {
                     )}
                   </div>
                   <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 7, overflowY: 'auto', minHeight: 60 }}>
-                    {col.itens.map((it, idx) => {
-                      const s = sit.get(it.id)!;
-                      const et = it.etapas.find(e => e.area === it.area_atual);
-                      const prio = PRIO[it.prioridade] || PRIO.normal;
+                    {/* UM CARD POR PEDIDO (pedido do usuário 28/09): os materiais do pedido
+                        que estão nesta coluna ficam dentro dele. Manda tudo de uma vez,
+                        só os marcados, ou um material — inclusive PARCIAL (parte da qtd). */}
+                    {agruparPorPedido(col.itens).map(({ pedido, lista }, idx) => {
+                      const p = lista[0];
                       const fin = col.codigo === DESTINO_FINALIZADO;
+                      const sits = lista.map(i => sit.get(i.id)!);
+                      const atrasado = sits.some(s => s.atrasado || s.areaAtrasada);
+                      const prioCod = lista.reduce((m, i) => ((PRIO_PESO[i.prioridade] ?? 2) < (PRIO_PESO[m] ?? 2) ? i.prioridade : m), 'normal');
+                      const prio = PRIO[prioCod] || PRIO.normal;
+                      const selNoCard = lista.filter(i => marcados.has(i.id));
+                      const proxComum = sits.every(s => s.proxima && s.proxima === sits[0].proxima) ? sits[0].proxima : null;
+                      const padrao = col.codigo !== 'novo' ? col.codigo : AREAS_CALD[0].codigo;
+                      const abrirEnc = (l: ItemCald[]) => setEnc({
+                        it: l[0], lista: l, modo: 'mover',
+                        area: fin ? '' : l.length === 1 ? sit.get(l[0].id)!.proxima || padrao : proxComum || padrao,
+                      });
+                      const total = somaValor(lista);
+                      const arrastandoEste = !!arrastando && lista.some(i => arrastando.includes(i.id));
                       return (
-                        <div key={it.id} className={`cp-card ${arrastando === it.id ? 'drag' : ''}`}
+                        <div key={pedido} className={`cp-card ${arrastandoEste ? 'drag' : ''}`}
                           draggable={planeja}
-                          onDragStart={() => setArrastando(it.id)}
+                          onDragStart={() => setArrastando(lista.map(i => i.id))}
                           onDragEnd={() => { setArrastando(null); setAlvoCol(null); }}
                           onDragOver={e => { if (planeja && arrastando && col.codigo !== 'novo') e.preventDefault(); }}
-                          onDrop={e => { e.preventDefault(); e.stopPropagation(); soltar(col.codigo, it.id); }}
-                          onClick={() => setAberto(it)}
-                          style={{ borderLeft: `4px solid ${s.atrasado || s.areaAtrasada ? C.vermelho : prio.cor}` }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          onDrop={e => { e.preventDefault(); e.stopPropagation(); soltar(col.codigo, pedido); }}
+                          onClick={() => { if (lista.length === 1) setAberto(p); }}
+                          style={{ borderLeft: `4px solid ${atrasado ? C.vermelho : prio.cor}`, cursor: lista.length === 1 ? 'pointer' : 'default' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                             <span style={{ fontSize: 10.5, fontWeight: 800, color: C.fraco }}>#{idx + 1}</span>
-                            <b style={{ color: C.azul, fontSize: 13 }}>{it.pedido}</b>
-                            <EmpresaTag empresa={it.empresa} />
-                            {it.prioridade !== 'normal' && <Chip cor="#fff" bg={prio.cor}>{prio.txt}</Chip>}
-                            {it.parcial && <Chip cor="#7c3aed" bg="#ede9fe">Parcial</Chip>}
+                            <b style={{ color: C.azul, fontSize: 13 }}>{pedido}</b>
+                            <EmpresaTag empresa={p.empresa} />
+                            {prioCod !== 'normal' && <Chip cor="#fff" bg={prio.cor}>{prio.txt}</Chip>}
                           </div>
-                          <div style={{ fontSize: 12.5, fontWeight: 600, color: C.texto, margin: '2px 0', lineHeight: 1.3 }}>{it.material}</div>
-                          <div style={{ fontSize: 11.5, color: C.cinza }}>{fmtQtd(it.quantidade, it.unidade)}{it.cliente ? ` · ${it.cliente}` : ''}</div>
-                          {verValores && it.valor !== null && <div style={{ fontSize: 11.5, color: '#065f46', fontWeight: 700 }}>{fmtBRL(it.valor)}</div>}
-                          {col.codigo !== 'novo' && subsetorValido(col.codigo, it.sub_setor) && (
-                            <div style={{ fontSize: 11.5, marginTop: 3 }}><b style={{ color: col.cor }}>{col.nome}</b> <span style={{ color: C.texto }}>› {nomeSubsetor(it.sub_setor)}</span></div>
-                          )}
-                          {it.recado && (
-                            <div style={{ marginTop: 4 }} title={`Recado pra área${it.recado.mensagem ? `: ${it.recado.mensagem}` : ''} (${it.recado.criado_por_nome || ''})`}>
-                              <Chip cor="#92400e" bg="#fef3c7"><i className="bi bi-person-check" />{it.recado.sub_setor && SUBSETORES_VERIFICAR_ALAN.has(it.recado.sub_setor) ? 'verificar com Alan' : 'recado p/ área'}</Chip>
-                            </div>
-                          )}
+                          <div style={{ fontSize: 11.5, color: C.cinza }}>
+                            {p.cliente || '—'} · <b style={{ color: C.texto }}>{lista.length}</b> {lista.length === 1 ? 'material' : 'materiais'}
+                            {verValores && total !== null && <> · <b style={{ color: '#065f46' }}>{fmtBRL(total)}</b></>}
+                          </div>
+                          <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {lista.map(it => {
+                              const s = sit.get(it.id)!;
+                              const et = it.etapas.find(e => e.area === it.area_atual);
+                              const on = marcados.has(it.id);
+                              return (
+                                <div key={it.id} onClick={e => { e.stopPropagation(); setAberto(it); }} title="Abrir o material"
+                                  style={{ display: 'flex', gap: 6, alignItems: 'flex-start', background: on ? '#eff6ff' : '#f8fafc', border: `1px solid ${on ? C.azul2 : '#e2e8f0'}`, borderRadius: 7, padding: '5px 6px', cursor: 'pointer' }}>
+                                  {planeja && lista.length > 1 && (
+                                    <input type="checkbox" checked={on} onClick={e => e.stopPropagation()} style={{ marginTop: 2 }}
+                                      onChange={e => { const marcar = e.target.checked; setMarcados(v => { const n = new Set(v); if (marcar) n.add(it.id); else n.delete(it.id); return n; }); }} />
+                                  )}
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 12, fontWeight: 600, color: C.texto, lineHeight: 1.25 }}>{it.material}</div>
+                                    <div style={{ fontSize: 11, color: C.cinza, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center', marginTop: 2 }}>
+                                      <span>{fmtQtd(it.quantidade, it.unidade)}</span>
+                                      {verValores && it.valor !== null && <span style={{ color: '#065f46', fontWeight: 700 }}>· {fmtBRL(it.valor)}</span>}
+                                      {it.parcial && <Chip cor="#7c3aed" bg="#ede9fe">Parcial</Chip>}
+                                      {fin
+                                        ? <Chip cor="#166534" bg="#dcfce7"><i className="bi bi-check2-all" />{fmtData(it.finalizado_em)}</Chip>
+                                        : s.diasNaArea !== null && <Chip cor={s.parado ? '#fff' : C.cinza} bg={s.parado ? C.roxo : '#f1f5f9'} title={`Entrou em ${fmtData(et?.entrada)}`}><i className="bi bi-clock" />{s.diasNaArea}d</Chip>}
+                                      {!fin && et?.previsao && <Chip cor={s.areaAtrasada ? '#fff' : '#1d4ed8'} bg={s.areaAtrasada ? C.vermelho : '#dbeafe'} title="Previsão de saída desta área">sai {fmtData(et.previsao)}</Chip>}
+                                      {!fin && it.prev_finalizacao && <Chip cor={s.atrasado ? '#fff' : s.venceLogo ? '#92400e' : '#166534'} bg={s.atrasado ? C.vermelho : s.venceLogo ? '#fef3c7' : '#dcfce7'} title="Previsão de finalização">fim {fmtData(it.prev_finalizacao)}</Chip>}
+                                      {s.terceiroVencido && <Chip cor="#fff" bg={C.vermelho}>retorno vencido</Chip>}
+                                    </div>
+                                    {col.codigo !== 'novo' && !fin && subsetorValido(col.codigo, it.sub_setor) && (
+                                      <div style={{ fontSize: 11, marginTop: 2 }}><b style={{ color: col.cor }}>{col.nome}</b> › {nomeSubsetor(it.sub_setor)}</div>
+                                    )}
+                                    {it.recado && (
+                                      <div style={{ marginTop: 3 }} title={`Recado pra área${it.recado.mensagem ? `: ${it.recado.mensagem}` : ''} (${it.recado.criado_por_nome || ''})`}>
+                                        <Chip cor="#92400e" bg="#fef3c7"><i className="bi bi-person-check" />{it.recado.sub_setor && SUBSETORES_VERIFICAR_ALAN.has(it.recado.sub_setor) ? 'verificar com Alan' : 'recado p/ área'}</Chip>
+                                      </div>
+                                    )}
+                                    {!fin && it.area_atual === 'industrializacao' && et?.fornecedor && (
+                                      <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}><i className="bi bi-truck" /> {et.fornecedor}{et.retorno_previsto ? ` · volta ${fmtData(et.retorno_previsto)}` : ''}</div>
+                                    )}
+                                  </div>
+                                  {planeja && lista.length > 1 && (
+                                    <button className="cp-btn sm" title="Mover só este material (dá pra mandar parte da quantidade)" style={{ padding: '2px 7px' }}
+                                      onClick={e => { e.stopPropagation(); abrirEnc([it]); }}><i className="bi bi-arrow-right" /></button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                           {col.codigo === 'novo' && (
-                            <div style={{ fontSize: 11, color: C.fraco, marginTop: 2 }}>
-                              {it.areas.map(nomeArea).join(' → ') || 'sem roteiro'}{it.criado_por_nome ? ` · lançado por ${it.criado_por_nome}` : ''}
+                            <div style={{ fontSize: 11, color: C.fraco, marginTop: 4 }}>
+                              {p.areas.map(nomeArea).join(' → ') || 'sem roteiro'}{p.criado_por_nome ? ` · lançado por ${p.criado_por_nome}` : ''}
                             </div>
                           )}
-                          {it.area_atual === 'industrializacao' && et?.fornecedor && (
-                            <div style={{ fontSize: 11.5, color: '#475569', marginTop: 2 }}><i className="bi bi-truck" /> {et.fornecedor}{et.retorno_previsto ? ` · volta ${fmtData(et.retorno_previsto)}` : ''}</div>
-                          )}
-                          {fin ? (
-                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
-                              <Chip cor="#166534" bg="#dcfce7"><i className="bi bi-check2-all" />finalizado {fmtData(it.finalizado_em)}</Chip>
-                              {it.area_atual && <Chip cor={C.cinza} bg="#f1f5f9">saiu de {nomeArea(it.area_atual)}</Chip>}
-                            </div>
-                          ) : <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
-                            {s.diasNaArea !== null && <Chip cor={s.parado ? '#fff' : C.cinza} bg={s.parado ? C.roxo : '#f1f5f9'} title={`Entrou em ${fmtData(et?.entrada)}`}><i className="bi bi-clock" />{s.diasNaArea}d aqui</Chip>}
-                            {et?.previsao && <Chip cor={s.areaAtrasada ? '#fff' : '#1d4ed8'} bg={s.areaAtrasada ? C.vermelho : '#dbeafe'} title="Previsão de saída desta área">sai {fmtData(et.previsao)}</Chip>}
-                            {it.prev_finalizacao && <Chip cor={s.atrasado ? '#fff' : s.venceLogo ? '#92400e' : '#166534'} bg={s.atrasado ? C.vermelho : s.venceLogo ? '#fef3c7' : '#dcfce7'} title="Previsão de finalização">fim {fmtData(it.prev_finalizacao)}</Chip>}
-                            {s.terceiroVencido && <Chip cor="#fff" bg={C.vermelho}>retorno vencido</Chip>}
-                          </div>}
                           {planeja && (
-                            <div style={{ marginTop: 7 }} onClick={e => e.stopPropagation()}>
-                              {/* Card só com "Mover" (pedido do usuário 25/09): área/setor na
-                                  lista, sem arrastar. Ordem na fila = arrastar; finalizar e
-                                  demais ações ficam no detalhe (clique no card). */}
-                              <button className="cp-btn sm pri" style={{ width: '100%', justifyContent: 'center' }}
-                                title="Mover pra outra área ou setor — escolhe na lista"
-                                onClick={() => setEnc({ it, area: fin ? '' : s.proxima || (col.codigo !== 'novo' ? col.codigo : AREAS_CALD[0].codigo), modo: 'mover' })}>
-                                <i className="bi bi-arrow-left-right" />{fin ? 'Voltar pra produção' : `Mover${s.proxima ? ` (próx.: ${nomeArea(s.proxima)})` : ''}`}
+                            <div style={{ marginTop: 7, display: 'flex', gap: 5 }} onClick={e => e.stopPropagation()}>
+                              <button className="cp-btn sm pri" style={{ flex: 1, justifyContent: 'center' }}
+                                title={lista.length === 1 ? 'Mover pra outra área ou setor (dá pra mandar parte da quantidade)' : 'Mover TODOS os materiais deste pedido que estão nesta coluna'}
+                                onClick={() => abrirEnc(lista)}>
+                                <i className="bi bi-arrow-left-right" />
+                                {fin ? (lista.length === 1 ? 'Voltar pra produção' : `Voltar tudo (${lista.length})`)
+                                  : lista.length === 1 ? `Mover${sits[0].proxima ? ` (próx.: ${nomeArea(sits[0].proxima)})` : ''}` : `Mover tudo (${lista.length})`}
                               </button>
+                              {lista.length > 1 && (
+                                <button className="cp-btn sm" disabled={!selNoCard.length} style={{ flex: 1, justifyContent: 'center' }}
+                                  title="Mover só os materiais marcados" onClick={() => abrirEnc(selNoCard)}>
+                                  <i className="bi bi-check2-square" />Marcados ({selNoCard.length})
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -488,7 +555,7 @@ export default function CaldPlanoPage() {
                 </div>
               ))}
             </div>
-            {planeja && <div style={{ fontSize: 11.5, color: C.fraco, marginTop: 4 }}><i className="bi bi-info-circle" /> Arraste um <b>card</b> pra outra coluna pra registrar a entrada hoje, ou dentro da coluna pra mudar a ordem (pra outra data, abra o card). Arraste o <b>fundo</b> do painel pro lado pra ver as outras áreas.</div>}
+            {planeja && <div style={{ fontSize: 11.5, color: C.fraco, marginTop: 4 }}><i className="bi bi-info-circle" /> Cada <b>card é um pedido</b>: arraste pra outra coluna pra mandar todos os materiais dele (entrada hoje), ou use <b>Mover tudo</b> / <b>Marcados</b> / a setinha de um material — ali dá pra mandar só <b>parte da quantidade</b> (parcial). Arraste dentro da coluna pra mudar a ordem. Arraste o <b>fundo</b> do painel pro lado pra ver as outras áreas.</div>}
           </>
         ) : (
           <>
@@ -610,7 +677,7 @@ export default function CaldPlanoPage() {
         )}
       </div>
 
-      {enc && <EncaminharModal item={enc.it} area={enc.area} modo={enc.modo} onConfirmar={confirmarEnc} onFechar={() => setEnc(null)} />}
+      {enc && <EncaminharModal item={enc.it} lista={enc.lista} area={enc.area} modo={enc.modo} onConfirmar={confirmarEnc} onFechar={() => setEnc(null)} />}
       {lancar && (
         <LancarModal vendedores={vendedores} clientes={clientes} verValores={verValores}
           onFechar={() => setLancar(false)}
@@ -627,7 +694,9 @@ export default function CaldPlanoPage() {
       {aberto && (
         <ItemDetalhe key={aberto.id} item={aberto}
           irmaos={itens.filter(x => x.pedido === aberto.pedido && x.id !== aberto.id && x.status !== 'cancelado')} podePlanejar={planeja} verValores={verValores}
-          onFechar={() => setAberto(null)} onAtualizado={atualizarItem} />
+          onFechar={() => setAberto(null)}
+          // Outro id = o detalhe separou ou juntou uma parcial → recarrega a lista toda.
+          onAtualizado={it => { if (aberto && it.id !== aberto.id) carregar(true); else atualizarItem(it); }} />
       )}
     </AuthGuard>
   );
