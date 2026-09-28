@@ -136,9 +136,24 @@ export default function ImprimirModal({ itens, verValores, onFechar }: { itens: 
       .map(([k, l]) => linhaTot(k, l)).join('');
     const porVen = Array.from(agrupa(geral, i => i.vendedor || 'Sem vendedor').entries()).sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
       .map(([k, l]) => linhaTot(k, l)).join('');
+    // UM vendedor só → destaque com o VALOR TOTAL dele (do relatório e geral).
+    const nomeVend = vend === '__sem' ? 'Sem vendedor' : vend;
+    const doVend = vend ? geral.filter(i => (vend === '__sem' ? !i.vendedor : i.vendedor === vend)) : [];
+    const destaqueVend = vend && verValores ? `
+        <div style="border:2px solid #16a34a;background:#f0fdf4;border-radius:10px;padding:12px 16px;margin:8px 0 12px">
+          <div style="font-size:12px;color:#166534;font-weight:700;text-transform:uppercase;letter-spacing:.4px">👤 Vendedor: ${esc(nomeVend)}</div>
+          <div style="font-size:26px;font-weight:800;color:#166534;margin:2px 0">${fmtBRL(soma(selecionados))}</div>
+          <div style="font-size:12px;color:#334155">valor total deste relatório · ${nPeds(selecionados)} pedido(s) · ${selecionados.length} material(is)</div>
+          <div style="font-size:12.5px;color:#334155;margin-top:6px">
+            Geral do vendedor (todas as situações): <b>${fmtBRL(soma(doVend))}</b> · ${nPeds(doVend)} pedido(s)
+            — em aberto <b>${fmtBRL(soma(doVend.filter(i => i.status !== 'finalizado')))}</b>
+            · finalizados <b>${fmtBRL(soma(doVend.filter(i => i.status === 'finalizado')))}</b>
+          </div>
+        </div>` : '';
     const totais = `
       <div style="page-break-before:auto;margin-top:26px;border-top:3px solid #1a3a5c;padding-top:10px">
         <h2 style="font-size:17px">📊 Totais</h2>
+        ${destaqueVend}
         ${tabelaTot('Deste relatório (filtros escolhidos)', linhaTot('Total impresso', selecionados, true))}
         <h2 style="font-size:15px;margin-top:16px">Totais gerais da Caldeiraria <span style="font-weight:400;font-size:12px;color:#64748b">— todas as situações, empresas e vendedores (sem filtro · cancelados fora)</span></h2>
         ${tabelaTot('Resumo', linhaTot('Em aberto (em produção + a planejar)', abertos, true) + linhaTot('Finalizados', geral.filter(i => i.status === 'finalizado')) + linhaTot('TOTAL GERAL', geral, true))}
@@ -170,6 +185,7 @@ export default function ImprimirModal({ itens, verValores, onFechar }: { itens: 
       rodape={<>
         <span style={{ fontSize: 12.5, color: C.cinza, marginRight: 'auto', alignSelf: 'center' }}>
           {new Set(selecionados.map(i => i.pedido)).size} pedido(s) · {selecionados.length} material(is)
+          {vend && verValores && <> · <b style={{ color: C.verde }}>{fmtBRL(soma(selecionados))}</b></>}
         </span>
         <button className="cp-btn" onClick={onFechar}>Cancelar</button>
         <button className="cp-btn pri" onClick={imprimir} disabled={!selecionados.length}><i className="bi bi-printer" />Imprimir</button>
