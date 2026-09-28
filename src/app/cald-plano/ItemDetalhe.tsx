@@ -8,6 +8,7 @@ import {
 } from '@/lib/caldPlano';
 import { C, Modal, Campo, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, erroDe, SeletorEmpresa, CampoValor, calcTotal, calcUnit, qtdNum } from './comum';
 
+const DESTINO_FIN = '__finalizado';   // = DESTINO_FINALIZADO do EncaminharModal
 interface Hist { id: number; acao: string; detalhe: string | null; usuario_nome: string | null; criado_em: string }
 
 export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, verValores, onFechar, onAtualizado }: {
@@ -180,6 +181,18 @@ export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, 
                     </button>
                   );
                 })}
+                {/* Finalizados também é destino (material pronto → sai do painel de produção). */}
+                <button type="button" disabled={salvando} onClick={() => { setDestino(DESTINO_FIN); setSubDest(null); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, textAlign: 'left', cursor: 'pointer',
+                    border: destino === DESTINO_FIN ? `2px solid ${C.verde}` : `1px solid ${C.borda}`, background: destino === DESTINO_FIN ? '#16a34a14' : '#fff',
+                  }}>
+                  <i className="bi bi-check2-all" style={{ color: C.verde, fontSize: 15 }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: 12.5, fontWeight: 800, color: C.texto }}>Finalizados</span>
+                    <span style={{ display: 'block', fontSize: 10.5, color: C.fraco }}>material pronto</span>
+                  </span>
+                </button>
               </div>
               {destino && (SUBSETORES_CALD[destino] || []).length > 0 && (
                 <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
@@ -201,15 +214,21 @@ export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, 
                   <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: 6 }} /><b>{nomeSubsetor(subDest)}</b> é conferida pelo <b>Alan</b> — verifique com ele. Vai um recado pra Conferência dele.
                 </div>
               )}
-              {destino && (
+              {destino && destino !== DESTINO_FIN && (
                 <input className="cp-in" style={{ marginTop: 8 }} value={obsDest} onChange={e => setObsDest(e.target.value)} maxLength={1000}
                   placeholder="Observação pra área (opcional — se preencher, vira recado pra quem é do setor)" />
               )}
             </div>
             <input type="date" className="cp-in" style={{ width: 150 }} value={dataAcao} onChange={e => setDataAcao(e.target.value)} title="Data de entrada na área / da ação" />
-            <button className="cp-btn pri" disabled={!destino || salvando} onClick={() => { acao('mover', { area: destino, data: dataAcao, sub_setor: subDest, obs: obsDest }); setObsDest(''); }}>
-              <i className="bi bi-box-arrow-in-right" />Entrou em {destino ? `${nomeArea(destino)}${subDest ? ` › ${nomeSubsetor(subDest)}` : ''}` : '… (escolha a área)'}
-            </button>
+            {destino === DESTINO_FIN ? (
+              <button className="cp-btn ok" disabled={salvando} onClick={() => acao('finalizar', { data: dataAcao })}>
+                <i className="bi bi-check2-all" />Mandar pra Finalizados
+              </button>
+            ) : (
+              <button className="cp-btn pri" disabled={!destino || salvando} onClick={() => { acao('mover', { area: destino, data: dataAcao, sub_setor: subDest, obs: obsDest }); setObsDest(''); }}>
+                <i className="bi bi-box-arrow-in-right" />Entrou em {destino ? `${nomeArea(destino)}${subDest ? ` › ${nomeSubsetor(subDest)}` : ''}` : '… (escolha a área)'}
+              </button>
+            )}
             <button className="cp-btn ok" disabled={salvando} onClick={() => { if (confirm(`Finalizar o item "${item.material}" do pedido ${item.pedido}?
 
 Ele sai do painel e vai pra lista de Finalizados.`)) acao('finalizar', { data: dataAcao }); }}><i className="bi bi-check2-all" />Finalizar</button>

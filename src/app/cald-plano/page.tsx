@@ -421,6 +421,10 @@ export default function CaldPlanoPage() {
           <>
             {/* Colunas por área — arraste o fundo pro lado, ou use as setas */}
             <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginBottom: 6 }}>
+              <button className="cp-btn sm ok" title="Ir pra coluna Finalizados (fim do painel)"
+                onClick={() => quadroRef.current?.scrollTo({ left: quadroRef.current.scrollWidth, behavior: 'smooth' })}>
+                <i className="bi bi-check2-all" />Finalizados ({colunas.find(c => c.codigo === DESTINO_FINALIZADO)?.itens.length || 0})
+              </button>
               <button className="cp-btn sm" onClick={() => rolar(-520)} title="Ver colunas à esquerda"><i className="bi bi-chevron-left" /></button>
               <button className="cp-btn sm" onClick={() => rolar(520)} title="Ver colunas à direita"><i className="bi bi-chevron-right" /></button>
             </div>
