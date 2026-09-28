@@ -139,6 +139,20 @@ export default function AnalisePage() {
   const hoje = new Date();
   const [de, setDe] = useState(iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)));
   const [ate, setAte] = useState(iso(hoje));
+  // MÁQUINAS PARADAS (quebrada/manutenção — registradas no /planejamento, M59),
+  // no período de/até. Ver /api/analise/maquinas-paradas.
+  interface ParadaMaqAn { id: number; maquina: string; motivo: string; desde: string; liberada_em: string | null; criado_por_nome: string | null; liberada_por_nome: string | null; previsao_retorno: string | null; aberta: boolean; horas: number; horas_jornada: number }
+  const [paradasAn, setParadasAn] = useState<{
+    agora: { id: number; maquina: string; motivo: string; desde: string; previsao_retorno: string | null; criado_por_nome: string | null; horas: number }[];
+    por_maquina: { maquina: string; paradas: number; horas: number; horas_jornada: number; ultimo_motivo: string; parada_agora: boolean }[];
+    lista: ParadaMaqAn[];
+    totais: { paradas: number; maquinas: number; horas: number; horas_jornada: number; paradas_agora: number };
+  } | null>(null);
+  useEffect(() => {
+    const q = new URLSearchParams({ de, ate });
+    fetch(`/api/analise/maquinas-paradas?${q}`, { headers: { Authorization: `Bearer ${getToken() || ''}` } })
+      .then(r => (r.ok ? r.json() : null)).then(d => { if (d) setParadasAn(d); }).catch(() => {});
+  }, [de, ate]);
   const setores: string[] = []; // filtro de setores removido — Análise sempre considera todos
   const [dados, setDados] = useState<Dados | null>(null);
   const [loading, setLoading] = useState(false);
@@ -443,6 +457,8 @@ export default function AnalisePage() {
                 {tile('Tendência (mês a mês)', cres == null ? '—' : `${cres >= 0 ? '+' : ''}${fmt(cres, 1)}%`, corCres, 'produção/dia')}
                 {tile('Em processo (WIP)', diag.wip?.pct_wip != null ? `${fmt(diag.wip.pct_wip, 1)}%` : '—', C.laranja, `${fmt(diag.wip?.un_wip)} de ${fmt(diag.wip?.un_total)} un`)}
                 {tile('Máquina líder', diag.maquina_lider?.maquina || '—', C.roxo, diag.maquina_lider ? `ciclo mediano ${fmt(diag.maquina_lider.ciclo_mediano_h, 2)} h · ${diag.maquina_lider.ciclos} ciclos` : undefined)}
+                {paradasAn && tile('Máquinas paradas', String(paradasAn.totais.paradas_agora), paradasAn.totais.paradas_agora ? C.vermelho : '#16a34a',
+                  paradasAn.totais.paradas_agora ? paradasAn.agora.map(a => a.maquina).join(', ') : `${paradasAn.totais.paradas} parada(s) no período`)}
                 {/* Demanda × produção — só quando a meta está cadastrada. */}
                 {diag.demanda?.necessidade_dia != null && (
                   tile('Necessidade', `${fmt(diag.demanda.necessidade_dia, 1)} un/dia`, C.azul,
@@ -1038,6 +1054,77 @@ export default function AnalisePage() {
           </>)}
 
           {aba === 'maquina' && (<>
+          {/* ── MÁQUINAS PARADAS (quebrada / manutenção) — período selecionado ── */}
+          <SectionTitle icon="bi-tools" t="Máquinas paradas" s="Quebradas / em manutenção — registradas pelo Planejamento, no período selecionado" />
+          <div className="card" style={{ marginBottom: 24 }}>
+            {!paradasAn ? <Vazio /> : (() => {
+              const t = paradasAn.totais;
+              const hDia = (h: number) => (h >= 24 ? `${fmt(h / 24, 1)} dias` : `${fmt(h, 1)} h`);
+              const kpi = (rot: string, val: string, cor: string, sub?: string) => (
+                <div style={{ flex: '1 1 160px', border: `1.5px solid ${cor}33`, borderLeft: `4px solid ${cor}`, borderRadius: 10, padding: '10px 12px', background: '#fff' }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: .4 }}>{rot}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: cor, lineHeight: 1.2 }}>{val}</div>
+                  {sub && <div style={{ fontSize: 11, color: '#94a3b8' }}>{sub}</div>}
+                </div>
+              );
+              return (<>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+                  {kpi('Paradas agora', String(t.paradas_agora), t.paradas_agora ? C.vermelho : '#16a34a', t.paradas_agora ? 'sem poder produzir' : 'todas funcionando')}
+                  {kpi('Paradas no período', String(t.paradas), C.laranja, `${t.maquinas} máquina(s)`)}
+                  {kpi('Tempo parado', hDia(t.horas), C.roxo, 'corrido (24h/dia)')}
+                  {kpi('Jornada perdida', `${fmt(t.horas_jornada, 1)} h`, C.azul, 'pelas horas/dia e dias/semana dos Parâmetros')}
+                </div>
+                {paradasAn.agora.length > 0 && (
+                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '8px 12px', marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#991b1b', textTransform: 'uppercase', letterSpacing: .4, marginBottom: 4 }}>Paradas agora</div>
+                    {paradasAn.agora.map(a => (
+                      <div key={a.id} style={{ fontSize: 13, color: '#334155', padding: '3px 0' }}>
+                        <b style={{ color: C.vermelho }}>{a.maquina}</b> — {a.motivo}
+                        <span style={{ color: '#94a3b8', fontSize: 12 }}> · há {hDia(a.horas)}{a.previsao_retorno ? ` · previsão ${fmtDataBR(a.previsao_retorno)}` : ''}{a.criado_por_nome ? ` · ${a.criado_por_nome}` : ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {paradasAn.por_maquina.length === 0 ? (
+                  <p style={{ color: '#94a3b8', fontSize: 13, margin: 0 }}>Nenhuma máquina parada no período. 👍</p>
+                ) : (<>
+                  <div style={cardTitle}>Por máquina</div>
+                  <div style={{ overflowX: 'auto', marginBottom: 14 }}>
+                    <table style={tbl}><thead><tr>
+                      <th style={th}>Máquina</th><th style={th}>Paradas</th><th style={th}>Tempo parado</th><th style={th}>Jornada perdida</th><th style={th}>Último motivo</th>
+                    </tr></thead><tbody>
+                      {paradasAn.por_maquina.map(m => (
+                        <tr key={m.maquina}>
+                          <td style={td}><b>{m.maquina}</b>{m.parada_agora && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, color: '#fff', background: C.vermelho, borderRadius: 8, padding: '1px 7px' }}>PARADA</span>}</td>
+                          <td style={td}>{m.paradas}</td>
+                          <td style={td}>{hDia(m.horas)}</td>
+                          <td style={td}>{fmt(m.horas_jornada, 1)} h</td>
+                          <td style={td}>{m.ultimo_motivo}</td>
+                        </tr>
+                      ))}
+                    </tbody></table>
+                  </div>
+                  <div style={cardTitle}>Todas as paradas do período</div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={tbl}><thead><tr>
+                      <th style={th}>Máquina</th><th style={th}>Motivo</th><th style={th}>Desde</th><th style={th}>Voltou</th><th style={th}>No período</th>
+                    </tr></thead><tbody>
+                      {paradasAn.lista.map(l => (
+                        <tr key={l.id}>
+                          <td style={td}><b>{l.maquina}</b></td>
+                          <td style={td}>{l.motivo}{l.criado_por_nome ? <span style={{ color: '#94a3b8', fontSize: 11.5 }}> · {l.criado_por_nome}</span> : null}</td>
+                          <td style={td}>{fmtDataHoraBR(l.desde)}</td>
+                          <td style={td}>{l.liberada_em ? `${fmtDataHoraBR(l.liberada_em)}${l.liberada_por_nome ? ` · ${l.liberada_por_nome}` : ''}` : <b style={{ color: C.vermelho }}>ainda parada</b>}</td>
+                          <td style={td}>{hDia(l.horas)}</td>
+                        </tr>
+                      ))}
+                    </tbody></table>
+                  </div>
+                </>)}
+              </>);
+            })()}
+          </div>
+
           {/* Catálogo de máquinas com foto */}
           <SectionTitle icon="bi-images" t="Máquinas" s="Usinagem/Furação — clique na máquina para ver o resumo de produção" />
           <div className="card" style={{ marginBottom: 24 }}>
@@ -1467,6 +1554,8 @@ function MiniKpi({ v, l }: { v: string; l: string }) {
     <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{l}</div>
   </div>;
 }
+const fmtDataBR = (d: string | null | undefined) => (d ? String(d).slice(0, 10).split('-').reverse().join('/') : '—');
+const fmtDataHoraBR = (d: string | null | undefined) => (d ? new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 function Vazio() { return <p style={{ color: '#cbd5e1', fontSize: 13, textAlign: 'center', padding: 16, margin: 0 }}>Sem dados no período/setor.</p>; }
 function barras(data: { label: string; value: number; hi: boolean; key?: string }[], cor = '#1d4ed8', onBar?: (d: { label: string; key?: string }) => void) {
   const mx = Math.max(1, ...data.map(d => d.value));
