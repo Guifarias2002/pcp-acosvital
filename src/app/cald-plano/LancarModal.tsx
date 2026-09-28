@@ -2,7 +2,7 @@
 import { useRef, useState } from 'react';
 import { postIdempotente } from '@/lib/api';
 import { AREAS_CALD, UNIDADES_CALD, PRIORIDADES_CALD } from '@/lib/caldPlano';
-import { C, Modal, Campo, PRIO, erroDe, SeletorEmpresa, CampoValor, calcTotal, calcUnit, qtdNum } from './comum';
+import { C, Modal, Campo, PRIO, erroDe, SeletorEmpresa, CampoValor, calcTotal, calcUnit, qtdNum, fmtBRL } from './comum';
 
 // Roteiro sugerido pra um item novo (o planejador ajusta depois).
 const ROTEIRO_PADRAO = ['corte', 'montagem', 'solda', 'acabamento', 'inspecao'];
@@ -86,6 +86,10 @@ export default function LancarModal({ onFechar, onLancado, vendedores, clientes,
     }
   }
 
+  const preenchidos = itens.filter(i => i.material.trim());
+  const nItens = preenchidos.length;
+  const totalPedido = preenchidos.reduce((s, i) => s + (i.valor ?? 0), 0);
+
   const alterar = (i: number, p: Partial<ItemForm>) => setItens(v => v.map((it, k) => (k === i ? { ...it, ...p } : it)));
   const toggleArea = (i: number, a: string) =>
     alterar(i, { areas: itens[i].areas.includes(a) ? itens[i].areas.filter(x => x !== a) : [...itens[i].areas, a] });
@@ -131,7 +135,7 @@ export default function LancarModal({ onFechar, onLancado, vendedores, clientes,
       <datalist id="cp-clientes">{clientes.map(v => <option key={v} value={v} />)}</datalist>
 
       <p style={{ margin: '0 0 12px', fontSize: 12.5, color: C.cinza }}>
-        O pedido cai na caixa <b>&quot;Novos — aguardando planejamento&quot;</b> do coordenador da Caldeiraria, que define a ordem, as previsões e acompanha área por área.
+        O pedido cai na coluna <b>&quot;Início — A planejar&quot;</b> do painel, onde o coordenador da Caldeiraria define a ordem, as previsões e manda pras áreas.
       </p>
 
       <div style={{ marginBottom: 12 }}>
@@ -155,7 +159,15 @@ export default function LancarModal({ onFechar, onLancado, vendedores, clientes,
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '16px 0 8px' }}>
-        <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, textTransform: 'uppercase', letterSpacing: .3 }}>Itens</div>
+        <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, textTransform: 'uppercase', letterSpacing: .3 }}>
+          Itens
+          {nItens > 0 && (
+            <span style={{ marginLeft: 8, textTransform: 'none', letterSpacing: 0, fontSize: 12.5, color: C.texto }}>
+              · <b>{nItens}</b> {nItens === 1 ? 'item' : 'itens'}
+              {verValores && totalPedido > 0 && <> · total <b style={{ color: C.verde }}>{fmtBRL(totalPedido)}</b></>}
+            </span>
+          )}
+        </div>
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={importarExcel} style={{ display: 'none' }} />
         <button type="button" onClick={() => fileInputRef.current?.click()} disabled={importando}
           title="Planilha no modelo do Flange: dados a partir da linha 4 — A código, B descrição, C qtd, F valor unitário"

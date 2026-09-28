@@ -8,11 +8,12 @@ import {
   AREAS_CALD, EMPRESAS_CALD, valorUnitario, PRIORIDADES_CALD, situacaoItem, pendenciasItem, passaEmpresa, nomeEmpresa, hojeISO, fmtData, inicioSemana, somarDias, DIAS_PARADO,
   SUBSETORES_CALD, SUBSETORES_VERIFICAR_ALAN, nomeSubsetor, subsetorValido, type ItemCald,
 } from '@/lib/caldPlano';
-import { C, CSS, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, fmtBRL, somaPorUnidade, somaValor, EmpresaTag, FiltroEmpresa } from './comum';
+import { C, CSS, Chip, PRIO, STATUS_TXT, nomeArea, fmtQtd, fmtBRL, somaPorUnidade, somaValor, EmpresaTag, FiltroEmpresa, erroDe } from './comum';
 import LancarModal from './LancarModal';
-import EncaminharModal, { type Encaminhamento } from './EncaminharModal';
+import EncaminharModal, { type Encaminhamento, DESTINO_FINALIZADO } from './EncaminharModal';
 import ItemDetalhe from './ItemDetalhe';
 import ImportarModal from './ImportarModal';
+import ImprimirModal from './ImprimirModal';
 import CaixaPendencias from './CaixaPendencias';
 
 // Planejamento da Caldeiraria — tela do coordenador ("o Reginaldo da
@@ -38,6 +39,7 @@ export default function CaldPlanoPage() {
   const [statusLista, setStatusLista] = useState<'ativos' | 'finalizado' | 'cancelado' | 'todos'>('ativos');
   const [lancar, setLancar] = useState(false);
   const [importar, setImportar] = useState(false);
+  const [imprimir, setImprimir] = useState(false);
   const [caixa, setCaixa] = useState(false);
   // Seleção em massa na Lista (definir empresa / prioridade de vários de uma vez).
   const [sel, setSel] = useState<Set<number>>(new Set());
@@ -90,7 +92,22 @@ export default function CaldPlanoPage() {
   }, []);
   useEffect(() => { if (ok) carregar(); }, [ok, carregar]);
 
-  const mostrarAviso = (t: string) => { setAviso(t); setTimeout(() => setAviso(''), 4000); };
+  // Aviso no rodapé. Depois de mover, leva o botão "Desfazer" (fica 10s).
+  const [avisoDesfazer, setAvisoDesfazer] = useState<ItemCald | null>(null);
+  const avisoTimer = useRef<ReturnType<typeof setTimeout>>();
+  const mostrarAviso = (t: string, desfazer: ItemCald | null = null) => {
+    setAviso(t); setAvisoDesfazer(desfazer);
+    clearTimeout(avisoTimer.current);
+    avisoTimer.current = setTimeout(() => { setAviso(''); setAvisoDesfazer(null); }, desfazer ? 10000 : 4000);
+  };
+  async function desfazerMov(it: ItemCald) {
+    setAviso(''); setAvisoDesfazer(null);
+    try {
+      const r = await postIdempotente<{ item: ItemCald }>(`/api/cald-plano/${it.id}`, { acao: 'desfazer' });
+      atualizarItem(r.item);
+      mostrarAviso(`Desfeito — pedido ${it.pedido} · ${it.material} voltou.`);
+    } catch (e) { mostrarAviso(erroDe(e, 'Não foi possível desfazer.')); }
+  }
   const atualizarItem = (it: ItemCald) => setItens(v => v.map(x => (x.id === it.id ? it : x)));
 
   const hoje = hojeISO();
@@ -149,15 +166,28 @@ export default function CaldPlanoPage() {
       // sumir). Daqui ele arrasta pra qualquer área. Não recebe drop.
       { codigo: 'novo', nome: 'Início — A planejar', icon: 'bi-inbox-fill', cor: '#d97706', itens: vis.filter(i => i.status === 'novo' || i.status === 'aguardando').sort((a, b) => a.id - b.id) },
       ...AREAS_CALD.map(a => ({ ...a, itens: vis.filter(i => i.status === 'andamento' && i.area_atual === a.codigo).sort(ordenar) })),
+      // Finalizados (últimos 30 dias) — destino final dos materiais. Recebe drop
+      // (= Finalizar); dali o "Mover" devolve pra uma área, se foi engano.
+      { codigo: DESTINO_FINALIZADO, nome: 'Finalizados', icon: 'bi-check2-all', cor: C.verde,
+        itens: itens.filter(i => i.status === 'finalizado' && (i.finalizado_em || '') >= somarDias(hoje, -30) && passaFiltro(i))
+          .sort((a, b) => (b.finalizado_em || '').localeCompare(a.finalizado_em || '') || b.id - a.id) },
     ];
     return cols;
-  }, [ativos, passaFiltro]);
+  }, [ativos, itens, hoje, passaFiltro]);
+
+  async function finalizar(it: ItemCald) {
+    try {
+      const r = await postIdempotente<{ item: ItemCald }>(`/api/cald-plano/${it.id}`, { acao: 'finalizar' });
+      atualizarItem(r.item);
+      mostrarAviso(`Pedido ${it.pedido} · ${it.material} → Finalizados (${fmtData(hoje)})`, r.item);
+    } catch (e) { mostrarAviso(erroDe(e, 'Não foi possível finalizar o item.')); }
+  }
 
   async function mover(it: ItemCald, area: string, extra?: { sub_setor: string | null; obs: string }) {
     try {
       const r = await postIdempotente<{ item: ItemCald }>(`/api/cald-plano/${it.id}`, area === 'aguardando' ? { acao: 'aguardando' } : { acao: 'mover', area, ...extra });
       atualizarItem(r.item);
-      mostrarAviso(`Pedido ${it.pedido} · ${it.material} → ${area === 'aguardando' ? 'Chegando' : nomeArea(area)}${extra?.sub_setor ? ` › ${nomeSubsetor(extra.sub_setor)}` : ''} (entrada ${fmtData(hoje)})`);
+      mostrarAviso(`Pedido ${it.pedido} · ${it.material} → ${area === 'aguardando' ? 'Chegando' : nomeArea(area)}${extra?.sub_setor ? ` › ${nomeSubsetor(extra.sub_setor)}` : ''} (entrada ${fmtData(hoje)})`, r.item);
     } catch { mostrarAviso('Não foi possível mover o item.'); }
   }
   // Área com sub-setores → pergunta o setor (e observação pro Alan); sem → move direto.
@@ -169,6 +199,7 @@ export default function CaldPlanoPage() {
     if (!enc) return;
     const { it, modo } = enc;
     setEnc(null);
+    if (e.area === DESTINO_FINALIZADO) return finalizar(it);
     // "Mover" pra um setor da MESMA área em que o item já está = só troca o setor.
     const mesmaArea = it.status === 'andamento' && e.area === it.area_atual;
     if (modo === 'mover' && !mesmaArea) return mover(it, e.area, { sub_setor: e.sub_setor, obs: e.obs });
@@ -189,7 +220,11 @@ export default function CaldPlanoPage() {
     const it = itens.find(i => i.id === id);
     if (!it) return;
     if (colCodigo === 'novo') return;
-    const colAtual = it.status === 'novo' || it.status === 'aguardando' ? 'novo' : it.area_atual;
+    const colAtual = it.status === 'novo' || it.status === 'aguardando' ? 'novo' : it.status === 'finalizado' ? DESTINO_FINALIZADO : it.area_atual;
+    if (colCodigo === DESTINO_FINALIZADO) {
+      if (colAtual !== DESTINO_FINALIZADO) finalizar(it);
+      return;
+    }
     if (colAtual !== colCodigo) { encaminhar(it, colCodigo); return; }
     if (sobreId === null || sobreId === id) return;
     const lista = colunas.find(c => c.codigo === colCodigo)?.itens || [];
@@ -302,6 +337,7 @@ export default function CaldPlanoPage() {
               <i className="bi bi-inbox-fill" />Pendências{nPend ? ` (${nPend})` : ''}
             </button>
             <a href="/analise?fabrica=caldeiraria" className="cp-btn" style={{ textDecoration: 'none' }}><i className="bi bi-graph-up-arrow" />Relatório semanal</a>
+            <button className="cp-btn" onClick={() => setImprimir(true)} title="Imprimir todos os pedidos, um pedido ou os materiais por área"><i className="bi bi-printer" />Imprimir</button>
             {planeja && <button className="cp-btn" onClick={() => setImportar(true)}><i className="bi bi-file-earmark-arrow-up" />Importar planilha</button>}
             <button className="cp-btn" onClick={() => carregar()} disabled={carregando}><i className="bi bi-arrow-clockwise" />{carregando ? 'Atualizando…' : 'Atualizar'}</button>
             {planeja
@@ -310,7 +346,14 @@ export default function CaldPlanoPage() {
           </div>
         </div>
 
-        {aviso && <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: C.azul, color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, zIndex: 1100, boxShadow: '0 8px 24px rgba(0,0,0,.25)', maxWidth: '92vw' }}>{aviso}</div>}
+        {aviso && <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: C.azul, color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, zIndex: 1100, boxShadow: '0 8px 24px rgba(0,0,0,.25)', maxWidth: '92vw', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span>{aviso}</span>
+          {avisoDesfazer && planeja && (
+            <button onClick={() => desfazerMov(avisoDesfazer)} style={{ background: '#fff', color: C.azul, border: 'none', borderRadius: 7, padding: '5px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              <i className="bi bi-arrow-return-left" style={{ marginRight: 4 }} />Desfazer
+            </button>
+          )}
+        </div>}
         {erro && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: 12, color: C.vermelho, marginBottom: 12 }}>{erro}</div>}
 
         {/* Alertas (clica pra filtrar) */}
@@ -379,6 +422,7 @@ export default function CaldPlanoPage() {
                       const s = sit.get(it.id)!;
                       const et = it.etapas.find(e => e.area === it.area_atual);
                       const prio = PRIO[it.prioridade] || PRIO.normal;
+                      const fin = col.codigo === DESTINO_FINALIZADO;
                       return (
                         <div key={it.id} className={`cp-card ${arrastando === it.id ? 'drag' : ''}`}
                           draggable={planeja}
@@ -414,12 +458,17 @@ export default function CaldPlanoPage() {
                           {it.area_atual === 'industrializacao' && et?.fornecedor && (
                             <div style={{ fontSize: 11.5, color: '#475569', marginTop: 2 }}><i className="bi bi-truck" /> {et.fornecedor}{et.retorno_previsto ? ` · volta ${fmtData(et.retorno_previsto)}` : ''}</div>
                           )}
-                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+                          {fin ? (
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+                              <Chip cor="#166534" bg="#dcfce7"><i className="bi bi-check2-all" />finalizado {fmtData(it.finalizado_em)}</Chip>
+                              {it.area_atual && <Chip cor={C.cinza} bg="#f1f5f9">saiu de {nomeArea(it.area_atual)}</Chip>}
+                            </div>
+                          ) : <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
                             {s.diasNaArea !== null && <Chip cor={s.parado ? '#fff' : C.cinza} bg={s.parado ? C.roxo : '#f1f5f9'} title={`Entrou em ${fmtData(et?.entrada)}`}><i className="bi bi-clock" />{s.diasNaArea}d aqui</Chip>}
                             {et?.previsao && <Chip cor={s.areaAtrasada ? '#fff' : '#1d4ed8'} bg={s.areaAtrasada ? C.vermelho : '#dbeafe'} title="Previsão de saída desta área">sai {fmtData(et.previsao)}</Chip>}
                             {it.prev_finalizacao && <Chip cor={s.atrasado ? '#fff' : s.venceLogo ? '#92400e' : '#166534'} bg={s.atrasado ? C.vermelho : s.venceLogo ? '#fef3c7' : '#dcfce7'} title="Previsão de finalização">fim {fmtData(it.prev_finalizacao)}</Chip>}
                             {s.terceiroVencido && <Chip cor="#fff" bg={C.vermelho}>retorno vencido</Chip>}
-                          </div>
+                          </div>}
                           {planeja && (
                             <div style={{ marginTop: 7 }} onClick={e => e.stopPropagation()}>
                               {/* Card só com "Mover" (pedido do usuário 25/09): área/setor na
@@ -427,8 +476,8 @@ export default function CaldPlanoPage() {
                                   demais ações ficam no detalhe (clique no card). */}
                               <button className="cp-btn sm pri" style={{ width: '100%', justifyContent: 'center' }}
                                 title="Mover pra outra área ou setor — escolhe na lista"
-                                onClick={() => setEnc({ it, area: s.proxima || (col.codigo !== 'novo' ? col.codigo : AREAS_CALD[0].codigo), modo: 'mover' })}>
-                                <i className="bi bi-arrow-left-right" />Mover{s.proxima ? ` (próx.: ${nomeArea(s.proxima)})` : ''}
+                                onClick={() => setEnc({ it, area: fin ? '' : s.proxima || (col.codigo !== 'novo' ? col.codigo : AREAS_CALD[0].codigo), modo: 'mover' })}>
+                                <i className="bi bi-arrow-left-right" />{fin ? 'Voltar pra produção' : `Mover${s.proxima ? ` (próx.: ${nomeArea(s.proxima)})` : ''}`}
                               </button>
                             </div>
                           )}
@@ -567,6 +616,7 @@ export default function CaldPlanoPage() {
           onFechar={() => setLancar(false)}
           onLancado={n => { setLancar(false); mostrarAviso(`${n} item(ns) lançado(s) — aguardando planejamento.`); carregar(true); }} />
       )}
+      {imprimir && <ImprimirModal itens={itens} verValores={verValores} onFechar={() => setImprimir(false)} />}
       {importar && (
         <ImportarModal onFechar={() => setImportar(false)} onImportado={m => { setImportar(false); mostrarAviso(m); carregar(true); }} />
       )}

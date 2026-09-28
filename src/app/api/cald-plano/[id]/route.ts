@@ -38,6 +38,24 @@ function num(v: unknown): number | null {
 }
 const nomeArea = (c: string | null) => (c ? AREA_POR_CODIGO[c]?.nome ?? c : '—');
 
+// Foto do item ANTES de uma movimentação (M58) — o 'desfazer' restaura isto.
+// `areaAlvo` = área que vai receber entrada (mover): guarda se a etapa já
+// existia e a entrada antiga, pra desfazer sem apagar histórico real.
+interface FotoAntes {
+  status: string; area_atual: string | null; ordem: number; finalizado_em: string | null;
+  sub_setor: string | null; areas: string[]; etapa: { area: string; existia: boolean; entrada: string | null } | null;
+}
+function fotoAntes(it: Awaited<ReturnType<typeof carregarItensCald>>[number], areaAlvo?: string): FotoAntes {
+  const et = areaAlvo ? it.etapas.find(e => e.area === areaAlvo) : undefined;
+  return {
+    status: it.status, area_atual: it.area_atual, ordem: it.ordem, finalizado_em: it.finalizado_em,
+    sub_setor: it.sub_setor ?? null, areas: it.areas,
+    etapa: areaAlvo ? { area: areaAlvo, existia: !!et, entrada: et?.entrada ?? null } : null,
+  };
+}
+const nomeEstado = (f: { status: string; area_atual: string | null }) =>
+  f.status === 'andamento' ? nomeArea(f.area_atual) : f.status === 'finalizado' ? 'Finalizado' : 'Início — A planejar';
+
 // Grava o sub-setor (setor HRM dentro da área geral) e, se for um setor "mais a
 // fundo" (SUBSETORES_VERIFICAR_ALAN) ou vier observação, abre um RECADO pro
 // Alan. Tudo em SAVEPOINT: se a M56 ainda não rodou, o encaminhamento da área
@@ -77,12 +95,17 @@ export async function GET(req: Request, ctx: Ctx) {
   try {
     const [item] = await carregarItensCald(sql, [id]);
     if (!item) return NextResponse.json({ erro: 'Item não encontrado' }, { status: 404 });
+    // to_jsonb: tolerante se a coluna 'antes' (M58) ainda não existir.
     const hist = await sql`
-      SELECT id, acao, detalhe, usuario_nome, criado_em
-      FROM producao_cald_plano_hist WHERE item_id = ${id}
+      SELECT id, acao, detalhe, usuario_nome, criado_em, (to_jsonb(h)->'antes') IS NOT NULL
+        AND to_jsonb(h)->'antes' <> 'null'::jsonb AS desfazivel
+      FROM producao_cald_plano_hist h WHERE item_id = ${id}
       ORDER BY criado_em DESC, id DESC LIMIT 200
     `;
-    return NextResponse.json({ item, historico: hist });
+    const ult = hist.find(h => h.desfazivel);
+    const desfazer = ult ? { detalhe: ult.detalhe, usuario_nome: ult.usuario_nome, criado_em: ult.criado_em }
+      : item.status === 'finalizado' ? { detalhe: 'Finalização', usuario_nome: null, criado_em: null } : null;
+    return NextResponse.json({ item, historico: hist, desfazer });
   } catch (e) {
     console.error('[cald-plano/:id GET]', e);
     return NextResponse.json({ erro: 'Erro ao carregar o item' }, { status: 500 });
@@ -278,7 +301,7 @@ export async function POST(req: Request, ctx: Ctx) {
             WHERE id = ${id}
           `;
           const extra = await aplicarSubsetor(tx, id, area, b.sub_setor, b.obs, quem);
-          await registrarHistCald(tx, id, 'mover', `${nomeArea(it.area_atual)} → ${nomeArea(area)} (entrada ${fmtData(data)})${extra ? ` · ${extra}` : ''}`, quem);
+          await registrarHistCald(tx, id, 'mover', `${nomeEstado(it)} → ${nomeArea(area)} (entrada ${fmtData(data)})${extra ? ` · ${extra}` : ''}`, quem, fotoAntes(it, area));
         } else if (acao === 'subsetor') {
           // Troca o sub-setor dentro da área ATUAL (sem nova entrada de área).
           if (it.status !== 'andamento' || !it.area_atual) return { status: 400, erro: 'O item não está em nenhuma área' };
@@ -287,14 +310,46 @@ export async function POST(req: Request, ctx: Ctx) {
           await registrarHistCald(tx, id, 'subsetor', `${nomeArea(it.area_atual)}: ${extra || 'só a área geral'}`, quem);
         } else if (acao === 'aguardando') {
           await tx`UPDATE producao_cald_plano_item SET status = 'aguardando', area_atual = NULL, atualizado_em = NOW() WHERE id = ${id}`;
-          await registrarHistCald(tx, id, 'aguardando', 'Planejado — aguardando chegar na Caldeiraria', quem);
+          await registrarHistCald(tx, id, 'aguardando', 'Planejado — aguardando chegar na Caldeiraria', quem, fotoAntes(it));
         } else if (acao === 'finalizar') {
           await tx`UPDATE producao_cald_plano_item SET status = 'finalizado', finalizado_em = ${data}, atualizado_em = NOW() WHERE id = ${id}`;
-          await registrarHistCald(tx, id, 'finalizar', `Finalizado em ${fmtData(data)}`, quem);
+          await registrarHistCald(tx, id, 'finalizar', `Finalizado em ${fmtData(data)}`, quem, fotoAntes(it));
         } else if (acao === 'reabrir') {
           const st = it.area_atual ? 'andamento' : 'aguardando';
           await tx`UPDATE producao_cald_plano_item SET status = ${st}, finalizado_em = NULL, atualizado_em = NOW() WHERE id = ${id}`;
-          await registrarHistCald(tx, id, 'reabrir', `Reaberto (${it.status} → ${st})`, quem);
+          await registrarHistCald(tx, id, 'reabrir', `Reaberto (${it.status} → ${st})`, quem, fotoAntes(it));
+        } else if (acao === 'desfazer') {
+          // Volta a ÚLTIMA movimentação (mover/aguardando/finalizar/reabrir) pro
+          // estado de antes dela. Movimentação antiga (sem foto, antes da M58):
+          // só dá pra desfazer finalização (= reabrir).
+          const [h] = await tx`
+            SELECT id, detalhe, to_jsonb(h)->'antes' AS antes FROM producao_cald_plano_hist h
+            WHERE item_id = ${id} AND to_jsonb(h)->'antes' IS NOT NULL AND to_jsonb(h)->'antes' <> 'null'::jsonb
+            ORDER BY criado_em DESC, id DESC LIMIT 1
+          `;
+          if (!h) {
+            if (it.status !== 'finalizado') return { status: 400, erro: 'Não há movimentação pra desfazer neste item' };
+            const st = it.area_atual ? 'andamento' : 'aguardando';
+            await tx`UPDATE producao_cald_plano_item SET status = ${st}, finalizado_em = NULL, atualizado_em = NOW() WHERE id = ${id}`;
+            await registrarHistCald(tx, id, 'desfazer', `Desfeito: finalização (volta pra ${nomeEstado({ status: st, area_atual: it.area_atual })})`, quem);
+          } else {
+            const a = (typeof h.antes === 'string' ? JSON.parse(h.antes) : h.antes) as FotoAntes;
+            await tx`
+              UPDATE producao_cald_plano_item
+              SET status = ${a.status}, area_atual = ${a.area_atual}, ordem = ${a.ordem ?? 0},
+                  finalizado_em = ${a.finalizado_em}, areas = ${a.areas}::text[], atualizado_em = NOW()
+              WHERE id = ${id}
+            `;
+            if (a.etapa) {
+              if (a.etapa.existia) await tx`UPDATE producao_cald_plano_etapa SET entrada = ${a.etapa.entrada} WHERE item_id = ${id} AND area = ${a.etapa.area}`;
+              else await tx`DELETE FROM producao_cald_plano_etapa WHERE item_id = ${id} AND area = ${a.etapa.area}`;
+            }
+            try {
+              await tx.savepoint(sp => sp`UPDATE producao_cald_plano_item SET sub_setor = ${a.sub_setor} WHERE id = ${id}`);
+            } catch { /* sem M56 */ }
+            await tx`UPDATE producao_cald_plano_hist SET antes = NULL WHERE id = ${h.id}`;
+            await registrarHistCald(tx, id, 'desfazer', `Desfeito: ${h.detalhe || 'movimentação'} (volta pra ${nomeEstado(a)})`, quem);
+          }
         } else if (acao === 'faturar') {
           await tx`UPDATE producao_cald_plano_item SET faturado_em = ${data}, atualizado_em = NOW() WHERE id = ${id}`;
           await registrarHistCald(tx, id, 'faturar', `Faturado em ${fmtData(data)}`, quem);

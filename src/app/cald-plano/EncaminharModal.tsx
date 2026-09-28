@@ -9,6 +9,8 @@ import { AREAS_CALD, SUBSETORES_CALD, SUBSETORES_VERIFICAR_ALAN, nomeSubsetor, t
 import { C, Modal, nomeArea } from './comum';
 
 export interface Encaminhamento { area: string; sub_setor: string | null; obs: string }
+// Destino especial "Finalizados" (não é área): o painel trata como Finalizar.
+export const DESTINO_FINALIZADO = '__finalizado';
 
 export default function EncaminharModal({ item, area: areaIni, modo, onConfirmar, onFechar }: {
   item: ItemCald; area: string; modo: 'mover' | 'subsetor';
@@ -61,7 +63,7 @@ export default function EncaminharModal({ item, area: areaIni, modo, onConfirmar
       rodape={<>
         <button className="cp-btn" onClick={onFechar}>Cancelar</button>
         <button className="cp-btn pri" disabled={!area} onClick={() => onConfirmar({ area, sub_setor: sub, obs: obs.trim() })}>
-          <i className="bi bi-box-arrow-in-right" />{modo === 'mover' && area !== aqui ? (area ? `Entrou em ${sub ? nomeSubsetor(sub) : nomeArea(area)}` : 'Escolha a área') : 'Salvar setor'}
+          <i className="bi bi-box-arrow-in-right" />{area === DESTINO_FINALIZADO ? 'Mandar pra Finalizados' : modo === 'mover' && area !== aqui ? (area ? `Entrou em ${sub ? nomeSubsetor(sub) : nomeArea(area)}` : 'Escolha a área') : 'Salvar setor'}
         </button>
       </>}>
       <div style={{ fontSize: 12, color: C.cinza, marginBottom: 10 }}>
@@ -79,7 +81,17 @@ export default function EncaminharModal({ item, area: areaIni, modo, onConfirmar
             {subs.map(s => opcao(a.codigo, s, nomeSubsetor(s), false, a.cor))}
           </div>
         ))}
-        {!areasFiltradas.length && <div style={{ padding: 16, textAlign: 'center', color: C.fraco, fontSize: 13 }}>Nenhuma área ou setor com “{busca}”.</div>}
+        {modo === 'mover' && item.status !== 'finalizado' && (!q || norm('finalizados').includes(q)) && (
+          <label style={{
+            display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', borderRadius: 8, padding: '6px 10px', marginTop: 2,
+            background: area === DESTINO_FINALIZADO ? '#16a34a1a' : undefined, border: `1.5px solid ${area === DESTINO_FINALIZADO ? C.verde : 'transparent'}`,
+          }}>
+            <input type="radio" name="enc" checked={area === DESTINO_FINALIZADO} onChange={() => escolher(DESTINO_FINALIZADO, null)} />
+            <span style={{ fontWeight: 800, color: C.verde, fontSize: 13.5 }}><i className="bi bi-check2-all" /> Finalizados</span>
+            <span style={{ fontSize: 11, color: C.fraco }}>— material pronto, sai do painel de produção</span>
+          </label>
+        )}
+        {!areasFiltradas.length && q && !norm('finalizados').includes(q) && <div style={{ padding: 16, textAlign: 'center', color: C.fraco, fontSize: 13 }}>Nenhuma área ou setor com “{busca}”.</div>}
       </div>
 
       {verificar && (

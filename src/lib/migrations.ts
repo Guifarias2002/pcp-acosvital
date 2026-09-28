@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 59;
+const SCHEMA_VERSION = 60;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -1002,4 +1002,12 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
       WHERE username = 'alan'
     `;
   }).catch(e => console.error('[migrations] M57 (requisição HRM) falhou:', e));
+
+  // M58 (28/09): DESFAZER movimentação no PCP Caldeiraria. Cada mover/aguardando/
+  // finalizar/reabrir grava no histórico a foto do item ANTES (status, área, ordem,
+  // etapa da área de destino...). A ação 'desfazer' restaura a foto mais recente
+  // e zera o 'antes' dela (desfazer de novo volta mais um passo).
+  await sql.savepoint(async (sp) => {
+    await sp.unsafe(`ALTER TABLE producao_cald_plano_hist ADD COLUMN IF NOT EXISTS antes JSONB`);
+  }).catch(e => console.error('[migrations] M58 (desfazer caldeiraria) falhou:', e));
 }

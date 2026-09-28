@@ -21,6 +21,8 @@ export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, 
   const [item, setItem] = useState(inicial);
   const [f, setF] = useState(() => formDe(inicial));
   const [hist, setHist] = useState<Hist[]>([]);
+  // Última movimentação que dá pra desfazer (null = nenhuma).
+  const [desfazer, setDesfazer] = useState<{ detalhe: string | null; usuario_nome: string | null } | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; txt: string } | null>(null);
   const [destino, setDestino] = useState('');
@@ -35,7 +37,7 @@ export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, 
 
   useEffect(() => { setDestino(sit.proxima || ''); setSubDest(null); }, [item.id, item.area_atual, item.status]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    api.get(`/api/cald-plano/${item.id}`).then(r => setHist(r.data.historico || [])).catch(() => {});
+    api.get(`/api/cald-plano/${item.id}`).then(r => { setHist(r.data.historico || []); setDesfazer(r.data.desfazer || null); }).catch(() => {});
   }, [item.id, item.atualizado_em]);
 
   function aplicar(novo: ItemCald) { setItem(novo); setF(formDe(novo)); onAtualizado(novo); }
@@ -213,6 +215,13 @@ export default function ItemDetalhe({ item: inicial, irmaos = [], podePlanejar, 
 Ele sai do painel e vai pra lista de Finalizados.`)) acao('finalizar', { data: dataAcao }); }}><i className="bi bi-check2-all" />Finalizar</button>
           </>}
           {item.status === 'finalizado' && <button className="cp-btn" disabled={salvando} onClick={() => acao('reabrir')}><i className="bi bi-arrow-counterclockwise" />Reabrir</button>}
+          {desfazer && (
+            <button className="cp-btn" disabled={salvando} style={{ borderColor: '#f59e0b', color: '#b45309' }}
+              title={`Volta o item pra onde estava antes de: ${desfazer.detalhe || 'última movimentação'}`}
+              onClick={() => { if (confirm(`Desfazer a última movimentação?\n\n${desfazer.detalhe || ''}${desfazer.usuario_nome ? ` (por ${desfazer.usuario_nome})` : ''}\n\nO item volta pra onde estava antes.`)) acao('desfazer'); }}>
+              <i className="bi bi-arrow-return-left" />Desfazer última movimentação
+            </button>
+          )}
           {item.status === 'finalizado' && (
             <div style={{ flexBasis: '100%', fontSize: 12.5, color: '#166534', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 8, padding: '7px 10px' }}>
               <i className="bi bi-check2-all" style={{ marginRight: 6 }} />Item <b>FINALIZADO</b> — não aparece no painel. Pra voltar pra produção, clique <b>Reabrir</b> (ou registre a entrada numa área nova).

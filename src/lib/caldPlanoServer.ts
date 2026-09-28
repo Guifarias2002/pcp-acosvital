@@ -89,7 +89,18 @@ export async function carregarItensCald(db: Sql = sql, ids?: number[]): Promise<
   return itens;
 }
 
-export async function registrarHistCald(db: Sql, itemId: number, acao: string, detalhe: string | null, usuario: string | null) {
+// `antes` = foto do item antes de uma movimentação (M58) — é o que a ação
+// 'desfazer' restaura. Se a coluna ainda não existir, grava sem ela.
+export async function registrarHistCald(db: Sql, itemId: number, acao: string, detalhe: string | null, usuario: string | null, antes?: object) {
+  if (antes && 'savepoint' in db) {
+    try {
+      await (db as postgres.TransactionSql).savepoint(sp => sp`
+        INSERT INTO producao_cald_plano_hist (item_id, acao, detalhe, usuario_nome, antes)
+        VALUES (${itemId}, ${acao}, ${detalhe}, ${usuario}, ${sp.json(antes as postgres.JSONValue)})
+      `);
+      return;
+    } catch (e) { console.error('[cald-plano] hist.antes (M58?)', e); }
+  }
   await db`
     INSERT INTO producao_cald_plano_hist (item_id, acao, detalhe, usuario_nome)
     VALUES (${itemId}, ${acao}, ${detalhe}, ${usuario})
