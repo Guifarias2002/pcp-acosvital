@@ -13,7 +13,7 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
-import { isAdministrador, podeAcessarSetor, podeDesfazerRecebimento, podeVerNaoLocalizados, podeRedirecionarCorteLivre } from '@/lib/auth';
+import { isAdministrador, podeAcessarSetor, podeDesfazerRecebimento, podeVerNaoLocalizados, podeRedirecionarCorteLivre, podePlanejar } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
 import { SETOR_CHOICES, nomeInspecao, SETOR_NAO_LOCALIZADO, SETORES_CORTE, DESTINOS_PERMITIDOS_CORTE, SETORES_CALD_SEM_PRODUCAO } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
@@ -81,7 +81,10 @@ async function handlePOST(
   // Exceção: o setor virtual 'nao_localizado' não está na lista de ninguém — quem
   // tem a permissão pra essa aba (ex.: Ezequiel) pode reencaminhar de lá.
   const podeMexerNaoLoc = parcial.setor_atual === SETOR_NAO_LOCALIZADO && podeVerNaoLocalizados(user);
-  if (!user.is_staff && !podeAcessarSetor(user, parcial.setor_atual) && !podeMexerNaoLoc)
+  // Estoque de Flanges (aba Estoque do /planejamento): quem planeja pode
+  // encaminhar peça que está no setor Estoque (atender pelo estoque/fabricação).
+  const podeMoverDoEstoque = acao === 'mover' && parcial.setor_atual === 'estoque' && podePlanejar(user);
+  if (!user.is_staff && !podeAcessarSetor(user, parcial.setor_atual) && !podeMexerNaoLoc && !podeMoverDoEstoque)
     return NextResponse.json({ erro: 'Acesso negado: parcial não é do seu setor' }, { status: 403 });
 
   // Parciais canceladas só aceitam 'apontar' e 'retomar' (admin)

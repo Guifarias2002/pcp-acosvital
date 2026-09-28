@@ -6,6 +6,7 @@ import VisualizadorDoc from '@/components/VisualizadorDoc';
 import { useRealtime } from '@/hooks/useRealtime';
 import { getToken, podePlanejar, podeVerCliente } from '@/lib/auth';
 import { MAQUINAS_POR_SETOR } from '@/lib/maquinas';
+import EstoqueFlanges from './EstoqueFlanges';
 
 const C = { azul: '#1a3a5c', azul2: '#1d4ed8', verde: '#16a34a', laranja: '#d97706', vermelho: '#dc2626', roxo: '#7c3aed', cinza: '#64748b' };
 
@@ -120,7 +121,7 @@ export default function PlanejamentoPage() {
   const [modalObs, setModalObs] = useState('');
   const [modalFixo, setModalFixo] = useState(true);
   // Aba ativa: a Fila ou o Painel de Máquinas (abre ao clicar lá em cima).
-  const [aba, setAba] = useState<'fila' | 'maquinas'>('fila');
+  const [aba, setAba] = useState<'fila' | 'maquinas' | 'estoque'>('fila');
   // Tile do resumo aberto (mostra a lista por trás do número). null = nenhum.
   const [detalheResumo, setDetalheResumo] = useState<'pedidos' | 'pecas' | 'qtd' | 'uso' | 'livres' | null>(null);
   // Máquina clicada no painel — abre modal com os pedidos dela. null = nenhum.
@@ -863,6 +864,7 @@ export default function PlanejamentoPage() {
           {([
             { id: 'fila' as const, rot: 'Fila da Usinagem', icon: 'bi-list-ol' },
             { id: 'maquinas' as const, rot: 'Painel de Máquinas', icon: 'bi-cpu' },
+            { id: 'estoque' as const, rot: 'Estoque', icon: 'bi-box-seam' },
           ]).map(t => {
             const ativa = aba === t.id;
             return (
@@ -896,6 +898,9 @@ export default function PlanejamentoPage() {
             {erro}
           </div>
         )}
+
+        {/* ── ESTOQUE DE FLANGES (aba) — Arujá × Mogi ──────────────────────── */}
+        {aba === 'estoque' && <EstoqueFlanges />}
 
         {/* ── SEÇÃO 1 — FILA (aba) ───────────────────────────────────────── */}
         {aba === 'fila' && (

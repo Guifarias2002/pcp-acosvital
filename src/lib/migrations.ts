@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 62;
+const SCHEMA_VERSION = 64;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -1054,4 +1054,93 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
     `);
     await sp.unsafe(`CREATE INDEX IF NOT EXISTS producao_maquina_aviso_pend ON producao_maquina_aviso (criado_em DESC) WHERE resolvido_em IS NULL`);
   }).catch(e => console.error('[migrations] M60 (aviso de máquina) falhou:', e));
+  // M61 (28/09): ESTOQUE DE FLANGES (aba "Estoque" do /planejamento). Dois locais
+  // (aruja = produção, mogi = estoque de lá), cadastro de flanges único, saldo =
+  // soma das movimentações não canceladas. Entrada manual; entrada AUTOMÁTICA de
+  // "Pedido de Estoque" (producao_pedido.estoque_destino) quando o item passa do
+  // acabamento; baixa quando o pedido sai do setor Estoque com origem "estoque"
+  // (atendimento); inventário por local. Ver src/lib/estoque.ts e /api/estoque.
+  await sql.savepoint(async (sp) => {
+    await sp.unsafe(`
+      CREATE TABLE IF NOT EXISTS producao_estoque_item (
+        id              SERIAL PRIMARY KEY,
+        codigo          TEXT NOT NULL,
+        codigo_pedido   TEXT,
+        descricao       TEXT NOT NULL,
+        unidade         TEXT NOT NULL DEFAULT 'pç',
+        estoque_minimo  NUMERIC,
+        ativo           BOOLEAN NOT NULL DEFAULT true,
+        criado_por_nome TEXT,
+        criado_em       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await sp.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS producao_estoque_item_codigo ON producao_estoque_item (upper(trim(codigo)))`);
+    await sp.unsafe(`
+      CREATE TABLE IF NOT EXISTS producao_estoque_atendimento (
+        id              SERIAL PRIMARY KEY,
+        parcial_id      INTEGER,
+        item_pedido_id  INTEGER,
+        pedido_id       INTEGER,
+        qtd_estoque     NUMERIC NOT NULL DEFAULT 0,
+        qtd_fabricacao  NUMERIC NOT NULL DEFAULT 0,
+        setor_destino   TEXT,
+        obs             TEXT,
+        criado_por_nome TEXT,
+        criado_em       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        cancelado_em    TIMESTAMPTZ
+      )
+    `);
+    await sp.unsafe(`
+      CREATE TABLE IF NOT EXISTS producao_estoque_inventario (
+        id               SERIAL PRIMARY KEY,
+        local            TEXT NOT NULL,
+        obs              TEXT,
+        status           TEXT NOT NULL DEFAULT 'aberto',
+        criado_por_nome  TEXT,
+        criado_em        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        fechado_em       TIMESTAMPTZ,
+        fechado_por_nome TEXT
+      )
+    `);
+    await sp.unsafe(`
+      CREATE TABLE IF NOT EXISTS producao_estoque_inventario_linha (
+        inventario_id  INTEGER NOT NULL REFERENCES producao_estoque_inventario(id) ON DELETE CASCADE,
+        item_id        INTEGER NOT NULL REFERENCES producao_estoque_item(id),
+        contado        NUMERIC NOT NULL,
+        saldo_sistema  NUMERIC,
+        PRIMARY KEY (inventario_id, item_id)
+      )
+    `);
+    await sp.unsafe(`
+      CREATE TABLE IF NOT EXISTS producao_estoque_mov (
+        id                 SERIAL PRIMARY KEY,
+        item_id            INTEGER NOT NULL REFERENCES producao_estoque_item(id),
+        local              TEXT NOT NULL,
+        tipo               TEXT NOT NULL,
+        quantidade         NUMERIC NOT NULL,
+        obs                TEXT,
+        pedido_id          INTEGER,
+        item_pedido_id     INTEGER,
+        atendimento_id     INTEGER REFERENCES producao_estoque_atendimento(id),
+        inventario_id      INTEGER REFERENCES producao_estoque_inventario(id),
+        grupo              TEXT,
+        criado_por_nome    TEXT,
+        criado_em          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        cancelado_em       TIMESTAMPTZ,
+        cancelado_por_nome TEXT
+      )
+    `);
+    await sp.unsafe(`CREATE INDEX IF NOT EXISTS producao_estoque_mov_item ON producao_estoque_mov (item_id, local) WHERE cancelado_em IS NULL`);
+    await sp.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS producao_estoque_mov_producao ON producao_estoque_mov (item_pedido_id) WHERE tipo = 'producao' AND cancelado_em IS NULL`);
+    await sp.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS estoque_destino TEXT`);
+  }).catch(e => console.error('[migrations] M61 (estoque de flanges) falhou:', e));
+  // M62 (28/09): "Quarentena" passa a se chamar "Pedidos Finalizados" em todo
+  // lugar visível (o código do setor continua 'quarentena'). Renomeia o setor no
+  // cadastro e troca o nome no texto do histórico já gravado (movimentações e
+  // observações), que era gerado com o nome antigo.
+  await sql.savepoint(async (sp) => {
+    await sp.unsafe(`UPDATE producao_setor SET nome = 'Pedidos Finalizados' WHERE codigo = 'quarentena'`);
+    await sp.unsafe(`UPDATE producao_movimentacaoitem SET observacao = replace(observacao, 'Quarentena', 'Pedidos Finalizados') WHERE observacao LIKE '%Quarentena%'`);
+    await sp.unsafe(`UPDATE producao_item_observacao SET texto = replace(texto, 'Quarentena', 'Pedidos Finalizados') WHERE texto LIKE '%Quarentena%'`);
+  }).catch(e => console.error('[migrations] M62 (renomear Quarentena) falhou:', e));
 }
