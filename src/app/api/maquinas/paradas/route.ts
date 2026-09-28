@@ -13,6 +13,8 @@ export const dynamic = 'force-dynamic';
 // POST → só o Planejamento (podePlanejar: admin ou acesso_planejamento):
 //        { acao: 'parar', maquina, motivo, previsao_retorno? }
 //        { acao: 'liberar', id, obs? }   ("voltou a funcionar")
+//        { acao: 'editar', id, maquina, motivo, previsao_retorno? }  (apontamento errado)
+//        { acao: 'excluir', id }                                     (apontamento errado)
 
 const TODAS = new Set(Object.values(MAQUINAS_POR_SETOR).flatMap(gs => gs.flatMap(g => g.maquinas)));
 const txt = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
@@ -53,6 +55,26 @@ export async function POST(req: Request) {
         INSERT INTO producao_maquina_parada (maquina, motivo, previsao_retorno, criado_por_nome)
         VALUES (${maquina}, ${motivo}, ${iso(b.previsao_retorno)}, ${quem})
       `;
+    } else if (b.acao === 'editar') {
+      // Corrigir um apontamento errado: máquina, motivo e previsão.
+      const id = Number(b.id);
+      const maquina = txt(b.maquina, 60);
+      const motivo = txt(b.motivo, 500);
+      if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ erro: 'Registro inválido' }, { status: 400 });
+      if (!TODAS.has(maquina)) return NextResponse.json({ erro: 'Máquina inválida' }, { status: 400 });
+      if (!motivo) return NextResponse.json({ erro: 'Informe o motivo da parada' }, { status: 400 });
+      const [ja] = await sql`SELECT id FROM producao_maquina_parada WHERE maquina = ${maquina} AND liberada_em IS NULL AND id <> ${id}`;
+      if (ja) return NextResponse.json({ erro: `${maquina} já está registrada como parada` }, { status: 409 });
+      const r = await sql`
+        UPDATE producao_maquina_parada SET maquina = ${maquina}, motivo = ${motivo}, previsao_retorno = ${iso(b.previsao_retorno)}
+        WHERE id = ${id} AND liberada_em IS NULL RETURNING id
+      `;
+      if (!r.length) return NextResponse.json({ erro: 'Essa parada já foi encerrada' }, { status: 409 });
+    } else if (b.acao === 'excluir') {
+      // Apontamento errado: apaga o registro (a máquina volta ao normal na hora).
+      const id = Number(b.id);
+      if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ erro: 'Registro inválido' }, { status: 400 });
+      await sql`DELETE FROM producao_maquina_parada WHERE id = ${id}`;
     } else if (b.acao === 'liberar') {
       const id = Number(b.id);
       if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ erro: 'Registro inválido' }, { status: 400 });

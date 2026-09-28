@@ -138,7 +138,7 @@ export default function PlanejamentoPage() {
   // clicar "Voltou a funcionar".
   interface Parada { id: number; maquina: string; motivo: string; previsao_retorno: string | null; desde: string; criado_por_nome: string | null }
   const [paradas, setParadas] = useState<Record<string, Parada>>({});
-  const [modalParada, setModalParada] = useState<{ maquina: string; motivo: string; previsao: string; avisoId?: number } | null>(null);
+  const [modalParada, setModalParada] = useState<{ maquina: string; motivo: string; previsao: string; avisoId?: number; editId?: number } | null>(null);
   // Avisos de máquina dos OPERADORES (M60): quebrou / voltou / outro.
   interface AvisoMaq { id: number; maquina: string; tipo: string; mensagem: string | null; setor: string | null; criado_por_nome: string | null; criado_em: string }
   const [avisosMaq, setAvisosMaq] = useState<AvisoMaq[]>([]);
@@ -183,10 +183,27 @@ export default function PlanejamentoPage() {
     if (!modalParada) return;
     if (!modalParada.maquina) { setErroParada('Escolha a máquina.'); return; }
     if (!modalParada.motivo.trim()) { setErroParada('Informe o motivo.'); return; }
-    if (await postParada({ acao: 'parar', maquina: modalParada.maquina, motivo: modalParada.motivo, previsao_retorno: modalParada.previsao || null })) {
+    const corpo = { maquina: modalParada.maquina, motivo: modalParada.motivo, previsao_retorno: modalParada.previsao || null };
+    if (await postParada(modalParada.editId ? { acao: 'editar', id: modalParada.editId, ...corpo } : { acao: 'parar', ...corpo })) {
       if (modalParada.avisoId) await resolverAviso(modalParada.avisoId, 'Parada registrada no Planejamento');
       setModalParada(null);
     }
+  }
+  // Apontamento errado: corrige (abre o mesmo formulário) ou apaga o registro.
+  const editarParada = (p: Parada) => { setErroParada(''); setModalParada({ maquina: p.maquina, motivo: p.motivo, previsao: p.previsao_retorno || '', editId: p.id }); };
+  async function excluirParada(p: Parada) {
+    if (!confirm(`Excluir o registro de parada da ${p.maquina}?\n\nUse só se foi apontado errado — a máquina volta ao normal na hora e o registro some (não fica no histórico).`)) return;
+    await postParada({ acao: 'excluir', id: p.id });
+  }
+  async function excluirAviso(id: number) {
+    if (!confirm('Excluir este aviso do operador?')) return;
+    try {
+      await fetch('/api/maquinas/avisos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
+        body: JSON.stringify({ acao: 'excluir', id }),
+      });
+    } catch { /* segue */ }
+    setAvisosMaq(v => v.filter(a => a.id !== id));
   }
   async function liberarMaquina(p: Parada, avisoId?: number) {
     if (!confirm(`A máquina ${p.maquina} voltou a funcionar?\n\nEla volta a aparecer normalmente pra produção.`)) return;
@@ -650,6 +667,14 @@ export default function PlanejamentoPage() {
             <button className="pl-btn" style={{ marginTop: 6, width: '100%', borderColor: C.verde, color: C.verde }} disabled={salvandoParada} onClick={() => liberarMaquina(parada)}>
               <i className="bi bi-check-circle" style={{ marginRight: 5 }} />Voltou a funcionar
             </button>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+              <button className="pl-btn" style={{ flex: 1, padding: '4px 8px', fontSize: 11.5 }} disabled={salvandoParada} onClick={() => editarParada(parada)}>
+                <i className="bi bi-pencil" style={{ marginRight: 4 }} />Editar
+              </button>
+              <button className="pl-btn" style={{ flex: 1, padding: '4px 8px', fontSize: 11.5, color: C.vermelho, borderColor: '#fecaca' }} disabled={salvandoParada} onClick={() => excluirParada(parada)}>
+                <i className="bi bi-trash" style={{ marginRight: 4 }} />Excluir
+              </button>
+            </div>
           </div>
         )}
         <div style={{ padding: 8 }}>
@@ -759,6 +784,9 @@ export default function PlanejamentoPage() {
                         onClick={() => { const r = prompt('Resposta pro operador (opcional):', ''); if (r !== null) resolverAviso(a.id, r); }}>
                         <i className="bi bi-check2" style={{ marginRight: 4 }} />Visto
                       </button>
+                      <button className="pl-btn" style={{ padding: '4px 8px', color: C.vermelho, borderColor: '#fecaca' }} title="Excluir aviso (mandado errado)" onClick={() => excluirAviso(a.id)}>
+                        <i className="bi bi-trash" />
+                      </button>
                     </div>
                   </div>
                 );
@@ -784,6 +812,12 @@ export default function PlanejamentoPage() {
                   <button className="pl-btn" style={{ borderColor: C.verde, color: C.verde, padding: '4px 10px' }} disabled={salvandoParada} onClick={() => liberarMaquina(p)}>
                     <i className="bi bi-check-circle" style={{ marginRight: 4 }} />Voltou a funcionar
                   </button>
+                  <button className="pl-btn" style={{ padding: '4px 10px' }} disabled={salvandoParada} onClick={() => editarParada(p)} title="Corrigir máquina, motivo ou previsão">
+                    <i className="bi bi-pencil" style={{ marginRight: 4 }} />Editar
+                  </button>
+                  <button className="pl-btn" style={{ padding: '4px 10px', color: C.vermelho, borderColor: '#fecaca' }} disabled={salvandoParada} onClick={() => excluirParada(p)} title="Apontamento errado — apaga o registro">
+                    <i className="bi bi-trash" style={{ marginRight: 4 }} />Excluir
+                  </button>
                 </div>
               ))}
             </div>
@@ -795,14 +829,14 @@ export default function PlanejamentoPage() {
         {modalParada && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => !salvandoParada && setModalParada(null)}>
             <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: 460, maxWidth: '94vw', boxShadow: '0 8px 32px rgba(0,0,0,.18)' }} onClick={e => e.stopPropagation()}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: C.vermelho, marginBottom: 4 }}><i className="bi bi-tools" style={{ marginRight: 8 }} />Registrar máquina parada</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: C.vermelho, marginBottom: 4 }}><i className="bi bi-tools" style={{ marginRight: 8 }} />{modalParada.editId ? 'Editar parada' : 'Registrar máquina parada'}</div>
               <div style={{ fontSize: 12.5, color: C.cinza, marginBottom: 14 }}>Enquanto estiver parada, ninguém consegue escolher essa máquina ao iniciar/retomar na produção — e o motivo aparece pro operador.</div>
               <label style={{ fontSize: 12, fontWeight: 700, color: '#555', display: 'block', marginBottom: 5 }}>Máquina</label>
               <select className="pl-sel" style={{ maxWidth: 'none', width: '100%', marginBottom: 12 }} value={modalParada.maquina} onChange={e => setModalParada({ ...modalParada, maquina: e.target.value })}>
                 <option value="">Escolha a máquina…</option>
                 {todasMaquinas.map(g => (
                   <optgroup key={`${g.setor}-${g.categoria}`} label={`${g.categoria}${g.setor === 'furacao' ? ' (Furação)' : ''}`}>
-                    {g.maquinas.map(m => <option key={m} value={m} disabled={!!paradas[m]}>{paradas[m] ? `${m} — já parada` : m}</option>)}
+                    {g.maquinas.map(m => { const outra = !!paradas[m] && paradas[m].id !== modalParada.editId; return <option key={m} value={m} disabled={outra}>{outra ? `${m} — já parada` : m}</option>; })}
                   </optgroup>
                 ))}
               </select>
@@ -817,7 +851,7 @@ export default function PlanejamentoPage() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="pl-btn" style={{ flex: 1 }} disabled={salvandoParada} onClick={() => setModalParada(null)}>Cancelar</button>
                 <button className="pl-btn" style={{ flex: 2, background: C.vermelho, borderColor: C.vermelho, color: '#fff' }} disabled={salvandoParada} onClick={registrarParada}>
-                  <i className="bi bi-tools" style={{ marginRight: 5 }} />{salvandoParada ? 'Salvando…' : 'Registrar parada'}
+                  <i className="bi bi-tools" style={{ marginRight: 5 }} />{salvandoParada ? 'Salvando…' : modalParada.editId ? 'Salvar alterações' : 'Registrar parada'}
                 </button>
               </div>
             </div>

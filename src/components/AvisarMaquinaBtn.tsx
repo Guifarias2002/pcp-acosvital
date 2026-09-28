@@ -31,6 +31,20 @@ export default function AvisarMaquinaBtn({ setor }: { setor: string }) {
   const [ok, setOk] = useState('');
   const [paradas, setParadas] = useState<Record<string, Parada>>({});
   const [meus, setMeus] = useState<{ pendentes: Aviso[]; recentes: Aviso[] }>({ pendentes: [], recentes: [] });
+  // Editando um aviso MEU ainda pendente (mandado errado). null = aviso novo.
+  const [editId, setEditId] = useState<number | null>(null);
+  const editar = (a: Aviso) => { setEditId(a.id); setMaquina(a.maquina); setTimeout(() => setTipo(a.tipo), 0); setMensagem(a.mensagem || ''); setErro(''); setOk(''); };
+  const cancelarEdicao = () => { setEditId(null); setMaquina(''); setMensagem(''); };
+  async function excluir(a: Aviso) {
+    if (!confirm(`Excluir o aviso da ${a.maquina}?`)) return;
+    try {
+      const r = await fetch('/api/maquinas/avisos', { method: 'POST', headers: hdr(), body: JSON.stringify({ acao: 'excluir', id: a.id }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setErro(d.erro || 'Não foi possível excluir.'); return; }
+      if (editId === a.id) cancelarEdicao();
+      carregar();
+    } catch { setErro('Falha de conexão.'); }
+  }
 
   async function carregar() {
     try {
@@ -44,7 +58,7 @@ export default function AvisarMaquinaBtn({ setor }: { setor: string }) {
   }
   useEffect(() => { if (aberto) carregar(); }, [aberto]);
   // Máquina parada escolhida → sugere "voltou a funcionar"; livre → "quebrou".
-  useEffect(() => { if (maquina) setTipo(paradas[maquina] ? 'voltou' : 'quebrou'); }, [maquina, paradas]);
+  useEffect(() => { if (maquina && !editId) setTipo(paradas[maquina] ? 'voltou' : 'quebrou'); }, [maquina, paradas, editId]);
 
   async function enviar() {
     setErro(''); setOk('');
@@ -52,11 +66,12 @@ export default function AvisarMaquinaBtn({ setor }: { setor: string }) {
     if (tipo !== 'voltou' && !mensagem.trim()) { setErro('Conte o que aconteceu.'); return; }
     setEnviando(true);
     try {
-      const r = await fetch('/api/maquinas/avisos', { method: 'POST', headers: hdr(), body: JSON.stringify({ maquina, tipo, mensagem }) });
+      const body = editId ? { acao: 'editar', id: editId, maquina, tipo, mensagem } : { maquina, tipo, mensagem };
+      const r = await fetch('/api/maquinas/avisos', { method: 'POST', headers: hdr(), body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { setErro(d.erro || 'Não foi possível enviar.'); return; }
-      setOk('Aviso enviado pro Planejamento!');
-      setMensagem(''); setMaquina('');
+      setOk(editId ? 'Aviso corrigido!' : 'Aviso enviado pro Planejamento!');
+      setMensagem(''); setMaquina(''); setEditId(null);
       carregar();
     } catch { setErro('Falha de conexão.'); }
     finally { setEnviando(false); }
@@ -105,12 +120,18 @@ export default function AvisarMaquinaBtn({ setor }: { setor: string }) {
               placeholder={tipo === 'voltou' ? 'Ex.: técnico consertou, testei e está ok' : 'Ex.: fuso travou / vazando óleo / não liga'}
               style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 10px', fontSize: 14, boxSizing: 'border-box', marginBottom: 10, resize: 'vertical' }} />
 
+            {editId && (
+              <div style={{ fontSize: 12.5, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '6px 10px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i className="bi bi-pencil" />Editando um aviso já enviado
+                <button onClick={cancelarEdicao} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#1d4ed8', fontWeight: 700, cursor: 'pointer' }}>cancelar edição</button>
+              </div>
+            )}
             {erro && <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{erro}</div>}
             {ok && <div style={{ color: '#16a34a', fontSize: 13, fontWeight: 700, marginBottom: 8 }}><i className="bi bi-check-circle-fill" /> {ok}</div>}
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setAberto(false)} disabled={enviando} style={{ flex: 1, background: '#f3f4f6', border: 'none', borderRadius: 8, padding: '12px 0', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Fechar</button>
               <button onClick={enviar} disabled={enviando} style={{ flex: 2, background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, padding: '12px 0', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: enviando ? .6 : 1 }}>
-                <i className="bi bi-send-fill" style={{ marginRight: 6 }} />{enviando ? 'Enviando…' : 'Enviar aviso'}
+                <i className={`bi ${editId ? 'bi-check2' : 'bi-send-fill'}`} style={{ marginRight: 6 }} />{enviando ? 'Enviando…' : editId ? 'Salvar alteração' : 'Enviar aviso'}
               </button>
             </div>
 
@@ -121,6 +142,15 @@ export default function AvisarMaquinaBtn({ setor }: { setor: string }) {
                   <div key={a.id} style={{ fontSize: 12.5, padding: '5px 0', borderBottom: '1px dashed #e2e8f0' }}>
                     <b>{a.maquina}</b> · {TIPO_TXT[a.tipo] || a.tipo} · <span style={{ color: '#64748b' }}>{fmt(a.criado_em)}</span>
                     <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: '#b45309', background: '#fef3c7', borderRadius: 8, padding: '1px 7px' }}>aguardando o Planejamento</span>
+                    {a.mensagem && <div style={{ color: '#475569', marginTop: 2 }}>{a.mensagem}</div>}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                      <button onClick={() => editar(a)} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                        <i className="bi bi-pencil" style={{ marginRight: 4 }} />Editar
+                      </button>
+                      <button onClick={() => excluir(a)} style={{ background: '#fff', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                        <i className="bi bi-trash" style={{ marginRight: 4 }} />Excluir
+                      </button>
+                    </div>
                   </div>
                 ))}
                 {meus.recentes.map(a => (
