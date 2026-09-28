@@ -72,6 +72,7 @@ import DespacharModal from '@/components/DespacharModal';
 import IniciarEntregaModal from '@/components/IniciarEntregaModal';
 import DivergenciaResolucaoModal from '@/components/DivergenciaResolucaoModal';
 import IniciarProducaoModal from '@/components/IniciarProducaoModal';
+import AvisarMaquinaBtn from '@/components/AvisarMaquinaBtn';
 import AvisosSetor from '@/components/AvisosSetor';
 import PausarModal from '@/components/PausarModal';
 import { temMaquinas, retomarPedeMaquina, labelMotivoPausa, type MotivoPausa } from '@/lib/maquinas';
@@ -4214,6 +4215,8 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
               onSucesso={() => { setShowAdicionarExistente(false); carregar(); }}
             />
           )}
+          {/* Operador avisa o Planejamento: máquina quebrou / voltou / outro problema. */}
+          {temMaquinas(setor) && <AvisarMaquinaBtn setor={setor} />}
           {data && ((data.parciais?.length || 0) + (data.itens?.length || 0) > 0) && (
             <button onClick={imprimirConferencia}
               title="Imprimir folha de conferência — só os números dos pedidos que estão nesta área, pra marcar quais estão presentes"

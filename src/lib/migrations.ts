@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 61;
+const SCHEMA_VERSION = 62;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -1032,4 +1032,26 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
     `);
     await sp.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS producao_maquina_parada_ativa ON producao_maquina_parada (maquina) WHERE liberada_em IS NULL`);
   }).catch(e => console.error('[migrations] M59 (máquina parada) falhou:', e));
+
+  // M60 (28/09): AVISO DE MÁQUINA do operador → Planejamento. O operador da
+  // Usinagem/Furação avisa que a máquina quebrou / voltou a funcionar / outro
+  // problema; o Reginaldo vê (alerta global + caixa no /planejamento) e resolve
+  // (registra a parada, libera a máquina ou só marca como visto, com resposta).
+  await sql.savepoint(async (sp) => {
+    await sp.unsafe(`
+      CREATE TABLE IF NOT EXISTS producao_maquina_aviso (
+        id                 SERIAL PRIMARY KEY,
+        maquina            TEXT NOT NULL,
+        tipo               TEXT NOT NULL,
+        mensagem           TEXT,
+        setor              TEXT,
+        criado_por_nome    TEXT,
+        criado_em          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        resolvido_em       TIMESTAMPTZ,
+        resolvido_por_nome TEXT,
+        resposta           TEXT
+      )
+    `);
+    await sp.unsafe(`CREATE INDEX IF NOT EXISTS producao_maquina_aviso_pend ON producao_maquina_aviso (criado_em DESC) WHERE resolvido_em IS NULL`);
+  }).catch(e => console.error('[migrations] M60 (aviso de máquina) falhou:', e));
 }

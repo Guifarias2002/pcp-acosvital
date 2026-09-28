@@ -123,6 +123,7 @@ export default function IniciarProducaoModal({
             <b>{maquina}</b> está <b>PARADA</b>: {selecionadaParada.motivo}
             {selecionadaParada.previsao_retorno && <> · previsão de volta {fmtDt(selecionadaParada.previsao_retorno)}</>}.
             {' '}{maquinaPlano ? 'Peça ao Planejamento pra trocar a máquina desta peça.' : 'Escolha outra máquina.'}
+            <div style={{ marginTop: 4, fontSize: 11.5, color: '#7f1d1d' }}>Já voltou a funcionar? Use <b>🔧 Avisar Planejamento</b> no topo da tela — só o Planejamento libera.</div>
           </div>
         )}
         {!selecionadaParada && paradasDoSetor.length > 0 && (

@@ -138,16 +138,34 @@ export default function PlanejamentoPage() {
   // clicar "Voltou a funcionar".
   interface Parada { id: number; maquina: string; motivo: string; previsao_retorno: string | null; desde: string; criado_por_nome: string | null }
   const [paradas, setParadas] = useState<Record<string, Parada>>({});
-  const [modalParada, setModalParada] = useState<{ maquina: string; motivo: string; previsao: string } | null>(null);
+  const [modalParada, setModalParada] = useState<{ maquina: string; motivo: string; previsao: string; avisoId?: number } | null>(null);
+  // Avisos de máquina dos OPERADORES (M60): quebrou / voltou / outro.
+  interface AvisoMaq { id: number; maquina: string; tipo: string; mensagem: string | null; setor: string | null; criado_por_nome: string | null; criado_em: string }
+  const [avisosMaq, setAvisosMaq] = useState<AvisoMaq[]>([]);
   const [salvandoParada, setSalvandoParada] = useState(false);
   const [erroParada, setErroParada] = useState('');
   const aplicarParadas = (lista: Parada[]) => setParadas(Object.fromEntries((lista || []).map(p => [p.maquina, p])));
   const carregarParadas = useCallback(async () => {
     try {
-      const r = await fetch('/api/maquinas/paradas', { headers: { Authorization: `Bearer ${getToken() || ''}` } });
+      const [r, ra] = await Promise.all([
+        fetch('/api/maquinas/paradas', { headers: { Authorization: `Bearer ${getToken() || ''}` } }),
+        fetch('/api/maquinas/avisos', { headers: { Authorization: `Bearer ${getToken() || ''}` } }),
+      ]);
       if (r.ok) aplicarParadas((await r.json()).ativas);
+      if (ra.ok) setAvisosMaq((await ra.json()).pendentes || []);
     } catch { /* segue sem */ }
   }, []);
+  // Atualiza os avisos sozinho a cada 30s (o operador pode mandar a qualquer hora).
+  useEffect(() => { const t = setInterval(carregarParadas, 30000); return () => clearInterval(t); }, [carregarParadas]);
+  async function resolverAviso(id: number, resposta: string) {
+    try {
+      await fetch('/api/maquinas/avisos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
+        body: JSON.stringify({ acao: 'resolver', id, resposta }),
+      });
+    } catch { /* segue */ }
+    setAvisosMaq(v => v.filter(a => a.id !== id));
+  }
   async function postParada(body: Record<string, unknown>): Promise<boolean> {
     setSalvandoParada(true); setErroParada('');
     try {
@@ -165,11 +183,18 @@ export default function PlanejamentoPage() {
     if (!modalParada) return;
     if (!modalParada.maquina) { setErroParada('Escolha a máquina.'); return; }
     if (!modalParada.motivo.trim()) { setErroParada('Informe o motivo.'); return; }
-    if (await postParada({ acao: 'parar', maquina: modalParada.maquina, motivo: modalParada.motivo, previsao_retorno: modalParada.previsao || null })) setModalParada(null);
+    if (await postParada({ acao: 'parar', maquina: modalParada.maquina, motivo: modalParada.motivo, previsao_retorno: modalParada.previsao || null })) {
+      if (modalParada.avisoId) await resolverAviso(modalParada.avisoId, 'Parada registrada no Planejamento');
+      setModalParada(null);
+    }
   }
-  async function liberarMaquina(p: Parada) {
+  async function liberarMaquina(p: Parada, avisoId?: number) {
     if (!confirm(`A máquina ${p.maquina} voltou a funcionar?\n\nEla volta a aparecer normalmente pra produção.`)) return;
-    await postParada({ acao: 'liberar', id: p.id });
+    if (await postParada({ acao: 'liberar', id: p.id })) {
+      // Libera também os avisos "voltou" pendentes dessa máquina.
+      const ids = avisoId ? [avisoId] : avisosMaq.filter(a => a.maquina === p.maquina && a.tipo === 'voltou').map(a => a.id);
+      for (const id of ids) await resolverAviso(id, 'Máquina liberada pelo Planejamento');
+    }
   }
   useEffect(() => { carregarParadas(); }, [carregarParadas]);
   const fmtDia = (d: string | null) => (d ? d.slice(0, 10).split('-').reverse().join('/') : '');
@@ -698,6 +723,49 @@ export default function PlanejamentoPage() {
             </button>
           </div>
         </div>
+
+        {/* AVISOS DOS OPERADORES — quebrou / voltou / outro problema */}
+        {avisosMaq.length > 0 && (
+          <div style={{ background: '#fff7ed', border: '1.5px solid #fdba74', borderRadius: 12, padding: '10px 14px', marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#9a3412', textTransform: 'uppercase', letterSpacing: .5, marginBottom: 6 }}>
+              <i className="bi bi-bell-fill" style={{ marginRight: 6 }} />Avisos dos operadores ({avisosMaq.length})
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {avisosMaq.map(a => {
+                const par = paradas[a.maquina];
+                const tipo = a.tipo === 'quebrou' ? { txt: 'Quebrou / parou', cor: C.vermelho, icon: 'bi-exclamation-octagon-fill' }
+                  : a.tipo === 'voltou' ? { txt: 'Voltou a funcionar — pede liberação', cor: C.verde, icon: 'bi-check-circle-fill' }
+                  : { txt: 'Outro problema', cor: C.laranja, icon: 'bi-chat-left-text-fill' };
+                return (
+                  <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: '#fff', border: '1px solid #fed7aa', borderRadius: 8, padding: '7px 10px' }}>
+                    <b style={{ fontSize: 13, color: C.azul }}>{a.maquina}</b>
+                    <span style={{ fontSize: 11.5, fontWeight: 800, color: tipo.cor }}><i className={`bi ${tipo.icon}`} style={{ marginRight: 4 }} />{tipo.txt}</span>
+                    {par && <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: C.vermelho, borderRadius: 8, padding: '1px 7px' }}>PARADA</span>}
+                    <span style={{ fontSize: 12.5, color: '#334155', flex: 1, minWidth: 160 }}>{a.mensagem || '—'}</span>
+                    <span style={{ fontSize: 11.5, color: C.cinza }}>{a.criado_por_nome || '—'} · {new Date(a.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {!par && a.tipo !== 'voltou' && (
+                        <button className="pl-btn" style={{ padding: '4px 10px', color: C.vermelho, borderColor: '#fecaca' }}
+                          onClick={() => { setErroParada(''); setModalParada({ maquina: a.maquina, motivo: a.mensagem || '', previsao: '', avisoId: a.id }); }}>
+                          <i className="bi bi-tools" style={{ marginRight: 4 }} />Registrar parada
+                        </button>
+                      )}
+                      {par && a.tipo === 'voltou' && (
+                        <button className="pl-btn" style={{ padding: '4px 10px', color: C.verde, borderColor: C.verde }} disabled={salvandoParada} onClick={() => liberarMaquina(par, a.id)}>
+                          <i className="bi bi-check-circle" style={{ marginRight: 4 }} />Liberar máquina
+                        </button>
+                      )}
+                      <button className="pl-btn" style={{ padding: '4px 10px' }} title="Marcar como visto/resolvido (pode escrever uma resposta pro operador)"
+                        onClick={() => { const r = prompt('Resposta pro operador (opcional):', ''); if (r !== null) resolverAviso(a.id, r); }}>
+                        <i className="bi bi-check2" style={{ marginRight: 4 }} />Visto
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Máquinas PARADAS agora — motivo + "Voltou a funcionar" */}
         {listaParadas.length > 0 && (

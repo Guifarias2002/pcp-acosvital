@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getToken, getUser, podeEditar, podeAcessarHrm } from '@/lib/auth';
+import { getToken, getUser, podeEditar, podeAcessarHrm, podePlanejar } from '@/lib/auth';
 import Sidebar, { TopBar } from '@/components/Sidebar';
 import NotificacoesLive from '@/components/NotificacoesLive';
+import AlertaAvisosMaquina from '@/components/AlertaAvisosMaquina';
 
 interface Props {
   children: React.ReactNode;
@@ -23,6 +24,7 @@ export default function AuthGuard({ children, adminOnly, hrmOnly }: Props) {
   const [somenteLeitura, setSomenteLeitura] = useState(false);
   // Alerta de movimentação em tela cheia: só para perfis ADM e PCP.
   const [mostraAvisos, setMostraAvisos] = useState(false);
+  const [planeja, setPlaneja] = useState(false);
 
   useEffect(() => {
     const token = getToken();
@@ -38,6 +40,7 @@ export default function AuthGuard({ children, adminOnly, hrmOnly }: Props) {
     if (hrmOnly && !podeAcessarHrm(getUser())) { router.replace('/'); return; }
     const u = getUser();
     setMostraAvisos(u?.perfil === 'administrador' || u?.perfil === 'pcp');
+    setPlaneja(podePlanejar(u));
     setSomenteLeitura(!podeEditar());
     setOk(true);
   }, [router, adminOnly, hrmOnly]);
@@ -70,6 +73,8 @@ export default function AuthGuard({ children, adminOnly, hrmOnly }: Props) {
       {/* Alerta de movimentação em tela cheia — global, só ADM/PCP.
           Aparece 1x por movimentação (mostra a mais recente por 5s) e some, voltando ao normal. */}
       {mostraAvisos && <NotificacoesLive modo="tela" />}
+      {/* Avisos de máquina dos operadores → só pra quem planeja (Reginaldo/admin). */}
+      {planeja && <AlertaAvisosMaquina />}
     </>
   );
 }
