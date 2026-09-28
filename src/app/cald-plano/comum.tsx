@@ -121,7 +121,7 @@ export const CSS = `
   .cp-card{background:#fff;border:1px solid ${C.borda};border-radius:10px;padding:9px 10px;cursor:pointer;position:relative}
   .cp-card:hover{border-color:${C.azul2};box-shadow:0 2px 8px rgba(29,78,216,.12)}
   .cp-card.drag{opacity:.4}
-  .cp-col{background:${C.fundo};border:1px solid ${C.borda};border-radius:12px;display:flex;flex-direction:column;min-width:250px;width:250px;flex-shrink:0;max-height:calc(100vh - 290px)}
+  .cp-col{background:${C.fundo};border:1px solid ${C.borda};border-radius:12px;display:flex;flex-direction:column;min-width:310px;width:310px;flex-shrink:0;max-height:calc(100vh - 290px)}
   .cp-col.alvo{border-color:${C.azul2};background:#eff6ff}
   .cp-tile{background:#fff;border:1.5px solid ${C.borda};border-radius:12px;padding:10px 14px;cursor:pointer;text-align:left;min-width:0}
   .cp-tile.on{border-color:${C.azul};box-shadow:0 0 0 2px ${C.azul}33}

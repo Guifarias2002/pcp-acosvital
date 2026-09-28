@@ -56,6 +56,10 @@ export default function CaldPlanoPage() {
   const [enc, setEnc] = useState<{ it: ItemCald; lista?: ItemCald[]; area: string; modo: 'mover' | 'subsetor' } | null>(null);
   // Materiais marcados dentro dos cards de pedido (mover só os selecionados).
   const [marcados, setMarcados] = useState<Set<number>>(new Set());
+  // Cards de pedido ABERTOS (chave coluna|pedido) — vêm fechados com um resumo;
+  // clica pra ver os materiais e movimentar.
+  const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  const alternarCard = (k: string) => setAbertos(v => { const n = new Set(v); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   const [arrastando, setArrastando] = useState<number[] | null>(null);
   const [alvoCol, setAlvoCol] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
@@ -462,6 +466,17 @@ export default function CaldPlanoPage() {
                       });
                       const total = somaValor(lista);
                       const arrastandoEste = !!arrastando && lista.some(i => arrastando.includes(i.id));
+                      const chave = `${col.codigo}|${pedido}`;
+                      const expandido = abertos.has(chave);
+                      const nomesUnicos = Array.from(new Set(lista.map(i => i.material)));
+                      const nomesResumo = nomesUnicos.slice(0, 2).join(' · ');
+                      const outros = nomesUnicos.length - 2;
+                      const dias = sits.map(s => s.diasNaArea).filter((d): d is number => d !== null);
+                      const maxDias = dias.length ? Math.max(...dias) : null;
+                      const algumParado = sits.some(s => s.parado);
+                      const nAtrasados = sits.filter(s => s.atrasado || s.areaAtrasada).length;
+                      const nParciais = lista.filter(i => i.parcial).length;
+                      const nRecados = lista.filter(i => i.recado).length;
                       return (
                         <div key={pedido} className={`cp-card ${arrastandoEste ? 'drag' : ''}`}
                           draggable={planeja}
@@ -469,19 +484,42 @@ export default function CaldPlanoPage() {
                           onDragEnd={() => { setArrastando(null); setAlvoCol(null); }}
                           onDragOver={e => { if (planeja && arrastando && col.codigo !== 'novo') e.preventDefault(); }}
                           onDrop={e => { e.preventDefault(); e.stopPropagation(); soltar(col.codigo, pedido); }}
-                          onClick={() => { if (lista.length === 1) setAberto(p); }}
-                          style={{ borderLeft: `4px solid ${atrasado ? C.vermelho : prio.cor}`, cursor: lista.length === 1 ? 'pointer' : 'default' }}>
+                          onClick={() => alternarCard(chave)}
+                          title={expandido ? 'Clique pra fechar' : 'Clique pra ver os materiais e movimentar'}
+                          style={{ borderLeft: `4px solid ${atrasado ? C.vermelho : prio.cor}` }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                             <span style={{ fontSize: 10.5, fontWeight: 800, color: C.fraco }}>#{idx + 1}</span>
                             <b style={{ color: C.azul, fontSize: 13 }}>{pedido}</b>
                             <EmpresaTag empresa={p.empresa} />
                             {prioCod !== 'normal' && <Chip cor="#fff" bg={prio.cor}>{prio.txt}</Chip>}
+                            <i className={`bi ${expandido ? 'bi-chevron-up' : 'bi-chevron-down'}`} style={{ marginLeft: 'auto', color: C.cinza }} />
                           </div>
                           <div style={{ fontSize: 11.5, color: C.cinza }}>
                             {p.cliente || '—'} · <b style={{ color: C.texto }}>{lista.length}</b> {lista.length === 1 ? 'material' : 'materiais'}
                             {verValores && total !== null && <> · <b style={{ color: '#065f46' }}>{fmtBRL(total)}</b></>}
                           </div>
-                          <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {!expandido && (
+                            // RESUMO do card fechado
+                            <div style={{ marginTop: 4 }}>
+                              <div style={{ fontSize: 12, color: C.texto, lineHeight: 1.3 }}>
+                                {nomesResumo}{outros > 0 && <span style={{ color: C.cinza }}> +{outros} outro(s)</span>}
+                              </div>
+                              <div style={{ fontSize: 11.5, color: C.cinza, marginTop: 2 }}>{somaPorUnidade(lista)}</div>
+                              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 5 }}>
+                                {fin
+                                  ? <Chip cor="#166534" bg="#dcfce7"><i className="bi bi-check2-all" />finalizado {fmtData(lista.map(i => i.finalizado_em || '').sort().pop())}</Chip>
+                                  : maxDias !== null && <Chip cor={algumParado ? '#fff' : C.cinza} bg={algumParado ? C.roxo : '#f1f5f9'}><i className="bi bi-clock" />{maxDias}d aqui</Chip>}
+                                {nAtrasados > 0 && <Chip cor="#fff" bg={C.vermelho}><i className="bi bi-exclamation-triangle-fill" />{nAtrasados} atrasado(s)</Chip>}
+                                {nParciais > 0 && <Chip cor="#7c3aed" bg="#ede9fe">{nParciais} parcial(is)</Chip>}
+                                {nRecados > 0 && <Chip cor="#92400e" bg="#fef3c7"><i className="bi bi-person-check" />{nRecados} recado(s)</Chip>}
+                                {!fin && proxComum && <Chip cor="#1d4ed8" bg="#dbeafe">próx.: {nomeArea(proxComum)}</Chip>}
+                              </div>
+                              <div style={{ fontSize: 11, color: C.azul2, fontWeight: 700, marginTop: 5 }}>
+                                <i className="bi bi-hand-index" /> Clique pra ver {lista.length === 1 ? 'o material' : `os ${lista.length} materiais`} e movimentar
+                              </div>
+                            </div>
+                          )}
+                          {expandido && <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', gap: 4 }}>
                             {lista.map(it => {
                               const s = sit.get(it.id)!;
                               const et = it.etapas.find(e => e.area === it.area_atual);
@@ -518,20 +556,20 @@ export default function CaldPlanoPage() {
                                       <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}><i className="bi bi-truck" /> {et.fornecedor}{et.retorno_previsto ? ` · volta ${fmtData(et.retorno_previsto)}` : ''}</div>
                                     )}
                                   </div>
-                                  {planeja && lista.length > 1 && (
+                                  {planeja && (
                                     <button className="cp-btn sm" title="Mover só este material (dá pra mandar parte da quantidade)" style={{ padding: '2px 7px' }}
                                       onClick={e => { e.stopPropagation(); abrirEnc([it]); }}><i className="bi bi-arrow-right" /></button>
                                   )}
                                 </div>
                               );
                             })}
-                          </div>
-                          {col.codigo === 'novo' && (
+                          </div>}
+                          {expandido && col.codigo === 'novo' && (
                             <div style={{ fontSize: 11, color: C.fraco, marginTop: 4 }}>
                               {p.areas.map(nomeArea).join(' → ') || 'sem roteiro'}{p.criado_por_nome ? ` · lançado por ${p.criado_por_nome}` : ''}
                             </div>
                           )}
-                          {planeja && (
+                          {planeja && expandido && (
                             <div style={{ marginTop: 7, display: 'flex', gap: 5 }} onClick={e => e.stopPropagation()}>
                               <button className="cp-btn sm pri" style={{ flex: 1, justifyContent: 'center' }}
                                 title={lista.length === 1 ? 'Mover pra outra área ou setor (dá pra mandar parte da quantidade)' : 'Mover TODOS os materiais deste pedido que estão nesta coluna'}
