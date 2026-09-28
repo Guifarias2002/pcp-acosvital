@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerNaoLocalizados, podeVerRomaneios, podePlanejar, podeConferirHrm, podePlanejarCaldeiraria, podeGerenciarUsuarios } from '@/lib/auth';
+import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerNaoLocalizados, podeVerRomaneios, podePlanejar, podeVerEstoque, podeConferirHrm, podePlanejarCaldeiraria, podeGerenciarUsuarios } from '@/lib/auth';
 import { SETOR_CHOICES, NOMES, SETORES_CALDEIRARIA_MENU, SETORES_EXCLUSIVOS_CALDEIRARIA } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { JWTPayload } from '@/lib/auth';
@@ -177,6 +177,8 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
   const podeRomaneios = podeVerRomaneios(user);
   // Planejamento da Usinagem: admin OU flag acesso_planejamento (ex.: Reginaldo).
   const podePlan = podePlanejar(user);
+  // Só estoque (ESTOQUE_LOGINS): mesmo /planejamento, mostrando só a aba Estoque.
+  const soEstoque = !podePlan && podeVerEstoque(user);
   // Conferência do PCP HRM: staff OU flag acesso_conferencia_hrm (ex.: Alan).
   const confHrm = !isAdmin && podeConferirHrm(user);
   // PCP Caldeiraria (/cald-plano, Planejamento do Val): 1º item do grupo
@@ -284,6 +286,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
               {/* Planejamento da Usinagem — admin OU flag acesso_planejamento
                   (fora do bloco só-admin, pra aparecer pro operador-líder Reginaldo). */}
               {podePlan && <NavItem href="/planejamento" label="Planejamento" icon="bi-diagram-3" onNav={fechar} />}
+              {soEstoque && <NavItem href="/planejamento" label="Estoque" icon="bi-box-seam" onNav={fechar} />}
               {/* "Paradas de Pedidos" saiu do menu — agora é atalho no topo da
                   Análise PCP. "Não Localizados" continua aqui (quem usa pode não
                   ter acesso à Análise). */}

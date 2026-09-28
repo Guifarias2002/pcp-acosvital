@@ -11,6 +11,10 @@
 //   transf_saida   (−) / transf_entrada (+) — transferência entre locais (mesmo `grupo`)
 //   inventario     (±) ajuste ao fechar um inventário (contado − saldo)
 
+// Quem mexe SÓ no estoque (sem ser do Planejamento): vê /planejamento só com a
+// aba Estoque. Por login. Quem planeja (podePlanejar) já tem acesso.
+export const ESTOQUE_LOGINS = new Set<string>(['diego']);
+
 export const LOCAIS_ESTOQUE = [
   { cod: 'aruja', nome: 'Estoque Arujá' },
   { cod: 'mogi', nome: 'Estoque Mogi' },
@@ -27,7 +31,7 @@ export const TIPOS_MOV: Record<string, { nome: string; cor: string; icon: string
   baixa_pedido:   { nome: 'Baixa por pedido',     cor: '#d97706', icon: 'bi-cart-check' },
   transf_saida:   { nome: 'Transferência (saiu)', cor: '#7c3aed', icon: 'bi-arrow-left-right' },
   transf_entrada: { nome: 'Transferência (entrou)', cor: '#7c3aed', icon: 'bi-arrow-left-right' },
-  inventario:     { nome: 'Ajuste de inventário', cor: '#1d4ed8', icon: 'bi-clipboard-check' },
+  inventario:     { nome: 'Inventário (quantidade atual)', cor: '#1d4ed8', icon: 'bi-clipboard-check' },
 };
 
 export interface ItemEstoque {
@@ -40,6 +44,8 @@ export interface ItemEstoque {
   ativo: boolean;
   saldo_aruja: number;
   saldo_mogi: number;
+  em_aruja: boolean | null;
+  em_mogi: boolean | null;
 }
 
 export interface MovEstoque {

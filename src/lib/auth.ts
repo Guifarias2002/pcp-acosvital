@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose';
+import { ESTOQUE_LOGINS } from './estoque';
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? '');
 
@@ -254,6 +255,12 @@ export function podeConferirHrm(u?: JWTPayload | null): boolean {
 export function podePlanejar(u?: JWTPayload | null): boolean {
   const user = u ?? getUser();
   return isAdministrador(user) || user?.acesso_planejamento === true;
+}
+// Estoque de flanges (aba Estoque do /planejamento): quem planeja + a lista
+// ESTOQUE_LOGINS (pessoal do estoque — vê SÓ a aba Estoque).
+export function podeVerEstoque(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return podePlanejar(user) || (!!user && ESTOQUE_LOGINS.has(user.username));
 }
 
 // Vê o item "Usuários" no menu (ver os acessos e definir senha nova) sem ser

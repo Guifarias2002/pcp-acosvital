@@ -10,12 +10,12 @@
  *   GET ?inventario=ID → { inventario, linhas }
  *   POST { acao, ... } → ver o switch abaixo.
  *
- * Acesso: podePlanejar (admin ou flag acesso_planejamento), igual à tela.
+ * Acesso: podeVerEstoque (quem planeja + ESTOQUE_LOGINS).
  */
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
-import { podePlanejar } from '@/lib/auth';
+import { podeVerEstoque } from '@/lib/auth';
 import { FAB_SETORES_PRONTO, injetarQuarentena, SETOR_CHOICES } from '@/lib/types';
 import { LOCAIS_COD, normCodigo } from '@/lib/estoque';
 
@@ -68,7 +68,7 @@ async function sincronizarProducao() {
 export async function GET(req: Request) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
-  if (!podePlanejar(user)) return erro('Sem permissão', 403);
+  if (!podeVerEstoque(user)) return erro('Sem permissão', 403);
 
   try {
     const { searchParams } = new URL(req.url);
@@ -87,7 +87,8 @@ export async function GET(req: Request) {
       sql`
         SELECT e.id, e.codigo, e.codigo_pedido, e.descricao, e.unidade, e.estoque_minimo::float, e.ativo,
                COALESCE(SUM(m.quantidade) FILTER (WHERE m.local = 'aruja'), 0)::float AS saldo_aruja,
-               COALESCE(SUM(m.quantidade) FILTER (WHERE m.local = 'mogi'), 0)::float  AS saldo_mogi
+               COALESCE(SUM(m.quantidade) FILTER (WHERE m.local = 'mogi'), 0)::float  AS saldo_mogi,
+               bool_or(m.local = 'aruja') AS em_aruja, bool_or(m.local = 'mogi') AS em_mogi
         FROM producao_estoque_item e
         LEFT JOIN producao_estoque_mov m ON m.item_id = e.id AND m.cancelado_em IS NULL
         GROUP BY e.id ORDER BY e.ativo DESC, e.codigo`,
@@ -159,7 +160,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
-  if (!podePlanejar(user)) return erro('Sem permissão', 403);
+  if (!podeVerEstoque(user)) return erro('Sem permissão', 403);
   const quem = user.nome || user.username;
 
   const b = await req.json().catch(() => ({})) as Record<string, unknown>;
@@ -191,6 +192,53 @@ export async function POST(req: Request) {
           INSERT INTO producao_estoque_item (codigo, codigo_pedido, descricao, unidade, estoque_minimo, criado_por_nome)
           VALUES (${codigo}, ${codPed}, ${descricao}, ${unidade}, ${min}, ${quem})`;
       }
+      return NextResponse.json({ ok: true });
+    }
+
+    // ── Inventário simples: adicionar item com a QUANTIDADE ATUAL no local ──
+    // Código já cadastrado → só passa a existir também neste local (ou ajusta).
+    if (acao === 'item_adicionar') {
+      const codigo = txt(b.codigo, 60);
+      const descricao = txt(b.descricao, 300);
+      const local = String(b.local || '');
+      const qtd = num(b.quantidade ?? 0);
+      if (!codigo) return erro('Informe o código.');
+      if (!LOCAIS_COD.includes(local)) return erro('Local inválido.');
+      if (Number.isNaN(qtd) || qtd < 0) return erro('Quantidade inválida.');
+      await sql.begin(async (tx) => {
+        const t = tx as unknown as Tx;
+        let [it] = await t`SELECT id, ativo FROM producao_estoque_item WHERE upper(trim(codigo)) = ${normCodigo(codigo)} FOR UPDATE`;
+        if (!it) {
+          if (!descricao) throw new Error('USR:Informe a descrição.');
+          [it] = await t`INSERT INTO producao_estoque_item (codigo, descricao, unidade, criado_por_nome)
+                         VALUES (${codigo}, ${descricao}, ${txt(b.unidade, 10) || 'pç'}, ${quem}) RETURNING id, ativo`;
+        } else if (!it.ativo) {
+          await t`UPDATE producao_estoque_item SET ativo = true WHERE id = ${it.id}`;
+        }
+        const s = await saldo(t, Number(it.id), local);
+        const [tem] = await t`SELECT 1 AS x FROM producao_estoque_mov WHERE item_id = ${it.id} AND local = ${local} AND cancelado_em IS NULL LIMIT 1`;
+        if (tem && Math.abs(qtd - s) < 1e-9) return;
+        await t`INSERT INTO producao_estoque_mov (item_id, local, tipo, quantidade, obs, criado_por_nome)
+                VALUES (${it.id}, ${local}, 'inventario', ${qtd - s}, ${`Quantidade atual informada: ${qtd}`}, ${quem})`;
+      });
+      return NextResponse.json({ ok: true });
+    }
+    // Corrige a quantidade atual de um item no local (diferença vira ajuste).
+    if (acao === 'ajustar') {
+      const itemId = Number(b.item_id);
+      const local = String(b.local || '');
+      const qtd = num(b.quantidade);
+      if (!itemId || !LOCAIS_COD.includes(local)) return erro('Item/local inválido.');
+      if (Number.isNaN(qtd) || qtd < 0) return erro('Quantidade inválida.');
+      await sql.begin(async (tx) => {
+        const t = tx as unknown as Tx;
+        const itens = await travarItens(t, [itemId]);
+        if (!itens.get(itemId)) throw new Error('USR:Item não encontrado.');
+        const s = await saldo(t, itemId, local);
+        if (Math.abs(qtd - s) < 1e-9) return;
+        await t`INSERT INTO producao_estoque_mov (item_id, local, tipo, quantidade, obs, criado_por_nome)
+                VALUES (${itemId}, ${local}, 'inventario', ${qtd - s}, ${`Quantidade corrigida: ${s} → ${qtd}${txt(b.obs) ? ` · ${txt(b.obs)}` : ''}`}, ${quem})`;
+      });
       return NextResponse.json({ ok: true });
     }
 

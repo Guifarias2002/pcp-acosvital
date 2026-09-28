@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import VisualizadorDoc from '@/components/VisualizadorDoc';
 import { useRealtime } from '@/hooks/useRealtime';
-import { getToken, podePlanejar, podeVerCliente } from '@/lib/auth';
+import { getToken, podePlanejar, podeVerCliente, podeVerEstoque } from '@/lib/auth';
 import { MAQUINAS_POR_SETOR } from '@/lib/maquinas';
 import EstoqueFlanges from './EstoqueFlanges';
 
@@ -362,6 +362,19 @@ export default function PlanejamentoPage() {
     } catch { /* próximo refresh reconcilia */ }
     finally { setSalvandoMaq(null); }
   }
+
+  // Pessoal do estoque (sem Planejamento): vê só a aba Estoque.
+  if (!podePlanejar() && podeVerEstoque()) return (
+    <AuthGuard>
+      <style>{`.pl-btn{border:1.5px solid #e2e8f0;background:#fff;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;color:#334155;cursor:pointer}.pl-btn:hover{border-color:${C.azul}}`}</style>
+      <div style={{ width: '100%' }}>
+        <h4 style={{ margin: '0 0 14px', fontWeight: 800, color: C.azul, fontSize: 22 }}>
+          <i className="bi bi-box-seam" style={{ marginRight: 8 }} />Estoque de Flanges
+        </h4>
+        <EstoqueFlanges />
+      </div>
+    </AuthGuard>
+  );
 
   if (!podePlanejar()) return (
     <AuthGuard><div style={{ padding: 40, textAlign: 'center', color: C.cinza }}>

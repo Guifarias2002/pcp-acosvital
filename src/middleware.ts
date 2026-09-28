@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
+import { ESTOQUE_LOGINS } from '@/lib/estoque';
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? '');
 
@@ -46,10 +47,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  let payload: { is_staff?: boolean; perfil?: string; setor?: string; setores?: string[]; acesso_hrm?: boolean; acesso_planejamento?: boolean } = {};
+  let payload: { is_staff?: boolean; perfil?: string; setor?: string; setores?: string[]; acesso_hrm?: boolean; acesso_planejamento?: boolean; username?: string } = {};
   try {
     const { payload: p } = await jwtVerify(tokenCookie, secret);
-    payload = p as { is_staff?: boolean; perfil?: string; setor?: string; setores?: string[]; acesso_hrm?: boolean; acesso_planejamento?: boolean };
+    payload = p as { is_staff?: boolean; perfil?: string; setor?: string; setores?: string[]; acesso_hrm?: boolean; acesso_planejamento?: boolean; username?: string };
   } catch {
     return NextResponse.redirect(new URL('/login', req.url));
   }
@@ -67,7 +68,7 @@ export async function middleware(req: NextRequest) {
   // Planejamento (/planejamento): só admin ou quem tem a flag acesso_planejamento
   // (ex.: Reginaldo da Usinagem). Outros são mandados de volta pro próprio setor.
   if (pathname === '/planejamento' || pathname.startsWith('/planejamento/')) {
-    if (!isAdmin && payload.acesso_planejamento !== true) {
+    if (!isAdmin && payload.acesso_planejamento !== true && !ESTOQUE_LOGINS.has(String(payload.username || ''))) {
       const destino = meuSetor ? `/setor/${meuSetor}` : (isVendedor ? '/pedidos' : '/login');
       return NextResponse.redirect(new URL(destino, req.url));
     }

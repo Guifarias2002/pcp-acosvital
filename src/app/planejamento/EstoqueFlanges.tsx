@@ -1,11 +1,12 @@
 'use client';
 // Aba "Estoque" do Planejamento — Estoque de FLANGES em dois locais (Arujá =
-// produção, Mogi). Cadastro único de flanges; saldo por local; lançamentos
-// (entrada / saída / transferência); baixa quando o pedido sai do setor Estoque
-// (pergunta: fabricação aqui × estoque armazenado); entrada automática de
-// "Pedido de Estoque" quando passa do acabamento; inventário por local.
+// produção, Mogi). Simples (pedido 28/09): 1ª aba = INVENTÁRIO, onde se adiciona
+// o item (código, descrição, quantidade atual) e corrige a quantidade na lista —
+// sem cadastro separado. Baixa quando o pedido sai do setor Estoque (pergunta:
+// fabricação aqui × estoque armazenado); entrada automática de "Pedido de
+// Estoque" quando passa do acabamento; transferência Arujá ↔ Mogi.
 // API: /api/estoque (ver src/lib/estoque.ts).
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getToken } from '@/lib/auth';
 import { parcialAcao } from '@/lib/api';
 import DestinoSetorPicker from '@/components/DestinoSetorPicker';
@@ -36,7 +37,7 @@ interface Dados {
   pedidos_estoque: PedidoEstoque[];
   inventarios: InventarioResumo[];
 }
-type Sub = 'saldo' | 'pedidos' | 'lancamentos' | 'inventario' | 'cadastro' | 'pedidos_estoque';
+type Sub = 'inventario' | 'pedidos' | 'lancamentos' | 'pedidos_estoque';
 
 async function post(body: Record<string, unknown>): Promise<{ ok: boolean; erro?: string; [k: string]: unknown }> {
   try {
@@ -88,7 +89,7 @@ export default function EstoqueFlanges() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [local, setLocal] = useState<string>('aruja');
-  const [sub, setSub] = useState<Sub>('saldo');
+  const [sub, setSub] = useState<Sub>('inventario');
   const [busca, setBusca] = useState('');
   const [aviso, setAviso] = useState('');
 
@@ -103,6 +104,13 @@ export default function EstoqueFlanges() {
     finally { setCarregando(false); }
   }, []);
   useEffect(() => { carregar(); }, [carregar]);
+  // Atualiza sozinho (o setor Estoque recebe peças o tempo todo) — só quando
+  // ninguém está digitando/movimentando, pra não atropelar o formulário.
+  const ocupado = useRef(false);
+  useEffect(() => {
+    const t = setInterval(() => { if (!ocupado.current && document.visibilityState === 'visible') carregar(); }, 45000);
+    return () => clearInterval(t);
+  }, [carregar]);
   const avisar = (m: string) => { setAviso(m); setTimeout(() => setAviso(a => (a === m ? '' : a)), 4000); };
 
   const itens = dados?.itens || [];
@@ -113,7 +121,8 @@ export default function EstoqueFlanges() {
 
   // ── Modais ────────────────────────────────────────────────────────────────
   const [mLanc, setMLanc] = useState<{ tipo: 'entrada' | 'saida' | 'transferencia'; item_id: number | ''; local: string; local_destino: string; quantidade: string; obs: string } | null>(null);
-  const [mItem, setMItem] = useState<{ id?: number; codigo: string; codigo_pedido: string; descricao: string; unidade: string; estoque_minimo: string; ativo: boolean } | null>(null);
+  const [novo, setNovo] = useState({ codigo: '', descricao: '', quantidade: '' });
+  const [editQtd, setEditQtd] = useState<{ item_id: number; valor: string } | null>(null);
   const [mAtender, setMAtender] = useState<{ peca: PecaNoEstoque; fab: string; origens: { item_id: number | ''; local: string; quantidade: string }[]; destino: string; obs: string } | null>(null);
   const [mVinc, setMVinc] = useState<{ pend: PendenciaVinculo; item_id: number | '' } | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -128,13 +137,23 @@ export default function EstoqueFlanges() {
     if (!r.ok) { setErroModal(r.erro || 'Erro'); return; }
     setMLanc(null); avisar('Lançamento salvo.'); carregar();
   }
-  async function salvarItem() {
-    if (!mItem) return;
+  async function adicionarItem() {
+    if (!novo.codigo.trim()) { setErroModal('Informe o código.'); return; }
     setSalvando(true); setErroModal('');
-    const r = await post({ acao: 'item_salvar', ...mItem, estoque_minimo: mItem.estoque_minimo.replace(',', '.') });
+    const r = await post({ acao: 'item_adicionar', local, codigo: novo.codigo, descricao: novo.descricao, quantidade: Number(novo.quantidade.replace(',', '.')) || 0 });
     setSalvando(false);
     if (!r.ok) { setErroModal(r.erro || 'Erro'); return; }
-    setMItem(null); avisar('Flange salvo.'); carregar();
+    setNovo({ codigo: '', descricao: '', quantidade: '' }); avisar('Item salvo no inventário.'); carregar();
+  }
+  async function salvarQtd() {
+    if (!editQtd) return;
+    const v = Number(editQtd.valor.replace(',', '.'));
+    if (editQtd.valor.trim() === '' || Number.isNaN(v) || v < 0) { alert('Quantidade inválida.'); return; }
+    setSalvando(true);
+    const r = await post({ acao: 'ajustar', item_id: editQtd.item_id, local, quantidade: v });
+    setSalvando(false);
+    if (!r.ok) { alert(r.erro); return; }
+    setEditQtd(null); avisar('Quantidade atualizada.'); carregar();
   }
   async function cancelarMov(m: MovEstoque) {
     const ehBaixa = !!m.atendimento_id;
@@ -194,45 +213,6 @@ export default function EstoqueFlanges() {
     carregar(); return true;
   }
 
-  // ── Inventário ────────────────────────────────────────────────────────────
-  const [invAberto, setInvAberto] = useState<{ id: number; local: string; contagem: Record<number, string> } | null>(null);
-  const [invBusca, setInvBusca] = useState('');
-  async function abrirInventario(id: number, loc: string) {
-    try {
-      const r = await fetch(`/api/estoque?inventario=${id}`, { headers: { Authorization: `Bearer ${getToken() || ''}` } });
-      const d = await r.json();
-      if (!r.ok) { alert(d.erro); return; }
-      const contagem: Record<number, string> = {};
-      for (const l of d.linhas as { item_id: number; contado: number }[]) contagem[l.item_id] = String(l.contado);
-      setInvAberto({ id, local: loc, contagem });
-    } catch { alert('Falha de conexão.'); }
-  }
-  async function novoInventario() {
-    const r = await post({ acao: 'inv_abrir', local });
-    if (!r.ok) { alert(r.erro); return; }
-    await carregar();
-    abrirInventario(Number(r.id), local);
-  }
-  const linhasInv = () => Object.entries(invAberto?.contagem || {}).map(([item_id, v]) => ({ item_id: Number(item_id), contado: v.trim() === '' ? null : Number(v.replace(',', '.')) }));
-  async function salvarInventario(fechar: boolean) {
-    if (!invAberto) return;
-    if (fechar && !confirm(`Fechar o inventário de ${nomeLocal(invAberto.local)}?\n\nO saldo de cada flange contado passa a ser o CONTADO (a diferença vira "Ajuste de inventário"). Flange não contado não muda.`)) return;
-    setSalvando(true);
-    const r = await post({ acao: fechar ? 'inv_fechar' : 'inv_salvar', id: invAberto.id, linhas: linhasInv() });
-    setSalvando(false);
-    if (!r.ok) { alert(r.erro); return; }
-    avisar(fechar ? 'Inventário fechado e saldo ajustado.' : 'Contagem salva.');
-    if (fechar) setInvAberto(null);
-    carregar();
-  }
-  async function cancelarInventario(id: number) {
-    if (!confirm('Cancelar este inventário aberto? A contagem digitada é perdida.')) return;
-    const r = await post({ acao: 'inv_cancelar', id });
-    if (!r.ok) { alert(r.erro); return; }
-    if (invAberto?.id === id) setInvAberto(null);
-    carregar();
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────
   const btnSub = (id: Sub, rot: string, icon: string, badge?: number) => {
     const on = sub === id;
@@ -248,11 +228,14 @@ export default function EstoqueFlanges() {
     );
   };
 
-  const totalLocal = itens.reduce((s, i) => s + saldoDe(i, local), 0);
-  const abaixoMin = itens.filter(i => i.ativo && i.estoque_minimo != null && saldoDe(i, local) < i.estoque_minimo);
+  const noLocal = (i: ItemEstoque, l: string) => (l === 'aruja' ? !!i.em_aruja : !!i.em_mogi);
+  const itensLocal = itens.filter(i => i.ativo && noLocal(i, local));
+  const totalLocal = itensLocal.reduce((s, i) => s + saldoDe(i, local), 0);
+  ocupado.current = !!(mAtender || mLanc || mVinc || editQtd || novo.codigo || novo.descricao || novo.quantidade);
   const movsLocal = (dados?.movs || []).filter(m => m.local === local && casa(m.codigo, m.descricao, m.numero_pedido_venda, m.obs, m.criado_por_nome));
-  const invs = (dados?.inventarios || []).filter(v => v.local === local);
   const pecasNoSetor = (dados?.no_setor || []).filter(p => casa(p.numero_pedido_venda, p.cliente, p.codigo, p.descricao));
+  const nPedidosSetor = new Set((dados?.no_setor || []).map(p => p.pedido_id)).size;
+  const nPecasSetor = (dados?.no_setor || []).reduce((s, p) => s + p.quantidade, 0);
 
   return (
     <section style={{ marginBottom: 30 }}>
@@ -260,7 +243,7 @@ export default function EstoqueFlanges() {
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
         {LOCAIS_ESTOQUE.map(l => {
           const on = local === l.cod;
-          const tot = itens.reduce((s, i) => s + saldoDe(i, l.cod), 0);
+          const tot = itens.filter(i => i.ativo && noLocal(i, l.cod)).reduce((s, i) => s + saldoDe(i, l.cod), 0);
           return (
             <button key={l.cod} onClick={() => setLocal(l.cod)} style={{
               flex: '1 1 220px', textAlign: 'left', cursor: 'pointer', borderRadius: 12, padding: '12px 16px',
@@ -274,11 +257,9 @@ export default function EstoqueFlanges() {
       </div>
 
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
-        {btnSub('saldo', 'Saldo', 'bi-bar-chart-steps')}
-        {btnSub('pedidos', 'Pedidos no Estoque', 'bi-cart-check', dados?.no_setor.length)}
-        {btnSub('lancamentos', 'Lançamentos', 'bi-journal-text')}
-        {btnSub('inventario', 'Inventário', 'bi-clipboard-check', invs.filter(v => v.status === 'aberto').length)}
-        {btnSub('cadastro', 'Cadastro de flanges', 'bi-card-list')}
+        {btnSub('inventario', 'Inventário', 'bi-clipboard-check')}
+        {btnSub('pedidos', 'Pedidos no Estoque', 'bi-cart-check', nPedidosSetor)}
+        {btnSub('lancamentos', 'Histórico', 'bi-journal-text')}
         {btnSub('pedidos_estoque', 'Pedidos de Estoque', 'bi-gear', dados?.pendencias.length)}
         <div style={{ flex: 1 }} />
         <input placeholder="Buscar código, descrição, pedido…" value={busca} onChange={e => setBusca(e.target.value)} style={{ ...inp, width: 240 }} />
@@ -291,46 +272,60 @@ export default function EstoqueFlanges() {
 
       {dados && (
         <div className="card" style={{ padding: 14 }}>
-          {/* ── SALDO ─────────────────────────────────────────────────────── */}
-          {sub === 'saldo' && (
+          {/* ── INVENTÁRIO (1ª aba): itens do local + quantidade atual ─────── */}
+          {sub === 'inventario' && (
             <>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
-                <div style={{ fontWeight: 800, color: C.azul }}>{nomeLocal(local)} · {fmt(totalLocal)} peças</div>
-                {abaixoMin.length > 0 && <span style={{ fontSize: 12, fontWeight: 700, color: C.vermelho }}><i className="bi bi-exclamation-triangle" /> {abaixoMin.length} abaixo do mínimo</span>}
+                <div style={{ fontWeight: 800, color: C.azul }}>Inventário — {nomeLocal(local)} · {itensLocal.length} itens · {fmt(totalLocal)} peças</div>
                 <div style={{ flex: 1 }} />
-                <button className="pl-btn" style={{ color: C.verde }} onClick={() => abrir(setMLanc, { tipo: 'entrada', item_id: '', local, local_destino: '', quantidade: '', obs: '' })}><i className="bi bi-plus-lg" /> Entrada</button>
-                <button className="pl-btn" style={{ color: C.vermelho }} onClick={() => abrir(setMLanc, { tipo: 'saida', item_id: '', local, local_destino: '', quantidade: '', obs: '' })}><i className="bi bi-dash-lg" /> Saída</button>
-                <button className="pl-btn" style={{ color: C.roxo }} onClick={() => abrir(setMLanc, { tipo: 'transferencia', item_id: '', local, local_destino: local === 'aruja' ? 'mogi' : 'aruja', quantidade: '', obs: '' })}><i className="bi bi-arrow-left-right" /> Transferir</button>
+                <button className="pl-btn" style={{ color: C.roxo }} onClick={() => abrir(setMLanc, { tipo: 'transferencia', item_id: '', local, local_destino: local === 'aruja' ? 'mogi' : 'aruja', quantidade: '', obs: '' })}><i className="bi bi-arrow-left-right" /> Transferir p/ {local === 'aruja' ? 'Mogi' : 'Arujá'}</button>
+                <button className="pl-btn no-print" onClick={() => window.print()}><i className="bi bi-printer" /> Imprimir</button>
               </div>
-              {itens.length === 0 ? (
-                <div style={{ color: C.cinza, padding: 16, textAlign: 'center' }}>
-                  Nenhum flange cadastrado ainda. <button className="pl-btn" onClick={() => setSub('cadastro')}>Cadastrar flanges</button>
-                </div>
+
+              {/* Adicionar item com a quantidade atual */}
+              <div className="no-print" style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 10, padding: 10, marginBottom: 12 }}>
+                <div style={{ width: 170 }}><label style={lbl}>Código</label><input style={inp} value={novo.codigo} onChange={e => setNovo(v => ({ ...v, codigo: e.target.value }))} placeholder="ex.: 015LT020" /></div>
+                <div style={{ flex: '1 1 260px' }}><label style={lbl}>Descrição</label><input style={inp} value={novo.descricao} onChange={e => setNovo(v => ({ ...v, descricao: e.target.value }))} placeholder="ex.: FLANGE LISO SOLTO B16.5 150LBS AC 2&quot;" /></div>
+                <div style={{ width: 130 }}><label style={lbl}>Quantidade atual</label><input style={{ ...inp, textAlign: 'right', fontWeight: 700 }} inputMode="decimal" value={novo.quantidade} onChange={e => setNovo(v => ({ ...v, quantidade: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') adicionarItem(); }} /></div>
+                <button className="pl-btn" style={{ color: '#fff', background: C.teal, borderColor: C.teal }} onClick={adicionarItem} disabled={salvando}><i className="bi bi-plus-lg" /> Adicionar</button>
+                {erroModal && !mLanc && !mAtender && !mVinc && <div style={{ width: '100%', color: C.vermelho, fontSize: 12.5, fontWeight: 600 }}>{erroModal}</div>}
+              </div>
+
+              {itensLocal.length === 0 ? (
+                <div style={{ color: C.cinza, padding: 16, textAlign: 'center' }}>Nenhum item no {nomeLocal(local)} ainda — adicione acima.</div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
                     <thead><tr>
                       <th style={th}>Código</th><th style={th}>Descrição</th>
-                      <th style={{ ...th, textAlign: 'right' }}>Saldo {local === 'aruja' ? 'Arujá' : 'Mogi'}</th>
-                      <th style={{ ...th, textAlign: 'right' }}>Mínimo</th>
+                      <th style={{ ...th, textAlign: 'right' }}>Quantidade atual</th>
                       <th style={{ ...th, textAlign: 'right' }}>{local === 'aruja' ? 'Mogi' : 'Arujá'}</th>
-                      <th style={th}></th>
+                      <th className="no-print" style={th}></th>
                     </tr></thead>
                     <tbody>
-                      {itens.filter(i => i.ativo && casa(i.codigo, i.codigo_pedido, i.descricao)).map(i => {
+                      {itensLocal.filter(i => casa(i.codigo, i.codigo_pedido, i.descricao)).map(i => {
                         const s = saldoDe(i, local);
-                        const baixo = i.estoque_minimo != null && s < i.estoque_minimo;
+                        const outro = local === 'aruja' ? 'mogi' : 'aruja';
+                        const editando = editQtd?.item_id === i.id;
                         return (
-                          <tr key={i.id} style={{ background: baixo ? '#fef2f2' : undefined }}>
-                            <td style={{ ...td, fontWeight: 700 }}>{i.codigo}{i.codigo_pedido && i.codigo_pedido !== i.codigo && <div style={{ fontSize: 10.5, color: '#94a3b8', fontWeight: 500 }}>pedido: {i.codigo_pedido}</div>}</td>
+                          <tr key={i.id}>
+                            <td style={{ ...td, fontWeight: 700 }}>{i.codigo}</td>
                             <td style={td}>{i.descricao}</td>
-                            <td style={{ ...tdR, fontSize: 14, color: s < 0 ? C.vermelho : baixo ? C.vermelho : C.azul }}>{fmt(s)} <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>{i.unidade}</span></td>
-                            <td style={{ ...tdR, color: '#94a3b8', fontWeight: 500 }}>{fmt(i.estoque_minimo)}</td>
-                            <td style={{ ...tdR, color: '#94a3b8', fontWeight: 500 }}>{fmt(saldoDe(i, local === 'aruja' ? 'mogi' : 'aruja'))}</td>
-                            <td style={{ ...td, whiteSpace: 'nowrap', textAlign: 'right' }}>
-                              <button className="pl-btn" style={{ padding: '3px 8px', color: C.verde }} title="Entrada" onClick={() => abrir(setMLanc, { tipo: 'entrada', item_id: i.id, local, local_destino: '', quantidade: '', obs: '' })}><i className="bi bi-plus-lg" /></button>{' '}
-                              <button className="pl-btn" style={{ padding: '3px 8px', color: C.vermelho }} title="Saída" onClick={() => abrir(setMLanc, { tipo: 'saida', item_id: i.id, local, local_destino: '', quantidade: '', obs: '' })}><i className="bi bi-dash-lg" /></button>{' '}
-                              <button className="pl-btn" style={{ padding: '3px 8px', color: C.roxo }} title="Transferir" onClick={() => abrir(setMLanc, { tipo: 'transferencia', item_id: i.id, local, local_destino: local === 'aruja' ? 'mogi' : 'aruja', quantidade: '', obs: '' })}><i className="bi bi-arrow-left-right" /></button>
+                            <td style={{ ...tdR, fontSize: 14, color: s < 0 ? C.vermelho : C.azul }}>
+                              {editando ? (
+                                <input autoFocus inputMode="decimal" value={editQtd.valor} onChange={e => setEditQtd({ item_id: i.id, valor: e.target.value })}
+                                  onKeyDown={e => { if (e.key === 'Enter') salvarQtd(); if (e.key === 'Escape') setEditQtd(null); }}
+                                  style={{ ...inp, width: 100, textAlign: 'right', fontWeight: 800 }} />
+                              ) : <>{fmt(s)} <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>{i.unidade}</span></>}
+                            </td>
+                            <td style={{ ...tdR, color: '#94a3b8', fontWeight: 500 }}>{noLocal(i, outro) ? fmt(saldoDe(i, outro)) : '—'}</td>
+                            <td className="no-print" style={{ ...td, whiteSpace: 'nowrap', textAlign: 'right' }}>
+                              {editando ? <>
+                                <button className="pl-btn" style={{ padding: '3px 10px', color: '#fff', background: C.verde, borderColor: C.verde }} onClick={salvarQtd} disabled={salvando}>Salvar</button>{' '}
+                                <button className="pl-btn" style={{ padding: '3px 10px' }} onClick={() => setEditQtd(null)}>Cancelar</button>
+                              </> : (
+                                <button className="pl-btn" style={{ padding: '3px 10px' }} onClick={() => setEditQtd({ item_id: i.id, valor: String(s) })}><i className="bi bi-pencil" /> Corrigir quantidade</button>
+                              )}
                             </td>
                           </tr>
                         );
@@ -346,7 +341,7 @@ export default function EstoqueFlanges() {
           {sub === 'pedidos' && (
             <>
               <div style={{ fontSize: 12.5, color: C.cinza, marginBottom: 10 }}>
-                Peças de pedidos que estão no <b>setor Estoque</b>. Ao movimentar, diga de onde veio: <b>🔧 fabricação aqui</b> (não mexe no saldo) ou <b>📦 estoque armazenado</b> (baixa o saldo). O que não for movimentado fica aqui.
+                <b style={{ color: C.azul }}>{nPedidosSetor} pedidos · {fmt(nPecasSetor)} peças</b> no setor Estoque (atualiza sozinho). Ao movimentar, diga de onde veio: <b>🔧 fabricação aqui</b> (não mexe no saldo) ou <b>📦 estoque armazenado</b> (baixa o saldo). O que não for movimentado fica aqui.
               </div>
               {pecasNoSetor.length === 0 ? <div style={{ color: C.cinza, padding: 16, textAlign: 'center' }}>Nenhuma peça no setor Estoque.</div> : (
                 <div style={{ overflowX: 'auto' }}>
@@ -387,7 +382,7 @@ export default function EstoqueFlanges() {
           {/* ── LANÇAMENTOS (histórico do local) ──────────────────────────── */}
           {sub === 'lancamentos' && (
             <>
-              <div style={{ fontWeight: 800, color: C.azul, marginBottom: 8 }}>Lançamentos — {nomeLocal(local)} <span style={{ fontWeight: 500, fontSize: 12, color: '#94a3b8' }}>(últimos 400 dos dois locais)</span></div>
+              <div style={{ fontWeight: 800, color: C.azul, marginBottom: 8 }}>Histórico — {nomeLocal(local)} <span style={{ fontWeight: 500, fontSize: 12, color: '#94a3b8' }}>(últimos 400 dos dois locais)</span></div>
               {movsLocal.length === 0 ? <div style={{ color: C.cinza, padding: 16, textAlign: 'center' }}>Nenhum lançamento.</div> : (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
@@ -419,130 +414,6 @@ export default function EstoqueFlanges() {
                   </table>
                 </div>
               )}
-            </>
-          )}
-
-          {/* ── INVENTÁRIO ────────────────────────────────────────────────── */}
-          {sub === 'inventario' && !invAberto && (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-                <div style={{ fontWeight: 800, color: C.azul }}>Inventários — {nomeLocal(local)}</div>
-                <div style={{ flex: 1 }} />
-                <button className="pl-btn" style={{ color: '#fff', background: C.azul2, borderColor: C.azul2 }} onClick={novoInventario} disabled={invs.some(v => v.status === 'aberto')}>
-                  <i className="bi bi-plus-lg" /> Novo inventário
-                </button>
-              </div>
-              <div style={{ fontSize: 12.5, color: C.cinza, marginBottom: 10 }}>
-                Contagem física: digite quanto tem de cada flange. Ao <b>fechar</b>, o saldo passa a ser o contado e a diferença fica registrada como “Ajuste de inventário”.
-              </div>
-              {invs.length === 0 ? <div style={{ color: C.cinza, padding: 16, textAlign: 'center' }}>Nenhum inventário ainda.</div> : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead><tr><th style={th}>#</th><th style={th}>Aberto em</th><th style={th}>Status</th><th style={{ ...th, textAlign: 'right' }}>Contados</th><th style={{ ...th, textAlign: 'right' }}>Ajustes</th><th style={th}>Fechado</th><th style={th}></th></tr></thead>
-                  <tbody>
-                    {invs.map(v => (
-                      <tr key={v.id}>
-                        <td style={{ ...td, fontWeight: 700 }}>{v.id}</td>
-                        <td style={td}>{fmtDataHora(v.criado_em)} · {v.criado_por_nome}</td>
-                        <td style={{ ...td, fontWeight: 700, color: v.status === 'aberto' ? C.laranja : C.verde }}>{v.status === 'aberto' ? 'Em contagem' : 'Fechado'}</td>
-                        <td style={tdR}>{v.linhas}</td>
-                        <td style={tdR}>{v.ajustes}</td>
-                        <td style={td}>{v.fechado_em ? `${fmtDataHora(v.fechado_em)} · ${v.fechado_por_nome}` : '—'}</td>
-                        <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          <button className="pl-btn" style={{ padding: '3px 10px' }} onClick={() => abrirInventario(v.id, v.local)}>{v.status === 'aberto' ? 'Continuar contagem' : 'Ver'}</button>
-                          {v.status === 'aberto' && <> <button className="pl-btn" style={{ padding: '3px 10px', color: C.vermelho }} onClick={() => cancelarInventario(v.id)}>Cancelar</button></>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </>
-          )}
-          {sub === 'inventario' && invAberto && (() => {
-            const v = (dados.inventarios || []).find(x => x.id === invAberto.id);
-            const fechado = v?.status === 'fechado';
-            const qi = invBusca.trim().toLowerCase();
-            const lista = itens.filter(i => (i.ativo || invAberto.contagem[i.id] !== undefined) && (!qi || `${i.codigo} ${i.codigo_pedido || ''} ${i.descricao}`.toLowerCase().includes(qi)));
-            const contados = Object.values(invAberto.contagem).filter(x => x.trim() !== '').length;
-            return (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-                  <button className="pl-btn" onClick={() => setInvAberto(null)}><i className="bi bi-arrow-left" /> Voltar</button>
-                  <div style={{ fontWeight: 800, color: C.azul }}>Inventário #{invAberto.id} — {nomeLocal(invAberto.local)} {fechado && <span style={{ color: C.verde }}>(fechado)</span>}</div>
-                  <span style={{ fontSize: 12, color: C.cinza }}>{contados} flange(s) contado(s)</span>
-                  <div style={{ flex: 1 }} />
-                  <input placeholder="Filtrar flange…" value={invBusca} onChange={e => setInvBusca(e.target.value)} style={{ ...inp, width: 200 }} />
-                  {!fechado && <>
-                    <button className="pl-btn" onClick={() => salvarInventario(false)} disabled={salvando}><i className="bi bi-save" /> Salvar contagem</button>
-                    <button className="pl-btn" style={{ color: '#fff', background: C.verde, borderColor: C.verde }} onClick={() => salvarInventario(true)} disabled={salvando}><i className="bi bi-check2-all" /> Fechar e ajustar saldo</button>
-                  </>}
-                  <button className="pl-btn no-print" onClick={() => window.print()}><i className="bi bi-printer" /></button>
-                </div>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
-                    <thead><tr><th style={th}>Código</th><th style={th}>Descrição</th><th style={{ ...th, textAlign: 'right' }}>Saldo no sistema</th><th style={{ ...th, textAlign: 'right' }}>Contado</th><th style={{ ...th, textAlign: 'right' }}>Diferença</th></tr></thead>
-                    <tbody>
-                      {lista.map(i => {
-                        const sis = saldoDe(i, invAberto.local);
-                        const raw = invAberto.contagem[i.id] ?? '';
-                        const c = raw.trim() === '' ? null : Number(raw.replace(',', '.'));
-                        const dif = c == null || Number.isNaN(c) ? null : c - sis;
-                        return (
-                          <tr key={i.id}>
-                            <td style={{ ...td, fontWeight: 700 }}>{i.codigo}</td>
-                            <td style={td}>{i.descricao}</td>
-                            <td style={{ ...tdR, color: '#94a3b8' }}>{fechado ? '—' : fmt(sis)}</td>
-                            <td style={{ ...td, textAlign: 'right', width: 120 }}>
-                              <input inputMode="decimal" disabled={fechado} value={raw} placeholder="—"
-                                onChange={e => setInvAberto(a => a && { ...a, contagem: { ...a.contagem, [i.id]: e.target.value } })}
-                                style={{ ...inp, textAlign: 'right', width: 100, fontWeight: 700 }} />
-                            </td>
-                            <td style={{ ...tdR, color: dif == null ? '#cbd5e1' : dif === 0 ? C.verde : dif > 0 ? C.azul2 : C.vermelho }}>
-                              {dif == null || fechado ? '—' : `${dif > 0 ? '+' : ''}${fmt(dif)}`}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            );
-          })()}
-
-          {/* ── CADASTRO DE FLANGES ───────────────────────────────────────── */}
-          {sub === 'cadastro' && (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-                <div style={{ fontWeight: 800, color: C.azul }}>Cadastro de flanges <span style={{ fontWeight: 500, fontSize: 12, color: '#94a3b8' }}>(vale pros dois estoques)</span></div>
-                <div style={{ flex: 1 }} />
-                <button className="pl-btn" style={{ color: '#fff', background: C.azul2, borderColor: C.azul2 }} onClick={() => abrir(setMItem, { codigo: '', codigo_pedido: '', descricao: '', unidade: 'pç', estoque_minimo: '', ativo: true })}>
-                  <i className="bi bi-plus-lg" /> Novo flange
-                </button>
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
-                  <thead><tr><th style={th}>Código</th><th style={th}>Código no pedido</th><th style={th}>Descrição</th><th style={th}>Un.</th><th style={{ ...th, textAlign: 'right' }}>Mínimo</th><th style={th}>Situação</th><th style={th}></th></tr></thead>
-                  <tbody>
-                    {itens.filter(i => casa(i.codigo, i.codigo_pedido, i.descricao)).map(i => (
-                      <tr key={i.id} style={{ opacity: i.ativo ? 1 : .5 }}>
-                        <td style={{ ...td, fontWeight: 700 }}>{i.codigo}</td>
-                        <td style={td}>{i.codigo_pedido || <span style={{ color: '#cbd5e1' }}>—</span>}</td>
-                        <td style={td}>{i.descricao}</td>
-                        <td style={td}>{i.unidade}</td>
-                        <td style={tdR}>{fmt(i.estoque_minimo)}</td>
-                        <td style={{ ...td, color: i.ativo ? C.verde : C.cinza, fontWeight: 700 }}>{i.ativo ? 'Ativo' : 'Inativo'}</td>
-                        <td style={{ ...td, textAlign: 'right' }}>
-                          <button className="pl-btn" style={{ padding: '3px 10px' }} onClick={() => abrir(setMItem, {
-                            id: i.id, codigo: i.codigo, codigo_pedido: i.codigo_pedido || '', descricao: i.descricao, unidade: i.unidade,
-                            estoque_minimo: i.estoque_minimo == null ? '' : String(i.estoque_minimo), ativo: i.ativo,
-                          })}><i className="bi bi-pencil" /> Editar</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             </>
           )}
 
@@ -640,30 +511,6 @@ export default function EstoqueFlanges() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button className="pl-btn" onClick={() => setMLanc(null)}>Cancelar</button>
               <button className="pl-btn" style={{ color: '#fff', background: C.azul2, borderColor: C.azul2 }} onClick={salvarLanc} disabled={salvando}>{salvando ? 'Salvando…' : 'Salvar'}</button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* ── Modal: cadastro de flange ────────────────────────────────────── */}
-      {mItem && (
-        <Modal titulo={mItem.id ? 'Editar flange' : 'Novo flange'} onFechar={() => setMItem(null)}>
-          <div style={{ display: 'grid', gap: 10 }}>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ flex: 1 }}><label style={lbl}>Código do estoque *</label><input style={inp} value={mItem.codigo} onChange={e => setMItem(v => v && { ...v, codigo: e.target.value })} /></div>
-              <div style={{ flex: 1 }}><label style={lbl}>Código no pedido (opcional)</label><input style={inp} value={mItem.codigo_pedido} onChange={e => setMItem(v => v && { ...v, codigo_pedido: e.target.value })} placeholder="ex.: 015LT020" /></div>
-            </div>
-            <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: -4 }}>Se o código no pedido bater com o item do pedido, o sistema já sugere este flange na baixa e na entrada de produção.</div>
-            <div><label style={lbl}>Descrição *</label><input style={inp} value={mItem.descricao} onChange={e => setMItem(v => v && { ...v, descricao: e.target.value })} placeholder="ex.: FLANGE LISO SOLTO B16.5 150LBS AC 2&quot;" /></div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-              <div style={{ width: 100 }}><label style={lbl}>Unidade</label><input style={inp} value={mItem.unidade} onChange={e => setMItem(v => v && { ...v, unidade: e.target.value })} /></div>
-              <div style={{ width: 140 }}><label style={lbl}>Estoque mínimo</label><input style={{ ...inp, textAlign: 'right' }} inputMode="decimal" value={mItem.estoque_minimo} onChange={e => setMItem(v => v && { ...v, estoque_minimo: e.target.value })} /></div>
-              {mItem.id && <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, paddingBottom: 8 }}><input type="checkbox" checked={mItem.ativo} onChange={e => setMItem(v => v && { ...v, ativo: e.target.checked })} /> Ativo</label>}
-            </div>
-            {erroModal && <div style={{ color: C.vermelho, fontSize: 13, fontWeight: 600 }}>{erroModal}</div>}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button className="pl-btn" onClick={() => setMItem(null)}>Cancelar</button>
-              <button className="pl-btn" style={{ color: '#fff', background: C.azul2, borderColor: C.azul2 }} onClick={salvarItem} disabled={salvando}>{salvando ? 'Salvando…' : 'Salvar'}</button>
             </div>
           </div>
         </Modal>

@@ -13,7 +13,7 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
-import { isAdministrador, podeAcessarSetor, podeDesfazerRecebimento, podeVerNaoLocalizados, podeRedirecionarCorteLivre, podePlanejar } from '@/lib/auth';
+import { isAdministrador, podeAcessarSetor, podeDesfazerRecebimento, podeVerNaoLocalizados, podeRedirecionarCorteLivre, podeVerEstoque } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
 import { SETOR_CHOICES, nomeInspecao, SETOR_NAO_LOCALIZADO, SETORES_CORTE, DESTINOS_PERMITIDOS_CORTE, SETORES_CALD_SEM_PRODUCAO } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
@@ -83,7 +83,7 @@ async function handlePOST(
   const podeMexerNaoLoc = parcial.setor_atual === SETOR_NAO_LOCALIZADO && podeVerNaoLocalizados(user);
   // Estoque de Flanges (aba Estoque do /planejamento): quem planeja pode
   // encaminhar peça que está no setor Estoque (atender pelo estoque/fabricação).
-  const podeMoverDoEstoque = acao === 'mover' && parcial.setor_atual === 'estoque' && podePlanejar(user);
+  const podeMoverDoEstoque = acao === 'mover' && parcial.setor_atual === 'estoque' && podeVerEstoque(user);
   if (!user.is_staff && !podeAcessarSetor(user, parcial.setor_atual) && !podeMexerNaoLoc && !podeMoverDoEstoque)
     return NextResponse.json({ erro: 'Acesso negado: parcial não é do seu setor' }, { status: 403 });
 
