@@ -1,12 +1,12 @@
 'use client';
-// Impressão do PCP Caldeiraria: TODOS os pedidos, UM pedido específico ou os
-// materiais POR ÁREA. Monta um HTML simples numa janela nova e chama print()
+// Impressão do PCP Caldeiraria: TODOS os pedidos, UM pedido específico, os
+// materiais POR ÁREA ou os pedidos POR VENDEDOR (+ filtro de vendedor em todos). Monta um HTML simples numa janela nova e chama print()
 // (mesmo padrão da Caixa de Pendências).
 import { useMemo, useState } from 'react';
 import { AREAS_CALD, EMPRESAS_CALD, passaEmpresa, nomeEmpresa, hojeISO, fmtData, diasEntre, nomeSubsetor, type ItemCald } from '@/lib/caldPlano';
 import { C, Modal, Campo, nomeArea, fmtQtd, fmtBRL } from './comum';
 
-type Modo = 'todos' | 'pedido' | 'area';
+type Modo = 'todos' | 'pedido' | 'area' | 'vendedor';
 
 const esc = (s: string | null | undefined) => (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 const ondeEsta = (i: ItemCald) =>
@@ -19,12 +19,18 @@ export default function ImprimirModal({ itens, verValores, onFechar }: { itens: 
   const [pedido, setPedido] = useState('');
   const [area, setArea] = useState('');           // '' = todas as áreas
   const [emp, setEmp] = useState('');
+  const [vend, setVend] = useState('');           // '' = todos os vendedores
   const [comFinalizados, setComFinalizados] = useState(false);
   const hoje = hojeISO();
 
   const base = useMemo(() => itens.filter(i =>
-    i.status !== 'cancelado' && (comFinalizados || i.status !== 'finalizado') && passaEmpresa(i, emp),
-  ), [itens, comFinalizados, emp]);
+    i.status !== 'cancelado' && (comFinalizados || i.status !== 'finalizado') && passaEmpresa(i, emp)
+    && (!vend || (vend === '__sem' ? !i.vendedor : i.vendedor === vend)),
+  ), [itens, comFinalizados, emp, vend]);
+  // Vendedores que têm pedido (respeitando empresa/finalizados, antes do filtro de vendedor).
+  const vendedores = useMemo(() => Array.from(new Set(itens
+    .filter(i => i.status !== 'cancelado' && (comFinalizados || i.status !== 'finalizado') && passaEmpresa(i, emp) && i.vendedor)
+    .map(i => i.vendedor as string))).sort((a, b) => a.localeCompare(b, 'pt-BR')), [itens, comFinalizados, emp]);
   const pedidos = useMemo(() => Array.from(new Set(base.map(i => i.pedido))).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })), [base]);
 
   const selecionados = modo === 'pedido' ? base.filter(i => i.pedido === pedido)
@@ -76,8 +82,23 @@ export default function ImprimirModal({ itens, verValores, onFechar }: { itens: 
           const l = selecionados.filter(i => chaveArea(i) === c).sort((a, b) => (a.ordem || 9999) - (b.ordem || 9999) || a.pedido.localeCompare(b.pedido, 'pt-BR', { numeric: true }));
           return l.length ? tabelaArea(nome, l) : '';
         }).join('');
+    } else if (modo === 'vendedor') {
+      // Uma seção por VENDEDOR, com os pedidos dele (cada pedido = tabela de materiais).
+      titulo = vend ? `Pedidos — ${vend === '__sem' ? 'sem vendedor' : vend}` : 'Pedidos por vendedor';
+      const porVend = new Map<string, ItemCald[]>();
+      for (const i of selecionados) { const v = i.vendedor || 'Sem vendedor'; porVend.set(v, [...(porVend.get(v) || []), i]); }
+      corpo = Array.from(porVend.entries())
+        .sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
+        .map(([v, l]) => {
+          const porPed = new Map<string, ItemCald[]>();
+          for (const i of l) porPed.set(i.pedido, [...(porPed.get(i.pedido) || []), i]);
+          return `<h2 style="margin:22px 0 8px;font-size:17px;border-bottom:2px solid #1a3a5c;padding-bottom:3px">👤 ${esc(v)}
+            <span style="font-weight:400;font-size:12px;color:#64748b">${porPed.size} pedido(s) · ${l.length} material(is)${verValores ? ' · ' + fmtBRL(soma(l)) : ''}</span></h2>`
+            + Array.from(porPed.entries()).sort(([a], [b]) => a.localeCompare(b, 'pt-BR', { numeric: true }))
+              .map(([p, li]) => tabelaPedido(p, li.sort((a, b) => a.id - b.id))).join('');
+        }).join('');
     } else {
-      titulo = modo === 'pedido' ? `Pedido ${pedido}` : 'Todos os pedidos';
+      titulo = modo === 'pedido' ? `Pedido ${pedido}` : vend ? `Pedidos — ${vend === '__sem' ? 'sem vendedor' : vend}` : 'Todos os pedidos';
       const porPedido = new Map<string, ItemCald[]>();
       for (const i of selecionados) porPedido.set(i.pedido, [...(porPedido.get(i.pedido) || []), i]);
       corpo = Array.from(porPedido.entries())
@@ -94,7 +115,7 @@ export default function ImprimirModal({ itens, verValores, onFechar }: { itens: 
       th,td{border:1px solid #cbd5e1;padding:5px 6px;vertical-align:top;text-align:left}th{background:#f1f5f9;font-size:10.5px;text-transform:uppercase}
       td.n{text-align:right;white-space:nowrap}td.anot{width:16%}</style></head>
       <body onload="window.print()"><h2>🏗 PCP Caldeiraria — ${esc(titulo)}</h2>
-      <p>${nPed} pedido(s) · ${selecionados.length} material(is)${verValores ? ' · total ' + fmtBRL(soma(selecionados)) : ''}${emp ? ' · ' + esc(emp === 'sem' ? 'Sem empresa' : nomeEmpresa(emp)) : ''}${comFinalizados ? ' · inclui finalizados' : ''} · impresso em ${fmtData(hoje)}</p>
+      <p>${nPed} pedido(s) · ${selecionados.length} material(is)${verValores ? ' · total ' + fmtBRL(soma(selecionados)) : ''}${emp ? ' · ' + esc(emp === 'sem' ? 'Sem empresa' : nomeEmpresa(emp)) : ''}${vend ? ' · vendedor: ' + esc(vend === '__sem' ? 'sem vendedor' : vend) : ''}${comFinalizados ? ' · inclui finalizados' : ''} · impresso em ${fmtData(hoje)}</p>
       ${corpo || '<p>Nenhum material.</p>'}</body></html>`);
     w.document.close();
   }
@@ -117,6 +138,7 @@ export default function ImprimirModal({ itens, verValores, onFechar }: { itens: 
         {bot('todos', 'bi-list-ul', 'Todos os pedidos')}
         {bot('pedido', 'bi-file-earmark-text', 'Um pedido')}
         {bot('area', 'bi-diagram-3', 'Materiais por área')}
+        {bot('vendedor', 'bi-person-badge', 'Por vendedor')}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
         {modo === 'pedido' && (
@@ -137,6 +159,13 @@ export default function ImprimirModal({ itens, verValores, onFechar }: { itens: 
             </select>
           </Campo>
         )}
+        <Campo rot="Vendedor" largura={210}>
+          <select className="cp-in" value={vend} onChange={e => { setVend(e.target.value); setPedido(''); }}>
+            <option value="">Todos os vendedores</option>
+            {vendedores.map(v => <option key={v} value={v}>{v}</option>)}
+            <option value="__sem">Sem vendedor</option>
+          </select>
+        </Campo>
         <Campo rot="Empresa" largura={190}>
           <select className="cp-in" value={emp} onChange={e => setEmp(e.target.value)}>
             <option value="">Todas as empresas</option>
