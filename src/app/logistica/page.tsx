@@ -393,7 +393,7 @@ export default function LogisticaPage() {
               <button onClick={() => buscarDisp(pv)} style={{ background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 6, padding: '0 16px', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>Buscar</button>
             </div>
             <div style={{ fontSize: 11.5, color: '#94a3b8', marginBottom: 8 }}>
-              {pv ? 'Itens do PV informado.' : 'Prontos pra expedir (quarentena / embalagem / logística).'}
+              {pv ? 'Itens do PV informado.' : 'Prontos pra expedir (pedidos finalizados / embalagem / logística).'}
             </div>
             <div style={{ overflowY: 'auto', flex: 1, border: '1px solid #eef2f7', borderRadius: 8 }}>
               {dispLoad ? <div style={{ padding: 16, color: '#64748b', fontSize: 13 }}>Carregando…</div>

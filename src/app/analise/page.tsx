@@ -12,7 +12,7 @@ const NOMES: Record<string, string> = {
   emissao: 'Emissão', usinagem: 'Usinagem', 'maçarico': 'Corte Maçarico', plasma: 'Corte Plasma',
   laser: 'Corte Laser', serra: 'Corte Serra', estoque: 'Estoque', furacao: 'Furação',
   qualidade: 'Qualidade', acabamento: 'Acabamento', logistica: 'Logística', recebimento: 'Recebimento',
-  compras: 'Compras', beneficiadores: 'Beneficiadores', embalagem: 'Embalagem', quarentena: 'Quarentena', desenho: 'Desenho',
+  compras: 'Compras', beneficiadores: 'Beneficiadores', embalagem: 'Embalagem', quarentena: 'Pedidos Finalizados', desenho: 'Desenho',
 };
 
 const nm = (c: string) => NOMES[c] || c || '—';
@@ -620,13 +620,14 @@ export default function AnalisePage() {
         {fab && (() => {
           const F = fab.funil;
           const total = fab.total_un || 1;
+          const fabricadas = { itens: F.pronto.itens + F.entregue.itens, un: F.pronto.un + F.entregue.un };
           const mesLabel = (m: string) => `${m.slice(5)}/${m.slice(2, 4)}`;
           // Segmentos do funil, na ordem do processo.
           const segs = [
             { k: 'fila', label: 'Na fila', cor: '#cbd5e1', v: F.fila },
             { k: 'em_fabricacao', label: 'Em fabricação', cor: '#3b82f6', v: F.em_fabricacao },
-            { k: 'pronto', label: 'Fabricadas — prontas', cor: C.verde, v: F.pronto },
-            { k: 'entregue', label: 'Entregues', cor: '#0f766e', v: F.entregue },
+            // Entregues entram junto nas prontas (um número só — pedido do Guilherme).
+            { k: 'pronto', label: 'Fabricadas — prontas', cor: C.verde, v: fabricadas },
           ];
           const M = fab.meta;
           const meta = M.meta_mensal_un;
@@ -677,10 +678,10 @@ export default function AnalisePage() {
               </div>
 
               {/* Destaque: fabricadas paradas esperando despacho */}
-              {F.pronto.un > 0 && (
+              {fabricadas.un > 0 && (
                 <div style={{ marginTop: 10, fontSize: 11.5, color: '#065f46', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 8, padding: '7px 10px' }}>
                   <i className="bi bi-box-seam" style={{ marginRight: 6 }} />
-                  <b>{fmt(F.pronto.un)} peças</b> já fabricadas aguardando verificação do PCP / despacho pela logística.
+                  <b>{fmt(fabricadas.un)} peças</b> já fabricadas (passaram do acabamento).
                 </div>
               )}
 
@@ -908,7 +909,7 @@ export default function AnalisePage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 8 }}>
             <Etapa n="Etapa 1" nome="A Produzir" v={et.a_produzir} d="na Emissão, aguardando início" cor={C.cinza} />
             <Etapa n="Etapa 2" nome="Produzindo" v={et.produzindo} d="em trabalho nos setores" cor={C.azul2} />
-            <Etapa n="Etapa 3" nome="Finalizados" v={et.entregue} d="pedidos finalizados (Quarentena)" cor={C.verde} />
+            <Etapa n="Etapa 3" nome="Finalizados" v={et.entregue} d="pedidos finalizados" cor={C.verde} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 24 }}>
             <Kpi v={fmt(et.atrasados)} l="materiais atrasados" cor={C.vermelho} />

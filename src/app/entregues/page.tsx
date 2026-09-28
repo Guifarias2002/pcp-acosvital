@@ -305,7 +305,7 @@ export default function EntreguesPage() {
             <i className="bi bi-check-circle-fill" style={{ marginRight: 8, color: '#198754' }}></i>
             Pedidos Finalizados
           </h4>
-          <small style={{ color: '#888' }}>Ordens de produção finalizadas (Quarentena / entregues)</small>
+          <small style={{ color: '#888' }}>Ordens de produção finalizadas (Pedidos Finalizados / entregues)</small>
         </div>
       </div>
 

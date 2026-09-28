@@ -94,7 +94,7 @@ const SETORES_NAO_FLANGES = SETORES_EXCLUSIVOS_CALDEIRARIA;
 
 // Rótulo do setor no menu. Quarentena virou o passo terminal do Flange (09/09) =
 // Pedidos Finalizados; no menu usamos a forma curta "Finalizados".
-const labelSetorMenu = (cod: string) => cod === 'quarentena' ? 'Finalizados' : (NOMES[cod] || cod);
+const labelSetorMenu = (cod: string) => cod === 'quarentena' ? 'Pedidos Finalizados' : (NOMES[cod] || cod);
 
 function NavItem({ href, label, icon, onNav }: { href: string; label: string; icon?: string; onNav?: () => void }) {
   const rawPath = usePathname();

@@ -527,7 +527,7 @@ export default function DashboardPage() {
               {
                 etapa: 'entregue', bg: '#166534', label: 'Finalizados',
                 count: data.entregues, val: data.valor_concluido,
-                sub: 'pedidos finalizados (Quarentena)', icon: 'bi-check-circle-fill',
+                sub: 'pedidos finalizados', icon: 'bi-check-circle-fill',
                 href: '/pedidos?etapa=entregue',
               },
             ].map((c, i) => {

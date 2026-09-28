@@ -16,7 +16,7 @@ export const SETOR_CHOICES: [string, string][] = [
   ['beneficiadores', 'Beneficiadores'],
   ['caldeiraria', 'Caldeiraria'],
   ['embalagem', 'Embalagem'],
-  ['quarentena', 'Quarentena'],
+  ['quarentena', 'Pedidos Finalizados'],
   // ── Flange — travessia para a HRM (08/09) ──────────────────────────────────
   // Depois do CORTE, a peça de Flange passa por dois setores novos antes de
   // seguir pro roteiro (usinagem/furação):
