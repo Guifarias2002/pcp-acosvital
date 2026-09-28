@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { postIdempotente } from '@/lib/api';
 import { AREAS_CALD, UNIDADES_CALD, PRIORIDADES_CALD } from '@/lib/caldPlano';
 import { C, Modal, Campo, PRIO, erroDe, SeletorEmpresa, CampoValor, calcTotal, calcUnit, qtdNum } from './comum';
@@ -9,6 +9,20 @@ const ROTEIRO_PADRAO = ['corte', 'montagem', 'solda', 'acabamento', 'inspecao'];
 
 interface ItemForm { material: string; quantidade: string; unidade: string; valor: number | null; unit: number | null; areas: string[] }
 const itemVazio = (areas: string[]): ItemForm => ({ material: '', quantidade: '', unidade: 'pç', valor: null, unit: null, areas: [...areas] });
+
+// Importar Excel: mesmo modelo da planilha do Flange (/pedidos/novo) —
+// cabeçalho na linha 3, dados a partir da linha 4: A=código, B=descrição,
+// C=quantidade, D=unidade (opcional), F=valor unitário.
+const MAX_ITENS_IMPORTACAO = 500;
+const UN_EXCEL: Record<string, string> = { PC: 'pç', 'PÇ': 'pç', PCS: 'pç', UN: 'pç', UND: 'pç', KG: 'kg', M: 'm', MT: 'm', CJ: 'conj', CONJ: 'conj', M2: 'm²', 'M²': 'm²' };
+function numExcel(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  let s = String(v ?? '').replace(/R\$|\s/g, '');
+  if (!s) return null;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');   // 1.234,56 → 1234.56
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
 
 export default function LancarModal({ onFechar, onLancado, vendedores, clientes, verValores }: {
   onFechar: () => void;
@@ -28,6 +42,49 @@ export default function LancarModal({ onFechar, onLancado, vendedores, clientes,
   const [itens, setItens] = useState<ItemForm[]>([itemVazio(ROTEIRO_PADRAO)]);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importando, setImportando] = useState(false);
+
+  async function importarExcel(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (!file) return;
+    setImportando(true);
+    setErro('');
+    try {
+      const { read, utils } = await import('xlsx');
+      const wb = read(await file.arrayBuffer(), { type: 'array' });
+      const rows: unknown[][] = utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+      const dataRows = rows.slice(3).filter(r => String(r[0] ?? '').trim() || String(r[1] ?? '').trim());
+      if (!dataRows.length) { setErro('Nenhum item na planilha. Os dados devem começar na linha 4.'); return; }
+      if (dataRows.length > MAX_ITENS_IMPORTACAO) {
+        setErro(`A planilha tem ${dataRows.length} linhas — não parece o modelo esperado (código, descrição, qtd, ..., valor unit., a partir da linha 4).`);
+        return;
+      }
+      const areasBase = itens[itens.length - 1]?.areas || ROTEIRO_PADRAO;
+      const novos: ItemForm[] = dataRows.map(r => {
+        const codigo = String(r[0] ?? '').trim();
+        const descricao = String(r[1] ?? '').trim();
+        const q = qtdNum(numExcel(r[2]));
+        const unit = numExcel(r[5]);
+        return {
+          material: descricao || codigo,
+          quantidade: q ? String(q) : '',
+          unidade: UN_EXCEL[String(r[3] ?? '').trim().toUpperCase()] || 'pç',
+          unit,
+          valor: calcTotal(unit, q),
+          areas: [...areasBase],
+        };
+      });
+      // Mantém os itens já digitados; descarta só as linhas em branco.
+      setItens(v => [...v.filter(i => i.material.trim()), ...novos]);
+    } catch {
+      setErro('Erro ao ler o arquivo. Confirme que é um .xlsx válido.');
+    } finally {
+      setImportando(false);
+    }
+  }
 
   const alterar = (i: number, p: Partial<ItemForm>) => setItens(v => v.map((it, k) => (k === i ? { ...it, ...p } : it)));
   const toggleArea = (i: number, a: string) =>
@@ -97,7 +154,15 @@ export default function LancarModal({ onFechar, onLancado, vendedores, clientes,
         <Campo rot="Observação"><input className="cp-in" value={obs} onChange={e => setObs(e.target.value)} placeholder="Opcional" /></Campo>
       </div>
 
-      <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, textTransform: 'uppercase', letterSpacing: .3, margin: '16px 0 8px' }}>Itens</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '16px 0 8px' }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, textTransform: 'uppercase', letterSpacing: .3 }}>Itens</div>
+        <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={importarExcel} style={{ display: 'none' }} />
+        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={importando}
+          title="Planilha no modelo do Flange: dados a partir da linha 4 — A código, B descrição, C qtd, F valor unitário"
+          style={{ background: '#0d6efd', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: importando ? 0.6 : 1 }}>
+          <i className="bi bi-file-earmark-excel" style={{ marginRight: 4 }} />{importando ? 'Importando...' : 'Importar Excel'}
+        </button>
+      </div>
       {itens.map((it, i) => (
         <div key={i} style={{ border: `1px solid ${C.borda}`, borderRadius: 10, padding: 10, marginBottom: 10, background: C.fundo }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
