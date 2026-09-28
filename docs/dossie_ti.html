@@ -107,7 +107,7 @@
   <p>Documento de entrega ao Departamento de TI &#183; Revis&#227;o de Seguran&#231;a, LGPD e Arquitetura</p>
   <div class="header-meta">
     <span>&#128197; Gerado em 19 jun 2026</span>
-    <span>&#128260; Atualizado em 05 ago 2026</span>
+    <span>&#128260; Atualizado em 28 set 2026</span>
     <span>&#127959; Next.js 14 + PostgreSQL (Supabase)</span>
     <span>&#128272; JWT HS256 + PBKDF2-SHA256</span>
     <span>&#128203; Vers&#227;o 2.1 &#8212; P&#243;s-Hardening</span>
@@ -115,6 +115,19 @@
 </div>
 
 <div class="container">
+
+  <div class="section">
+    <div class="section-title">0.1 &#183; Atualiza&#231;&#227;o &#8212; 28/09/2026</div>
+    <div class="card">
+      <ul class="checklist">
+        <li><span class="check-icon ci-ok">&#10003;</span><div class="check-text"><strong>Link principal voltou:</strong> <code>https://pcp-acosvital.vercel.app</code> responde de novo. O link de contorno <code>sistemapcp-nine.vercel.app</code> continua no ar, com o mesmo banco.</div></li>
+        <li><span class="check-icon ci-info">i</span><div class="check-text"><strong>Anexos no Backblaze B2</strong> desde 31/08, porque o Supabase Storage bloqueou por egress (402). Novas vari&#225;veis: <code>B2_KEY_ID</code> e <code>B2_APP_KEY</code>.</div></li>
+        <li><span class="check-icon ci-info">i</span><div class="check-text"><strong>Banco:</strong> 36 tabelas, migra&#231;&#245;es at&#233; M57 e <code>SCHEMA_VERSION</code> 59. As migra&#231;&#245;es rodam sozinhas em <code>src/lib/migrations.ts</code>.</div></li>
+        <li><span class="check-icon ci-warn">!</span><div class="check-text"><strong>Backup autom&#225;tico parado desde 16/09/2026.</strong> O &#250;ltimo backup completo &#233; o manual de 28/09, em <code>Desktop\BACKUPS_PCP</code> (42.993 linhas).</div></li>
+        <li><span class="check-icon ci-info">i</span><div class="check-text">O detalhe das funcionalidades novas (Planejamento da Usinagem, Caldeiraria HRM, PCP Caldeiraria, An&#225;lise PCP e flags de acesso) est&#225; em <code>docs/Atualizacoes_Sistema_2026-08-17_a_2026-09-28.html</code>.</div></li>
+      </ul>
+    </div>
+  </div>
 
   <div class="section">
     <div class="section-title">0 &#183; Atualiza&#231;&#227;o &#8212; Hospedagem Tempor&#225;ria (Ago/2026)</div>
@@ -578,11 +591,14 @@
       <table class="status-table">
         <thead><tr><th>Vari&#225;vel</th><th>Descri&#231;&#227;o</th><th>Obrigat&#243;ria</th></tr></thead>
         <tbody>
-          <tr><td><code>DATABASE_URL</code></td><td>String de conex&#227;o PostgreSQL</td><td><span class="pill pill-err">Sim</span></td></tr>
+          <tr><td><code>DB_HOST</code> / <code>DB_PORT</code> / <code>DB_NAME</code> / <code>DB_USER</code> / <code>DB_PASSWORD</code></td><td>Conex&#227;o PostgreSQL (pooler Supabase)</td><td><span class="pill pill-err">Sim</span></td></tr>
           <tr><td><code>JWT_SECRET</code></td><td>Chave JWT &#8212; m&#237;nimo 32 caracteres aleat&#243;rios (<code>openssl rand -hex 32</code>)</td><td><span class="pill pill-err">Sim</span></td></tr>
           <tr><td><code>NODE_ENV</code></td><td>Deve ser <code>production</code> em prod &#8212; ativa cookie Secure e prote&#231;&#245;es extras</td><td><span class="pill pill-err">Sim em prod</span></td></tr>
-          <tr><td><code>SUPABASE_URL</code></td><td>URL do projeto Supabase (upload de comprovantes)</td><td><span class="pill pill-warn">Upload</span></td></tr>
-          <tr><td><code>SUPABASE_SERVICE_KEY</code></td><td>Chave de servi&#231;o Supabase</td><td><span class="pill pill-warn">Upload</span></td></tr>
+          <tr><td><code>NEXT_PUBLIC_SUPABASE_URL</code> / <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td><td>Projeto Supabase</td><td><span class="pill pill-err">Sim</span></td></tr>
+          <tr><td><code>SUPABASE_SERVICE_ROLE_KEY</code></td><td>Chave de servi&#231;o Supabase</td><td><span class="pill pill-err">Sim</span></td></tr>
+          <tr><td><code>B2_KEY_ID</code> / <code>B2_APP_KEY</code></td><td>Backblaze B2 &#8212; desenhos, fotos, OPs</td><td><span class="pill pill-warn">Anexos</span></td></tr>
+          <tr><td><code>CRON_SECRET</code></td><td>Autentica o backup agendado</td><td><span class="pill pill-warn">Backup</span></td></tr>
+          <tr><td><code>NEXT_PUBLIC_APP_URL</code></td><td>URL p&#250;blica do app</td><td><span class="pill pill-warn">Backup</span></td></tr>
         </tbody>
       </table>
       <div class="warn-box">&#9888;&#65039; <strong>Nunca commitar</strong> o arquivo <code>.env.local</code> em controle de vers&#227;o. Ele cont&#233;m credenciais de acesso ao banco e chaves de autentica&#231;&#227;o.</div>
@@ -590,7 +606,7 @@
   </div>
 
   <div style="text-align:center; color:var(--texto-leve); font-size:12px; margin-top:48px; padding-top:24px; border-top:1px solid var(--borda);">
-    PCP AcosVital &#183; Dossii&#234; T&#233;cnico v2.1 &#183; Gerado em 19 jun 2026 &#183; Atualizado em 05 ago 2026 &#183; Confidencial &#8212; Uso Interno
+    PCP AcosVital &#183; Dossii&#234; T&#233;cnico v2.1 &#183; Gerado em 19 jun 2026 &#183; Atualizado em 28 set 2026 &#183; Confidencial &#8212; Uso Interno
   </div>
 
 </div>

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atualizações do Sistema PCP</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --azul: #1a3a5c; --azul-medio: #2a5298; --azul-claro: #e8f0fb;
+    --verde: #1a7a4a; --verde-claro: #e6f4ec;
+    --laranja: #b85c00; --laranja-claro: #fff3e6;
+    --vermelho: #b00020; --vermelho-claro: #fdecea;
+    --cinza: #f4f6f9; --borda: #dde3ed; --texto: #1a2332; --texto-leve: #5a6a80;
+    --fundo-card: #fff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --azul: #0f2237; --azul-medio: #8ab4f8; --azul-claro: #1c2a40;
+      --verde: #6fd39c; --verde-claro: #16301f; --laranja: #f0a860; --laranja-claro: #33240f;
+      --vermelho: #ff8a8a; --vermelho-claro: #3a1a1a;
+      --cinza: #11161d; --borda: #2a3442; --texto: #e4e9f0; --texto-leve: #9aa8ba; --fundo-card: #18202b;
+    }
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--cinza); color: var(--texto); font-size: 14px; line-height: 1.6; }
+  .header { background: #1a3a5c; color: #fff; padding: 32px 20px 24px; }
+  .header-inner { max-width: 960px; margin: 0 auto; }
+  .header-badge { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #8ab4f8; margin-bottom: 8px; }
+  .header h1 { font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+  .header p { color: #c0d4f0; font-size: 13px; }
+  .container { max-width: 960px; margin: 0 auto; padding: 32px 16px 64px; }
+  .section { margin-bottom: 32px; }
+  .section-title { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--azul-medio); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--borda); }
+  .card { background: var(--fundo-card); border: 1px solid var(--borda); border-radius: 10px; padding: 20px; margin-bottom: 12px; }
+  .card h3 { font-size: 15px; color: var(--azul-medio); margin-bottom: 6px; }
+  .card .meta { font-size: 12px; color: var(--texto-leve); margin-bottom: 10px; }
+  .card ul { padding-left: 20px; }
+  .card li { margin-bottom: 4px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .kpi { background: var(--fundo-card); border: 1px solid var(--borda); border-radius: 10px; padding: 16px; }
+  .kpi b { display: block; font-size: 24px; color: var(--azul-medio); }
+  .kpi span { font-size: 12px; color: var(--texto-leve); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--fundo-card); border: 1px solid var(--borda); border-radius: 10px; overflow: hidden; }
+  th { text-align: left; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--texto-leve); padding: 8px 12px; border-bottom: 2px solid var(--borda); background: var(--cinza); }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--borda); vertical-align: top; }
+  .tbl-wrap { overflow-x: auto; }
+  code { font-family: Consolas, monospace; font-size: 12px; background: var(--azul-claro); padding: 1px 5px; border-radius: 4px; }
+  .warn { background: var(--laranja-claro); border-left: 4px solid var(--laranja); padding: 12px 16px; border-radius: 6px; margin-bottom: 12px; }
+  .err { background: var(--vermelho-claro); border-left: 4px solid var(--vermelho); padding: 12px 16px; border-radius: 6px; margin-bottom: 12px; }
+  .ok { background: var(--verde-claro); border-left: 4px solid var(--verde); padding: 12px 16px; border-radius: 6px; margin-bottom: 12px; }
+  .foot { text-align: center; color: var(--texto-leve); font-size: 12px; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--borda); }
+</style>
+</head>
+<body>
+<div class="header"><div class="header-inner">
+  <div class="header-badge">Sistema PCP · Aços Vital</div>
+  <h1>Atualizações do Sistema — 17/08 a 28/09/2026</h1>
+  <p>O que entrou no sistema desde a última documentação (17/08/2026). Uso interno.</p>
+</div></div>
+
+<div class="container">
+
+  <div class="section">
+    <div class="section-title">Resumo</div>
+    <div class="grid">
+      <div class="kpi"><b>281</b><span>commits publicados no período</span></div>
+      <div class="kpi"><b>M40 → M57</b><span>migrações de banco (SCHEMA_VERSION 59)</span></div>
+      <div class="kpi"><b>36</b><span>tabelas no banco (eram 20 em 21/08)</span></div>
+      <div class="kpi"><b>8</b><span>flags de acesso por usuário</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">1 · Flanges — chão de fábrica</div>
+
+    <div class="card"><h3>Máquina e operador (Usinagem / Furação)</h3>
+      <div class="meta">19/08 → 04/09</div>
+      <ul>
+        <li>Ao iniciar ou retomar a produção, o operador precisa escolher a máquina e o operador. Isso vale em todos os pontos de "iniciar".</li>
+        <li>Motivo de pausa e de retomada por máquina, incluindo o motivo "Troca de peça", que retoma na mesma máquina.</li>
+        <li>A máquina e o operador aparecem na parcial, na fila do setor, no item e no pedido.</li>
+      </ul></div>
+
+    <div class="card"><h3>Tela do setor</h3>
+      <div class="meta">20/08 → 15/09</div>
+      <ul>
+        <li>Chips de relance (prioridade, prazo, situação), com pulso ou pisca vermelho quando o pedido está atrasado.</li>
+        <li>Programação do PCP: número de sequência no card e ordenação por prazo, depois prioridade e, no desempate, tamanho. Ordem manual com os botões ▲/▼ (funcionam no tablet).</li>
+        <li>Filtro de busca (PV, código, descrição) em todos os setores.</li>
+        <li>Botão "Enviar Tudo" com seletor de setor. Nos setores de corte, escolha Flanges/Caldeiraria em todos os fluxos, com trava no servidor: do corte só se vai para Carregamento, Caldeiraria ou outro corte.</li>
+        <li>Devolução com quantidade parcial. Os seletores de setor são separados em Flanges × Caldeiraria.</li>
+        <li>Etiqueta DYMO 98×27 mm no modal Imprimir (situação, PV, OP, quantidade, pallet e roteiro).</li>
+        <li>OP, PV e desenho abrem num visualizador interno com botão Voltar. No tablet a OP é renderizada com PDF.js.</li>
+        <li>Botão Conferência: imprime só os pedidos do departamento.</li>
+        <li>Higiene de quiosque no tablet e no telão para evitar travamento depois de horas ligado, e resposta ao toque melhorada.</li>
+      </ul></div>
+
+    <div class="card"><h3>Setor Sinete</h3>
+      <div class="meta">21/08 → 10/09</div>
+      <ul>
+        <li>Novo setor no fluxo do Flange, com campo de sinete por material, botão "Sem sinete", devolução à Qualidade e destino Acabamento.</li>
+        <li>O selo do sinete aparece ao lado do código da peça no card.</li>
+      </ul></div>
+
+    <div class="card"><h3>Previsão de conclusão e prazos</h3>
+      <div class="meta">28/08 → 10/09</div>
+      <ul>
+        <li>Previsão de conclusão por peça e por pedido (flag <code>pode_definir_previsao</code>: Gilmar, PCP e apontador), definida direto no card.</li>
+        <li>O atraso passou a ser medido pela previsão de conclusão, e não pelo faturamento. "Prazo de Entrega" foi renomeado para "Previsão de faturamento (Omie)", e essa data não pode ser anterior à emissão.</li>
+        <li>Prazo de finalização por setor (item e pedido), refletido no Dashboard, TV, Análise e Kanban.</li>
+        <li>Card "Projeção de Conclusão" (executado × tempo) no pedido.</li>
+      </ul></div>
+
+    <div class="card"><h3>Fim do fluxo: Finalizados, Romaneios, Não Localizados</h3>
+      <div class="meta">08/09 → 11/09</div>
+      <ul>
+        <li>A Quarentena virou <b>Pedidos Finalizados</b>, e a aba Logística do Flange foi aposentada. A aba "Entregues" virou "Pedidos Finalizados", com o tempo de produção.</li>
+        <li>Novos setores Conferência/Carregamento e Recebimento (HRM) depois do corte.</li>
+        <li>Romaneios de carga: criar, conferir, fechar e imprimir.</li>
+        <li>Aba <b>Não Localizados</b> para reencaminhar pedidos perdidos (flag <code>pode_ver_nao_localizados</code>, ex.: Ezequiel).</li>
+        <li>Botão "Voltar pra Logística", que desfaz a entrega (19/08).</li>
+      </ul></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">2 · Planejamento da Usinagem (Reginaldo)</div>
+    <div class="card"><h3>Tela /planejamento</h3>
+      <div class="meta">14/09 → 15/09 · flag <code>acesso_planejamento</code> · M43–M46</div>
+      <ul>
+        <li>Duas abas: a Fila (separada em "na usinagem" e "chegando", em sequência pela data de conclusão) e o Painel de Máquinas, agrupado por categoria.</li>
+        <li>Avisos para a produção (caixa de mensagens com mensagens prontas). O aviso aparece em amarelo no card do pedido.</li>
+        <li>Encaminhar produção: comando fixo, que pode ou não ficar fixado no topo da fila do operador, e pode ser desfeito ou editado.</li>
+        <li>Data de conclusão definida pelo Reginaldo. O prazo automático é o lançamento + 7 dias corridos, e a data zera quando a usinagem do pedido termina.</li>
+        <li>Atualização em tempo real (WebSocket), com a OP abrindo direto no visualizador.</li>
+      </ul></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">3 · Caldeiraria (HRM)</div>
+
+    <div class="card"><h3>Workspace AÇOS VITAL / HRM e tela Anexar OP</h3>
+      <div class="meta">18/08 → 25/09 · flag <code>acesso_hrm</code></div>
+      <ul>
+        <li>Seletor de workspace no menu. No HRM o grupo "Geral" do Flange fica escondido e os setores da Caldeiraria ganharam ícones.</li>
+        <li>Leitor automático do PDF da OP (formato antigo e formato Omie), que extrai produto, componentes, materiais, roteiro, cliente, quantidade e datas.</li>
+        <li>Para OP com a fonte embaralhada, há decodificação por fonte e por forma do glifo, e OCR local (Tesseract, grátis) como último recurso.</li>
+        <li>A partir de 22/09 a tela só anexa a OP (com checkbox por componente e quantidade de estruturas/projetos). O roteiro passou a ser definido na Conferência. Quando há mais de uma estrutura, cada uma vira um projeto separado.</li>
+        <li>O produto e os componentes lidos ficam salvos no banco, então a Conferência não depende do Backblaze.</li>
+      </ul></div>
+
+    <div class="card"><h3>Conferência HRM (Alan)</h3>
+      <div class="meta">25/08 → 25/09 · flag <code>acesso_conferencia_hrm</code> · M45, M47</div>
+      <ul>
+        <li>Monta o roteiro por componente (produto = pai, componentes = filhos). Tem filtro de setores (digitar, colar uma lista, copiar o roteiro) e unidade em Peça/Quilo/Metro.</li>
+        <li>Desenho no painel à esquerda, que aceita anexos de qualquer tamanho.</li>
+        <li>No lançamento, escolhe o(s) setor(es) de destino, com o item inteiro ou dividido.</li>
+        <li>Nº de rastreabilidade por material (M48, padrão óleo & gás).</li>
+        <li>Permite excluir a OP ou devolvê-la inteira para a Conferência, com os setores já lançados.</li>
+      </ul></div>
+
+    <div class="card"><h3>Produção da Caldeiraria</h3>
+      <div class="meta">28/08 → 25/09 · M46, M54, M55</div>
+      <ul>
+        <li>Fábrica única com o processo real e "por onde passa" escolhido na abertura.</li>
+        <li>Setores novos: Corte Caldeiraria, Usinagem Caldeiraria, montagens, inspeções, testes e Compras HRM (separado do Compras do Flange).</li>
+        <li>Painel "onde está cada OP" (trilha do roteiro) e Kanban no menu HRM.</li>
+        <li>Inspeções / Hold Points (Fit-Up): o apontador solicita e a Qualidade emite o laudo.</li>
+        <li>Datas contratuais e rastreio do cliente no pedido.</li>
+        <li>Regra de fluxo: não se envia sem iniciar. Setor de passagem (pass-through) só encaminha.</li>
+      </ul></div>
+
+    <div class="card"><h3>PCP Caldeiraria do Val (/cald-plano)</h3>
+      <div class="meta">24/09 → 25/09 · M49–M56 · planeja: elivaldo.santos (Val), Gabriel, Pedro</div>
+      <ul>
+        <li>Substitui a planilha do Val. Tem importação de planilha sem duplicar, valor unitário e total (formato brasileiro), empresa do pedido (Aços Vital/Mogi, Uberaba, HRM) e edição em massa de empresa e prioridade.</li>
+        <li>Painel por áreas com a coluna "Início — A planejar" e o botão Lançar pedido. No card fica só o botão <b>Mover</b>, que abre a lista de áreas e setores com filtro.</li>
+        <li>Caixa de pendências com prazo vencido e cobranças (M50), além dos dias por área em cada pedido.</li>
+        <li>Recados do PCP para qualquer pessoa da área. Sub-setor HRM dentro da área geral (M56).</li>
+        <li>Quem só visualiza consegue olhar, mas lançar e alterar é restrito a quem planeja.</li>
+      </ul>
+      <div class="warn">Pendente: o /cald-plano do Val ainda não conversa com a Conferência, os setores <code>cald_*</code> e os apontamentos do Alan. Hoje são dois módulos sem vínculo.</div>
+    </div>
+
+    <div class="card"><h3>Requisição HRM</h3>
+      <div class="meta">25/09 · M57</div>
+      <ul>
+        <li>O Alan registra a requisição feita no Omie e acompanha a compra pela tela de Recebimento. O sistema só avisa e não trava o fluxo.</li>
+      </ul></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">4 · Análise, relatórios e gestão</div>
+    <div class="card"><h3>Análise PCP (/analise)</h3>
+      <div class="meta">17/08 → 24/09 · flag <code>pode_ver_analise</code></div>
+      <ul>
+        <li>Abas: Geral, Produção Homem, Produção Máquina (com tempo exato, fotos das máquinas e resumo por máquina), Catálogo de Flanges (peças por dia, semana e mês pelo ritmo real) e Capacidade (quanto dá para aceitar e entregar com segurança).</li>
+        <li>Fechamento semanal automático, diagnóstico executivo ao vivo (só Flanges), cadastro de capacidade por máquina, funil de fabricação e meta do mês.</li>
+        <li>Saídas do estoque por mês (inspeção × corte) em R$, com exportação para Excel e upload da planilha de faturamento.</li>
+        <li>Abas separadas Flanges | Caldeiraria.</li>
+      </ul></div>
+    <div class="card"><h3>Relatórios</h3>
+      <ul>
+        <li><b>Relatório Pedidos + Materiais</b> por mês de emissão (botão Imprimir em Todos os Pedidos, para admin/PCP). Inclui itens inativos e imprime todas as páginas.</li>
+        <li><b>Valores por Mês</b> (privado: guilherme.santos, gabriel.ribeiro, pedro.henrique), com análise por vendedor, exportação e as visões Flanges, Caldeiraria e Flanges + Caldeiraria. A visão combinada usa o Planejamento, e não as OPs HRM, para não contar em dobro.</li>
+        <li><b>Paradas</b>: registro privado de pedidos parados, com comparativo por dia, semana e mês (só guilherme.santos).</li>
+      </ul></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">5 · Acesso, segurança e infraestrutura</div>
+    <div class="card"><h3>Perfis e flags de acesso por usuário</h3>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Flag / perfil</th><th>O que libera</th></tr></thead>
+        <tbody>
+          <tr><td><code>somente_leitura</code></td><td>Perfil que só visualiza (bloqueio central no servidor)</td></tr>
+          <tr><td><code>pode_ver_analise</code></td><td>Tela Análise PCP sem ser admin</td></tr>
+          <tr><td><code>acesso_hrm</code></td><td>Tela Anexar OP da Caldeiraria</td></tr>
+          <tr><td><code>acesso_conferencia_hrm</code></td><td>Conferir e lançar OP da Caldeiraria (Alan)</td></tr>
+          <tr><td><code>acesso_planejamento</code></td><td>Planejamento da Usinagem (Reginaldo)</td></tr>
+          <tr><td><code>pode_definir_previsao</code></td><td>Definir a previsão de conclusão no card</td></tr>
+          <tr><td><code>pode_ver_nao_localizados</code></td><td>Aba Não Localizados</td></tr>
+          <tr><td><code>pode_desfazer_recebimento</code></td><td>Desfazer o recebimento</td></tr>
+          <tr><td>Perfil "Apontador"</td><td>Entra direto em Todos os Pedidos e define a previsão de fabricação</td></tr>
+          <tr><td>Conta de vendas / "Ocultar valores"</td><td>Vê todos os pedidos e áreas; o marcador esconde os R$ (M42)</td></tr>
+        </tbody>
+      </table></div>
+      <p style="margin-top:10px">Os <b>líderes de produção não veem o nome do cliente</b> (21/08). Toda flag nova exige que o usuário faça <b>logout e login</b> de novo.</p>
+    </div>
+    <div class="card"><h3>Infraestrutura</h3>
+      <ul>
+        <li><b>Armazenamento:</b> desenhos, fotos e anexos passaram a ser gravados no <b>Backblaze B2</b> (31/08), porque o Supabase Storage estourou a cota de egress (402). O download tem re-autenticação, nova tentativa e diagnóstico de erro. Variáveis: <code>B2_KEY_ID</code> e <code>B2_APP_KEY</code>.</li>
+        <li><b>Migrações:</b> há uma trava por <code>SCHEMA_VERSION</code> (hoje 59), para não rodar o DDL a cada cold start. O login é tolerante a coluna nova ainda inexistente: ele dispara a migração na hora em vez de cair. Veja o incidente de 24/09, quando o login caiu para todos.</li>
+        <li><b>CSP:</b> <code>frame-ancestors 'self'</code>, para o visualizador da OP abrir dentro do sistema.</li>
+        <li><b>Hospedagem:</b> o link principal <code>pcp-acosvital.vercel.app</code> voltou a responder. O link de contorno <code>sistemapcp-nine.vercel.app</code> também continua no ar.</li>
+      </ul></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">6 · Backup — situação em 28/09/2026</div>
+    <div class="ok"><b>Backup manual completo feito hoje</b>, em <code>Desktop\BACKUPS_PCP</code>:
+      <ul style="padding-left:20px;margin-top:6px">
+        <li><code>backup_completo_2026-09-28_0706.json</code>: 36 tabelas, 42.993 linhas, 20,1 MB. O arquivo reabre e as contagens de linhas conferem.</li>
+        <li><code>sistema_pcp_esquema_banco_2026-09-28_0706.sql</code>: estrutura atual (colunas, constraints, índices).</li>
+        <li><code>sistema_pcp_codigo_2026-09-28.tar.gz</code>: código do <code>main</code> (commit aab8e2f), sem segredos.</li>
+      </ul></div>
+    <div class="err"><b>O backup automático está parado de novo.</b> O snapshot mais recente na nuvem é o <code>2026-09-16_1700</code>, ou seja, está 12 dias sem gerar. A pasta de rede <code>\\server\REDE\...\BACKUPS</code> continua ficando inacessível em vários dias. Além disso, o automático cobre só 4 tabelas, então não é um backup completo.</div>
+    <div class="warn"><b>Recomendações pendentes (decisão do Guilherme):</b> 1) apontar o cron de backup para o Backblaze B2 e ampliar para todas as tabelas; 2) resolver a credencial da pasta de rede nas tarefas agendadas; 3) criar um alerta de falha. Enquanto isso, o backup confiável é o manual, em <code>Desktop\BACKUPS_PCP</code>.</div>
+    <div class="warn"><b>Ponto de atenção nos dados:</b> no check de integridade das parciais, 1 item de 841 aparece com a soma das parciais maior que o total. É o pedido <b>27225</b>, código <code>015SRFN060</code>, total de 522 contra 829 nas parciais ativas. Várias parciais dele saem de uma mesma parcial de origem de 66 peças. Pode ser falso alarme da regra de contagem ou uma duplicação real, e precisa ser verificado na tela antes de qualquer correção. Nada foi alterado.</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">7 · Migrações de banco no período</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Migração</th><th>Data</th><th>Conteúdo</th></tr></thead>
+      <tbody>
+        <tr><td>M40</td><td>10/09</td><td>Romaneios de carga</td></tr>
+        <tr><td>M41</td><td>10/09</td><td>Prazo de finalização por setor (item e pedido)</td></tr>
+        <tr><td>M42</td><td>11/09</td><td>Ocultar valores (R$) por usuário</td></tr>
+        <tr><td>M43</td><td>14/09</td><td>Planejamento da Usinagem (flag + plano por máquina)</td></tr>
+        <tr><td>M44–M46</td><td>14/09</td><td>Avisos de produção, encaminhar produção, fixar no topo</td></tr>
+        <tr><td>M45</td><td>24/09</td><td>Flag acesso_conferencia_hrm + login do Alan</td></tr>
+        <tr><td>M46</td><td>25/09</td><td>Setores Corte e Usinagem Caldeiraria</td></tr>
+        <tr><td>M47</td><td>17/09</td><td>Iniciar Conferência (PCP HRM)</td></tr>
+        <tr><td>M48</td><td>22/09</td><td>Nº de rastreabilidade por material</td></tr>
+        <tr><td>M49</td><td>24/09</td><td>Planejamento da Caldeiraria (/cald-plano)</td></tr>
+        <tr><td>M50</td><td>24/09</td><td>Cobranças da caixa de pendências</td></tr>
+        <tr><td>M51</td><td>24/09</td><td>Empresa do pedido</td></tr>
+        <tr><td>M52</td><td>24/09</td><td>Correção de valor digitado com ponto de milhar</td></tr>
+        <tr><td>M53</td><td>24/09</td><td>Valor unitário da mercadoria</td></tr>
+        <tr><td>M54</td><td>25/09</td><td>Setores novos da Caldeiraria HRM</td></tr>
+        <tr><td>M55</td><td>25/09</td><td>Compras HRM (<code>cald_compras</code>)</td></tr>
+        <tr><td>M56</td><td>25/09</td><td>Sub-setor HRM + recados</td></tr>
+        <tr><td>M57</td><td>25/09</td><td>Requisição HRM</td></tr>
+      </tbody>
+    </table></div>
+    <p style="margin-top:10px;color:var(--texto-leve);font-size:12px">A numeração M45/M46 se repete porque dois blocos foram criados em paralelo. A ordem de execução segue o arquivo <code>src/lib/migrations.ts</code>.</p>
+  </div>
+
+  <div class="foot">Sistema PCP · Aços Vital · Atualizações 17/08 a 28/09/2026 · Gerado em 28/09/2026 · Uso interno</div>
+</div>
+</body>
+</html>

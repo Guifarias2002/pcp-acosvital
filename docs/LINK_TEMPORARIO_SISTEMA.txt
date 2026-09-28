@@ -13,3 +13,7 @@ O que mudou:
   não é ambiente de teste.
 
 Atualizado em: 04/08/2026
+
+---
+Atualização 28/09/2026: o link principal https://pcp-acosvital.vercel.app voltou
+a responder. Os dois links estão no ar e usam o mesmo banco de dados.
