@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   if (!podeVerAnalise(user)) return NextResponse.json({ erro: 'Sem permissao' }, { status: 403 });
 
   try {
-    const [funilRaw, fabMesRaw, metaCfg] = await withTimeout(Promise.all([
+    const [funilRaw, fabMesRaw, metaCfg, emissaoRaw] = await withTimeout(Promise.all([
       // Funil: classifica cada item ativo de Flange num estágio pelo setor_atual.
       sql`
         SELECT
@@ -54,6 +54,22 @@ export async function GET(req: Request) {
         FROM fab JOIN producao_itempedido i ON i.id = fab.item_id
         GROUP BY 1 ORDER BY 1`,
       sql`SELECT valor FROM producao_config WHERE chave = 'meta_mensal_un'`.catch(() => []),
+      // Por MÊS DE EMISSÃO do pedido — mesma base do relatório "Valores por Mês"
+      // (/api/pedidos/valores-mes, aba Flanges): itens de Flange ativos, pedido
+      // com data_emissao. Pedidos + peças lançadas batem 1:1 com aquela tela;
+      // as colunas do funil mostram onde estão hoje as peças daquele mês.
+      sql`
+        SELECT to_char(p.data_emissao, 'YYYY-MM') AS mes,
+               count(DISTINCT p.id)::int AS pedidos,
+               COALESCE(SUM(i.quantidade), 0)::float AS un,
+               COALESCE(SUM(i.quantidade) FILTER (WHERE i.status <> 'entregue' AND NOT (i.setor_atual = ANY(${FAB_SETORES_PRONTO})) AND NOT (i.setor_atual = ANY(${FAB_SETORES_EM_FABRICACAO})) AND (i.setor_atual = ANY(${FAB_SETORES_FILA}) OR i.status IN ('aguardando', 'emitido'))), 0)::float AS fila,
+               COALESCE(SUM(i.quantidade) FILTER (WHERE i.status <> 'entregue' AND i.setor_atual = ANY(${FAB_SETORES_PRONTO})), 0)::float AS pronto,
+               COALESCE(SUM(i.quantidade) FILTER (WHERE i.status = 'entregue'), 0)::float AS entregue
+        FROM producao_itempedido i
+        JOIN producao_pedido p ON p.id = i.pedido_id
+        WHERE i.inativo = false AND COALESCE(i.fabrica, 'flange') <> 'caldeiraria'
+          AND p.data_emissao IS NOT NULL
+        GROUP BY 1 ORDER BY 1`,
     ]), 55000);
 
     // ── Funil ────────────────────────────────────────────────────────────────
@@ -93,9 +109,14 @@ export async function GET(req: Request) {
     const faltam_un = meta_mensal_un != null ? Math.max(0, meta_mensal_un - fabricado_mes_atual_un) : null;
     const risco = meta_mensal_un != null ? projetado_fim_mes < meta_mensal_un : null;
 
+    // Em fabricação = o que sobra (mesma regra do ELSE do funil).
+    const por_emissao = (emissaoRaw as unknown as { mes: string; pedidos: number; un: number; fila: number; pronto: number; entregue: number }[])
+      .map(r => ({ ...r, em_fabricacao: Math.max(0, r.un - r.fila - r.pronto - r.entregue) }));
+
     return NextResponse.json({
       funil, total_un, fabricadas_un,
       fabricado_mes: fabMes,
+      por_emissao,
       meta: {
         meta_mensal_un, mes_atual: mesAtual,
         fabricado_mes_atual_un,

@@ -115,6 +115,7 @@ interface Fab {
   total_un: number;
   fabricadas_un: number;
   fabricado_mes: { mes: string; itens: number; un: number }[];
+  por_emissao?: { mes: string; pedidos: number; un: number; fila: number; em_fabricacao: number; pronto: number; entregue: number }[];
   meta: {
     meta_mensal_un: number | null; mes_atual: string; fabricado_mes_atual_un: number;
     dias_uteis_mes: number; dias_uteis_decorridos: number;
@@ -429,8 +430,6 @@ export default function AnalisePage() {
           const ult = completos[completos.length - 1] || diag.producao[diag.producao.length - 1] || null;
           const cres = diag.crescimento_dia_pct;
           const corCres = cres == null ? C.cinza : cres >= 0 ? C.verde : C.vermelho;
-          // Gargalos internos de produção (tira fim-de-linha e emissão).
-          const gargProd = diag.gargalos.filter(g => !['quarentena', 'logistica', 'emissao'].includes(g.setor)).slice(0, 5);
           const tile = (label: string, valor: string, cor: string, sub?: string) => (
             <div style={{ flex: '1 1 150px', minWidth: 140, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 12px' }}>
               <div style={{ fontSize: 10.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: .6 }}>{label}</div>
@@ -497,42 +496,6 @@ export default function AnalisePage() {
                   </div>
                 );
               })()}
-
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-                {/* Produção mês a mês */}
-                <div style={{ flex: '1 1 300px', minWidth: 280 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, marginBottom: 4 }}>Produção entregue por mês</div>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead><tr><th style={th}>Mês</th><th style={{ ...th, textAlign: 'right' }}>Un</th><th style={{ ...th, textAlign: 'right' }}>Dias</th><th style={{ ...th, textAlign: 'right' }}>Un/dia</th></tr></thead>
-                    <tbody>
-                      {diag.producao.map(m => (
-                        <tr key={m.mes}>
-                          <td style={td}>{mesLabel(m.mes)}</td>
-                          <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{fmt(m.un)}</td>
-                          <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{m.dias}</td>
-                          <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: C.azul2 }}>{m.media_dia != null ? fmt(m.media_dia, 0) : '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Gargalos internos */}
-                <div style={{ flex: '1 1 300px', minWidth: 280 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, marginBottom: 4 }}>Gargalos internos <span style={{ fontWeight: 400, color: '#94a3b8' }}>(dias parado por setor)</span></div>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead><tr><th style={th}>Setor</th><th style={{ ...th, textAlign: 'right' }}>Dias méd.</th></tr></thead>
-                    <tbody>
-                      {gargProd.map(g => (
-                        <tr key={g.setor}>
-                          <td style={td}>{nm(g.setor)}</td>
-                          <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: g.dias_medio >= 1.3 ? C.vermelho : g.dias_medio >= 1 ? C.laranja : C.verde }}>{fmt(g.dias_medio, 0)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
 
               {/* Recordes — quem mais produziu e o maior pedido (por peças) */}
               {(diag.recordes?.top_produto || diag.recordes?.maior_pedido) && (
@@ -757,23 +720,50 @@ export default function AnalisePage() {
                 )}
               </div>
 
-              {/* Fabricado por mês */}
-              {fab.fabricado_mes.length > 0 && (
-                <div style={{ marginTop: 14, maxWidth: 420 }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, marginBottom: 4 }}>Fabricado por mês <span style={{ fontWeight: 400, color: '#94a3b8' }}>(peças que passaram do acabamento)</span></div>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead><tr><th style={th}>Mês</th><th style={{ ...th, textAlign: 'right' }}>Peças</th></tr></thead>
-                    <tbody>
-                      {fab.fabricado_mes.slice(-8).map(m => (
-                        <tr key={m.mes}>
-                          <td style={td}>{mesLabel(m.mes)}</td>
-                          <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: C.verde }}>{fmt(m.un)}</td>
+              {/* Por mês de emissão — bate com "Valores por Mês" (mesmos pedidos e peças) */}
+              {(fab.por_emissao?.length ?? 0) > 0 && (() => {
+                const rows = fab.por_emissao!.slice().reverse();
+                const tot = rows.reduce((a, r) => ({ pedidos: a.pedidos + r.pedidos, un: a.un + r.un, fila: a.fila + r.fila, em_fabricacao: a.em_fabricacao + r.em_fabricacao, pronto: a.pronto + r.pronto, entregue: a.entregue + r.entregue }), { pedidos: 0, un: 0, fila: 0, em_fabricacao: 0, pronto: 0, entregue: 0 });
+                const num = (v: number, cor?: string, bold?: boolean) => <td style={{ ...td, textAlign: 'right', fontWeight: bold ? 800 : 700, color: cor }}>{fmt(v)}</td>;
+                return (
+                  <div style={{ marginTop: 14, overflowX: 'auto' }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, marginBottom: 4 }}>Por mês de emissão <span style={{ fontWeight: 400, color: '#94a3b8' }}>(mesma base do relatório Valores por Mês · onde estão hoje as peças de cada mês)</span></div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
+                      <thead><tr>
+                        <th style={th}>Mês</th>
+                        <th style={{ ...th, textAlign: 'right' }}>Pedidos</th>
+                        <th style={{ ...th, textAlign: 'right' }}>Peças</th>
+                        <th style={{ ...th, textAlign: 'right' }}>Na fila</th>
+                        <th style={{ ...th, textAlign: 'right' }}>Em fabricação</th>
+                        <th style={{ ...th, textAlign: 'right' }}>Prontas</th>
+                        <th style={{ ...th, textAlign: 'right' }}>Entregues</th>
+                      </tr></thead>
+                      <tbody>
+                        {rows.map(m => (
+                          <tr key={m.mes}>
+                            <td style={td}>{mesLabel(m.mes)}</td>
+                            {num(m.pedidos)}
+                            {num(m.un, undefined, true)}
+                            {num(m.fila, C.cinza)}
+                            {num(m.em_fabricacao, '#2563eb')}
+                            {num(m.pronto, C.verde)}
+                            {num(m.entregue, '#0f766e')}
+                          </tr>
+                        ))}
+                        <tr style={{ background: '#f0fdf4' }}>
+                          <td style={{ ...td, fontWeight: 800 }}>Total</td>
+                          {num(tot.pedidos, undefined, true)}
+                          {num(tot.un, undefined, true)}
+                          {num(tot.fila, C.cinza, true)}
+                          {num(tot.em_fabricacao, '#2563eb', true)}
+                          {num(tot.pronto, C.verde, true)}
+                          {num(tot.entregue, '#0f766e', true)}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
             </div>
           );
         })()}
