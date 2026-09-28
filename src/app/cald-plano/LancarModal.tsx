@@ -3,6 +3,8 @@ import { useRef, useState } from 'react';
 import { postIdempotente } from '@/lib/api';
 import { AREAS_CALD, UNIDADES_CALD, PRIORIDADES_CALD } from '@/lib/caldPlano';
 import { C, Modal, Campo, PRIO, erroDe, SeletorEmpresa, CampoValor, calcTotal, calcUnit, qtdNum, fmtBRL } from './comum';
+import { carregarPdfjs } from '@/components/VisualizadorDoc';
+import { extrairPaginasPdf, interpretarPedidoVenda } from '@/lib/pvReader';
 
 // Roteiro sugerido pra um item novo (o planejador ajusta depois).
 const ROTEIRO_PADRAO = ['corte', 'montagem', 'solda', 'acabamento', 'inspecao'];
@@ -45,6 +47,53 @@ export default function LancarModal({ onFechar, onLancado, vendedores, clientes,
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importando, setImportando] = useState(false);
+
+  // Ler PDF do PEDIDO DE VENDA (Omie) → preenche o formulário. Ver pvReader.ts.
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const [lendoPdf, setLendoPdf] = useState(false);
+  const [arrastandoPdf, setArrastandoPdf] = useState(false);
+  const [resumoPdf, setResumoPdf] = useState<{ ok: string; avisos: string[] } | null>(null);
+
+  async function lerPdfPedido(file: File | undefined) {
+    if (pdfInputRef.current) pdfInputRef.current.value = '';
+    if (!file) return;
+    if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') { setErro('Escolha o PDF do pedido de venda.'); return; }
+    setLendoPdf(true); setErro(''); setResumoPdf(null);
+    try {
+      const pdfjs = await carregarPdfjs();
+      const r = interpretarPedidoVenda(await extrairPaginasPdf(pdfjs, await file.arrayBuffer()));
+      if (!r.pedido && !r.itens.length) { setErro('Não reconheci esse PDF como pedido de venda do Omie.'); return; }
+      if (r.pedido) setPedido(r.pedido);
+      if (r.empresa) setEmpresa(r.empresa);
+      if (r.cliente) setCliente(r.cliente);
+      if (r.vendedor) setVendedor(r.vendedor);
+      if (r.prev_faturamento) setPrevFat(r.prev_faturamento);
+      if (r.obs) setObs(r.obs);
+      if (r.urgente) setPrioridade('urgente');
+      if (r.itens.length) {
+        const areasBase = itens[itens.length - 1]?.areas || ROTEIRO_PADRAO;
+        const novos: ItemForm[] = r.itens.map(i => ({
+          material: i.material || i.codigo,
+          quantidade: i.quantidade ? String(i.quantidade) : '',
+          unidade: UNIDADES_CALD.includes(i.unidade) ? i.unidade : 'pç',
+          unit: i.valor_unitario,
+          valor: i.valor ?? calcTotal(i.valor_unitario, i.quantidade),
+          areas: [...areasBase],
+        }));
+        setItens(v => [...v.filter(i => i.material.trim()), ...novos]);
+      }
+      const semValor = r.itens.length > 0 && r.itens.every(i => i.valor_unitario === null && i.valor === null);
+      setResumoPdf({
+        ok: `Pedido ${r.pedido || '?'} lido: ${r.itens.length} item(ns)${r.cliente ? ` · ${r.cliente}` : ''}${r.urgente ? ' · marcado URGENTE (tem urgência nas observações)' : ''}.`,
+        avisos: [...r.avisos, ...(semValor ? ['O PDF não traz valores — preencha o valor unitário se quiser.'] : [])],
+      });
+    } catch (e) {
+      console.error('[ler PDF pedido]', e);
+      setErro('Não consegui ler o PDF. Confira se é o pedido de venda exportado do Omie.');
+    } finally {
+      setLendoPdf(false);
+    }
+  }
 
   async function importarExcel(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -137,6 +186,31 @@ export default function LancarModal({ onFechar, onLancado, vendedores, clientes,
       <p style={{ margin: '0 0 12px', fontSize: 12.5, color: C.cinza }}>
         O pedido cai na coluna <b>&quot;Início — A planejar&quot;</b> do painel, onde o coordenador da Caldeiraria define a ordem, as previsões e manda pras áreas.
       </p>
+
+      {/* LER PDF DO PEDIDO: arrasta ou escolhe o PDF do Omie → preenche tudo. */}
+      <div
+        onDragOver={e => { e.preventDefault(); setArrastandoPdf(true); }}
+        onDragLeave={() => setArrastandoPdf(false)}
+        onDrop={e => { e.preventDefault(); setArrastandoPdf(false); lerPdfPedido(e.dataTransfer.files?.[0]); }}
+        style={{
+          border: `2px dashed ${arrastandoPdf ? C.azul2 : '#93c5fd'}`, background: arrastandoPdf ? '#dbeafe' : '#eff6ff', borderRadius: 10,
+          padding: '10px 12px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+        }}>
+        <i className="bi bi-file-earmark-pdf" style={{ fontSize: 22, color: '#dc2626' }} />
+        <div style={{ flex: 1, minWidth: 200, fontSize: 12.5, color: C.texto }}>
+          <b>Tem o PDF do pedido de venda (Omie)?</b> Arraste aqui ou clique em ler — preenche empresa, nº, cliente, vendedor, previsão de faturamento, observações e os itens.
+        </div>
+        <input ref={pdfInputRef} type="file" accept=".pdf,application/pdf" style={{ display: 'none' }} onChange={e => lerPdfPedido(e.target.files?.[0])} />
+        <button type="button" className="cp-btn pri" disabled={lendoPdf} onClick={() => pdfInputRef.current?.click()}>
+          <i className="bi bi-file-earmark-arrow-up" />{lendoPdf ? 'Lendo PDF…' : 'Ler PDF do pedido'}
+        </button>
+        {resumoPdf && (
+          <div style={{ flexBasis: '100%', fontSize: 12.5 }}>
+            <div style={{ color: C.verde, fontWeight: 700 }}><i className="bi bi-check-circle-fill" /> {resumoPdf.ok} Confira abaixo antes de lançar.</div>
+            {resumoPdf.avisos.map(a => <div key={a} style={{ color: '#b45309' }}><i className="bi bi-exclamation-triangle-fill" /> {a}</div>)}
+          </div>
+        )}
+      </div>
 
       <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: C.cinza, textTransform: 'uppercase', letterSpacing: .3, marginBottom: 5 }}>Empresa do pedido *</div>

@@ -19,7 +19,7 @@ import { useEffect, useRef, useState } from 'react';
 // package-lock: 3.11.174), servido pelo próprio domínio — respeita o CSP
 // (script-src 'self').
 let pdfjsPromise: Promise<any> | null = null;
-function carregarPdfjs(): Promise<any> {
+export function carregarPdfjs(): Promise<any> {
   if (typeof window === 'undefined') return Promise.reject(new Error('sem window'));
   const jaCarregado = (window as any).pdfjsLib;
   if (jaCarregado) return Promise.resolve(jaCarregado);
