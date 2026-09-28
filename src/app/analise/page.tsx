@@ -720,44 +720,25 @@ export default function AnalisePage() {
                 )}
               </div>
 
-              {/* Por mês de emissão — bate com "Valores por Mês" (mesmos pedidos e peças) */}
+              {/* Peças por mês de emissão — bate com "Valores por Mês" (mesmas peças) */}
               {(fab.por_emissao?.length ?? 0) > 0 && (() => {
                 const rows = fab.por_emissao!.slice().reverse();
-                const tot = rows.reduce((a, r) => ({ pedidos: a.pedidos + r.pedidos, un: a.un + r.un, fila: a.fila + r.fila, em_fabricacao: a.em_fabricacao + r.em_fabricacao, pronto: a.pronto + r.pronto, entregue: a.entregue + r.entregue }), { pedidos: 0, un: 0, fila: 0, em_fabricacao: 0, pronto: 0, entregue: 0 });
-                const num = (v: number, cor?: string, bold?: boolean) => <td style={{ ...td, textAlign: 'right', fontWeight: bold ? 800 : 700, color: cor }}>{fmt(v)}</td>;
+                const tot = rows.reduce((a, r) => a + r.un, 0);
                 return (
-                  <div style={{ marginTop: 14, overflowX: 'auto' }}>
-                    <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, marginBottom: 4 }}>Por mês de emissão <span style={{ fontWeight: 400, color: '#94a3b8' }}>(mesma base do relatório Valores por Mês · onde estão hoje as peças de cada mês)</span></div>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 620 }}>
-                      <thead><tr>
-                        <th style={th}>Mês</th>
-                        <th style={{ ...th, textAlign: 'right' }}>Pedidos</th>
-                        <th style={{ ...th, textAlign: 'right' }}>Peças</th>
-                        <th style={{ ...th, textAlign: 'right' }}>Na fila</th>
-                        <th style={{ ...th, textAlign: 'right' }}>Em fabricação</th>
-                        <th style={{ ...th, textAlign: 'right' }}>Prontas</th>
-                        <th style={{ ...th, textAlign: 'right' }}>Entregues</th>
-                      </tr></thead>
+                  <div style={{ marginTop: 14, maxWidth: 420 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: C.cinza, marginBottom: 4 }}>Peças por mês <span style={{ fontWeight: 400, color: '#94a3b8' }}>(pelo mês de emissão do pedido · igual ao Valores por Mês)</span></div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead><tr><th style={th}>Mês</th><th style={{ ...th, textAlign: 'right' }}>Peças</th></tr></thead>
                       <tbody>
                         {rows.map(m => (
                           <tr key={m.mes}>
                             <td style={td}>{mesLabel(m.mes)}</td>
-                            {num(m.pedidos)}
-                            {num(m.un, undefined, true)}
-                            {num(m.fila, C.cinza)}
-                            {num(m.em_fabricacao, '#2563eb')}
-                            {num(m.pronto, C.verde)}
-                            {num(m.entregue, '#0f766e')}
+                            <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: C.verde }}>{fmt(m.un)}</td>
                           </tr>
                         ))}
                         <tr style={{ background: '#f0fdf4' }}>
                           <td style={{ ...td, fontWeight: 800 }}>Total</td>
-                          {num(tot.pedidos, undefined, true)}
-                          {num(tot.un, undefined, true)}
-                          {num(tot.fila, C.cinza, true)}
-                          {num(tot.em_fabricacao, '#2563eb', true)}
-                          {num(tot.pronto, C.verde, true)}
-                          {num(tot.entregue, '#0f766e', true)}
+                          <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: C.verde }}>{fmt(tot)}</td>
                         </tr>
                       </tbody>
                     </table>
