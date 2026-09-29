@@ -197,6 +197,30 @@ export async function POST(req: Request) {
 
     // ── Inventário simples: adicionar item com a QUANTIDADE ATUAL no local ──
     // Código já cadastrado → só passa a existir também neste local (ou ajusta).
+    // Grava a quantidade atual de um código num local (cria o item se não existe).
+    // somar=true (botão "Adicionar"): o mesmo produto cadastrado de novo SOMA ao que
+    // já tem no local. Planilha: quantidade atual (linhas repetidas já vêm somadas).
+    const inventariar = async (t: Tx, codigo: string, descricao: string | null, local: string, qtdInf: number, obsMov: string, somar = false) => {
+      let [it] = await t`SELECT id, ativo FROM producao_estoque_item WHERE upper(trim(codigo)) = ${normCodigo(codigo)} FOR UPDATE`;
+      let novo = false;
+      if (!it) {
+        if (!descricao) throw new Error(`USR:Informe a descrição do código ${codigo} (item novo).`);
+        [it] = await t`INSERT INTO producao_estoque_item (codigo, descricao, unidade, criado_por_nome)
+                       VALUES (${codigo}, ${descricao}, ${txt(b.unidade, 10) || 'pç'}, ${quem}) RETURNING id, ativo`;
+        novo = true;
+      } else if (!it.ativo) {
+        await t`UPDATE producao_estoque_item SET ativo = true WHERE id = ${it.id}`;
+      }
+      const s = await saldo(t, Number(it.id), local);
+      const [tem] = await t`SELECT 1 AS x FROM producao_estoque_mov WHERE item_id = ${it.id} AND local = ${local} AND cancelado_em IS NULL LIMIT 1`;
+      const qtd = somar && tem ? s + qtdInf : qtdInf;
+      if (tem && Math.abs(qtd - s) < 1e-9) return 'igual' as const;
+      const obs = somar && tem ? `${obsMov}: +${qtdInf} (${s} → ${qtd})` : `${obsMov}: ${tem ? `${s} → ` : ''}${qtd}`;
+      await t`INSERT INTO producao_estoque_mov (item_id, local, tipo, quantidade, obs, criado_por_nome)
+              VALUES (${it.id}, ${local}, 'inventario', ${qtd - s}, ${obs}, ${quem})`;
+      return novo ? 'novo' as const : 'ajustado' as const;
+    };
+
     if (acao === 'item_adicionar') {
       const codigo = txt(b.codigo, 60);
       const descricao = txt(b.descricao, 300);
@@ -205,23 +229,37 @@ export async function POST(req: Request) {
       if (!codigo) return erro('Informe o código.');
       if (!LOCAIS_COD.includes(local)) return erro('Local inválido.');
       if (Number.isNaN(qtd) || qtd < 0) return erro('Quantidade inválida.');
+      await sql.begin(async (tx) => { await inventariar(tx as unknown as Tx, codigo, descricao, local, qtd, 'Adicionado', true); });
+      return NextResponse.json({ ok: true });
+    }
+
+    // Importação da PLANILHA MODELO (Local | Código | Descrição | Quantidade atual).
+    // Tudo ou nada: se uma linha tiver erro, nada é gravado.
+    if (acao === 'importar') {
+      const linhas = Array.isArray(b.linhas) ? (b.linhas as Record<string, unknown>[]) : [];
+      if (!linhas.length) return erro('A planilha não tem linhas com quantidade.');
+      if (linhas.length > 3000) return erro('Planilha grande demais (máx. 3000 linhas).');
+      const cont = { novo: 0, ajustado: 0, igual: 0 };
       await sql.begin(async (tx) => {
         const t = tx as unknown as Tx;
-        let [it] = await t`SELECT id, ativo FROM producao_estoque_item WHERE upper(trim(codigo)) = ${normCodigo(codigo)} FOR UPDATE`;
-        if (!it) {
-          if (!descricao) throw new Error('USR:Informe a descrição.');
-          [it] = await t`INSERT INTO producao_estoque_item (codigo, descricao, unidade, criado_por_nome)
-                         VALUES (${codigo}, ${descricao}, ${txt(b.unidade, 10) || 'pç'}, ${quem}) RETURNING id, ativo`;
-        } else if (!it.ativo) {
-          await t`UPDATE producao_estoque_item SET ativo = true WHERE id = ${it.id}`;
+        for (let i = 0; i < linhas.length; i++) {
+          const l = linhas[i];
+          const ref = `Linha ${Number(l.linha) || i + 2}`;
+          const codigo = txt(l.codigo, 60);
+          const local = String(l.local || '');
+          const qtd = num(l.quantidade);
+          if (!codigo) throw new Error(`USR:${ref}: sem código.`);
+          if (!LOCAIS_COD.includes(local)) throw new Error(`USR:${ref}: local inválido (use Arujá ou Mogi).`);
+          if (Number.isNaN(qtd) || qtd < 0) throw new Error(`USR:${ref}: quantidade inválida.`);
+          try {
+            cont[await inventariar(t, codigo, txt(l.descricao, 300), local, qtd, 'Planilha de inventário')]++;
+          } catch (e) {
+            const m = e instanceof Error ? e.message : '';
+            throw new Error(m.startsWith('USR:') ? `USR:${ref}: ${m.slice(4)}` : m);
+          }
         }
-        const s = await saldo(t, Number(it.id), local);
-        const [tem] = await t`SELECT 1 AS x FROM producao_estoque_mov WHERE item_id = ${it.id} AND local = ${local} AND cancelado_em IS NULL LIMIT 1`;
-        if (tem && Math.abs(qtd - s) < 1e-9) return;
-        await t`INSERT INTO producao_estoque_mov (item_id, local, tipo, quantidade, obs, criado_por_nome)
-                VALUES (${it.id}, ${local}, 'inventario', ${qtd - s}, ${`Quantidade atual informada: ${qtd}`}, ${quem})`;
       });
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, ...cont });
     }
     // Corrige a quantidade atual de um item no local (diferença vira ajuste).
     if (acao === 'ajustar') {

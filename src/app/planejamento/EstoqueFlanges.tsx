@@ -145,8 +145,89 @@ export default function EstoqueFlanges({ soInventario = false }: { soInventario?
     const r = await post({ acao: 'item_adicionar', local, codigo: novo.codigo, descricao: novo.descricao, quantidade: Number(novo.quantidade.replace(',', '.')) || 0 });
     setSalvando(false);
     if (!r.ok) { setErroModal(r.erro || 'Erro'); return; }
-    setNovo({ codigo: '', descricao: '', quantidade: '' }); avisar('Item salvo no inventário.'); carregar();
+    setNovo({ codigo: '', descricao: '', quantidade: '' }); avisar(itens.some(i => i.codigo.trim().toUpperCase() === novo.codigo.trim().toUpperCase() && saldoDe(i, local) !== 0) ? 'Quantidade somada ao que já tinha.' : 'Item salvo no inventário.'); carregar();
   }
+  // ── Planilha modelo: baixar (já com os itens dos dois locais) → preencher → importar ──
+  const COLS = ['Local', 'Código', 'Descrição', 'Quantidade atual'];
+  async function baixarModelo() {
+    const XLSX = await import('xlsx');
+    const linhas: (string | number)[][] = [COLS];
+    for (const l of LOCAIS_ESTOQUE)
+      for (const i of [...itens].sort((a, b) => a.codigo.localeCompare(b.codigo)))
+        linhas.push([l.cod === 'aruja' ? 'Arujá' : 'Mogi', i.codigo, i.descricao, saldoDe(i, l.cod)]);
+    const ws = XLSX.utils.aoa_to_sheet(linhas);
+    ws['!cols'] = [{ wch: 10 }, { wch: 22 }, { wch: 60 }, { wch: 18 }];
+    const inst = XLSX.utils.aoa_to_sheet([
+      ['Como preencher a planilha de inventário'], [],
+      ['1. Na aba "Inventário", corrija a coluna "Quantidade atual" com o que tem hoje em cada local.'],
+      ['2. Item novo: acrescente uma linha com Local (Arujá ou Mogi), Código, Descrição e Quantidade atual.'],
+      ['3. Linha com a quantidade EM BRANCO é ignorada (não mexe no estoque).'],
+      ['   O mesmo código repetido no mesmo local é SOMADO (ex.: 10 numa prateleira + 5 em outra = 15).'],
+      ['4. Não mude os títulos das colunas nem o nome da aba.'],
+      ['5. No sistema: Estoque → Inventário → "Importar planilha". Antes de gravar aparece a prévia.'],
+    ]);
+    inst['!cols'] = [{ wch: 100 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Inventário');
+    XLSX.utils.book_append_sheet(wb, inst, 'Instruções');
+    XLSX.writeFile(wb, `Modelo inventário estoque flanges ${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.xlsx`);
+  }
+
+  type LinhaImp = { linha: number; linhas: number[]; local: string; codigo: string; descricao: string; quantidade: number; atual: number | null; erro?: string };
+  const [mImp, setMImp] = useState<{ arquivo: string; linhas: LinhaImp[] } | null>(null);
+  const inputImp = useRef<HTMLInputElement>(null);
+  async function lerPlanilha(f: File) {
+    setErroModal('');
+    try {
+      const XLSX = await import('xlsx');
+      const wb = XLSX.read(await f.arrayBuffer());
+      const ws = wb.Sheets['Inventário'] || wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' });
+      const norm = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+      const cab = (rows[0] || []).map(norm);
+      const ix = (k: string) => cab.findIndex(c => c.startsWith(k));
+      const [iL, iC, iD, iQ] = [ix('local'), ix('codigo'), ix('descri'), ix('quant')];
+      if (iL < 0 || iC < 0 || iQ < 0) { abrir(setMImp, { arquivo: f.name, linhas: [] }); setErroModal('Planilha fora do modelo: faltam as colunas Local, Código ou Quantidade atual. Baixe o modelo e use ele.'); return; }
+      const porCod = new Map(itens.map(i => [i.codigo.trim().toUpperCase(), i]));
+      const vistos = new Map<string, LinhaImp>();
+      const linhas: LinhaImp[] = [];
+      rows.slice(1).forEach((r, k) => {
+        const qTxt = String(r[iQ] ?? '').trim();
+        const codigo = String(r[iC] ?? '').trim();
+        if (!qTxt && !codigo) return;          // linha vazia
+        if (!qTxt) return;                     // quantidade em branco = ignora
+        const loc = norm(r[iL]);
+        const local = loc.startsWith('aru') ? 'aruja' : loc.startsWith('mog') ? 'mogi' : '';
+        const quantidade = Number(qTxt.replace(/\./g, qTxt.includes(',') ? '' : '.').replace(',', '.'));
+        const it = porCod.get(codigo.toUpperCase());
+        const descricao = String(iD >= 0 ? r[iD] ?? '' : '').trim();
+        const chave = `${local}|${codigo.toUpperCase()}`;
+        let erro: string | undefined;
+        if (!codigo) erro = 'sem código';
+        else if (!local) erro = 'local inválido (Arujá ou Mogi)';
+        else if (!Number.isFinite(quantidade) || quantidade < 0) erro = 'quantidade inválida';
+        else if (!it && !descricao) erro = 'item novo sem descrição';
+        // mesmo produto repetido no mesmo local → SOMA as quantidades numa linha só
+        const ja = !erro ? vistos.get(chave) : undefined;
+        if (ja) { ja.quantidade += quantidade; ja.linhas.push(k + 2); if (!ja.descricao) ja.descricao = descricao; return; }
+        const nova: LinhaImp = { linha: k + 2, linhas: [k + 2], local, codigo, descricao, quantidade, atual: it ? saldoDe(it, local || 'aruja') : null, erro };
+        if (!erro) vistos.set(chave, nova);
+        linhas.push(nova);
+      });
+      abrir(setMImp, { arquivo: f.name, linhas });
+    } catch { abrir(setMImp, { arquivo: f.name, linhas: [] }); setErroModal('Não consegui ler o arquivo. Use o modelo em Excel (.xlsx).'); }
+  }
+  async function confirmarImportacao() {
+    if (!mImp) return;
+    const muda = mImp.linhas.filter(l => l.atual == null || Math.abs(l.atual - l.quantidade) > 1e-9);
+    setSalvando(true); setErroModal('');
+    const r = await post({ acao: 'importar', linhas: muda.map(({ linha, local, codigo, descricao, quantidade }) => ({ linha, local, codigo, descricao, quantidade })) });
+    setSalvando(false);
+    if (!r.ok) { setErroModal(r.erro || 'Erro ao importar.'); return; }
+    setMImp(null); carregar();
+    avisar(`Planilha importada: ${r.novo} novos, ${r.ajustado} ajustados.`);
+  }
+
   async function salvarQtd() {
     if (!editQtd) return;
     const v = Number(editQtd.valor.replace(',', '.'));
@@ -233,7 +314,7 @@ export default function EstoqueFlanges({ soInventario = false }: { soInventario?
   const noLocal = (i: ItemEstoque, l: string) => (l === 'aruja' ? !!i.em_aruja : !!i.em_mogi);
   const itensLocal = itens.filter(i => i.ativo && noLocal(i, local));
   const totalLocal = itensLocal.reduce((s, i) => s + saldoDe(i, local), 0);
-  ocupado.current = !!(mAtender || mLanc || mVinc || editQtd || novo.codigo || novo.descricao || novo.quantidade);
+  ocupado.current = !!(mAtender || mLanc || mVinc || mImp || editQtd || novo.codigo || novo.descricao || novo.quantidade);
   const movsLocal = (dados?.movs || []).filter(m => m.local === local && casa(m.codigo, m.descricao, m.numero_pedido_venda, m.obs, m.criado_por_nome));
   const pecasNoSetor = (dados?.no_setor || []).filter(p => casa(p.numero_pedido_venda, p.cliente, p.codigo, p.descricao));
   const nPedidosSetor = new Set((dados?.no_setor || []).map(p => p.pedido_id)).size;
@@ -282,6 +363,9 @@ export default function EstoqueFlanges({ soInventario = false }: { soInventario?
                 <div style={{ fontWeight: 800, color: C.azul }}>Inventário — {nomeLocal(local)} · {itensLocal.length} itens · {fmt(totalLocal)} peças</div>
                 <div style={{ flex: 1 }} />
                 <button className="pl-btn" style={{ color: C.roxo }} onClick={() => abrir(setMLanc, { tipo: 'transferencia', item_id: '', local, local_destino: local === 'aruja' ? 'mogi' : 'aruja', quantidade: '', obs: '' })}><i className="bi bi-arrow-left-right" /> Transferir p/ {local === 'aruja' ? 'Mogi' : 'Arujá'}</button>
+                <button className="pl-btn no-print" onClick={baixarModelo} title="Excel com os itens de Arujá e Mogi para preencher"><i className="bi bi-file-earmark-arrow-down" /> Baixar modelo</button>
+                <button className="pl-btn no-print" style={{ color: C.teal }} onClick={() => inputImp.current?.click()} title="Sobe a planilha modelo preenchida"><i className="bi bi-file-earmark-arrow-up" /> Importar planilha</button>
+                <input ref={inputImp} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) lerPlanilha(f); }} />
                 <button className="pl-btn no-print" onClick={() => window.print()}><i className="bi bi-printer" /> Imprimir</button>
               </div>
 
@@ -289,9 +373,9 @@ export default function EstoqueFlanges({ soInventario = false }: { soInventario?
               <div className="no-print" style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 10, padding: 10, marginBottom: 12 }}>
                 <div style={{ width: 170 }}><label style={lbl}>Código</label><input style={inp} value={novo.codigo} onChange={e => setNovo(v => ({ ...v, codigo: e.target.value }))} placeholder="ex.: 015LT020" /></div>
                 <div style={{ flex: '1 1 260px' }}><label style={lbl}>Descrição</label><input style={inp} value={novo.descricao} onChange={e => setNovo(v => ({ ...v, descricao: e.target.value }))} placeholder="ex.: FLANGE LISO SOLTO B16.5 150LBS AC 2&quot;" /></div>
-                <div style={{ width: 130 }}><label style={lbl}>Quantidade atual</label><input style={{ ...inp, textAlign: 'right', fontWeight: 700 }} inputMode="decimal" value={novo.quantidade} onChange={e => setNovo(v => ({ ...v, quantidade: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') adicionarItem(); }} /></div>
+                <div style={{ width: 130 }}><label style={lbl} title="Se o código já está neste local, a quantidade é SOMADA ao que já tem">Quantidade (soma se já existe)</label><input style={{ ...inp, textAlign: 'right', fontWeight: 700 }} inputMode="decimal" value={novo.quantidade} onChange={e => setNovo(v => ({ ...v, quantidade: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') adicionarItem(); }} /></div>
                 <button className="pl-btn" style={{ color: '#fff', background: C.teal, borderColor: C.teal }} onClick={adicionarItem} disabled={salvando}><i className="bi bi-plus-lg" /> Adicionar</button>
-                {erroModal && !mLanc && !mAtender && !mVinc && <div style={{ width: '100%', color: C.vermelho, fontSize: 12.5, fontWeight: 600 }}>{erroModal}</div>}
+                {erroModal && !mLanc && !mAtender && !mVinc && !mImp && <div style={{ width: '100%', color: C.vermelho, fontSize: 12.5, fontWeight: 600 }}>{erroModal}</div>}
               </div>
 
               {itensLocal.length === 0 ? (
@@ -581,6 +665,48 @@ export default function EstoqueFlanges({ soInventario = false }: { soInventario?
       })()}
 
       {/* ── Modal: vincular produção sem cadastro ────────────────────────── */}
+      {mImp && (() => {
+        const erros = mImp.linhas.filter(l => l.erro);
+        const muda = mImp.linhas.filter(l => !l.erro && (l.atual == null || Math.abs(l.atual - l.quantidade) > 1e-9));
+        const novos = muda.filter(l => l.atual == null).length;
+        return (
+          <Modal titulo="Importar planilha de inventário" onFechar={() => setMImp(null)} largura={760}>
+            <div style={{ fontSize: 13, marginBottom: 10 }}>
+              <b>{mImp.arquivo}</b> · {mImp.linhas.length} linhas com quantidade ·{' '}
+              <span style={{ color: C.teal, fontWeight: 700 }}>{novos} itens novos</span> ·{' '}
+              <span style={{ color: C.azul2, fontWeight: 700 }}>{muda.length - novos} quantidades mudam</span> ·{' '}
+              <span style={{ color: C.cinza }}>{mImp.linhas.length - muda.length - erros.length} sem mudança</span>
+              {erros.length > 0 && <> · <span style={{ color: C.vermelho, fontWeight: 700 }}>{erros.length} com erro</span></>}
+            </div>
+            {erros.length > 0 && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: 8, fontSize: 12.5, color: C.vermelho, marginBottom: 10 }}>Corrija as linhas com erro na planilha e importe de novo — nada é gravado enquanto houver erro.</div>}
+            {(erros.length > 0 || muda.length > 0) && (
+              <div style={{ maxHeight: 360, overflow: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead><tr><th style={th}>Linha</th><th style={th}>Local</th><th style={th}>Código</th><th style={th}>Descrição</th><th style={{ ...th, textAlign: 'right' }}>Hoje</th><th style={{ ...th, textAlign: 'right' }}>Planilha</th><th style={th}></th></tr></thead>
+                  <tbody>
+                    {[...erros, ...muda].map(l => (
+                      <tr key={l.linha} style={{ background: l.erro ? '#fef2f2' : undefined }}>
+                        <td style={td} title={l.linhas.length > 1 ? `Somadas: linhas ${l.linhas.join(', ')}` : undefined}>{l.linhas.length > 1 ? `${l.linhas.join(' + ')}` : l.linha}</td><td style={td}>{l.local ? nomeLocal(l.local).replace('Estoque ', '') : '—'}</td>
+                        <td style={{ ...td, fontWeight: 700 }}>{l.codigo || '—'}</td><td style={td}>{l.descricao || itens.find(i => i.codigo.trim().toUpperCase() === l.codigo.toUpperCase())?.descricao || '—'}</td>
+                        <td style={tdR}>{l.atual == null ? 'novo' : fmt(l.atual)}</td><td style={{ ...tdR, color: C.azul2 }}>{Number.isFinite(l.quantidade) ? fmt(l.quantidade) : '—'}</td>
+                        <td style={{ ...td, color: C.vermelho, fontWeight: 600 }}>{l.erro || ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {erroModal && <div style={{ color: C.vermelho, fontSize: 12.5, fontWeight: 600, marginTop: 8 }}>{erroModal}</div>}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+              <button className="pl-btn" onClick={() => setMImp(null)}>Cancelar</button>
+              <button className="pl-btn" style={{ color: '#fff', background: C.teal, borderColor: C.teal }} disabled={salvando || erros.length > 0 || muda.length === 0} onClick={confirmarImportacao}>
+                <i className="bi bi-check-lg" /> {salvando ? 'Gravando…' : muda.length === 0 ? 'Nada para mudar' : `Gravar ${muda.length} alterações`}
+              </button>
+            </div>
+          </Modal>
+        );
+      })()}
+
       {mVinc && (
         <Modal titulo="Vincular produção ao flange" onFechar={() => setMVinc(null)}>
           <div style={{ fontSize: 13, marginBottom: 10 }}>
