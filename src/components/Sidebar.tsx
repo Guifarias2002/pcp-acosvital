@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerNaoLocalizados, podeVerRomaneios, podePlanejar, podeVerEstoque, podeConferirHrm, podePlanejarCaldeiraria, podeGerenciarUsuarios } from '@/lib/auth';
+import { logout, getUser, vendedorRestrito, podeVerAnalise, podeVerAnaliseCaldeiraria, podeVerNaoLocalizados, podeVerRomaneios, podePlanejar, podeVerEstoque, podeConferirHrm, podePlanejarCaldeiraria, podeGerenciarUsuarios } from '@/lib/auth';
 import { SETOR_CHOICES, NOMES, SETORES_CALDEIRARIA_MENU, SETORES_EXCLUSIVOS_CALDEIRARIA } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { JWTPayload } from '@/lib/auth';
@@ -354,7 +354,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
               {/* PCP da Caldeiraria (Planejamento do Val) — 1º item, acima do Recebimento. */}
               {(emHrm || planCald) && <NavItem href="/cald-plano" label="PCP Caldeiraria" icon="bi-kanban" onNav={fechar} />}
               {/* Análise da Caldeiraria (semana a semana + valores) — também pro Alan (Conferência HRM) e o Val. */}
-              {(emHrm || planCald || confHrm) && <NavItem href="/analise?fabrica=caldeiraria" label="Análise Caldeiraria" icon="bi-graph-up-arrow" onNav={fechar} />}
+              {(emHrm || planCald || confHrm) && podeVerAnaliseCaldeiraria(user) && <NavItem href="/analise?fabrica=caldeiraria" label="Análise Caldeiraria" icon="bi-graph-up-arrow" onNav={fechar} />}
               {(veTodosSetores || meusSetores.includes('caldeiraria')) && (
                 <NavItem href="/setor/caldeiraria" label="Recebimento" icon={SETOR_ICONS.caldeiraria} onNav={fechar} />
               )}

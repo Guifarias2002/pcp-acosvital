@@ -133,7 +133,17 @@ export function podeDesfazerRecebimento(u?: JWTPayload | null): boolean {
 // sem precisar virar administrador completo. É só visualização.
 export function podeVerAnalise(u?: JWTPayload | null): boolean {
   const user = u ?? getUser();
+  if (semAnalise(user)) return false;
   return isAdministrador(user) || user?.pode_ver_analise === true;
+}
+
+// COMERCIAL nunca vê a Análise PCP (nem a da Caldeiraria), mesmo com flag ou
+// is_staff (decisão do usuário, 29/09/2026): conta do Departamento Comercial,
+// vendedores e contas de vendas/visualização (ve_todos_pedidos). Admin de verdade passa.
+const SEM_ANALISE_LOGINS = new Set<string>(['comercial.acosvital']);
+function semAnalise(user: JWTPayload | null | undefined): boolean {
+  if (!user || user.perfil === 'administrador') return false;
+  return SEM_ANALISE_LOGINS.has(user.username) || user.perfil === 'vendedor' || user.ve_todos_pedidos === true;
 }
 
 // Líderes de produção que NÃO podem ver o nome do cliente (decisão do usuário,
@@ -308,6 +318,7 @@ export function podeLancarCaldeiraria(u?: JWTPayload | null): boolean {
 // veem SÓ a aba Caldeiraria (os indicadores do Flange continuam restritos).
 export function podeVerAnaliseCaldeiraria(u?: JWTPayload | null): boolean {
   const user = u ?? getUser();
+  if (semAnalise(user)) return false;
   return podeVerAnalise(user) || podeLancarCaldeiraria(user) || user?.acesso_conferencia_hrm === true;
 }
 
