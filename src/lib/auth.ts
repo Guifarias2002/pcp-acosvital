@@ -263,6 +263,16 @@ export function podeVerEstoque(u?: JWTPayload | null): boolean {
   return podePlanejar(user) || (!!user && ESTOQUE_LOGINS.has(user.username));
 }
 
+// Usa o controle de INVENTÁRIO do estoque de flanges (/api/estoque): quem vê a aba
+// Estoque do Planejamento + o pessoal do SETOR Estoque (o inventário também aparece
+// na tela /setor/estoque). Não mexe no menu — isso segue em podeVerEstoque.
+export function podeVerInventario(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  if (podeVerEstoque(user) || isAdministrador(user)) return true;
+  const setores = user?.setores?.length ? user.setores : user?.setor ? [user.setor] : [];
+  return setores.includes('estoque');
+}
+
 // Vê o item "Usuários" no menu (ver os acessos e definir senha nova) sem ser
 // administrador completo. Lista por login. Obs.: a senha fica CRIPTOGRAFADA
 // (hash) — ninguém consegue VER a senha de outro; dá pra definir uma nova.

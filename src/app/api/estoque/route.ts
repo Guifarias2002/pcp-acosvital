@@ -10,12 +10,12 @@
  *   GET ?inventario=ID → { inventario, linhas }
  *   POST { acao, ... } → ver o switch abaixo.
  *
- * Acesso: podeVerEstoque (quem planeja + ESTOQUE_LOGINS).
+ * Acesso: podeVerInventario (quem planeja + ESTOQUE_LOGINS + pessoal do setor Estoque).
  */
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
-import { podeVerEstoque } from '@/lib/auth';
+import { podeVerInventario } from '@/lib/auth';
 import { FAB_SETORES_PRONTO, injetarQuarentena, SETOR_CHOICES } from '@/lib/types';
 import { LOCAIS_COD, normCodigo } from '@/lib/estoque';
 
@@ -68,7 +68,7 @@ async function sincronizarProducao() {
 export async function GET(req: Request) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
-  if (!podeVerEstoque(user)) return erro('Sem permissão', 403);
+  if (!podeVerInventario(user)) return erro('Sem permissão', 403);
 
   try {
     const { searchParams } = new URL(req.url);
@@ -160,7 +160,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const user = await autenticar(req);
   if (user instanceof NextResponse) return user;
-  if (!podeVerEstoque(user)) return erro('Sem permissão', 403);
+  if (!podeVerInventario(user)) return erro('Sem permissão', 403);
   const quem = user.nome || user.username;
 
   const b = await req.json().catch(() => ({})) as Record<string, unknown>;

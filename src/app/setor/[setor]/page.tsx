@@ -52,10 +52,11 @@ function Cronometro({ desde }: { desde: string }) {
   );
 }
 import { getSetorPainel, itemAcao, loteAcao, parcialAcao, parcialAcaoLote, adicionarObservacaoItem, registrarSinetePedido, setPesosPallets, setEmbalagemResumo, inativarItem, editarPedido, solicitarInspecao } from '@/lib/api';
-import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento, podeDefinirPrevisao, podeVerNaoLocalizados, podeDefinirPrazoSetor, podePlanejar } from '@/lib/auth';
+import { isAdministrador, podeEditar, getToken, podeDesfazerRecebimento, podeDefinirPrevisao, podeVerNaoLocalizados, podeDefinirPrazoSetor, podePlanejar, podeVerInventario } from '@/lib/auth';
 import { definirPrazoSetor } from '@/lib/api';
 import RequisicaoPedido from '@/components/RequisicaoPedido';
 import RecadosPcp from '@/app/pcp-hrm/conferencia/RecadosPcp';
+import EstoqueFlanges from '@/app/planejamento/EstoqueFlanges';
 import { SUBSETORES_CALD } from '@/lib/caldPlano';
 const SETORES_COM_RECADO = new Set(Object.values(SUBSETORES_CALD).flat());
 import { SETORES_REQUISICAO } from '@/lib/requisicaoHrm';
@@ -3855,6 +3856,24 @@ function DocumentosPedidoLinks({ pedidoId, temPedidoVenda, temOrdemProducao, tem
   );
 }
 
+// Card recolhível com o Inventário do estoque (setor Estoque). Abre por padrão;
+// lembra se o usuário fechou.
+function InventarioEstoque() {
+  const [aberto, setAberto] = useState(true);
+  useEffect(() => { try { if (localStorage.getItem('inventario_estoque_fechado') === '1') setAberto(false); } catch { /* sem storage */ } }, []);
+  const alternar = () => setAberto(a => { try { localStorage.setItem('inventario_estoque_fechado', a ? '1' : '0'); } catch { /* sem storage */ } return !a; });
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '12px 16px', marginBottom: 18 }}>
+      <button onClick={alternar} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 16, fontWeight: 800, color: '#1a3a5c' }}>
+        <i className="bi bi-clipboard-check" />Controle de Inventário
+        <span style={{ fontSize: 12, fontWeight: 500, color: '#64748b' }}>Estoque Arujá × Mogi</span>
+        <i className={`bi bi-chevron-${aberto ? 'up' : 'down'}`} style={{ marginLeft: 'auto' }} />
+      </button>
+      {aberto && <div style={{ marginTop: 12 }}><EstoqueFlanges soInventario /></div>}
+    </div>
+  );
+}
+
 export default function SetorPainelPage({ params }: { params: { setor: string } }) {
   // Navegação client-side (Link) pode entregar o segmento dinâmico ainda
   // percent-encoded quando contém acentos (ex: "maçarico" -> "ma%C3%A7arico").
@@ -4237,6 +4256,9 @@ export default function SetorPainelPage({ params }: { params: { setor: string } 
       {setor === 'usinagem' && <AvisosSetor setor={setor} />}
       {/* Recados do PCP Caldeiraria (Val) pra este setor — qualquer pessoa do setor vê e verifica. */}
       {SETORES_COM_RECADO.has(setor) && <RecadosPcp setor={setor} />}
+      {/* Controle de inventário do estoque de flanges (Arujá × Mogi) — o mesmo da
+          aba Estoque do Planejamento, só a parte de Inventário/Histórico. */}
+      {setor === 'estoque' && podeVerInventario() && <InventarioEstoque />}
 
       {/* Filtro de pedido — todos os setores (busca por PV/código/descrição) */}
       {data && (

@@ -84,7 +84,9 @@ function ItemSelect({ itens, value, onChange, local }: { itens: ItemEstoque[]; v
   );
 }
 
-export default function EstoqueFlanges() {
+// soInventario: só a aba Inventário (usado na tela do setor Estoque, que já tem a
+// própria lista de pedidos).
+export default function EstoqueFlanges({ soInventario = false }: { soInventario?: boolean } = {}) {
   const [dados, setDados] = useState<Dados | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -239,6 +241,7 @@ export default function EstoqueFlanges() {
 
   return (
     <section style={{ marginBottom: 30 }}>
+      {soInventario && <style>{`.pl-btn{border:1.5px solid #e2e8f0;background:#fff;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:700;color:#334155;cursor:pointer}.pl-btn:hover{border-color:${C.azul}}`}</style>}
       {/* Local: Estoque Arujá × Estoque Mogi */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
         {LOCAIS_ESTOQUE.map(l => {
@@ -258,9 +261,9 @@ export default function EstoqueFlanges() {
 
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
         {btnSub('inventario', 'Inventário', 'bi-clipboard-check')}
-        {btnSub('pedidos', 'Pedidos no Estoque', 'bi-cart-check', nPedidosSetor)}
+        {!soInventario && btnSub('pedidos', 'Pedidos no Estoque', 'bi-cart-check', nPedidosSetor)}
         {btnSub('lancamentos', 'Histórico', 'bi-journal-text')}
-        {btnSub('pedidos_estoque', 'Pedidos de Estoque', 'bi-gear', dados?.pendencias.length)}
+        {!soInventario && btnSub('pedidos_estoque', 'Pedidos de Estoque', 'bi-gear', dados?.pendencias.length)}
         <div style={{ flex: 1 }} />
         <input placeholder="Buscar código, descrição, pedido…" value={busca} onChange={e => setBusca(e.target.value)} style={{ ...inp, width: 240 }} />
         <button className="pl-btn" onClick={carregar} disabled={carregando}><i className="bi bi-arrow-clockwise" /> {carregando ? '…' : ''}</button>

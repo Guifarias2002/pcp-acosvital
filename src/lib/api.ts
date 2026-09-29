@@ -94,6 +94,11 @@ export const getPedido = (id: number) =>
 export const getValoresMes = (params?: { de?: string; ate?: string; com_itens?: '1'; fabrica?: 'flange' | 'caldeiraria' }) =>
   api.get('/api/pedidos/valores-mes', { params }).then(r => r.data);
 
+// Relatório mensal de faturamento (/pedidos/faturamento): itens do PCP Caldeiraria
+// do mês ('YYYY-MM', mês de chegada na Caldeiraria) p/ somar ao export Omie.
+export const getFaturamentoCaldeiraria = (mes: string) =>
+  api.get('/api/faturamento/caldeiraria', { params: { mes } }).then(r => r.data);
+
 // Análise PCP: saídas do estoque por mês → inspeção (flange pronto) × corte
 // (fabricação), com pedidos e peças. Filtro opcional { de, ate } em 'YYYY-MM'.
 export const getEstoqueDestino = (params?: { de?: string; ate?: string }) =>

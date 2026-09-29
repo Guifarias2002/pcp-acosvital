@@ -47,3 +47,6 @@ dev-server*.log
 
 # Scratch de debug do leitor de OP (não versionar)
 tmp_op/
+
+# relatórios de faturamento (valores da diretoria) — não vão pro git
+/Faturamento/
