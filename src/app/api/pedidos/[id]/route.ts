@@ -1,7 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
-import { getPedidoComItens } from '@/lib/queries';
+import { getPedidoComItens, nomeSector } from '@/lib/queries';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { vendedorRestrito, podeConferirHrm } from '@/lib/auth';
 import { SETOR_CHOICES, FABRICAS, TIPOS_PRODUTO_CALDEIRARIA } from '@/lib/types';
@@ -273,6 +273,42 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
                 atualizado_em      = NOW()
               WHERE id = ${Number(item.id)} AND pedido_id = ${pedidoId}
             `;
+          }
+
+          // Item já liberado (tem parciais nos setores): a quantidade que está nos
+          // setores acompanha a edição — soma das parciais ativas = pendente. Sem
+          // isso, mudar 1→2 depois da liberação deixava só 1 un nos setores
+          // (caso OI 013589). Aumento vai pra parcial mais antiga; redução tira das
+          // mais novas (parcial zerada = cancelada).
+          if (atualQtd && delta !== 0) {
+            const ativas = await tx`
+              SELECT id, quantidade::float AS q, setor_atual FROM producao_itemparcial
+              WHERE item_pedido_id = ${Number(item.id)} AND status NOT IN ('cancelada', 'concluida')
+              ORDER BY id FOR UPDATE
+            `;
+            if (ativas.length) {
+              let dif = pendenteAjustada - ativas.reduce((s, p) => s + Number(p.q), 0);
+              const ajustes: string[] = [];
+              const alvo = dif > 0 ? [ativas[0]] : [...ativas].reverse();
+              for (const p of alvo) {
+                if (Math.abs(dif) < 1e-9) break;
+                const nova = Math.max(0, Number(p.q) + dif);
+                dif -= nova - Number(p.q);
+                if (nova > 0) await tx`UPDATE producao_itemparcial SET quantidade = ${nova} WHERE id = ${p.id}`;
+                else await tx`UPDATE producao_itemparcial SET quantidade = 0, status = 'cancelada' WHERE id = ${p.id}`;
+                ajustes.push(`parcial #${p.id} em ${nomeSector(String(p.setor_atual))}: ${Number(p.q)} → ${nova} ${unid}`);
+              }
+              if (ajustes.length) {
+                await tx`
+                  INSERT INTO producao_movimentacaoitem
+                    (item_id, pedido_id, usuario_id, setor_origem, setor_destino, status_anterior, status_novo, observacao, criado_em)
+                  VALUES
+                    (${Number(item.id)}, ${pedidoId}, ${user.id}, ${atualQtd.setor_atual}, ${atualQtd.setor_atual},
+                     ${atualQtd.status}, ${atualQtd.status},
+                     ${`Quantidade do item editada: ${Number(atualQtd.quantidade)} → ${qtd} ${unid} (${ajustes.join('; ')})`}, NOW())
+                `;
+              }
+            }
           }
         } else {
           // Insere novo item. Se vier com roteiro_proprio (ex: item avulso
