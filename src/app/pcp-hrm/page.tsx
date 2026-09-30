@@ -1,7 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import AuthGuard from '@/components/AuthGuard';
-import { criarPedido } from '@/lib/api';
+import { criarPedido, listarConferenciaHrm } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 import { ehProdutoDaOp, ROTULO_QTD_ESTRUTURAS } from '@/lib/opProduto';
 
@@ -46,6 +46,32 @@ export default function PcpHrmPage() {
   // numa lista numerada (1,2,3,4) e o formulário reseta pra próxima.
   const [anexadas, setAnexadas] = useState<{ id: number; numero: string; cliente: string; pn: string; produto: string }[]>([]);
   const [fileKey, setFileKey] = useState(0);
+  // OPs anexadas que AINDA aguardam a Conferência (vêm do servidor, não só desta
+  // sessão) — dá pra excluir anexo errado enquanto não foi conferida/lançada.
+  // Exclusão em 2 toques: 1º clique arma "Confirmar?", 2º exclui.
+  const [pendentes, setPendentes] = useState<{ id: number; numero_pedido_venda: string; numero_op: string | null; cliente: string | null; criado_em: string; conferencia_iniciada_por: string | null }[]>([]);
+  const [confirmandoExc, setConfirmandoExc] = useState<number | null>(null);
+  const [excluindo, setExcluindo] = useState<number | null>(null);
+  const [msgExc, setMsgExc] = useState('');
+  const carregarPendentes = useCallback(async () => {
+    try { const d = await listarConferenciaHrm(); setPendentes(d.pedidos || []); } catch { /* lista é auxiliar */ }
+  }, []);
+  useEffect(() => { carregarPendentes(); }, [carregarPendentes]);
+  async function excluirOp(id: number) {
+    setExcluindo(id); setMsgExc('');
+    try {
+      const res = await fetch(`/api/pcp-hrm/pedidos/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${getToken() || ''}` } });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setPendentes(ps => ps.filter(p => p.id !== id));
+        setAnexadas(as => as.filter(a => a.id !== id));
+        setMsgExc(data.mensagem || 'OP excluída.');
+      } else {
+        setMsgExc(data.erro || 'Não consegui excluir a OP.');
+      }
+    } catch { setMsgExc('Erro de conexão ao excluir. Tente novamente.'); }
+    finally { setExcluindo(null); setConfirmandoExc(null); }
+  }
 
   const [origem] = useState<Origem>('omie'); // Caldeiraria = só Omie (origem fixa)
   const [numero, setNumero] = useState('');
@@ -308,6 +334,7 @@ export default function PcpHrmPage() {
       setArquivo(null); setDesenhos([]);
       setLeitura(null); setErroLeitura(''); setCriadoId(null); setComponentesAbertos(new Set());
       setFileKey(k => k + 1);
+      carregarPendentes();
     } catch (e: unknown) {
       const data = (e as { response?: { data?: { erro?: string } } }).response?.data;
       setErro(data?.erro || 'Erro ao registrar a OP. Tente novamente.');
@@ -387,6 +414,43 @@ export default function PcpHrmPage() {
                   </div>
                   <i className="bi bi-box-arrow-up-right" style={{ marginLeft:'auto', color:'#16a34a', fontSize:13 }} />
                 </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* OPs anexadas aguardando Conferência — com Excluir (anexo errado). */}
+        {(pendentes.length > 0 || msgExc) && (
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:10, padding:'14px 18px', marginBottom:16, maxWidth:760 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:.5, marginBottom:4 }}>
+              <i className="bi bi-hourglass-split" style={{ marginRight:6 }} />Anexadas aguardando Conferência ({pendentes.length})
+            </div>
+            <div style={{ fontSize:12, color:'#64748b', marginBottom:10 }}>Anexou errado? Exclua aqui enquanto a OP ainda não foi conferida. Depois de lançada pra produção, só o PCP exclui.</div>
+            {msgExc && <div style={{ fontSize:12.5, color:'#1a3a5c', background:'#eff6ff', borderRadius:6, padding:'6px 10px', marginBottom:8 }}>{msgExc}</div>}
+            <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:320, overflowY:'auto' }}>
+              {pendentes.map(p => (
+                <div key={p.id} style={{ display:'flex', alignItems:'center', gap:10, border:'1px solid #e2e8f0', borderRadius:8, padding:'7px 10px', flexWrap:'wrap' }}>
+                  <a href={`/pedidos/${p.id}`} style={{ display:'flex', flexDirection:'column', minWidth:0, flex:'1 1 220px', textDecoration:'none', color:'inherit' }}>
+                    <span style={{ fontSize:13, fontWeight:700, color:'#1a3a5c' }}>OP {p.numero_op || p.numero_pedido_venda}</span>
+                    <span style={{ fontSize:11, color:'#64748b' }}>
+                      {[p.cliente, `anexada em ${new Date(p.criado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`, p.conferencia_iniciada_por ? `em conferência por ${p.conferencia_iniciada_por}` : ''].filter(Boolean).join(' · ')}
+                    </span>
+                  </a>
+                  {confirmandoExc === p.id ? (
+                    <>
+                      <button onClick={() => excluirOp(p.id)} disabled={excluindo === p.id}
+                        style={{ background:'#dc2626', color:'#fff', border:'none', borderRadius:8, padding:'6px 12px', fontSize:12.5, fontWeight:700, cursor:'pointer', opacity: excluindo === p.id ? .6 : 1 }}>
+                        {excluindo === p.id ? 'Excluindo…' : 'Confirmar exclusão'}
+                      </button>
+                      <button onClick={() => setConfirmandoExc(null)} style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:8, padding:'6px 10px', fontSize:12.5, cursor:'pointer' }}>Cancelar</button>
+                    </>
+                  ) : (
+                    <button onClick={() => { setConfirmandoExc(p.id); setMsgExc(''); }} title="Excluir esta OP anexada"
+                      style={{ background:'#fff', color:'#dc2626', border:'1px solid #fca5a5', borderRadius:8, padding:'6px 12px', fontSize:12.5, fontWeight:700, cursor:'pointer' }}>
+                      <i className="bi bi-trash" style={{ marginRight:5 }} />Excluir
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           </div>
