@@ -17,8 +17,8 @@ export async function GET(req: Request) {
     try {
       itens = await carregarItensHrm(sql);
     } catch (e) {
-      // Tabela ainda não criada (instância subiu antes da M63) → migra e tenta 1x.
-      if ((e as { code?: string })?.code !== '42P01') throw e;
+      // Tabela/coluna ainda não criada (instância subiu antes da M63/M64) → migra e tenta 1x.
+      if (!['42P01', '42703'].includes(String((e as { code?: string })?.code))) throw e;
       await runMigrations();
       itens = await carregarItensHrm(sql);
     }

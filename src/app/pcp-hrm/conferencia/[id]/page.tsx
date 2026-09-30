@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedido, lerOpDoPedido, editarPedido, itemAcao, iniciarConferenciaHrm } from '@/lib/api';
+import { AreaHrmSalvavel } from '@/components/EscolhaAreaHrm';
 import { getUser, getToken, podeConferirHrm } from '@/lib/auth';
 import { FABRICAS, NOMES } from '@/lib/types';
 import { ehProdutoDaOp, qtdEstruturasDasObservacoes } from '@/lib/opProduto';
@@ -1123,6 +1124,14 @@ function Conteudo() {
                 {op0.identificacao?.situacao && <span><b>Situação</b> {op0.identificacao.situacao}</span>}
               </div>
               {ops.length > 1 && <div style={{ marginTop: 10, fontSize: 12, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '6px 10px' }}>Este PDF tem {ops.length} ordens — esta tela lança a 1ª ({op0.produto?.descricao || op0.cabecalho.ns}). As demais podem ser lançadas depois.</div>}
+            </div>
+          )}
+
+          {/* Área da OP (Leve/Pesada/outro) — só informação; salva sozinha. */}
+          {pedido && (
+            <div style={card}>
+              <div style={secTitle}><i className="bi bi-geo-alt" style={{ marginRight: 6 }} />Área — Caldeiraria Leve, Pesada ou outro setor</div>
+              <AreaHrmSalvavel pedidoId={pedidoId} areaInicial={(pedido as { area_hrm?: string | null }).area_hrm} outroInicial={(pedido as { area_hrm_outro?: string | null }).area_hrm_outro} somenteLeitura={preview} />
             </div>
           )}
 

@@ -5,7 +5,7 @@ import AuthGuard from '@/components/AuthGuard';
 import api, { postIdempotente } from '@/lib/api';
 import { podeVerAcompHrm } from '@/lib/auth';
 import {
-  ETAPAS_HRM, SITUACOES_HRM, COORDENADORES_HRM, NOME_CAMPO_HRM, exwDe, folgaDe, atrasoDe, fmtDataHrm, nsDe,
+  ETAPAS_HRM, SITUACOES_HRM, COORDENADORES_HRM, AREAS_HRM, nomeAreaHrm, NOME_CAMPO_HRM, exwDe, folgaDe, atrasoDe, fmtDataHrm, nsDe,
   type ItemHrm, type HistHrm,
 } from '@/lib/hrmAcomp';
 import { C, CSS, Modal, erroDe } from '../../cald-plano/comum';
@@ -21,7 +21,7 @@ export default function AcompanhamentoHrmPage() {
   return <AuthGuard><Conteudo /></AuthGuard>;
 }
 
-type Filtros = { q: string; dest: string; coord: string; sit: string; atr: boolean; entregues: boolean };
+type Filtros = { q: string; dest: string; coord: string; sit: string; area: string; atr: boolean; entregues: boolean };
 
 function Conteudo() {
   const router = useRouter();
@@ -31,7 +31,7 @@ function Conteudo() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
-  const [f, setF] = useState<Filtros>({ q: '', dest: '', coord: '', sit: '', atr: false, entregues: false });
+  const [f, setF] = useState<Filtros>({ q: '', dest: '', coord: '', sit: '', area: '', atr: false, entregues: false });
   const [aberto, setAberto] = useState<number | null>(null);
   const [subir, setSubir] = useState(false);
   const [manual, setManual] = useState(false);
@@ -75,6 +75,7 @@ function Conteudo() {
       (!q || [i.op_hrm, i.ns, i.po_item, i.pedido_omie, i.material, i.descricao, i.situacao_detalhe].join(' ').toLowerCase().includes(q)) &&
       (!f.dest || i.destino === f.dest) && (!f.coord || i.coordenador === f.coord) &&
       (!f.sit || (f.sit === '—' ? !i.situacao : i.situacao === f.sit)) &&
+      (!f.area || (f.area === '—' ? !i.area_hrm : i.area_hrm === f.area)) &&
       (!f.atr || (folgaDe(i) ?? 1) < 0));
   }, [itens, f]);
   const kpi = useMemo(() => {
@@ -117,6 +118,7 @@ function Conteudo() {
         <select className="cp-in" value={f.dest} onChange={e => setF({ ...f, dest: e.target.value })}><option value="">Todos os destinos</option>{destinos.map(d => <option key={d}>{d}</option>)}</select>
         <select className="cp-in" value={f.coord} onChange={e => setF({ ...f, coord: e.target.value })}><option value="">Todos os coordenadores</option>{COORDENADORES_HRM.map(d => <option key={d}>{d}</option>)}</select>
         <select className="cp-in" value={f.sit} onChange={e => setF({ ...f, sit: e.target.value })}><option value="">Todas as situações</option>{SITUACOES_HRM.map(d => <option key={d}>{d}</option>)}<option value="—">(sem situação)</option></select>
+        <select className="cp-in" value={f.area} onChange={e => setF({ ...f, area: e.target.value })}><option value="">Todas as áreas</option>{AREAS_HRM.map(a => <option key={a.codigo} value={a.codigo}>{a.nome}</option>)}<option value="—">(área não informada)</option></select>
         <label style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 13 }}><input type="checkbox" checked={f.atr} onChange={e => setF({ ...f, atr: e.target.checked })} />Só atrasados</label>
         <label style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 13 }}><input type="checkbox" checked={f.entregues} onChange={e => setF({ ...f, entregues: e.target.checked })} />Mostrar entregues</label>
         <span style={{ fontSize: 12, color: C.cinza }}>{visiveis.length} na tela</span>
@@ -171,6 +173,7 @@ function Linha({ it, edita, onCampo, onEtapa, onAbrir }: {
           <b>{it.op_hrm || it.pedido_omie || '—'}</b>{it.item ? <span> · {it.item}</span> : null}
         </button>
         <div className="hr-sub">{ns || ''}</div>
+        {it.area_hrm ? <span className="hr-pill" style={{ background: (AREAS_HRM.find(a => a.codigo === it.area_hrm)?.cor || C.cinza) + '1f', color: AREAS_HRM.find(a => a.codigo === it.area_hrm)?.cor || C.cinza, marginTop: 2 }}>{nomeAreaHrm(it.area_hrm, it.area_hrm_outro)}</span> : null}
         {it.pedido_id ? <a className="hr-sub" href={`/pedidos/${it.pedido_id}`} style={{ color: C.azul2 }}>ver pedido no sistema</a> : null}
       </td>
       <td><Entrada it={it} campo="po_item" edita={edita} onCampo={onCampo} largura={150} mono /></td>
@@ -398,6 +401,8 @@ const MANUAL: { t: string; passos: string[] }[] = [
   { t: '8. Pela tela Anexar OP', passos: [
     'O quadro "Planilha de acompanhamento" tem os mesmos botões: Subir planilha, Abrir acompanhamento e Apagar planilha.',
     'Em "Anexadas aguardando Conferência" dá pra excluir uma OP anexada errado, enquanto ela ainda não foi conferida.',
+    'Ao anexar a OP, informe a Área: Caldeiraria Leve, Caldeiraria Pesada ou Outro setor (e qual). É só informação, pra saber onde a peça está — dá pra trocar depois na Conferência.',
+    'A área aparece aqui no Acompanhamento, embaixo do nº da OP, e tem filtro próprio ("Todas as áreas").',
   ] },
   { t: 'Dúvida ou algo estranho', passos: ['Anote o nº da OP e o que aconteceu e avise o PCP/TI.'] },
 ];

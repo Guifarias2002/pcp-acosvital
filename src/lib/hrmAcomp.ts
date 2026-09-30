@@ -36,6 +36,18 @@ export const SITUACOES_HRM = [
 
 export const COORDENADORES_HRM = ['Cleber', 'Hermes'];
 
+// Área da OP HRM (producao_pedido.area_hrm) — só INFORMAÇÃO pra saber onde a
+// peça está; não muda roteiro nem fábrica. 'outro' + area_hrm_outro = qual setor.
+export const AREAS_HRM: { codigo: 'leve' | 'pesada' | 'outro'; nome: string; cor: string }[] = [
+  { codigo: 'leve',   nome: 'Caldeiraria Leve',   cor: '#0891b2' },
+  { codigo: 'pesada', nome: 'Caldeiraria Pesada', cor: '#b45309' },
+  { codigo: 'outro',  nome: 'Outro setor',        cor: '#6d28d9' },
+];
+export function nomeAreaHrm(area: string | null | undefined, outro?: string | null): string {
+  if (area === 'outro') return outro ? `Outro: ${outro}` : 'Outro setor';
+  return AREAS_HRM.find(a => a.codigo === area)?.nome || '';
+}
+
 /** Texto livre do "Priorizar" → situação fixa ('' quando não reconhece). */
 export function mapearSituacao(texto: string | null | undefined): string {
   const t = (texto || '').toLowerCase();
@@ -94,6 +106,8 @@ export interface ItemHrm {
   etapas: Record<string, EtapaHrm>;
   planilha_raw: Record<string, unknown> | null;
   pedido_id: number | null;
+  area_hrm?: string | null;       // da OP ligada (Anexar OP / Conferência)
+  area_hrm_outro?: string | null;
   ordem_planilha: number | null;
   atualizado_em: string;
   atualizado_por_nome: string | null;

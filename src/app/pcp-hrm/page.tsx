@@ -4,6 +4,8 @@ import AuthGuard from '@/components/AuthGuard';
 import { criarPedido, listarConferenciaHrm } from '@/lib/api';
 import { getToken, podeEditarAcompHrm } from '@/lib/auth';
 import { PainelPlanilhaHrm } from './acompanhamento/planilha';
+import EscolhaAreaHrm from '@/components/EscolhaAreaHrm';
+import { nomeAreaHrm } from '@/lib/hrmAcomp';
 import { ehProdutoDaOp, ROTULO_QTD_ESTRUTURAS } from '@/lib/opProduto';
 
 // ── PCP HRM ─────────────────────────────────────────────────────────────────
@@ -50,7 +52,7 @@ export default function PcpHrmPage() {
   // OPs anexadas que AINDA aguardam a Conferência (vêm do servidor, não só desta
   // sessão) — dá pra excluir anexo errado enquanto não foi conferida/lançada.
   // Exclusão em 2 toques: 1º clique arma "Confirmar?", 2º exclui.
-  const [pendentes, setPendentes] = useState<{ id: number; numero_pedido_venda: string; numero_op: string | null; cliente: string | null; criado_em: string; conferencia_iniciada_por: string | null }[]>([]);
+  const [pendentes, setPendentes] = useState<{ id: number; numero_pedido_venda: string; numero_op: string | null; cliente: string | null; criado_em: string; conferencia_iniciada_por: string | null; area_hrm?: string | null; area_hrm_outro?: string | null }[]>([]);
   const [confirmandoExc, setConfirmandoExc] = useState<number | null>(null);
   const [excluindo, setExcluindo] = useState<number | null>(null);
   const [msgExc, setMsgExc] = useState('');
@@ -83,6 +85,9 @@ export default function PcpHrmPage() {
   // Qtd. de estruturas/projetos da OP — só INFORMATIVA (não vira quantidade do
   // produto). Vai numa linha das observações; a Conferência lê e mostra.
   const [qtdEstruturas, setQtdEstruturas] = useState('');
+  // Área da OP: Caldeiraria Leve / Pesada / outro setor — só informação (M64).
+  const [areaHrm, setAreaHrm] = useState('');
+  const [areaOutro, setAreaOutro] = useState('');
   const [semPrazo, setSemPrazo] = useState(false);
   const [prazo, setPrazo] = useState('');
   const [obs, setObs] = useState('');
@@ -215,6 +220,8 @@ export default function PcpHrmPage() {
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
     setErro('');
+    if (!areaHrm) { setErro('Informe a área: Caldeiraria Leve, Caldeiraria Pesada ou outro setor.'); return; }
+    if (areaHrm === 'outro' && !areaOutro.trim()) { setErro('Informe qual é o outro setor.'); return; }
     setLoading(true);
     try {
       // Se o pedido já foi criado numa tentativa anterior (o anexo é que
@@ -286,6 +293,16 @@ export default function PcpHrmPage() {
         setCriadoId(id);
       }
 
+      // Área (Leve/Pesada/outro) — só informação. Falha aqui não perde a OP:
+      // avisa e o PCP completa na Conferência.
+      try {
+        const ra = await fetch(`/api/pcp-hrm/pedidos/${id}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() || ''}` },
+          body: JSON.stringify({ area: areaHrm, area_outro: areaOutro }),
+        });
+        if (!ra.ok) setErro('OP registrada, mas a área (Leve/Pesada) não foi salva — informe na Conferência.');
+      } catch { setErro('OP registrada, mas a área (Leve/Pesada) não foi salva — informe na Conferência.'); }
+
       // Anexa a OP (mesmo mecanismo do Flange: Backblaze via ordem-producao).
       if (arquivo) {
         const token = getToken() || '';
@@ -334,6 +351,7 @@ export default function PcpHrmPage() {
         produto: leitura?.ops[0]?.produto?.descricao || '',
       }]);
       // reset pra próxima OP
+      setAreaHrm(''); setAreaOutro('');
       setNumero(''); setCliente(''); setQtdEstruturas(''); setPrazo(''); setSemPrazo(false); setObs('');
       setArquivo(null); setDesenhos([]);
       setLeitura(null); setErroLeitura(''); setCriadoId(null); setComponentesAbertos(new Set());
@@ -440,7 +458,7 @@ export default function PcpHrmPage() {
                   <a href={`/pedidos/${p.id}`} style={{ display:'flex', flexDirection:'column', minWidth:0, flex:'1 1 220px', textDecoration:'none', color:'inherit' }}>
                     <span style={{ fontSize:13, fontWeight:700, color:'#1a3a5c' }}>OP {p.numero_op || p.numero_pedido_venda}</span>
                     <span style={{ fontSize:11, color:'#64748b' }}>
-                      {[p.cliente, `anexada em ${new Date(p.criado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`, p.conferencia_iniciada_por ? `em conferência por ${p.conferencia_iniciada_por}` : ''].filter(Boolean).join(' · ')}
+                      {[nomeAreaHrm(p.area_hrm, p.area_hrm_outro), p.cliente, `anexada em ${new Date(p.criado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`, p.conferencia_iniciada_por ? `em conferência por ${p.conferencia_iniciada_por}` : ''].filter(Boolean).join(' · ')}
                     </span>
                   </a>
                   {confirmandoExc === p.id ? (
@@ -512,6 +530,12 @@ export default function PcpHrmPage() {
                 onChange={e => setQtdEstruturas(e.target.value.replace(/\D/g, ''))}
                 placeholder="opcional" className={inputCls} style={{ maxWidth:180 }} />
               {Number(qtdEstruturas) > 1 && <div style={{ fontSize:11.5, color:'#92400e', marginTop:4 }}>Cada projeto vira um produto separado, com as quantidades da OP.</div>}
+            </div>
+            <div style={{ marginTop:12 }}>
+              <label className={labelCls}>Área <span style={{ color:'#dc2626' }}>*</span></label>
+              <div style={{ marginTop:4 }}>
+                <EscolhaAreaHrm area={areaHrm} outro={areaOutro} onChange={(a, o) => { setAreaHrm(a); setAreaOutro(o); }} />
+              </div>
             </div>
           </div>
 

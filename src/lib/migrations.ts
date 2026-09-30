@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 65;
+const SCHEMA_VERSION = 66;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -1210,4 +1210,11 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
     `);
     await sp.unsafe(`CREATE INDEX IF NOT EXISTS idx_hrm_acomp_hist ON producao_hrm_acomp_hist (acomp_id, criado_em DESC)`);
   }).catch(e => console.error('[migrations] M63 (acompanhamento HRM) falhou:', e));
+  // M64 (30/09): ÁREA da OP HRM — só INFORMAÇÃO (não muda roteiro/fábrica):
+  // 'leve' | 'pesada' | 'outro' (+ area_hrm_outro = qual setor). Informada no
+  // Anexar OP / Conferência e mostrada no Acompanhamento. Ver hrmAcomp.AREAS_HRM.
+  await sql.savepoint(async (sp) => {
+    await sp.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS area_hrm TEXT`);
+    await sp.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS area_hrm_outro TEXT`);
+  }).catch(e => console.error('[migrations] M64 (área HRM) falhou:', e));
 }

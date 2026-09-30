@@ -2,6 +2,7 @@
 import postgres from 'postgres';
 import sql from './db';
 import type { ItemHrm, HistHrm } from './hrmAcomp';
+import { runMigrations } from './migrations';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Sql = postgres.Sql<any> | postgres.TransactionSql<any>;
@@ -9,13 +10,25 @@ type Sql = postgres.Sql<any> | postgres.TransactionSql<any>;
 // Datas DATE saem como texto 'AAAA-MM-DD' (sem passar por Date → sem -1 dia de fuso).
 // pedido_id: liga (best-effort) à OP já lançada no sistema pelo nº da OP HRM.
 export async function carregarItensHrm(db: Sql = sql, ids?: number[]): Promise<ItemHrm[]> {
+  try {
+    return await consultarItensHrm(db, ids);
+  } catch (e) {
+    // Tabela/coluna ainda não criada nesta instância (subiu antes da M63/M64) → migra e tenta 1x.
+    if (!['42P01', '42703'].includes(String((e as { code?: string })?.code))) throw e;
+    await runMigrations();
+    return consultarItensHrm(db, ids);
+  }
+}
+
+async function consultarItensHrm(db: Sql, ids?: number[]): Promise<ItemHrm[]> {
   const filtroIds = ids && ids.length ? ids : null;
   // numero_op é digitado livre no "Anexar OP" ("13449", "OP 13449"…) → casa pelo
   // 1º grupo de 4–7 dígitos; se houver mais de um pedido, fica o mais recente.
   const rows = await db`
     WITH ops AS (
-      SELECT DISTINCT ON (d) d, id FROM (
-        SELECT substring(numero_op from '[0-9]{4,7}') AS d, id FROM producao_pedido WHERE numero_op IS NOT NULL
+      SELECT DISTINCT ON (d) d, id, area_hrm, area_hrm_outro FROM (
+        SELECT substring(p.numero_op from '[0-9]{4,7}') AS d, p.id, p.area_hrm, p.area_hrm_outro
+          FROM producao_pedido p WHERE p.numero_op IS NOT NULL
       ) x WHERE d IS NOT NULL ORDER BY d, id DESC
     )
     SELECT a.id, a.chave, a.op_hrm, a.item, a.po_item, a.pedido_omie, a.ns, a.material, a.descricao, a.quantidade,
@@ -25,7 +38,7 @@ export async function carregarItensHrm(db: Sql = sql, ids?: number[]): Promise<I
            a.situacao, a.situacao_detalhe, a.expedite, a.ocorrencia, a.obs,
            a.prioridade, a.prioridade_skid, a.seq_cliente, a.seq_oss, a.tinta, a.tinta_qtd, a.tinta_estoque,
            a.etapas, a.planilha_raw, a.ordem_planilha, a.atualizado_em, a.atualizado_por_nome,
-           COALESCE(a.pedido_id, ops.id) AS pedido_id
+           COALESCE(a.pedido_id, ops.id) AS pedido_id, ops.area_hrm, ops.area_hrm_outro
       FROM producao_hrm_acomp a
       LEFT JOIN ops ON ops.d = a.op_hrm
      WHERE (${filtroIds}::int[] IS NULL OR a.id = ANY(${filtroIds}::int[]))

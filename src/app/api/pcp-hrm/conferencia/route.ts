@@ -17,7 +17,9 @@ export async function GET(req: Request) {
     SELECT p.id, p.numero_pedido_venda, p.numero_op, p.cliente,
            p.prazo_entrega, p.observacoes, p.criado_em,
            p.conferencia_iniciada_em, p.conferencia_iniciada_por,
-           (p.ordem_producao_url IS NOT NULL) AS tem_op
+           (p.ordem_producao_url IS NOT NULL) AS tem_op,
+           -- tolerante: colunas da M64 podem não existir numa instância antiga
+           to_jsonb(p)->>'area_hrm' AS area_hrm, to_jsonb(p)->>'area_hrm_outro' AS area_hrm_outro
     FROM producao_pedido p
     WHERE p.status = 'emitido'
       AND p.setor_atual = 'emissao'
