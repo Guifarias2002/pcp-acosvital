@@ -4,7 +4,6 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedido, lerOpDoPedido, editarPedido, itemAcao, iniciarConferenciaHrm } from '@/lib/api';
 import { AreaHrmSalvavel } from '@/components/EscolhaAreaHrm';
-import CroquiMini from '@/components/CroquiMini';
 import { getUser, getToken, podeConferirHrm } from '@/lib/auth';
 import { FABRICAS, NOMES } from '@/lib/types';
 import { ehProdutoDaOp, qtdEstruturasDasObservacoes } from '@/lib/opProduto';
@@ -915,13 +914,8 @@ function Conteudo() {
                     {/* Produto */}
                     <div style={card}>
                       <div style={secTitle}><i className="bi bi-box-seam" style={{ marginRight: 6 }} />Produto a fabricar</div>
-                      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                        <CroquiMini codigo={codigo} tamanho={72} titulo={descricao} />
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{descricao || '—'}</div>
-                          <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 3 }}>{codigo && <>Cód. <span style={{ fontFamily: 'monospace' }}>{codigo}</span> · </>}{quantidade} {unidade}</div>
-                        </div>
-                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{descricao || '—'}</div>
+                      <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 3 }}>{codigo && <>Cód. <span style={{ fontFamily: 'monospace' }}>{codigo}</span> · </>}{quantidade} {unidade}</div>
                     </div>
 
                     {/* Materiais */}
@@ -990,7 +984,6 @@ function Conteudo() {
           {/* Produto + quantidade (editável; só-leitura na prévia) */}
           <div style={card}>
             <div style={secTitle}><i className="bi bi-box-seam" style={{ marginRight: 6 }} />Produto a fabricar</div>
-            <CroquiMini codigo={codigo} tamanho={96} titulo={descricao} estilo={{ marginBottom: 10 }} />
             {qtdEstruturas && (
               <div style={{ marginBottom: 12, fontSize: 13, color: '#1e3a8a', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px' }}>
                 <i className="bi bi-diagram-3" style={{ marginRight: 6 }} /><b>{qtdEstruturas} estrutura(s) / projeto(s)</b> (informado na Anexar OP)

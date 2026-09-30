@@ -11,7 +11,6 @@ import ReceberModal from '@/components/ReceberModal';
 import LiberarSetorModal from '@/components/LiberarSetorModal';
 import IniciarProducaoModal from '@/components/IniciarProducaoModal';
 import { temMaquinas } from '@/lib/maquinas';
-import CroquiMini from '@/components/CroquiMini';
 
 const NOMES = Object.fromEntries(SETOR_CHOICES);
 
@@ -767,8 +766,6 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                   <div key={item.id} className={`p-4 ${item.inativo ? 'bg-gray-100 opacity-70' : ''}`}
                     style={item.item_pai_id ? { marginLeft: 24, borderLeft: '2px solid #cbd5e1', background: '#fafbfc' } : undefined}>
                     <div className="flex items-start justify-between">
-                      {/* Croqui (desenho do produto) pelo código — some se o código não tem. */}
-                      <CroquiMini codigo={item.codigo} tamanho={64} titulo={item.descricao} estilo={{ marginRight: 12 }} />
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span className="text-sm text-gray-400 font-medium">{idx + 1}</span>

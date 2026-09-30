@@ -2,8 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import AuthGuard from '@/components/AuthGuard';
 import { criarPedido, listarConferenciaHrm } from '@/lib/api';
-import { getToken, podeEditarAcompHrm } from '@/lib/auth';
-import { PainelPlanilhaHrm } from './acompanhamento/planilha';
+import { getToken } from '@/lib/auth';
 import EscolhaAreaHrm from '@/components/EscolhaAreaHrm';
 import { nomeAreaHrm } from '@/lib/hrmAcomp';
 import { ehProdutoDaOp, ROTULO_QTD_ESTRUTURAS } from '@/lib/opProduto';
@@ -60,9 +59,6 @@ export default function PcpHrmPage() {
     try { const d = await listarConferenciaHrm(); setPendentes(d.pedidos || []); } catch { /* lista é auxiliar */ }
   }, []);
   useEffect(() => { carregarPendentes(); }, [carregarPendentes]);
-  // Quadro da planilha de acompanhamento: só quem sobe a planilha (Alan/staff).
-  const [veAcomp, setVeAcomp] = useState(false);
-  useEffect(() => { setVeAcomp(podeEditarAcompHrm()); }, []);
   async function excluirOp(id: number) {
     setExcluindo(id); setMsgExc('');
     try {
@@ -441,11 +437,12 @@ export default function PcpHrmPage() {
           </div>
         )}
 
-        {/* Planilha de acompanhamento do Alan: subir / abrir / apagar. */}
         {/* Planilha + Anexadas lado a lado, ocupando a largura das colunas de baixo
             (em tela estreita um cai embaixo do outro). */}
         <div style={{ display:'flex', flexWrap:'wrap', gap:16, alignItems:'stretch', maxWidth:1560, marginBottom:16 }}>
-        {veAcomp && <PainelPlanilhaHrm />}
+        {/* Planilha de acompanhamento (SPR SJP/Taubaté): DESLIGADA em 30/09 a pedido
+            ("pesa muito") — código em ./acompanhamento/ fica guardado. Pra voltar:
+            <PainelPlanilhaHrm /> (acompanhamento/planilha.tsx) aqui, só p/ podeEditarAcompHrm. */}
 
         {/* OPs anexadas aguardando Conferência — com Excluir (anexo errado). */}
         {(pendentes.length > 0 || msgExc) && (

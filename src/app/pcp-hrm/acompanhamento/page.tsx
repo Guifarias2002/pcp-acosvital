@@ -19,6 +19,11 @@ import { getToken } from '@/lib/auth';
 // "Subir planilha" (o Alan continua com a planilha dele e sobe quando quiser).
 // Ver src/lib/hrmAcomp.ts.
 
+// DESLIGADO em 30/09 a pedido ("pesa muito, não vai dar no momento"): a tela
+// volta pro Anexar OP. Os dados já importados continuam no banco. Pra religar:
+// true aqui + o quadro <PainelPlanilhaHrm /> no Anexar OP + CroquiMini no pedido/Conferência.
+const ACOMP_LIGADO = false;
+
 export default function AcompanhamentoHrmPage() {
   return <AuthGuard><Conteudo /></AuthGuard>;
 }
@@ -38,7 +43,11 @@ function Conteudo() {
   const [subir, setSubir] = useState(false);
   const [manual, setManual] = useState(false);
 
-  useEffect(() => { if (!podeVerAcompHrm()) { router.replace('/'); return; } setOk(true); }, [router]);
+  useEffect(() => {
+    if (!ACOMP_LIGADO) { router.replace('/pcp-hrm'); return; }
+    if (!podeVerAcompHrm()) { router.replace('/'); return; }
+    setOk(true);
+  }, [router]);
 
   const carregar = useCallback(async () => {
     try {
