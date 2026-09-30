@@ -322,6 +322,7 @@ export default function Sidebar({ aberto, fechar, colapsada, onColapsar }: Sideb
                   vê o painel/kanban (a API do painel é staff-only). */}
               {/* ...exceto quem tem a flag acesso_conferencia_hrm (ex.: Alan). */}
               {(emHrm || confHrm) && <NavItem href="/pcp-hrm/conferencia" label="Conferência" icon="bi-clipboard-check" onNav={fechar} />}
+              {(emHrm || confHrm) && <NavItem href="/pcp-hrm/acompanhamento" label="Acompanhamento" icon="bi-table" onNav={fechar} />}
               {(emHrm || confHrm) && <NavItem href="/pcp-hrm/painel" label="Onde está cada OP" icon="bi-signpost-split" onNav={fechar} />}
               {emHrm && <NavItem href="/kanban?fabrica=caldeiraria" label="Kanban" icon="bi-kanban" onNav={fechar} />}
             </NavGroup>

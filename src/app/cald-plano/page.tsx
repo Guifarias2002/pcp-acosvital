@@ -402,6 +402,8 @@ export default function CaldPlanoPage() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
           <button className={`cp-tab ${aba === 'painel' ? 'on' : ''}`} onClick={() => setAba('painel')}><i className="bi bi-columns-gap" />Painel por área</button>
           <button className={`cp-tab ${aba === 'lista' ? 'on' : ''}`} onClick={() => setAba('lista')}><i className="bi bi-table" />Lista (planilha)</button>
+          {/* Acompanhamento HRM (planilha do Alan) — o Val vê em modo leitura. */}
+          <button className="cp-tab" onClick={() => router.push('/pcp-hrm/acompanhamento')}><i className="bi bi-clipboard-data" />Acompanhamento HRM</button>
           <div style={{ flex: 1 }} />
           <input className="cp-in" style={{ width: 220 }} placeholder="Buscar pedido, material, cliente…" value={busca} onChange={e => setBusca(e.target.value)} />
           <select className="cp-in" style={{ width: 150 }} value={fVend} onChange={e => setFVend(e.target.value)}>

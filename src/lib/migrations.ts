@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 64;
+const SCHEMA_VERSION = 65;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -1143,4 +1143,71 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
     await sp.unsafe(`UPDATE producao_movimentacaoitem SET observacao = replace(observacao, 'Quarentena', 'Pedidos Finalizados') WHERE observacao LIKE '%Quarentena%'`);
     await sp.unsafe(`UPDATE producao_item_observacao SET texto = replace(texto, 'Quarentena', 'Pedidos Finalizados') WHERE texto LIKE '%Quarentena%'`);
   }).catch(e => console.error('[migrations] M62 (renomear Quarentena) falhou:', e));
+  // M63 (30/09): ACOMPANHAMENTO HRM — a planilha "SPR SJP TAUBATE" do Alan no
+  // sistema (tela /pcp-hrm/acompanhamento). 1 linha por item; `chave` estável
+  // (OP+item, ou pedido+material) pra o upload da planilha casar sempre a mesma
+  // linha. `planilha_raw` guarda a linha original INTEIRA (nada se perde);
+  // `etapas` = {codigo: {ok, origem, em, por}}. Histórico com antes/depois e
+  // origem (planilha/tela). Ver src/lib/hrmAcomp.ts.
+  await sql.savepoint(async (sp) => {
+    await sp.unsafe(`
+      CREATE TABLE IF NOT EXISTS producao_hrm_acomp (
+        id                  SERIAL PRIMARY KEY,
+        chave               TEXT NOT NULL UNIQUE,
+        op_hrm              TEXT,
+        item                TEXT,
+        po_item             TEXT,
+        pedido_omie         TEXT,
+        ns                  TEXT,
+        material            TEXT,
+        descricao           TEXT,
+        quantidade          TEXT,
+        destino             TEXT,
+        vendedor            TEXT,
+        coordenador         TEXT,
+        caldeireiros        TEXT,
+        mp_obs              TEXT,
+        necessidade         DATE,
+        conf_delv           DATE,
+        prev_faturamento    DATE,
+        prev_final          DATE,
+        finalizado_em       DATE,
+        situacao            TEXT,
+        situacao_detalhe    TEXT,
+        expedite            TEXT,
+        ocorrencia          TEXT,
+        obs                 TEXT,
+        prioridade          TEXT,
+        prioridade_skid     TEXT,
+        seq_cliente         TEXT,
+        seq_oss             TEXT,
+        tinta               TEXT,
+        tinta_qtd           TEXT,
+        tinta_estoque       TEXT,
+        etapas              JSONB NOT NULL DEFAULT '{}'::jsonb,
+        planilha_raw        JSONB,
+        pedido_id           INTEGER,
+        ordem_planilha      INTEGER,
+        criado_em           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        atualizado_em       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        atualizado_por_nome TEXT
+      )
+    `);
+    await sp.unsafe(`CREATE INDEX IF NOT EXISTS idx_hrm_acomp_op ON producao_hrm_acomp (op_hrm)`);
+    await sp.unsafe(`
+      CREATE TABLE IF NOT EXISTS producao_hrm_acomp_hist (
+        id           SERIAL PRIMARY KEY,
+        acomp_id     INTEGER NOT NULL REFERENCES producao_hrm_acomp(id) ON DELETE CASCADE,
+        tipo         TEXT NOT NULL,
+        campo        TEXT,
+        antes        TEXT,
+        depois       TEXT,
+        texto        TEXT,
+        origem       TEXT NOT NULL DEFAULT 'tela',
+        usuario_nome TEXT,
+        criado_em    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await sp.unsafe(`CREATE INDEX IF NOT EXISTS idx_hrm_acomp_hist ON producao_hrm_acomp_hist (acomp_id, criado_em DESC)`);
+  }).catch(e => console.error('[migrations] M63 (acompanhamento HRM) falhou:', e));
 }

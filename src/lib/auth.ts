@@ -258,6 +258,18 @@ export function podeConferirHrm(u?: JWTPayload | null): boolean {
   return !!user && (!!user.is_staff || user.acesso_conferencia_hrm === true);
 }
 
+// ACOMPANHAMENTO HRM (/pcp-hrm/acompanhamento — a planilha do Alan no sistema).
+// Editar/subir planilha: quem confere o HRM (Alan) + staff. Ver: esses + o PCP
+// da Caldeiraria (Val) — mesma tela, só leitura pra ele. Mesma regra na API.
+export function podeEditarAcompHrm(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return isAdministrador(user) || podeConferirHrm(user);
+}
+export function podeVerAcompHrm(u?: JWTPayload | null): boolean {
+  const user = u ?? getUser();
+  return podeEditarAcompHrm(user) || podePlanejarCaldeiraria(user);
+}
+
 // Pode PLANEJAR a Usinagem? Administrador sempre; além dele, usuários com a
 // flag `acesso_planejamento` marcada no cadastro (ex.: Reginaldo). Libera a tela
 // /planejamento e o poder de definir máquina/ordem da fila da Usinagem — que o
