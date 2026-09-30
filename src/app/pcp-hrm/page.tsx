@@ -21,8 +21,8 @@ import { ehProdutoDaOp, ROTULO_QTD_ESTRUTURAS } from '@/lib/opProduto';
 
 type Origem = 'totvs' | 'omie';
 
-const inputCls = 'mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400 bg-white';
-const labelCls = 'text-xs font-semibold text-gray-500 uppercase tracking-wide';
+const inputCls = 'mt-1 w-full border border-gray-200 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:border-blue-400 bg-white';
+const labelCls = 'text-sm font-semibold text-gray-500 uppercase tracking-wide';
 
 // A OP do Omie traz a Quantidade sempre com 6 casas decimais (ex.: "853,000000",
 // "1.459,000000") — sobra pro sistema de origem, não pra quem confere aqui. Só
@@ -403,7 +403,7 @@ export default function PcpHrmPage() {
 
         {/* Passo a passo — orienta quem usa essa tela pela primeira vez (perfil
             restrito: só Identificação + Anexo, sem editar roteiro/materiais). */}
-        <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:10, padding:'16px 22px', marginBottom:16, maxWidth:1200 }}>
+        <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:10, padding:'16px 22px', marginBottom:16, maxWidth:1560 }}>
           <div style={{ fontSize:13, fontWeight:700, color:'#1e40af', textTransform:'uppercase', letterSpacing:.5, marginBottom:8 }}>
             <i className="bi bi-info-circle" style={{ marginRight:6 }} />Como preencher
           </div>
@@ -417,7 +417,7 @@ export default function PcpHrmPage() {
 
         {/* OPs enviadas nesta sessão — numeradas 1,2,3,4 uma abaixo da outra */}
         {anexadas.length > 0 && (
-          <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:10, padding:'14px 18px', marginBottom:16, maxWidth:1200 }}>
+          <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:10, padding:'14px 18px', marginBottom:16, maxWidth:1560 }}>
             <div style={{ fontSize:12, fontWeight:700, color:'#166534', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>
               <i className="bi bi-check2-circle" style={{ marginRight:6 }} />Enviadas para a Conferência ({anexadas.length})
             </div>
@@ -444,7 +444,7 @@ export default function PcpHrmPage() {
         {/* Planilha de acompanhamento do Alan: subir / abrir / apagar. */}
         {/* Planilha + Anexadas lado a lado, ocupando a largura das colunas de baixo
             (em tela estreita um cai embaixo do outro). */}
-        <div style={{ display:'flex', flexWrap:'wrap', gap:16, alignItems:'stretch', maxWidth:1200, marginBottom:16 }}>
+        <div style={{ display:'flex', flexWrap:'wrap', gap:16, alignItems:'stretch', maxWidth:1560, marginBottom:16 }}>
         {veAcomp && <PainelPlanilhaHrm />}
 
         {/* OPs anexadas aguardando Conferência — com Excluir (anexo errado). */}
@@ -501,14 +501,14 @@ export default function PcpHrmPage() {
         {/* Duas colunas: entrada à esquerda, leitura/roteiro à direita — reduz a
             rolagem em tela larga. Em tela estreita (tablet) a direita quebra pra
             baixo (flexWrap). */}
-        <div style={{ display:'flex', flexWrap:'wrap', alignItems:'flex-start', gap:16, maxWidth:1200 }}>
+        <div style={{ display:'flex', flexWrap:'wrap', alignItems:'flex-start', gap:16, maxWidth:1560 }}>
 
           {/* Coluna ESQUERDA — entrada (origem, prazo, anexo, observações) */}
-          <div style={{ display:'flex', flexDirection:'column', gap:16, flex:'1 1 340px', minWidth:320, maxWidth:440 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:16, flex:'1 1 420px', minWidth:320, maxWidth:560 }}>
 
           {/* Origem */}
           <div className="card" style={{ padding:20 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
+            <div style={{ fontSize:12.5, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
               <i className="bi bi-diagram-3" style={{ marginRight:6 }} />Origem do Pedido
             </div>
             {/* A Caldeiraria trabalha só com OP do Omie — origem fixa (o leitor
@@ -545,7 +545,7 @@ export default function PcpHrmPage() {
 
           {/* Prazo (previsão de faturamento) */}
           <div className="card" style={{ padding:20 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
+            <div style={{ fontSize:12.5, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
               <i className="bi bi-calendar-event" style={{ marginRight:6 }} />Prazo
             </div>
             <label className={labelCls}>Previsão de faturamento (Omie)</label>
@@ -563,7 +563,7 @@ export default function PcpHrmPage() {
 
           {/* Anexo da OP */}
           <div className="card" style={{ padding:20 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
+            <div style={{ fontSize:12.5, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
               <i className="bi bi-paperclip" style={{ marginRight:6 }} />Anexo da OP (PDF)
             </div>
             <label htmlFor="hrm-file" style={{
@@ -608,7 +608,7 @@ export default function PcpHrmPage() {
 
           {/* Anexo de DESENHO(S) — opcional, um ou vários. Separado da OP. */}
           <div className="card" style={{ padding:20 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
+            <div style={{ fontSize:12.5, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
               <i className="bi bi-rulers" style={{ marginRight:6 }} />Desenho(s) do projeto <span style={{ fontWeight:500, textTransform:'none', color:'#94a3b8' }}>— opcional</span>
             </div>
             <label htmlFor="hrm-desenhos" style={{
@@ -642,7 +642,7 @@ export default function PcpHrmPage() {
 
           {/* Observações */}
           <div className="card" style={{ padding:20 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
+            <div style={{ fontSize:12.5, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1, marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6 }}>
               <i className="bi bi-chat-left-text" style={{ marginRight:6 }} />Observações
             </div>
             <textarea value={obs} onChange={e => setObs(e.target.value)} rows={2} className={inputCls} style={{ resize:'vertical' }}
@@ -710,7 +710,7 @@ export default function PcpHrmPage() {
           {leitura && (
             <div className="card" style={{ padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, borderBottom:'2px solid #1a3a5c', paddingBottom:6, flexWrap:'wrap', gap:8 }}>
-                <span style={{ fontSize:11, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1 }}>
+                <span style={{ fontSize:12.5, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:1 }}>
                   <i className="bi bi-card-checklist" style={{ marginRight:6 }} />Leitura da OP
                   <span style={{ fontWeight:500, textTransform:'none', color:'#7a8aa0', marginLeft:8 }}>
                     {leitura.totalPaginas} pág. · {leitura.ops.length} {leitura.ops.length === 1 ? 'ordem' : 'ordens'}
