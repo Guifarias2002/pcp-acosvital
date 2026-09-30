@@ -190,18 +190,18 @@ export function PainelPlanilhaHrm() {
   useEffect(() => { carregar(); }, []);
   const aviso = async (t: string) => { await carregar(); setMsg(t); };
   return (
-    <div style={{ background: '#fff', border: `1px solid ${C.borda}`, borderRadius: 10, padding: '14px 18px', marginBottom: 16, maxWidth: 760 }}>
+    <div style={{ background: '#fff', border: `1px solid ${C.borda}`, borderRadius: 10, padding: '16px 20px', flex: '1 1 480px', minWidth: 0 }}>
       <style>{CSS + CSS_HRM}</style>
-      <div style={{ fontSize: 12, fontWeight: 700, color: C.azul, textTransform: 'uppercase', letterSpacing: .5, marginBottom: 4 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: C.azul, textTransform: 'uppercase', letterSpacing: .5, marginBottom: 4 }}>
         <i className="bi bi-file-earmark-spreadsheet" style={{ marginRight: 6 }} />Planilha de acompanhamento (SPR SJP / Taubaté)
       </div>
-      <div style={{ fontSize: 12.5, color: C.cinza, marginBottom: 10 }}>
+      <div style={{ fontSize: 13.5, color: C.cinza, marginBottom: 12 }}>
         {total == null ? 'Carregando…' : total ? `${total} linhas da planilha estão no sistema.` : 'Nenhuma planilha no sistema ainda.'} Suba a planilha sempre que quiser atualizar — antes de gravar você confere o que muda.
       </div>
       {msg && <div style={{ fontSize: 12.5, color: C.azul, background: '#eff6ff', borderRadius: 6, padding: '6px 10px', marginBottom: 8 }}>{msg}</div>}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button className="cp-btn pri" onClick={() => { setSubir(true); setMsg(''); }}><i className="bi bi-cloud-arrow-up" />Subir planilha</button>
-        <a className="cp-btn" href="/pcp-hrm/acompanhamento" style={{ textDecoration: 'none' }}><i className="bi bi-table" />Abrir acompanhamento</a>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 14 }}>
+        <button className="cp-btn pri" style={{ padding: '10px 16px', fontSize: 14 }} onClick={() => { setSubir(true); setMsg(''); }}><i className="bi bi-cloud-arrow-up" />Subir planilha</button>
+        <a className="cp-btn" href="/pcp-hrm/acompanhamento" style={{ textDecoration: 'none', padding: '10px 16px', fontSize: 14 }}><i className="bi bi-table" />Abrir acompanhamento</a>
         {!!total && <ApagarPlanilha total={total} onApagado={aviso} />}
       </div>
       {subir && <SubirPlanilha onFechar={() => setSubir(false)} onGravado={async (t) => { setSubir(false); await aviso(t); }} />}

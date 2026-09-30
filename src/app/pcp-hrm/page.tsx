@@ -403,11 +403,11 @@ export default function PcpHrmPage() {
 
         {/* Passo a passo — orienta quem usa essa tela pela primeira vez (perfil
             restrito: só Identificação + Anexo, sem editar roteiro/materiais). */}
-        <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:10, padding:'14px 18px', marginBottom:16, maxWidth:760 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:'#1e40af', textTransform:'uppercase', letterSpacing:.5, marginBottom:8 }}>
+        <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:10, padding:'16px 22px', marginBottom:16, maxWidth:1200 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:'#1e40af', textTransform:'uppercase', letterSpacing:.5, marginBottom:8 }}>
             <i className="bi bi-info-circle" style={{ marginRight:6 }} />Como preencher
           </div>
-          <ol style={{ margin:0, paddingLeft:18, display:'flex', flexDirection:'column', gap:5, fontSize:13, color:'#1e3a8a' }}>
+          <ol style={{ margin:0, paddingLeft:18, display:'flex', flexDirection:'column', gap:6, fontSize:14.5, color:'#1e3a8a' }}>
             <li>Informe o nº do pedido, se já tiver — pode deixar em branco e completar depois.</li>
             <li>Anexe o PDF da OP (Ordem de Produção do <b>Omie</b>) — o sistema lê os materiais sozinho, não precisa digitar nada.</li>
             <li>Confira a leitura clicando no produto — é só pra você olhar, não precisa corrigir nada, quem confere de verdade é o PCP.</li>
@@ -417,7 +417,7 @@ export default function PcpHrmPage() {
 
         {/* OPs enviadas nesta sessão — numeradas 1,2,3,4 uma abaixo da outra */}
         {anexadas.length > 0 && (
-          <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:10, padding:'14px 18px', marginBottom:16, maxWidth:760 }}>
+          <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:10, padding:'14px 18px', marginBottom:16, maxWidth:1200 }}>
             <div style={{ fontSize:12, fontWeight:700, color:'#166534', textTransform:'uppercase', letterSpacing:.5, marginBottom:10 }}>
               <i className="bi bi-check2-circle" style={{ marginRight:6 }} />Enviadas para a Conferência ({anexadas.length})
             </div>
@@ -442,22 +442,25 @@ export default function PcpHrmPage() {
         )}
 
         {/* Planilha de acompanhamento do Alan: subir / abrir / apagar. */}
+        {/* Planilha + Anexadas lado a lado, ocupando a largura das colunas de baixo
+            (em tela estreita um cai embaixo do outro). */}
+        <div style={{ display:'flex', flexWrap:'wrap', gap:16, alignItems:'stretch', maxWidth:1200, marginBottom:16 }}>
         {veAcomp && <PainelPlanilhaHrm />}
 
         {/* OPs anexadas aguardando Conferência — com Excluir (anexo errado). */}
         {(pendentes.length > 0 || msgExc) && (
-          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:10, padding:'14px 18px', marginBottom:16, maxWidth:760 }}>
-            <div style={{ fontSize:12, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:.5, marginBottom:4 }}>
+          <div style={{ background:'#fff', border:'1px solid #e2e8f0', borderRadius:10, padding:'16px 20px', flex:'1 1 480px', minWidth:0 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:'#1a3a5c', textTransform:'uppercase', letterSpacing:.5, marginBottom:4 }}>
               <i className="bi bi-hourglass-split" style={{ marginRight:6 }} />Anexadas aguardando Conferência ({pendentes.length})
             </div>
-            <div style={{ fontSize:12, color:'#64748b', marginBottom:10 }}>Anexou errado? Exclua aqui enquanto a OP ainda não foi conferida. Depois de lançada pra produção, só o PCP exclui.</div>
+            <div style={{ fontSize:13, color:'#64748b', marginBottom:12 }}>Anexou errado? Exclua aqui enquanto a OP ainda não foi conferida. Depois de lançada pra produção, só o PCP exclui.</div>
             {msgExc && <div style={{ fontSize:12.5, color:'#1a3a5c', background:'#eff6ff', borderRadius:6, padding:'6px 10px', marginBottom:8 }}>{msgExc}</div>}
             <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:320, overflowY:'auto' }}>
               {pendentes.map(p => (
-                <div key={p.id} style={{ display:'flex', alignItems:'center', gap:10, border:'1px solid #e2e8f0', borderRadius:8, padding:'7px 10px', flexWrap:'wrap' }}>
+                <div key={p.id} style={{ display:'flex', alignItems:'center', gap:10, border:'1px solid #e2e8f0', borderRadius:8, padding:'10px 12px', flexWrap:'wrap' }}>
                   <a href={`/pedidos/${p.id}`} style={{ display:'flex', flexDirection:'column', minWidth:0, flex:'1 1 220px', textDecoration:'none', color:'inherit' }}>
-                    <span style={{ fontSize:13, fontWeight:700, color:'#1a3a5c' }}>OP {p.numero_op || p.numero_pedido_venda}</span>
-                    <span style={{ fontSize:11, color:'#64748b' }}>
+                    <span style={{ fontSize:14.5, fontWeight:700, color:'#1a3a5c' }}>OP {p.numero_op || p.numero_pedido_venda}</span>
+                    <span style={{ fontSize:12.5, color:'#64748b' }}>
                       {[nomeAreaHrm(p.area_hrm, p.area_hrm_outro), p.cliente, `anexada em ${new Date(p.criado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`, p.conferencia_iniciada_por ? `em conferência por ${p.conferencia_iniciada_por}` : ''].filter(Boolean).join(' · ')}
                     </span>
                   </a>
@@ -471,7 +474,7 @@ export default function PcpHrmPage() {
                     </>
                   ) : (
                     <button onClick={() => { setConfirmandoExc(p.id); setMsgExc(''); }} title="Excluir esta OP anexada"
-                      style={{ background:'#fff', color:'#dc2626', border:'1px solid #fca5a5', borderRadius:8, padding:'6px 12px', fontSize:12.5, fontWeight:700, cursor:'pointer' }}>
+                      style={{ background:'#fff', color:'#dc2626', border:'1px solid #fca5a5', borderRadius:8, padding:'8px 14px', fontSize:13.5, fontWeight:700, cursor:'pointer' }}>
                       <i className="bi bi-trash" style={{ marginRight:5 }} />Excluir
                     </button>
                   )}
@@ -480,6 +483,7 @@ export default function PcpHrmPage() {
             </div>
           </div>
         )}
+        </div>
 
         {erro && (
           <div style={{ background:'#fef2f2', border:'1px solid #fca5a5', color:'#dc2626', borderRadius:8, padding:'10px 14px', fontSize:13, marginBottom:16, maxWidth:760 }}>
