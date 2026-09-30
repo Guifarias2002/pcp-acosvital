@@ -28,7 +28,7 @@ const IDENT = ['op_hrm', 'item', 'pedido_omie', 'ns', 'material', 'descricao', '
 const HISTO = ['expedite', 'ocorrencia'] as const;
 
 interface LinhaIn { chave: string; ordem: number; campos: Record<string, unknown>; etapas: string[]; raw: Record<string, unknown> }
-interface ExtraIn { tipo: 'reprogramacao' | 'reuniao'; po: string; item: string; texto: string }
+interface ExtraIn { tipo: 'reprogramacao' | 'reuniao'; po: string; item: string; texto: string; material?: string | null; descricao?: string | null }
 interface Mudanca { campo: string; nome: string; antes: string | null; depois: string | null }
 
 const str = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : v == null ? null : String(v));
@@ -140,23 +140,47 @@ export async function POST(req: Request) {
 
       // Abas de reprogramação (Planilha2) e reunião (Planilha1): viram registros
       // no histórico da linha do mesmo PO + item. Texto igual já registrado = pula.
-      let extrasNovos = 0; const extrasSemLinha: string[] = [];
+      // PO/item que só existe nas abas extras (não está na aba principal) → vira
+      // uma linha própria (nada se perde), marcada no detalhe da situação.
+      let extrasNovos = 0; const extrasSemLinha: string[] = []; const itensSoExtras: { chave: string; rotulo: string }[] = [];
       if (extras.length) {
-        const todas = await tx`SELECT id, po_item, pedido_omie FROM producao_hrm_acomp`;
+        const todas: { id: number | null; po_item: unknown; pedido_omie: unknown }[] =
+          (await tx`SELECT id, po_item, pedido_omie FROM producao_hrm_acomp`).map(r => ({ id: r.id as number, po_item: r.po_item, pedido_omie: r.pedido_omie }));
+        // Na PRÉVIA as linhas novas ainda não estão no banco (no gravar já foram
+        // inseridas acima, nesta mesma transação) → casa também com elas.
+        if (!gravar) for (const l of linhas) if (!porChave.has(l.chave)) todas.push({ id: null, po_item: txtHrm(l.campos?.po_item), pedido_omie: txtHrm(l.campos?.pedido_omie) });
         for (const x of extras.slice(0, 2000)) {
           const alvo = `${String(x.po).trim()}-${String(x.item).trim()}`;
           const texto = txtHrm(x.texto);
           if (!texto || !['reprogramacao', 'reuniao'].includes(x.tipo)) continue;
-          const linha = todas.find(r => r.pedido_omie === alvo || (typeof r.po_item === 'string' && (r.po_item === alvo || r.po_item.startsWith(alvo + '-'))));
-          if (!linha) { extrasSemLinha.push(`${x.tipo === 'reuniao' ? 'Reunião' : 'Reprogramação'} ${alvo}`); continue; }
-          const [ja] = await tx`SELECT 1 FROM producao_hrm_acomp_hist WHERE acomp_id = ${linha.id} AND tipo = ${x.tipo} AND texto = ${texto} LIMIT 1`;
-          if (ja) continue;
+          let linha = todas.find(r => r.pedido_omie === alvo || (typeof r.po_item === 'string' && (r.po_item === alvo || r.po_item.startsWith(alvo + '-'))));
+          if (!linha) {
+            const chave = `po:${alvo.toUpperCase()}`;
+            const material = txtHrm(x.material, 200), descricao = txtHrm(x.descricao, 500);
+            itensSoExtras.push({ chave, rotulo: [`PO ${alvo}`, material, descricao].filter(Boolean).join(' · ') });
+            let id: number | null = null;
+            if (gravar) {
+              const [row] = await tx`
+                INSERT INTO producao_hrm_acomp (chave, pedido_omie, item, material, descricao, situacao_detalhe, atualizado_por_nome)
+                VALUES (${chave}, ${alvo}, ${String(x.item).trim()}, ${material}, ${descricao}, 'Só nas abas de reprogramação/reunião da planilha', ${quem})
+                ON CONFLICT (chave) DO UPDATE SET atualizado_em = NOW()
+                RETURNING id`;
+              id = row.id as number;
+              await registrarHistHrm(tx, id, { tipo: 'importacao', texto: 'Item criado a partir das abas de reprogramação/reunião (não está na aba principal)', origem: 'planilha', usuario: quem });
+            }
+            linha = { id, po_item: null, pedido_omie: alvo };
+            todas.push(linha);
+          }
+          if (linha.id != null) {
+            const [ja] = await tx`SELECT 1 FROM producao_hrm_acomp_hist WHERE acomp_id = ${linha.id} AND tipo = ${x.tipo} AND texto = ${texto} LIMIT 1`;
+            if (ja) continue;
+          }
           extrasNovos++;
           if (gravar) await registrarHistHrm(tx, linha.id as number, { tipo: x.tipo, texto, origem: 'planilha', usuario: quem });
         }
       }
 
-      const r = { novos, alterados: alterados.slice(0, 1000), total_alterados: alterados.length, iguais, total: linhas.length, extras_novos: extrasNovos, extras_sem_linha: extrasSemLinha.slice(0, 200) };
+      const r = { novos, alterados: alterados.slice(0, 1000), total_alterados: alterados.length, iguais, total: linhas.length, extras_novos: extrasNovos, extras_sem_linha: extrasSemLinha.slice(0, 200), itens_so_extras: itensSoExtras.filter((v, i, a) => a.findIndex(z => z.chave === v.chave) === i) };
       // Prévia: desfaz tudo que a transação possa ter tocado (não grava nada).
       if (!gravar) throw Object.assign(new Error('previa'), { previa: r });
       return r;

@@ -5,7 +5,7 @@
 import { campoDaColuna, chaveBase, etapaMarcada, normCab, txtHrm } from '@/lib/hrmAcomp';
 
 export interface LinhaPlanilha { chave: string; ordem: number; campos: Record<string, unknown>; etapas: string[]; raw: Record<string, unknown> }
-export interface ExtraPlanilha { tipo: 'reprogramacao' | 'reuniao'; po: string; item: string; texto: string }
+export interface ExtraPlanilha { tipo: 'reprogramacao' | 'reuniao'; po: string; item: string; texto: string; material?: string | null; descricao?: string | null }
 export interface LeituraPlanilha { linhas: LinhaPlanilha[]; extras: ExtraPlanilha[]; aba: string; avisos: string[] }
 
 // Data do Excel → 'AAAA-MM-DD'. +12h: o SheetJS às vezes devolve meia-noite
@@ -96,14 +96,14 @@ export async function lerPlanilhaHrm(arquivo: File): Promise<LeituraPlanilha> {
       const item = String(cel[iPo + 1]).trim();
       if (reuniao) {
         const coment = [...cel].reverse().find(c => typeof c === 'string' && c.trim().length > 3) as string | undefined;
-        if (coment) extras.push({ tipo: 'reuniao', po, item, texto: `Reunião${dataReuniao ? ' ' + dataReuniao : ''}: ${coment.replace(/ /g, ' ').trim()}` });
+        if (coment) extras.push({ tipo: 'reuniao', po, item, material: txtHrm(cel[0]), descricao: txtHrm(cel[1]), texto: `Reunião${dataReuniao ? ' ' + dataReuniao : ''}: ${coment.replace(/ /g, ' ').trim()}` });
       } else if (iPo === 0) {
         const material = txtHrm(cel[2]);
         const d1 = iso(cel[4]), d2 = iso(cel[5]);
         const resch = typeof cel[7] === 'string' ? cel[7] : '';
         const status = [...cel.slice(8)].reverse().find(c => typeof c === 'string') as string | undefined;
         const partes = [resch || 'Programação do cliente', material, `data ${fmt(d1)} → ${fmt(d2)}`, status].filter(Boolean);
-        extras.push({ tipo: 'reprogramacao', po, item, texto: partes.join(' · ') });
+        extras.push({ tipo: 'reprogramacao', po, item, material, descricao: txtHrm(cel[3]), texto: partes.join(' · ') });
       }
     }
   }

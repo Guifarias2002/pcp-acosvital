@@ -10,7 +10,7 @@ import { lerPlanilhaHrm, type LeituraPlanilha } from './importar';
 // ── Subir planilha: lê no navegador → prévia (nada gravado) → confirma.
 interface Previa {
   novos: { chave: string; rotulo: string }[]; alterados: { chave: string; rotulo: string; mudancas: { nome: string; antes: string | null; depois: string | null }[] }[];
-  total_alterados: number; iguais: number; total: number; extras_novos: number; extras_sem_linha: string[];
+  total_alterados: number; iguais: number; total: number; extras_novos: number; extras_sem_linha: string[]; itens_so_extras?: { chave: string; rotulo: string }[];
 }
 export function SubirPlanilha({ onFechar, onGravado }: { onFechar: () => void; onGravado: (t: string) => void }) {
   const [lendo, setLendo] = useState(false);
@@ -39,7 +39,7 @@ export function SubirPlanilha({ onFechar, onGravado }: { onFechar: () => void; o
       onGravado(`Planilha gravada: ${d.novos.length} novos, ${d.total_alterados} atualizados, ${d.iguais} sem mudança.`);
     } catch (e) { setErro(erroDe(e, 'Não gravou — nada foi alterado. Tente de novo.')); setGravando(false); }
   }
-  const nada = previa && !previa.novos.length && !previa.total_alterados && !previa.extras_novos;
+  const nada = previa && !previa.novos.length && !previa.total_alterados && !previa.extras_novos && !previa.itens_so_extras?.length;
   return (
     <Modal largura={860} onFechar={onFechar} titulo="Subir planilha de acompanhamento"
       rodape={<>
@@ -62,7 +62,7 @@ export function SubirPlanilha({ onFechar, onGravado }: { onFechar: () => void; o
         {previa && (
           <>
             <div className="hr-kpis">
-              <span style={{ color: C.verde }}><b>{previa.novos.length}</b> novos</span>
+              <span style={{ color: C.verde }}><b>{previa.novos.length + (previa.itens_so_extras?.length || 0)}</b> novos</span>
               <span style={{ color: C.azul2 }}><b>{previa.total_alterados}</b> com mudança</span>
               <span><b>{previa.iguais}</b> sem mudança</span>
               <span style={{ color: C.roxo }}><b>{previa.extras_novos}</b> registros de reprogramação/reunião</span>
@@ -83,6 +83,12 @@ export function SubirPlanilha({ onFechar, onGravado }: { onFechar: () => void; o
             {previa.novos.length > 0 && (
               <details className="hr-box"><summary style={{ cursor: 'pointer', fontWeight: 700 }}>{previa.novos.length} linhas novas</summary>
                 <div style={{ maxHeight: 220, overflowY: 'auto', marginTop: 6 }}>{previa.novos.map(n => <div key={n.chave} className="hr-sub" style={{ color: C.texto }}>{n.rotulo || n.chave}</div>)}</div>
+              </details>
+            )}
+            {!!previa.itens_so_extras?.length && (
+              <details className="hr-box"><summary style={{ cursor: 'pointer', fontWeight: 700, color: C.roxo }}>{previa.itens_so_extras.length} itens que só aparecem nas abas de reprogramação/reunião — entram como linhas novas</summary>
+                <div className="hr-sub" style={{ marginTop: 6 }}>Não estão na aba principal (provavelmente itens antigos). Entram pra nada se perder, marcados &quot;Só nas abas de reprogramação/reunião&quot;, com o registro no histórico.</div>
+                <div style={{ maxHeight: 180, overflowY: 'auto', marginTop: 6 }}>{previa.itens_so_extras.map(n => <div key={n.chave} className="hr-sub" style={{ color: C.texto }}>{n.rotulo}</div>)}</div>
               </details>
             )}
             {previa.extras_sem_linha.length > 0 && (
