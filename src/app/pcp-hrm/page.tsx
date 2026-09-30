@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import AuthGuard from '@/components/AuthGuard';
 import { criarPedido, listarConferenciaHrm } from '@/lib/api';
-import { getToken } from '@/lib/auth';
+import { getToken, podeEditarAcompHrm } from '@/lib/auth';
+import { PainelPlanilhaHrm } from './acompanhamento/planilha';
 import { ehProdutoDaOp, ROTULO_QTD_ESTRUTURAS } from '@/lib/opProduto';
 
 // ── PCP HRM ─────────────────────────────────────────────────────────────────
@@ -57,6 +58,9 @@ export default function PcpHrmPage() {
     try { const d = await listarConferenciaHrm(); setPendentes(d.pedidos || []); } catch { /* lista é auxiliar */ }
   }, []);
   useEffect(() => { carregarPendentes(); }, [carregarPendentes]);
+  // Quadro da planilha de acompanhamento: só quem sobe a planilha (Alan/staff).
+  const [veAcomp, setVeAcomp] = useState(false);
+  useEffect(() => { setVeAcomp(podeEditarAcompHrm()); }, []);
   async function excluirOp(id: number) {
     setExcluindo(id); setMsgExc('');
     try {
@@ -418,6 +422,9 @@ export default function PcpHrmPage() {
             </div>
           </div>
         )}
+
+        {/* Planilha de acompanhamento do Alan: subir / abrir / apagar. */}
+        {veAcomp && <PainelPlanilhaHrm />}
 
         {/* OPs anexadas aguardando Conferência — com Excluir (anexo errado). */}
         {(pendentes.length > 0 || msgExc) && (

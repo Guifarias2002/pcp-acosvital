@@ -1,7 +1,7 @@
 // Leitura da planilha do Alan no NAVEGADOR (não sobe o .xlsx pro servidor — a
 // Vercel limita a requisição a 4,5 MB). Casa as colunas pelo NOME do cabeçalho
 // (hrmAcomp.campoDaColuna); a linha inteira vai junto em `raw` pra nada se perder.
-import * as XLSX from 'xlsx';
+// xlsx carregado só na hora de ler (import dinâmico) — não pesa a abertura da tela.
 import { campoDaColuna, chaveBase, etapaMarcada, normCab, txtHrm } from '@/lib/hrmAcomp';
 
 export interface LinhaPlanilha { chave: string; ordem: number; campos: Record<string, unknown>; etapas: string[]; raw: Record<string, unknown> }
@@ -28,6 +28,7 @@ function paraRaw(v: unknown): unknown {
 }
 
 export async function lerPlanilhaHrm(arquivo: File): Promise<LeituraPlanilha> {
+  const XLSX = await import('xlsx');
   const wb = XLSX.read(await arquivo.arrayBuffer(), { cellDates: true });
   const avisos: string[] = [];
 
