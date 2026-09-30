@@ -34,6 +34,7 @@ function Conteudo() {
   const [f, setF] = useState<Filtros>({ q: '', dest: '', coord: '', sit: '', atr: false, entregues: false });
   const [aberto, setAberto] = useState<number | null>(null);
   const [subir, setSubir] = useState(false);
+  const [manual, setManual] = useState(false);
 
   useEffect(() => { if (!podeVerAcompHrm()) { router.replace('/'); return; } setOk(true); }, [router]);
 
@@ -98,6 +99,7 @@ function Conteudo() {
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.azul }}><i className="bi bi-table" /> Acompanhamento HRM</h1>
           <div style={{ fontSize: 12.5, color: C.cinza }}>A planilha SPR SJP / Taubaté no sistema — uma linha por item. {podeEditar ? 'Clique na célula para editar.' : 'Somente visualização.'}</div>
         </div>
+        <button className="cp-btn" onClick={() => setManual(true)}><i className="bi bi-question-circle" />Como usar</button>
         {podeEditar && <button className="cp-btn pri" onClick={() => setSubir(true)}><i className="bi bi-cloud-arrow-up" />Subir planilha</button>}
       </div>
 
@@ -149,6 +151,7 @@ function Conteudo() {
 
       {aviso && <div className="hr-toast">{aviso}</div>}
       {itemAberto && <Detalhe it={itemAberto} edita={podeEditar} onFechar={() => setAberto(null)} onCampo={salvarCampo} onEtapa={marcarEtapa} onItem={trocar} />}
+      {manual && <Manual onFechar={() => setManual(false)} />}
       {subir && <SubirPlanilha onFechar={() => setSubir(false)} onGravado={async (t) => { setSubir(false); await carregar(); mostrar(t); }} />}
     </div>
   );
@@ -351,6 +354,54 @@ function Detalhe({ it, edita, onFechar, onCampo, onEtapa, onItem }: {
             </div>
           )}
         </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Manual rápido (botão "Como usar"). Mesmo texto entregue ao usuário em 30/09.
+const MANUAL: { t: string; passos: string[] }[] = [
+  { t: '1. Trazer a planilha pro sistema (primeira vez e sempre que quiser atualizar)', passos: [
+    'Salve a sua planilha SPR SJP TAUBATE normalmente no Excel.',
+    'Aqui, clique em "Subir planilha" → "Escolher planilha" e escolha o arquivo.',
+    'Confira a prévia: quantos itens são novos, o que vai mudar (valor antigo → novo) e o que está igual. Nada foi gravado ainda.',
+    'Estando certo, clique em "Confirmar e gravar".',
+    'Pode subir quantas vezes quiser. Célula vazia não apaga nada, linha que você tirou da planilha não é apagada, e a linha original fica guardada no item.',
+  ] },
+  { t: '2. Atualizar direto na tela (sem planilha)', passos: [
+    'Clique na célula (PO, destino, coordenador, caldeireiros, datas, situação, detalhe, tinta), altere e saia do campo ou aperte Enter. Grava sozinho.',
+    'Situação: escolha na lista. O texto livre (o antigo "Priorizar") vai em "Detalhe".',
+  ] },
+  { t: '3. Registrar expedite, ocorrência ou observação', passos: [
+    'Clique no nº da OP (1ª coluna) ou em "+ registrar / histórico".',
+    'Escolha Expedite, Ocorrência ou Observação, escreva e clique em "Registrar". Entra com a data e o seu nome, sem precisar digitar a data.',
+    'Tudo fica no Histórico do item, inclusive o que veio da planilha ("via planilha").',
+  ] },
+  { t: '4. Marcar etapas', passos: [
+    'Os 15 quadradinhos vão de Compra até Entrega ou Coleta. Verde = ok na planilha, ✋ = marcada à mão.',
+    'Clique no quadradinho pra marcar ou desmarcar (ou use as caixinhas no detalhe do item).',
+  ] },
+  { t: '5. Encontrar o que precisa', passos: [
+    'Busca: OP, NS, PO, material ou descrição.',
+    'Filtros: destino, coordenador (Cleber/Hermes), situação, "Só atrasados" e "Mostrar entregues" (entregues ficam escondidos por padrão).',
+    'Folga vermelha = atrasado (necessidade − 10 dias − prev. faturamento). EXW = Conf Delv − 12 dias.',
+  ] },
+  { t: '6. Ver tudo de um item', passos: [
+    'Clique no nº da OP: todos os campos, etapas, histórico e a "Linha original da planilha" com todas as colunas.',
+    '"ver pedido no sistema" abre a OP já lançada (quando existe).',
+  ] },
+  { t: 'Dúvida ou algo estranho', passos: ['Anote o nº da OP e o que aconteceu e avise o PCP/TI.'] },
+];
+function Manual({ onFechar }: { onFechar: () => void }) {
+  return (
+    <Modal largura={760} onFechar={onFechar} titulo="Como usar o Acompanhamento HRM" rodape={<button className="cp-btn pri" onClick={onFechar}>Entendi</button>}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontSize: 13.5, lineHeight: 1.5 }}>
+        {MANUAL.map(s => (
+          <div key={s.t}>
+            <div style={{ fontWeight: 800, color: C.azul, marginBottom: 4 }}>{s.t}</div>
+            <ul style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 3 }}>{s.passos.map(p => <li key={p}>{p}</li>)}</ul>
+          </div>
+        ))}
       </div>
     </Modal>
   );
