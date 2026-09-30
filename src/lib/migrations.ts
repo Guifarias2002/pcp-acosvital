@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 66;
+const SCHEMA_VERSION = 67;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -1217,4 +1217,22 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
     await sp.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS area_hrm TEXT`);
     await sp.unsafe(`ALTER TABLE producao_pedido ADD COLUMN IF NOT EXISTS area_hrm_outro TEXT`);
   }).catch(e => console.error('[migrations] M64 (área HRM) falhou:', e));
+  // M65 (30/09): CROQUI do produto — 1 imagem por código de material (chave
+  // normalizada, sem a revisão " R00"), arquivo no B2. `hash` (SHA-1) evita
+  // reenviar a mesma imagem a cada upload da planilha. Ver src/lib/croqui.ts.
+  await sql.savepoint(async (sp) => {
+    await sp.unsafe(`
+      CREATE TABLE IF NOT EXISTS producao_croqui (
+        codigo_norm     TEXT PRIMARY KEY,
+        codigo          TEXT NOT NULL,
+        storage_path    TEXT NOT NULL,
+        mime            TEXT NOT NULL,
+        tamanho         INTEGER,
+        hash            TEXT,
+        origem          TEXT NOT NULL DEFAULT 'tela',
+        criado_por_nome TEXT,
+        atualizado_em   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+  }).catch(e => console.error('[migrations] M65 (croqui) falhou:', e));
 }

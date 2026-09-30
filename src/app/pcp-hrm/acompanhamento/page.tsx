@@ -10,6 +10,8 @@ import {
 } from '@/lib/hrmAcomp';
 import { C, CSS, Modal, erroDe } from '../../cald-plano/comum';
 import { SubirPlanilha, ApagarPlanilha, CSS_HRM } from './planilha';
+import CroquiMini, { invalidarListaCroquis } from '@/components/CroquiMini';
+import { getToken } from '@/lib/auth';
 
 // Acompanhamento HRM — a planilha "SPR SJP TAUBATE" do Alan no sistema.
 // Grade no formato da planilha (1 linha por item), edição direto na célula,
@@ -135,9 +137,9 @@ function Conteudo() {
         <div className="hr-grid">
           <table>
             <thead>
-              <tr className="hr-grp"><th className="hr-fix">Item</th><th colSpan={4}>Identificação</th><th colSpan={2}>Equipe</th><th colSpan={6}>Datas e prazos</th><th colSpan={3}>Situação</th><th colSpan={2}>MP e pintura</th><th>Etapas</th></tr>
+              <tr className="hr-grp"><th className="hr-fix">Item</th><th colSpan={5}>Identificação</th><th colSpan={2}>Equipe</th><th colSpan={6}>Datas e prazos</th><th colSpan={3}>Situação</th><th colSpan={2}>MP e pintura</th><th>Etapas</th></tr>
               <tr>
-                <th className="hr-fix">OP HRM / NS</th><th>PO + item</th><th>Material / descrição</th><th>Destino</th><th>Vendedor</th>
+                <th className="hr-fix">OP HRM / NS</th><th>Croqui</th><th>PO + item</th><th>Material / descrição</th><th>Destino</th><th>Vendedor</th>
                 <th>Coordenador</th><th>Caldeireiros</th>
                 <th>Necessidade</th><th>Conf Delv</th><th>EXW</th><th>Prev. fatur.</th><th>Folga</th><th>Atraso</th>
                 <th>Situação</th><th>Detalhe (Priorizar)</th><th>Último expedite</th>
@@ -146,7 +148,7 @@ function Conteudo() {
             </thead>
             <tbody>
               {visiveis.map(it => <Linha key={it.id} it={it} edita={podeEditar} onCampo={salvarCampo} onEtapa={marcarEtapa} onAbrir={() => setAberto(it.id)} />)}
-              {!visiveis.length && <tr><td colSpan={19} style={{ padding: 18, color: C.cinza }}>Nenhum item com esses filtros.</td></tr>}
+              {!visiveis.length && <tr><td colSpan={20} style={{ padding: 18, color: C.cinza }}>Nenhum item com esses filtros.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -176,6 +178,7 @@ function Linha({ it, edita, onCampo, onEtapa, onAbrir }: {
         {it.area_hrm ? <span className="hr-pill" style={{ background: (AREAS_HRM.find(a => a.codigo === it.area_hrm)?.cor || C.cinza) + '1f', color: AREAS_HRM.find(a => a.codigo === it.area_hrm)?.cor || C.cinza, marginTop: 2 }}>{nomeAreaHrm(it.area_hrm, it.area_hrm_outro)}</span> : null}
         {it.pedido_id ? <a className="hr-sub" href={`/pedidos/${it.pedido_id}`} style={{ color: C.azul2 }}>ver pedido no sistema</a> : null}
       </td>
+      <td style={{ textAlign: 'center' }}>{it.croqui_codigo ? <CroquiMini codigo={it.material} versao={it.croqui_versao} tamanho={48} titulo={it.descricao} /> : <span className="hr-sub">—</span>}</td>
       <td><Entrada it={it} campo="po_item" edita={edita} onCampo={onCampo} largura={150} mono /></td>
       <td style={{ minWidth: 220, maxWidth: 300 }}><div className="hr-mono">{it.material || '—'}</div><div className="hr-desc">{it.descricao || ''}</div></td>
       <td><Entrada it={it} campo="destino" edita={edita} onCampo={onCampo} largura={110} /></td>
@@ -286,6 +289,7 @@ function Detalhe({ it, edita, onFechar, onCampo, onEtapa, onItem }: {
     <Modal largura={980} onFechar={onFechar} titulo={<>{it.op_hrm ? `OP ${it.op_hrm}` : `Pedido ${it.pedido_omie || '—'}`}{it.item ? ` · item ${it.item}` : ''} <span style={{ color: C.cinza, fontWeight: 600, fontSize: 13 }}>{it.material} — {it.descricao}</span></>}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
+          {it.material && <CroquiBox it={it} edita={edita} onItem={onItem} />}
           <div className="hr-box">
             <div className="hr-tit">Situação</div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -363,6 +367,48 @@ function Detalhe({ it, edita, onFechar, onCampo, onEtapa, onItem }: {
   );
 }
 
+// Croqui do material no detalhe: ver grande + anexar/trocar/remover (quem edita).
+function CroquiBox({ it, edita, onItem }: { it: ItemHrm; edita: boolean; onItem: (it: ItemHrm) => void }) {
+  const [enviando, setEnviando] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [versao, setVersao] = useState(it.croqui_versao || null);
+  const [tem, setTem] = useState(!!it.croqui_codigo);
+  async function enviar(arq: File) {
+    setEnviando(true); setMsg('');
+    try {
+      const fd = new FormData();
+      fd.append('codigo', it.material || ''); fd.append('arquivo', arq);
+      await api.post('/api/croqui', fd);
+      const v = String(Date.now());
+      invalidarListaCroquis(); setVersao(v); setTem(true); onItem({ ...it, croqui_codigo: it.material, croqui_versao: v });
+      setMsg('Croqui salvo — vale pra todos os itens com este código.');
+    } catch (e) { setMsg(erroDe(e, 'Não salvou o croqui.')); } finally { setEnviando(false); }
+  }
+  async function remover() {
+    setEnviando(true); setMsg('');
+    try {
+      await fetch(`/api/croqui/${encodeURIComponent(it.material || '')}`, { method: 'DELETE', headers: { Authorization: `Bearer ${getToken() || ''}` } });
+      invalidarListaCroquis(); setTem(false); onItem({ ...it, croqui_codigo: null, croqui_versao: null }); setMsg('Croqui removido.');
+    } catch { setMsg('Não removeu.'); } finally { setEnviando(false); }
+  }
+  return (
+    <div className="hr-box">
+      <div className="hr-tit">Croqui do produto <span className="hr-sub" style={{ display: 'inline' }}>· código {it.material}</span></div>
+      {tem ? <CroquiMini key={versao || 'x'} codigo={it.material} versao={versao} tamanho={160} titulo={it.descricao} /> : <span className="hr-sub">Sem croqui para este código.</span>}
+      {edita && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <label className="cp-btn" style={{ cursor: enviando ? 'default' : 'pointer' }}>
+            <i className="bi bi-image" />{enviando ? 'Enviando…' : tem ? 'Trocar croqui' : 'Anexar croqui'}
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden disabled={enviando} onChange={e => { const a = e.target.files?.[0]; if (a) enviar(a); e.target.value = ''; }} />
+          </label>
+          {tem && <button className="cp-btn" style={{ color: C.vermelho }} disabled={enviando} onClick={remover}><i className="bi bi-trash" />Remover</button>}
+        </div>
+      )}
+      {msg && <span className="hr-sub" style={{ color: C.texto }}>{msg}</span>}
+    </div>
+  );
+}
+
 // ── Manual rápido (botão "Como usar"). Mesmo texto entregue ao usuário em 30/09.
 const MANUAL: { t: string; passos: string[] }[] = [
   { t: '1. Trazer a planilha pro sistema (primeira vez e sempre que quiser atualizar)', passos: [
@@ -392,6 +438,7 @@ const MANUAL: { t: string; passos: string[] }[] = [
   ] },
   { t: '6. Ver tudo de um item', passos: [
     'Clique no nº da OP: todos os campos, etapas, histórico e a "Linha original da planilha" com todas as colunas.',
+    'Croqui (desenho do produto): a miniatura aparece na coluna "Croqui" — clique pra ver grande. Os desenhos da planilha sobem sozinhos no "Subir planilha"; no detalhe dá pra anexar, trocar ou remover. Vale pra todos os itens do mesmo código, e aparece também na tela do pedido e na Conferência.',
     '"ver pedido no sistema" abre a OP já lançada (quando existe).',
   ] },
   { t: '7. Apagar a planilha (recomeçar do zero)', passos: [

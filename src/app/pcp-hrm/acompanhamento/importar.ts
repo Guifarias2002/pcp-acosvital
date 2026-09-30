@@ -3,10 +3,12 @@
 // (hrmAcomp.campoDaColuna); a linha inteira vai junto em `raw` pra nada se perder.
 // xlsx carregado só na hora de ler (import dinâmico) — não pesa a abertura da tela.
 import { campoDaColuna, chaveBase, etapaMarcada, normCab, txtHrm } from '@/lib/hrmAcomp';
+import { normalizarCodigoCroqui, TIPOS_CROQUI, MAX_CROQUI } from '@/lib/croqui';
 
 export interface LinhaPlanilha { chave: string; ordem: number; campos: Record<string, unknown>; etapas: string[]; raw: Record<string, unknown> }
 export interface ExtraPlanilha { tipo: 'reprogramacao' | 'reuniao'; po: string; item: string; texto: string; material?: string | null; descricao?: string | null }
-export interface LeituraPlanilha { linhas: LinhaPlanilha[]; extras: ExtraPlanilha[]; aba: string; avisos: string[] }
+export interface CroquiPlanilha { codigo: string; codigo_norm: string; mime: string; bytes: Uint8Array; hash: string }
+export interface LeituraPlanilha { linhas: LinhaPlanilha[]; extras: ExtraPlanilha[]; aba: string; avisos: string[]; croquis: CroquiPlanilha[] }
 
 // Data do Excel → 'AAAA-MM-DD'. +12h: o SheetJS às vezes devolve meia-noite
 // local ou UTC — somar meio dia deixa sempre no dia certo.
@@ -29,7 +31,8 @@ function paraRaw(v: unknown): unknown {
 
 export async function lerPlanilhaHrm(arquivo: File): Promise<LeituraPlanilha> {
   const XLSX = await import('xlsx');
-  const wb = XLSX.read(await arquivo.arrayBuffer(), { cellDates: true });
+  const u8 = new Uint8Array(await arquivo.arrayBuffer());
+  const wb = XLSX.read(u8, { cellDates: true, type: 'array' });
   const avisos: string[] = [];
 
   // Aba principal: a que tem a coluna "OP HRM" no cabeçalho.
@@ -108,5 +111,93 @@ export async function lerPlanilhaHrm(arquivo: File): Promise<LeituraPlanilha> {
     }
   }
 
-  return { linhas, extras, aba: abaPrincipal, avisos };
+  let croquis: CroquiPlanilha[] = [];
+  try {
+    const rangeIni = XLSX.utils.decode_range(wb.Sheets[abaPrincipal]['!ref'] || 'A1').s.r;
+    croquis = await lerCroquis(XLSX, u8, abaPrincipal, rangeIni, linhas);
+  } catch (e) {
+    console.warn('[planilha] croquis não lidos', e);
+    avisos.push('Não consegui ler os desenhos (croquis) da planilha — os dados entram normalmente.');
+  }
+
+  return { linhas, extras, aba: abaPrincipal, avisos, croquis };
+}
+
+// ── Croquis: imagens ancoradas nas células da aba principal. O .xlsx é um ZIP;
+// segue workbook → aba → drawing → media e liga cada imagem à LINHA onde está
+// ancorada → código do material daquela linha (1 croqui por código).
+type XlsxMod = typeof import('xlsx');
+async function lerCroquis(XLSX: XlsxMod, u8: Uint8Array, aba: string, rangeIni: number, linhas: LinhaPlanilha[]): Promise<CroquiPlanilha[]> {
+  const z = XLSX.CFB.read(u8, { type: 'array' });
+  const dec = new TextDecoder();
+  const arq = (caminho: string): Uint8Array | null => {
+    const alvo = '/' + caminho.replace(/^\/+/, '');
+    const i = z.FullPaths.findIndex((p: string) => p.endsWith(alvo));
+    const c = i >= 0 ? z.FileIndex[i]?.content : null;
+    return c ? (c instanceof Uint8Array ? c : Uint8Array.from(c as ArrayLike<number>)) : null;
+  };
+  const txt = (caminho: string) => { const b = arq(caminho); return b ? dec.decode(b) : ''; };
+  const rels = (caminho: string) => {
+    const m = new Map<string, string>();
+    for (const r of Array.from(txt(caminho).matchAll(/<Relationship\s[^>]*>/g))) {
+      const id = r[0].match(/Id="([^"]+)"/)?.[1]; const t = r[0].match(/Target="([^"]+)"/)?.[1];
+      if (id && t) m.set(id, t);
+    }
+    return m;
+  };
+  const resolver = (base: string, alvo: string) => {
+    if (alvo.startsWith('/')) return alvo.slice(1);
+    const partes = base.split('/').slice(0, -1);
+    for (const p of alvo.split('/')) { if (p === '..') partes.pop(); else if (p !== '.') partes.push(p); }
+    return partes.join('/');
+  };
+  // <sheet name="Sheet1" sheetId="1" r:id="rId1"/> — acha a tag da aba pelo nome
+  // (XML escapa &, <, >, " no nome).
+  const nomeXml = aba.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const tagAba = Array.from(txt('xl/workbook.xml').matchAll(/<sheet\s[^>]*>/g)).map(m => m[0])
+    .find(t => t.includes(`name="${nomeXml}"`));
+  const rid = tagAba?.match(/r:id="([^"]+)"/)?.[1];
+  if (!rid) return [];
+  const planilhaXml = resolver('xl/workbook.xml', rels('xl/_rels/workbook.xml.rels').get(rid) || '');
+  const relsAba = rels(planilhaXml.replace(/([^/]+)$/, '_rels/$1.rels'));
+  const idDrawing = txt(planilhaXml).match(/<drawing\s[^>]*r:id="([^"]+)"/)?.[1];
+  if (!idDrawing || !relsAba.get(idDrawing)) return [];
+  const drawingXml = resolver(planilhaXml, relsAba.get(idDrawing)!);
+  const relsDraw = rels(drawingXml.replace(/([^/]+)$/, '_rels/$1.rels'));
+  const porOrdem = new Map(linhas.map(l => [l.ordem, l]));
+  // 1º passo: quantas vezes cada imagem aparece nas linhas de cada material.
+  // Quando uma linha tem 2 imagens (uma "vazou" da vizinha), vale a que mais se
+  // repete nas linhas daquele material.
+  const votos = new Map<string, { codigo: string; porMidia: Map<string, number> }>();
+  const anchor = /<(?:\w+:)?(?:twoCellAnchor|oneCellAnchor)[\s>][\s\S]*?<\/(?:\w+:)?(?:twoCellAnchor|oneCellAnchor)>/g;
+  for (const a of Array.from(txt(drawingXml).matchAll(anchor))) {
+    const linhaExcel = Number(a[0].match(/<(?:\w+:)?from>[\s\S]*?<(?:\w+:)?row>(\d+)</)?.[1]);
+    const emb = a[0].match(/r:embed="([^"]+)"/)?.[1];
+    if (!Number.isFinite(linhaExcel) || !emb || !relsDraw.get(emb)) continue;
+    const material = txtHrm(porOrdem.get(linhaExcel - rangeIni + 1)?.campos.material);
+    const norm = normalizarCodigoCroqui(material);
+    if (!material || !norm) continue;
+    const midia = resolver(drawingXml, relsDraw.get(emb)!);
+    const v = votos.get(norm) || { codigo: material, porMidia: new Map<string, number>() };
+    v.porMidia.set(midia, (v.porMidia.get(midia) || 0) + 1);
+    votos.set(norm, v);
+  }
+  const out = new Map<string, CroquiPlanilha>();
+  const hashes = new Map<string, string>();
+  for (const [norm, v] of Array.from(votos.entries())) {
+    const midia = Array.from(v.porMidia.entries()).sort((x, y) => y[1] - x[1])[0][0];
+    const ext = (midia.split('.').pop() || '').toLowerCase();
+    const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`;
+    if (!TIPOS_CROQUI.includes(mime)) continue;
+    const bytes = arq(midia);
+    if (!bytes || bytes.length > MAX_CROQUI) continue;
+    let hash = hashes.get(midia);
+    if (!hash) {
+      const d = await crypto.subtle.digest('SHA-1', bytes as BufferSource);
+      hash = Array.from(new Uint8Array(d)).map(b => b.toString(16).padStart(2, '0')).join('');
+      hashes.set(midia, hash);
+    }
+    out.set(norm, { codigo: v.codigo, codigo_norm: norm, mime, bytes, hash });
+  }
+  return Array.from(out.values());
 }

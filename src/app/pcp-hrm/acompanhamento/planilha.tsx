@@ -5,7 +5,8 @@
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { C, CSS, Modal, erroDe } from '../../cald-plano/comum';
-import { lerPlanilhaHrm, type LeituraPlanilha } from './importar';
+import { lerPlanilhaHrm, type LeituraPlanilha, type CroquiPlanilha } from './importar';
+import { invalidarListaCroquis } from '@/components/CroquiMini';
 
 // ── Subir planilha: lê no navegador → prévia (nada gravado) → confirma.
 interface Previa {
@@ -19,13 +20,22 @@ export function SubirPlanilha({ onFechar, onGravado }: { onFechar: () => void; o
   const [erro, setErro] = useState('');
   const [gravando, setGravando] = useState(false);
   const [nomeArq, setNomeArq] = useState('');
+  // Croquis da planilha que ainda NÃO estão no sistema (ou mudaram) — sobem
+  // depois de gravar os dados, um por um (cada um é um arquivo pequeno).
+  const [croquisPend, setCroquisPend] = useState<CroquiPlanilha[]>([]);
+  const [progresso, setProgresso] = useState('');
 
   async function escolher(arq: File) {
-    setErro(''); setPrevia(null); setLeitura(null); setLendo(true); setNomeArq(arq.name);
+    setErro(''); setPrevia(null); setLeitura(null); setLendo(true); setNomeArq(arq.name); setCroquisPend([]);
     try {
       const l = await lerPlanilhaHrm(arq);
       setLeitura(l);
-      const r = await api.post('/api/hrm-acomp/importar', { modo: 'previa', linhas: l.linhas, extras: l.extras });
+      const [r, rc] = await Promise.all([
+        api.post('/api/hrm-acomp/importar', { modo: 'previa', linhas: l.linhas, extras: l.extras }, { timeout: 90000 }),
+        api.get('/api/croqui').catch(() => ({ data: { croquis: [] } })),
+      ]);
+      const existentes = new Map<string, string | null>((rc.data.croquis || []).map((c: { codigo_norm: string; hash: string | null }) => [c.codigo_norm, c.hash]));
+      setCroquisPend(l.croquis.filter(c => existentes.get(c.codigo_norm) !== c.hash));
       setPrevia(r.data);
     } catch (e) { setErro(e instanceof Error && !(e as { response?: unknown }).response ? e.message : erroDe(e, 'Não consegui ler a planilha.')); }
     finally { setLendo(false); }
@@ -34,17 +44,33 @@ export function SubirPlanilha({ onFechar, onGravado }: { onFechar: () => void; o
     if (!leitura) return;
     setGravando(true); setErro('');
     try {
-      const r = await api.post('/api/hrm-acomp/importar', { modo: 'gravar', linhas: leitura.linhas, extras: leitura.extras });
+      const r = await api.post('/api/hrm-acomp/importar', { modo: 'gravar', linhas: leitura.linhas, extras: leitura.extras }, { timeout: 90000 });
       const d = r.data as Previa;
-      onGravado(`Planilha gravada: ${d.novos.length} novos, ${d.total_alterados} atualizados, ${d.iguais} sem mudança.`);
-    } catch (e) { setErro(erroDe(e, 'Não gravou — nada foi alterado. Tente de novo.')); setGravando(false); }
+      // Depois dos dados, os desenhos. Falha num croqui não desfaz a planilha.
+      let ok = 0; const falhas: string[] = [];
+      for (let i = 0; i < croquisPend.length; i++) {
+        const c = croquisPend[i];
+        setProgresso(`Enviando desenhos… ${i + 1} de ${croquisPend.length}`);
+        try {
+          const fd = new FormData();
+          fd.append('codigo', c.codigo); fd.append('hash', c.hash); fd.append('origem', 'planilha');
+          fd.append('arquivo', new Blob([c.bytes as BlobPart], { type: c.mime }), `${c.codigo_norm}.${c.mime.split('/')[1]}`);
+          await api.post('/api/croqui', fd);
+          ok++;
+        } catch (e) { falhas.push(`${c.codigo} (${erroDe(e, 'erro')})`); }
+      }
+      setProgresso('');
+      if (ok) invalidarListaCroquis();
+      const txtCroqui = croquisPend.length ? ` Desenhos: ${ok} enviados${falhas.length ? `, ${falhas.length} falharam (suba a planilha de novo pra tentar)` : ''}.` : '';
+      onGravado(`Planilha gravada: ${d.novos.length + (d.itens_so_extras?.length || 0)} novos, ${d.total_alterados} atualizados, ${d.iguais} sem mudança.${txtCroqui}`);
+    } catch (e) { setErro(erroDe(e, 'Não gravou — nada foi alterado. Tente de novo.')); setGravando(false); setProgresso(''); }
   }
-  const nada = previa && !previa.novos.length && !previa.total_alterados && !previa.extras_novos && !previa.itens_so_extras?.length;
+  const nada = previa && !previa.novos.length && !previa.total_alterados && !previa.extras_novos && !previa.itens_so_extras?.length && !croquisPend.length;
   return (
     <Modal largura={860} onFechar={onFechar} titulo="Subir planilha de acompanhamento"
       rodape={<>
         <button className="cp-btn" onClick={onFechar}>Cancelar</button>
-        {previa && !nada && <button className="cp-btn ok" disabled={gravando} onClick={gravar}>{gravando ? 'Gravando…' : 'Confirmar e gravar'}</button>}
+        {previa && !nada && <button className="cp-btn ok" disabled={gravando} onClick={gravar}>{gravando ? (progresso || 'Gravando…') : 'Confirmar e gravar'}</button>}
       </>}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13.5 }}>
         <p style={{ margin: 0, color: C.cinza }}>
@@ -66,6 +92,7 @@ export function SubirPlanilha({ onFechar, onGravado }: { onFechar: () => void; o
               <span style={{ color: C.azul2 }}><b>{previa.total_alterados}</b> com mudança</span>
               <span><b>{previa.iguais}</b> sem mudança</span>
               <span style={{ color: C.roxo }}><b>{previa.extras_novos}</b> registros de reprogramação/reunião</span>
+              {leitura && <span style={{ color: '#0f766e' }}><b>{croquisPend.length}</b> desenhos a enviar{leitura.croquis.length !== croquisPend.length ? ` (de ${leitura.croquis.length} na planilha — os outros já estão iguais)` : ''}</span>}
             </div>
             {nada && <div className="hr-aviso">A planilha está igual ao sistema — não há nada para gravar.</div>}
             {previa.alterados.length > 0 && (

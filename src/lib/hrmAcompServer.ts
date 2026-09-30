@@ -3,6 +3,7 @@ import postgres from 'postgres';
 import sql from './db';
 import type { ItemHrm, HistHrm } from './hrmAcomp';
 import { runMigrations } from './migrations';
+import { SQL_CODIGO_CROQUI } from './croqui';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Sql = postgres.Sql<any> | postgres.TransactionSql<any>;
@@ -38,9 +39,11 @@ async function consultarItensHrm(db: Sql, ids?: number[]): Promise<ItemHrm[]> {
            a.situacao, a.situacao_detalhe, a.expedite, a.ocorrencia, a.obs,
            a.prioridade, a.prioridade_skid, a.seq_cliente, a.seq_oss, a.tinta, a.tinta_qtd, a.tinta_estoque,
            a.etapas, a.planilha_raw, a.ordem_planilha, a.atualizado_em, a.atualizado_por_nome,
-           COALESCE(a.pedido_id, ops.id) AS pedido_id, ops.area_hrm, ops.area_hrm_outro
+           COALESCE(a.pedido_id, ops.id) AS pedido_id, ops.area_hrm, ops.area_hrm_outro,
+           c.codigo_norm AS croqui_codigo, extract(epoch from c.atualizado_em)::bigint::text AS croqui_versao
       FROM producao_hrm_acomp a
       LEFT JOIN ops ON ops.d = a.op_hrm
+      LEFT JOIN producao_croqui c ON c.codigo_norm = ${db.unsafe(SQL_CODIGO_CROQUI('a.material'))}
      WHERE (${filtroIds}::int[] IS NULL OR a.id = ANY(${filtroIds}::int[]))
      ORDER BY a.ordem_planilha NULLS LAST, a.id
   `;

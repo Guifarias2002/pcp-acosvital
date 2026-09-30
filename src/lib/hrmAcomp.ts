@@ -108,6 +108,8 @@ export interface ItemHrm {
   pedido_id: number | null;
   area_hrm?: string | null;       // da OP ligada (Anexar OP / Conferência)
   area_hrm_outro?: string | null;
+  croqui_codigo?: string | null;  // tem croqui (producao_croqui) pro material
+  croqui_versao?: string | null;
   ordem_planilha: number | null;
   atualizado_em: string;
   atualizado_por_nome: string | null;
