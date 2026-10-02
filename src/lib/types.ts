@@ -289,9 +289,20 @@ export const FABRICAS: { cod: string; nome: string; icon: string; setores: strin
 // roteiro (Inspeção CQ='qualidade', Solda, Jateamento, Montagem de Conjuntos,
 // Compras, Coleta/Entrega='logistica') NÃO entram aqui de propósito: têm tela
 // própria e não devem misturar itens do Flange no menu/kanban da Caldeiraria.
-export const SETORES_CALDEIRARIA_MENU = ['caldeiraria', ...SETORES_CALDEIRARIA_PROCESSO_NOVOS, 'usinagem_final'];
+// 02/10: o menu passa a seguir o ROTEIRO (PROCESSO_CALDEIRARIA, na ordem dele).
+// Antes era só os 'cald_*' — Solda, Jateamento, Corte de Perfis e Montagem de
+// Conjuntos entram no roteiro, são exclusivos da Caldeiraria (somem do Flanges)
+// e ficavam SEM menu em lugar nenhum: a peça parada neles sumia pra todo mundo.
+// Só 'logistica' fica de fora (tela própria, compartilhada com o Flange).
+const SETORES_CALDEIRARIA_ROTEIRO_MENU = PROCESSO_CALDEIRARIA
+  .filter((s, i) => PROCESSO_CALDEIRARIA.indexOf(s) === i)
+  .filter(s => s !== 'caldeiraria' && s !== 'logistica');
 
-export const SETORES_CALDEIRARIA_KANBAN = ['caldeiraria', ...SETORES_CALDEIRARIA_PROCESSO_NOVOS, 'usinagem_final'];
+export const SETORES_CALDEIRARIA_MENU = ['caldeiraria', ...SETORES_CALDEIRARIA_ROTEIRO_MENU, 'usinagem_final'];
+
+// Kanban/TV: sem 'qualidade' — é compartilhada com o Flange e a coluna juntaria
+// itens das duas fábricas (continua no quadro do Flange, como antes).
+export const SETORES_CALDEIRARIA_KANBAN = ['caldeiraria', ...SETORES_CALDEIRARIA_ROTEIRO_MENU.filter(s => s !== 'qualidade'), 'usinagem_final'];
 
 // Setores de CORTE — depois de cortada, a peça é direcionada pela mão do
 // operador do corte pra linha do Flange (segue o próximo do roteiro) ou pra

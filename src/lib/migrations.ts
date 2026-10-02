@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 67;
+const SCHEMA_VERSION = 68;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -1235,4 +1235,22 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
       )
     `);
   }).catch(e => console.error('[migrations] M65 (croqui) falhou:', e));
+  // M68 (02/10): ALAN (login 'alan', Conferência HRM) vira ADMINISTRADOR —
+  // edita/anexa em qualquer setor. Liga perfil E is_staff (várias rotas checam
+  // is_staff direto). Roda 1x (marca 'm68_alan_admin'): se tirarem depois pela
+  // tela de Usuários, não re-liga. Precisa re-logar.
+  await sql.savepoint(async (sp) => {
+    const [marca] = await sp`
+      INSERT INTO producao_config (chave, valor, atualizado_em)
+      VALUES ('m68_alan_admin', 'ok', NOW())
+      ON CONFLICT (chave) DO NOTHING
+      RETURNING chave
+    `;
+    if (!marca) return;
+    await sp`
+      UPDATE usuarios_usuario
+      SET perfil = 'administrador', is_staff = true
+      WHERE username = 'alan'
+    `;
+  }).catch(e => console.error('[migrations] M68 (alan admin) falhou:', e));
 }

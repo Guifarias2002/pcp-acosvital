@@ -50,7 +50,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
     campos.setor = principal;
   }
-  if (typeof body.perfil === 'string') campos.perfil = body.perfil || null;
+  if (typeof body.perfil === 'string') {
+    campos.perfil = body.perfil || null;
+    // Igual à criação (POST): ao TROCAR o perfil, is_staff acompanha. Sem isso,
+    // trocar pra administrador pela tela deixava "meio ADM" (telas liberadas,
+    // mas as rotas que checam is_staff recusavam). Só quando muda de fato — a
+    // tela manda o perfil em toda edição e não pode mexer no staff de quem já é.
+    const [atual] = await sql`SELECT perfil FROM usuarios_usuario WHERE id = ${targetId}`;
+    if (atual && (atual.perfil || null) !== campos.perfil) {
+      campos.is_staff = body.perfil === 'administrador' || body.perfil === 'pcp';
+    }
+  }
   if (typeof body.is_active === 'boolean') campos.is_active = body.is_active;
   if (typeof body.is_staff === 'boolean') campos.is_staff = body.is_staff;
   if (typeof body.somente_leitura === 'boolean') campos.somente_leitura = body.somente_leitura;
