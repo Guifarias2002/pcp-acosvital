@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getItem, itemAcao, parcialAcao, inativarItem } from '@/lib/api';
-import { ItemPedido, SETOR_CHOICES, STATUS_LABELS, PRIORIDADE_COR, NOMES } from '@/lib/types';
+import { ItemPedido, SETOR_CHOICES, STATUS_LABELS, PRIORIDADE_COR, NOMES, posNoRoteiro } from '@/lib/types';
 import { getUser, getToken, podeEditar, podeVerCliente, podeDefinirPrevisao, podeVerValores } from '@/lib/auth';
 import { fmtData, fmtQtd } from '@/lib/format';
 import Link from 'next/link';
@@ -239,7 +239,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
 
   const roteiro = item.roteiro_efetivo || [];
   const entregue = item.status === 'entregue';
-  const idxAtual = entregue ? roteiro.length : roteiro.indexOf(item.setor_atual);
+  const idxAtual = entregue ? roteiro.length : posNoRoteiro(roteiro, item.setor_atual, item.roteiro_pos);
 
   // Quantities per sector via parciais (fallback to lotes)
   const qtdAtivaPorSetor: Record<string, number> = {};
@@ -272,7 +272,7 @@ export default function ItemDetalhePage({ params }: { params: { id: string } }) 
   const circulos: RoteiroCirculo[] = roteiro.map((setor, i) => ({
     setor,
     done: entregue || i < idxAtual,
-    current: !entregue && setor === item.setor_atual,
+    current: !entregue && i === idxAtual,
   }));
 
   return (

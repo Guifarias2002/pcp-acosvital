@@ -56,6 +56,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     item_pedido_id: parcial.item_pedido_id,
     pedido_id: parcial.pedido_id,
     parcial_origem_id: parcial.parcial_origem_id ?? null,
+    roteiro_pos: parcial.roteiro_pos ?? null,
     quantidade: parcial.quantidade_str,
     unidade: parcial.unidade,
     setor_atual: parcial.setor_atual,

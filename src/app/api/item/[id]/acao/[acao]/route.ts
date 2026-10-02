@@ -3,7 +3,7 @@ import sql from '@/lib/db';
 import { autenticar, logAcesso } from '@/lib/middleware';
 import { podeAcessarSetor, podeRedirecionarCorteLivre, podeConferirHrm } from '@/lib/auth';
 import { nomeSector } from '@/lib/queries';
-import { SETOR_CHOICES, injetarQuarentena, SETORES_CORTE, DESTINOS_PERMITIDOS_CORTE } from '@/lib/types';
+import { SETOR_CHOICES, injetarQuarentena, SETORES_CORTE, DESTINOS_PERMITIDOS_CORTE, posNoRoteiro } from '@/lib/types';
 import { checkMutationRateLimit, getClientIp } from '@/lib/rateLimit';
 import { comIdempotencia, chaveIdempotencia } from '@/lib/idempotencia';
 import { temMaquinas } from '@/lib/maquinas';
@@ -229,7 +229,8 @@ async function handlePOST(
     : item.roteiro_base as string[];
   // Toda peça passa pela Quarentena antes da Logística.
   const roteiro = injetarQuarentena(roteiroBase);
-  const idx = roteiro.indexOf(item.setor_atual);
+  // Posição real (etapa repetida na Caldeiraria — ver posNoRoteiro).
+  const idx = posNoRoteiro(roteiro, item.setor_atual, item.roteiro_pos);
   const proximoSetorRoteiro = (idx >= 0 && idx < roteiro.length - 1) ? roteiro[idx + 1] : null;
   // O operador pode escolher manualmente qualquer setor de destino válido,
   // mesmo fora do roteiro padrão — mesma regra já usada em devolver/retrabalho
@@ -676,7 +677,7 @@ async function handlePOST(
     const qtdTotal = Number(item.quantidade_pendente);
     if (qtdReceber && qtdReceber > 0 && qtdReceber < qtdTotal) {
       const qtdRestante = qtdTotal - qtdReceber;
-      const idxAtual = roteiro.indexOf(item.setor_atual);
+      const idxAtual = posNoRoteiro(roteiro, item.setor_atual, item.roteiro_pos);
       const setorAnterior = idxAtual > 0 ? roteiro[idxAtual - 1] : item.setor_atual;
       await sql.begin(async (tx) => {
         // Trava por item — se a internet cair e o operador clicar de novo (ou o

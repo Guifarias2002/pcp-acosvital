@@ -223,7 +223,14 @@ export default function NovoPedidoPage() {
   function toggleSetor(cod: string) {
     if (cod === 'emissao') return;
     const rot = grupoAtivo.roteiro;
+    // Caldeiraria (02/10): etapa pode REPETIR (ex.: Solda 2x) — clicar num setor
+    // já escolhido acrescenta de novo no fim; tira-se pelo ✕ no "Fluxo". Flange igual.
+    if (fabricaAtiva === 'caldeiraria' && rot.includes(cod)) { setGrupo(fabricaAtiva, { roteiro: [...rot, cod] }); return; }
     setGrupo(fabricaAtiva, { roteiro: rot.includes(cod) ? rot.filter(s => s !== cod) : [...rot, cod] });
+  }
+  function removerEtapa(i: number) {
+    if (grupoAtivo.roteiro[i] === 'emissao') return;
+    setGrupo(fabricaAtiva, { roteiro: grupoAtivo.roteiro.filter((_, k) => k !== i) });
   }
 
   function addItem() { setGrupo(fabricaAtiva, { itens: [...grupoAtivo.itens, novoItem()] }); }
@@ -749,7 +756,7 @@ export default function NovoPedidoPage() {
                   Os setores desta fábrica ainda serão cadastrados.
                 </div>
               ) : (() => {
-                const selecionados = grupoAtivo.roteiro
+                const selecionados = Array.from(new Set(grupoAtivo.roteiro))
                   .filter(c => setoresRoteiro.some(([cod]) => cod === c))
                   .map(c => setoresRoteiro.find(([cod]) => cod === c)!);
                 const naoSelecionados = setoresRoteiro.filter(([c]) => !grupoAtivo.roteiro.includes(c));
@@ -772,7 +779,7 @@ export default function NovoPedidoPage() {
                               display:'flex', alignItems:'center', justifyContent:'center',
                               fontSize:11, fontWeight:800, zIndex:1,
                             }}>
-                              {pos + 1}
+                              {grupoAtivo.roteiro.map((x, k) => x === cod ? k + 1 : 0).filter(Boolean).join('·')}
                             </span>
                           )}
                           <button type="button" onClick={() => toggleSetor(cod)}
@@ -807,8 +814,11 @@ export default function NovoPedidoPage() {
                     {grupoAtivo.roteiro.map((s, i) => {
                       const nome = NOMES[s] || s;
                       return (
-                        <span key={s} style={{ display:'flex', alignItems:'center' }}>
-                          <span style={{ background:'#1a3a5c', color:'#fff', borderRadius:4, padding:'2px 7px', fontSize:11, whiteSpace:'nowrap' }}>{nome}</span>
+                        <span key={`${s}-${i}`} style={{ display:'flex', alignItems:'center' }}>
+                          <span style={{ background:'#1a3a5c', color:'#fff', borderRadius:4, padding:'2px 7px', fontSize:11, whiteSpace:'nowrap' }}>{nome}{fabricaAtiva === 'caldeiraria' && s !== 'emissao' && (
+                            <button type="button" onClick={() => removerEtapa(i)} title="Tirar esta etapa"
+                              style={{ border: 'none', background: 'none', color: '#fca5a5', cursor: 'pointer', padding: '0 0 0 5px', fontSize: 10 }}><i className="bi bi-x-lg" /></button>
+                          )}</span>
                           {i < grupoAtivo.roteiro.length - 1 && <span style={{ margin:'0 4px', color:'#aaa', flexShrink:0 }}>→</span>}
                         </span>
                       );

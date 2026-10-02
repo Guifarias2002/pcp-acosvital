@@ -23,7 +23,7 @@ export default function ProgressoRoteiro({ circulos, isAdmin, setorAtualNome, st
         <div className="overflow-x-auto -mx-1 px-1">
           <div className="flex items-center gap-0" style={{ minWidth: 'max-content' }}>
             {circulos.map((r, i) => (
-              <div key={r.setor} className="flex items-center">
+              <div key={`${r.setor}-${i}`} className="flex items-center">
                 <div className="flex flex-col items-center">
                   <Link href={`/setor/${r.setor}`} className="no-underline">
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-colors ${

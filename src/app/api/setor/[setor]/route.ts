@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { autenticar } from '@/lib/middleware';
 import { formatItem, nomeSector } from '@/lib/queries';
-import { SETOR_CHOICES, injetarQuarentena, SETORES_CORTE } from '@/lib/types';
+import { SETOR_CHOICES, injetarQuarentena, SETORES_CORTE, posNoRoteiro } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 // Timeout estendido (várias consultas em paralelo). Migrado do vercel.json
@@ -120,6 +120,8 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         pa.id, pa.quantidade::text AS quantidade, pa.status, pa.observacao,
         pa.maquina, pa.operador, pa.motivo_pausa,
         pa.parcial_origem_id, pa.criado_em, pa.atualizado_em,
+        -- posição no roteiro (etapa repetida, M69) — via jsonb: tolera a coluna ainda não existir
+        (to_jsonb(pa) ->> 'roteiro_pos')::int AS roteiro_pos,
         pa.retrabalho, pa.motivo_retrabalho, pa.devolvido_de,
         -- contexto da parcial-pai: detecta retorno de retrabalho
         origem.retrabalho AS origem_retrabalho,
@@ -228,6 +230,8 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       SELECT
         pa.id, pa.quantidade::text AS quantidade, pa.status, pa.observacao,
         pa.parcial_origem_id, pa.criado_em, pa.atualizado_em,
+        -- posição no roteiro (etapa repetida, M69) — via jsonb: tolera a coluna ainda não existir
+        (to_jsonb(pa) ->> 'roteiro_pos')::int AS roteiro_pos,
         pa.retrabalho, pa.motivo_retrabalho, pa.devolvido_de,
         i.id AS item_pedido_id, i.codigo AS item_codigo, i.unidade, i.descricao AS item_descricao,
         i.quantidade::text AS quantidade_total_item, i.roteiro_proprio, i.status AS item_status, i.item_pai_id, i.tipo_produto, i.fabrica,
@@ -255,6 +259,8 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
         pa.id, pa.quantidade::text AS quantidade, pa.status, pa.observacao,
         pa.maquina, pa.operador, pa.motivo_pausa,
         pa.parcial_origem_id, pa.criado_em, pa.atualizado_em,
+        -- posição no roteiro (etapa repetida, M69) — via jsonb: tolera a coluna ainda não existir
+        (to_jsonb(pa) ->> 'roteiro_pos')::int AS roteiro_pos,
         pa.retrabalho, pa.motivo_retrabalho, pa.devolvido_de,
         i.id AS item_pedido_id, i.codigo AS item_codigo, i.unidade, i.descricao AS item_descricao,
         i.quantidade::text AS quantidade_total_item, i.roteiro_proprio, i.status AS item_status, i.item_pai_id, i.tipo_produto, i.fabrica,
@@ -370,7 +376,8 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       : ((p.roteiro_base as string[]) || []);
     // Toda peça passa pela Quarentena antes da Logística.
     const roteiro = injetarQuarentena(roteiroBase);
-    const idx = roteiro.indexOf(setorEfetivo);
+    // Posição da PARCIAL (etapa repetida na Caldeiraria); posNoRoteiro só usa se apontar pra este setor.
+    const idx = posNoRoteiro(roteiro, setorEfetivo, p.roteiro_pos as number | null);
     let proximo_setor = (idx !== -1 && idx < roteiro.length - 1) ? roteiro[idx + 1] : null;
     // Recebimento (HRM): o roteiro salvo ainda vai do corte direto pra
     // usinagem/furação (a Conferência/Recebimento são travessia, não estão no
@@ -447,6 +454,7 @@ export async function GET(req: Request, { params }: { params: { setor: string } 
       // Roteiro efetivo da parcial (com quarentena) — o menu de destino usa pra
       // destacar/ordenar os setores do roteiro ("seguir o roteiro" ao enviar).
       roteiro_efetivo: roteiro,
+      roteiro_pos: idx >= 0 ? idx : null,
       criado_em: p.criado_em,
       atualizado_em: p.atualizado_em,
       retrabalho: p.retrabalho ?? false,

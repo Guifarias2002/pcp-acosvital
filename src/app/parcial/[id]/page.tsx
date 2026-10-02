@@ -6,7 +6,7 @@ import Link from 'next/link';
 import AuthGuard from '@/components/AuthGuard';
 import { getParcial, getItem, parcialAcao } from '@/lib/api';
 import { getUser, podeVerCliente } from '@/lib/auth';
-import { SETOR_CHOICES, STATUS_LABELS, NOMES, PARCIAL_STATUS_LABELS, PARCIAL_STATUS_COR, ItemPedido } from '@/lib/types';
+import { SETOR_CHOICES, STATUS_LABELS, NOMES, PARCIAL_STATUS_LABELS, PARCIAL_STATUS_COR, ItemPedido, posNoRoteiro, proximoNoRoteiro } from '@/lib/types';
 import { fmtData, fmtHora, fmtDuracao, fmtQtd } from '@/lib/format';
 import ProgressoRoteiro, { RoteiroCirculo } from '@/components/workspace/ProgressoRoteiro';
 import LinhaDoTempo from '@/components/workspace/LinhaDoTempo';
@@ -23,6 +23,7 @@ import OpcoesSetorAgrupadas from '@/components/OpcoesSetorAgrupadas';
 
 // Shape returned by GET /api/parcial/[id]
 interface ParcialDetalhe {
+  roteiro_pos?: number | null;
   id: number;
   item_pedido_id: number;
   pedido_id: number;
@@ -154,7 +155,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
 
   async function aprovarParcialQualidade() {
     const rot = item?.roteiro_efetivo || [];
-    const idx = rot.indexOf(parcial?.setor_atual || '');
+    const idx = posNoRoteiro(rot, parcial?.setor_atual, parcial?.roteiro_pos);
     const proxSetor = setorDestino || (idx !== -1 && idx < rot.length - 1 ? rot[idx + 1] : null);
     if (!proxSetor) { setErroAcao('Selecione o setor destino'); return; }
     setAtuando('aprovar');
@@ -216,12 +217,14 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
   // Só setores que o item inteiro já deixou para trás são marcados como concluídos.
   // A parcial pode estar num setor à frente do item (split), sem isso os setores
   // intermediários apareceriam incorretamente com check.
-  const idxItemAtual = item ? roteiro.indexOf(item.setor_atual) : -1;
+  const idxItemAtual = item ? posNoRoteiro(roteiro, item.setor_atual, item.roteiro_pos) : -1;
+  // Posição da PARCIAL (etapa repetida na Caldeiraria): marca só a ocorrência certa.
+  const idxParcialAtual = posNoRoteiro(roteiro, parcial.setor_atual, parcial.roteiro_pos);
 
   const circulos: RoteiroCirculo[] = roteiro.map((setor, i) => ({
     setor,
     done: idxItemAtual > 0 ? i < idxItemAtual : false,
-    current: setor === parcial.setor_atual,
+    current: i === idxParcialAtual,
   }));
 
   // Quantities per sector from all parcials of this item
@@ -712,7 +715,7 @@ function ParcialWorkspace({ parcialId }: { parcialId: number }) {
                 <DestinoSetorPicker
                   setorAtual={parcial.setor_atual}
                   roteiro={roteiro}
-                  proximoSetor={roteiro[roteiro.indexOf(parcial.setor_atual) + 1] || null}
+                  proximoSetor={proximoNoRoteiro(roteiro, parcial.setor_atual, parcial.roteiro_pos)}
                   value={setorDestino}
                   onChange={setSetorDestino}
                 />

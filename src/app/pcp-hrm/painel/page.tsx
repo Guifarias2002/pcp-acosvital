@@ -4,10 +4,11 @@ import Link from 'next/link';
 import AuthGuard from '@/components/AuthGuard';
 import { useRealtime } from '@/hooks/useRealtime';
 import { api } from '@/lib/api';
-import { NOMES, PRIORIDADE_COR, PROCESSO_CALDEIRARIA } from '@/lib/types';
+import { NOMES, PRIORIDADE_COR, PROCESSO_CALDEIRARIA, posNoRoteiro } from '@/lib/types';
 import { getUser } from '@/lib/auth';
 
 interface PedidoPainel {
+  posicoes_atuais?: { s: string; p: number | null }[];
   id: number;
   numero: string;
   numero_op: string;
@@ -36,11 +37,16 @@ function trilha(p: PedidoPainel) {
   const base = p.setores_atuais.length ? p.setores_atuais : (p.setor_atual ? [p.setor_atual] : []);
   const atuais = new Set(base);
   const entregue = p.status === 'entregue';
-  const posicoes = Array.from(atuais).map(s => roteiro.indexOf(s)).filter(i => i >= 0);
+  // Posição real de cada parcial (etapa repetida na Caldeiraria); sem ela, 1ª ocorrência.
+  const posicoes = Array.from(new Set(
+    (p.posicoes_atuais?.length ? p.posicoes_atuais : Array.from(atuais).map(s => ({ s, p: null as number | null })))
+      .map(x => posNoRoteiro(roteiro, x.s, x.p))
+  )).filter(i => i >= 0);
+  const posSet = new Set(posicoes);
   const atualIdx = entregue
     ? roteiro.length
     : (posicoes.length ? Math.min(...posicoes) : Math.max(0, roteiro.indexOf(p.setor_atual)));
-  return { roteiro, atuais, atualIdx, entregue };
+  return { roteiro, atuais, atualIdx, entregue, posSet };
 }
 
 // Ordena setores pela sequência da Caldeiraria (o resto vai pro fim, em ordem).
@@ -233,7 +239,7 @@ Motivo:`);
       {/* Lista por OP com a trilha */}
       <div className="flex flex-col gap-2.5">
         {filtrados.map(p => {
-          const { roteiro, atuais, atualIdx, entregue } = trilha(p);
+          const { roteiro, atuais, atualIdx, entregue, posSet } = trilha(p);
           const setorAtualNome = entregue
             ? 'Entregue'
             : (Array.from(atuais).sort((a, b) => roteiro.indexOf(a) - roteiro.indexOf(b))
@@ -284,7 +290,7 @@ Motivo:`);
               <div className="flex items-center gap-1 flex-wrap mt-3">
                 {roteiro.map((setor, i) => {
                   const done = i < atualIdx;
-                  const current = atuais.has(setor);
+                  const current = posSet.has(i);
                   return (
                     <span key={`${setor}-${i}`}
                       className={`text-xs px-2 py-1 rounded flex items-center gap-1 font-medium border ${current ? 'bg-orange-500 text-white border-orange-500' : done ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-400 border-gray-200'}`}>

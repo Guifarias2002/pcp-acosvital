@@ -486,6 +486,22 @@ export const ORDEM_SETORES = ['estoque', 'maçarico', 'plasma', 'laser', 'serra'
 // ou no fim se não houver embalagem). Vale para roteiros antigos e novos, sem
 // precisar migrar os roteiros salvos. Mantém o nome antigo (injetarQuarentena)
 // porque é chamada em vários pontos do fluxo.
+// Posição (0-based) da peça no roteiro. Na Caldeiraria uma etapa pode REPETIR
+// (ex.: Solda 2x) e o banco guarda `roteiro_pos` (trigger da M69). Vale a pos
+// quando aponta mesmo pro setor; senão (Flange, dado antigo, roteiro editado)
+// cai no indexOf de sempre — 1ª ocorrência.
+export function posNoRoteiro(roteiro: string[], setor: string | null | undefined, pos?: number | null): number {
+  if (!Array.isArray(roteiro) || !setor) return -1;
+  if (typeof pos === 'number' && pos >= 0 && roteiro[pos] === setor) return pos;
+  return roteiro.indexOf(setor);
+}
+
+// Próxima etapa do roteiro a partir da posição atual (null = última / fora).
+export function proximoNoRoteiro(roteiro: string[], setor: string | null | undefined, pos?: number | null): string | null {
+  const i = posNoRoteiro(roteiro, setor, pos);
+  return i >= 0 && i < roteiro.length - 1 ? roteiro[i + 1] : null;
+}
+
 export function injetarQuarentena(roteiro: string[]): string[] {
   if (!Array.isArray(roteiro)) return roteiro;
   // Quarentena é regra do FLANGE — a Caldeiraria NÃO tem Quarentena e continua
@@ -682,6 +698,7 @@ export interface ItemPedido {
   quantidade_entregue: string;
   proximo_setor: string | null;
   proximo_setor_nome: string;
+  roteiro_pos?: number | null;
   valor_unitario: string | null;
   lotes?: LoteItem[];
   movimentacoes?: MovimentacaoItem[];
@@ -833,6 +850,7 @@ export interface ItemParcial {
   quantidade_total_item?: string;
   proximo_setor?: string | null;
   roteiro_efetivo?: string[];
+  roteiro_pos?: number | null;
   iniciado_em?: string | null;
   concluido_em?: string | null;
   criado_em: string;

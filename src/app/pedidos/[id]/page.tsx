@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getPedido, itemAcao, inativarItem } from '@/lib/api';
-import { Pedido, ItemPedido, COR_STATUS, STATUS_LABELS, PRIORIDADE_COR, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR } from '@/lib/types';
+import { Pedido, ItemPedido, COR_STATUS, STATUS_LABELS, PRIORIDADE_COR, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR, posNoRoteiro } from '@/lib/types';
 import { getUser, getToken, podeEditar, podeAcessarSetor, podeVerCliente, podeDefinirPrevisao, podeVerValores } from '@/lib/auth';
 import Link from 'next/link';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -446,8 +446,11 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
   // item mais atrasado (ninguém mais está ali, já passou pra todos).
   const roteiroIdx = pedido.roteiro_base.length > 0 ? pedido.roteiro_base : SETOR_CHOICES.map(([c]) => c);
   const itensAtivosRoteiro = pedido.itens.filter(i => i.status !== 'entregue' && !i.inativo);
-  const setoresAtuais = new Set(itensAtivosRoteiro.map(i => i.setor_atual));
-  const posicoesAtuais = Array.from(setoresAtuais).map(s => roteiroIdx.indexOf(s)).filter(idx => idx >= 0);
+  // Etapa repetida (Caldeiraria): a posição do item só vale se o roteiro dele é o
+  // mesmo do pedido; senão posNoRoteiro cai na 1ª ocorrência (como antes).
+  const mesmoRoteiro = (it: ItemPedido) => (it.roteiro_efetivo || []).join('|') === roteiroIdx.join('|');
+  const posicoesAtuais = Array.from(new Set(itensAtivosRoteiro.map(it => posNoRoteiro(roteiroIdx, it.setor_atual, mesmoRoteiro(it) ? it.roteiro_pos : null)))).filter(idx => idx >= 0);
+  const posicoesAtuaisSet = new Set(posicoesAtuais);
   const setorAtualIdx = itensAtivosRoteiro.length === 0 ? roteiroIdx.length : (posicoesAtuais.length > 0 ? Math.min(...posicoesAtuais) : roteiroIdx.indexOf(pedido.setor_atual));
 
   // ── Projeção de Conclusão ──────────────────────────────────────────────────
@@ -466,7 +469,7 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
       if (it.status === 'entregue') return 1;
       const rot = (it.roteiro_efetivo && it.roteiro_efetivo.length > 0) ? it.roteiro_efetivo : pedido.roteiro_base;
       if (!rot || rot.length === 0) return 0;
-      const idx = rot.indexOf(it.setor_atual);
+      const idx = posNoRoteiro(rot, it.setor_atual, it.roteiro_pos);
       if (idx < 0) return 0;
       return Math.min(idx / rot.length, 1); // etapas ANTES da atual já venceram
     };
@@ -629,9 +632,9 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
           <div className="flex items-center gap-1 flex-wrap">
             {roteiroIdx.map((setor, i) => {
               const done = i < setorAtualIdx;
-              const current = setoresAtuais.has(setor);
+              const current = posicoesAtuaisSet.has(i);
               return (
-                <span key={setor}
+                <span key={`${setor}-${i}`}
                   className={`text-xs px-2 py-1 rounded flex items-center gap-1 font-medium border ${current ? 'bg-orange-500 text-white border-orange-500' : done ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-400 border-gray-200'}`}>
                   {done && '✓ '}{NOMES[setor] || setor}
                 </span>
@@ -837,12 +840,12 @@ export default function PedidoDetalhePage({ params }: { params: { id: string } }
                               {/* Linha de progresso visual */}
                               <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                                 {item.roteiro_efetivo.map((setor: string, i: number) => {
-                                  const idxAtual = item.roteiro_efetivo.indexOf(item.setor_atual);
+                                  const idxAtual = posNoRoteiro(item.roteiro_efetivo, item.setor_atual, item.roteiro_pos);
                                   const done = i < idxAtual;
-                                  const current = setor === item.setor_atual;
+                                  const current = i === idxAtual;
                                   const temParcial = hasParciais && parciais!.some(p => p.setor === setor);
                                   return (
-                                    <span key={setor} style={{
+                                    <span key={`${setor}-${i}`} style={{
                                       fontSize: 11, padding: '2px 7px', borderRadius: 4, fontWeight: current || temParcial ? 700 : 400,
                                       background: temParcial && !current ? '#dbeafe' : current ? '#1d4ed8' : done ? '#f1f5f9' : 'transparent',
                                       color: temParcial && !current ? '#1d4ed8' : current ? '#fff' : done ? '#94a3b8' : '#cbd5e1',

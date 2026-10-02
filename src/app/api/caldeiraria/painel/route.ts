@@ -65,7 +65,18 @@ export async function GET(req: Request) {
                  JOIN producao_itempedido ii ON ii.id = pa.item_pedido_id
                 WHERE ii.pedido_id = p.id AND ii.inativo = false
                   AND pa.status = ANY(${STATUS_PARCIAL_ATIVA})
-             ), '[]'::json) AS setores_atuais
+             ), '[]'::json) AS setores_atuais,
+             -- Etapa repetida (M69): setor + posição de cada parcial ativa. A pos só
+             -- conta se o item usa o roteiro do pedido. Via jsonb (tolera a coluna não existir).
+             COALESCE((
+               SELECT jsonb_agg(DISTINCT jsonb_build_object('s', pa.setor_atual, 'p',
+                        CASE WHEN COALESCE(cardinality(ii.roteiro_proprio), 0) = 0 OR ii.roteiro_proprio = p.roteiro_base
+                             THEN to_jsonb(pa) -> 'roteiro_pos' END))
+                 FROM producao_itemparcial pa
+                 JOIN producao_itempedido ii ON ii.id = pa.item_pedido_id
+                WHERE ii.pedido_id = p.id AND ii.inativo = false
+                  AND pa.status = ANY(${STATUS_PARCIAL_ATIVA})
+             ), '[]'::jsonb) AS posicoes_atuais
       FROM producao_pedido p
       WHERE (${incluirEntregues} OR p.status != 'entregue')
         AND (
@@ -94,6 +105,7 @@ export async function GET(req: Request) {
         status: r.status as string,
         roteiro: (r.roteiro_base as string[]) || [],
         setores_atuais: setoresAtuais,
+        posicoes_atuais: ((r.posicoes_atuais as { s: string; p: number | null }[]) || []).filter(x => x && x.s),
         setor_atual: (r.setor_atual as string) || '',
         prazo_iso: iso(r.prazo_entrega),
         previsao_iso: prevEfetiva,

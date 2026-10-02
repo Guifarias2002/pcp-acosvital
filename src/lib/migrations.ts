@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 68;
+const SCHEMA_VERSION = 69;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -1253,4 +1253,123 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
       WHERE username = 'alan'
     `;
   }).catch(e => console.error('[migrations] M68 (alan admin) falhou:', e));
+  // M69 (02/10): ETAPA REPETIDA no roteiro da CALDEIRARIA (ex.: Solda 2x). A
+  // próxima etapa era achada por roteiro.indexOf(setor_atual) — com repetição,
+  // a peça na 2ª Solda voltaria pra depois da 1ª. Agora item e parcial guardam
+  // `roteiro_pos` (índice 0-based no roteiro efetivo). Quem preenche é TRIGGER
+  // (não as ~90 rotas que mexem em setor_atual): ao mudar de setor, pega a 1ª
+  // ocorrência do destino DEPOIS da posição atual (avanço); se não houver, a
+  // última ANTES (devolução). Só fabrica='caldeiraria' — Flange fica NULL e
+  // segue igual. Leitura tolerante: pos NULL/inválida (roteiro[pos] != setor)
+  // cai no indexOf de antes (ver posNoRoteiro em types.ts).
+  await sql.savepoint(async (sp) => {
+    await sp.unsafe(`ALTER TABLE producao_itempedido  ADD COLUMN IF NOT EXISTS roteiro_pos INTEGER`);
+    await sp.unsafe(`ALTER TABLE producao_itemparcial ADD COLUMN IF NOT EXISTS roteiro_pos INTEGER`);
+    // Índice (0-based) do setor no roteiro a partir de `base`: 1º depois; senão o último até base.
+    await sp.unsafe(`
+      CREATE OR REPLACE FUNCTION pcp_roteiro_pos(rot text[], setor text, base integer) RETURNS integer
+      LANGUAGE plpgsql IMMUTABLE AS $f$
+      DECLARE n integer := COALESCE(array_length(rot, 1), 0); i integer;
+      BEGIN
+        IF setor IS NULL OR n = 0 THEN RETURN NULL; END IF;
+        base := COALESCE(base, -1);
+        FOR i IN GREATEST(base + 1, 0) .. n - 1 LOOP
+          IF rot[i + 1] = setor THEN RETURN i; END IF;
+        END LOOP;
+        FOR i IN REVERSE LEAST(base, n - 1) .. 0 LOOP
+          IF rot[i + 1] = setor THEN RETURN i; END IF;
+        END LOOP;
+        RETURN NULL;
+      END $f$
+    `);
+    // Posição "válida" = aponta mesmo pro setor; senão a 1ª ocorrência.
+    await sp.unsafe(`
+      CREATE OR REPLACE FUNCTION pcp_roteiro_pos_atual(rot text[], setor text, pos integer) RETURNS integer
+      LANGUAGE sql IMMUTABLE AS $f$
+        SELECT CASE WHEN pos IS NOT NULL AND pos >= 0 AND rot[pos + 1] = setor THEN pos
+                    ELSE pcp_roteiro_pos(rot, setor, -1) END
+      $f$
+    `);
+    await sp.unsafe(`
+      CREATE OR REPLACE FUNCTION pcp_trg_item_roteiro_pos() RETURNS trigger
+      LANGUAGE plpgsql AS $f$
+      DECLARE rot text[]; base integer; pp integer;
+      BEGIN
+        IF NEW.fabrica IS DISTINCT FROM 'caldeiraria' THEN NEW.roteiro_pos := NULL; RETURN NEW; END IF;
+        rot := NEW.roteiro_proprio;
+        IF rot IS NULL OR COALESCE(array_length(rot, 1), 0) = 0 THEN
+          SELECT p.roteiro_base INTO rot FROM producao_pedido p WHERE p.id = NEW.pedido_id;
+        END IF;
+        -- O app mandou uma posição válida e diferente da anterior → respeita.
+        IF NEW.roteiro_pos IS NOT NULL AND rot[NEW.roteiro_pos + 1] = NEW.setor_atual
+           AND (TG_OP = 'INSERT' OR NEW.roteiro_pos IS DISTINCT FROM OLD.roteiro_pos) THEN
+          RETURN NEW;
+        END IF;
+        IF TG_OP = 'UPDATE' AND NEW.setor_atual IS NOT DISTINCT FROM OLD.setor_atual THEN
+          NEW.roteiro_pos := pcp_roteiro_pos_atual(rot, NEW.setor_atual, OLD.roteiro_pos);
+          RETURN NEW;
+        END IF;
+        -- O item segue as parciais: se já tem parcial ativa no destino com posição, usa ela.
+        IF TG_OP = 'UPDATE' THEN
+          SELECT MIN(pa.roteiro_pos) INTO pp FROM producao_itemparcial pa
+           WHERE pa.item_pedido_id = NEW.id AND pa.setor_atual = NEW.setor_atual
+             AND pa.status <> 'cancelada' AND pa.roteiro_pos IS NOT NULL;
+          IF pp IS NOT NULL AND rot[pp + 1] = NEW.setor_atual THEN NEW.roteiro_pos := pp; RETURN NEW; END IF;
+          base := pcp_roteiro_pos_atual(rot, OLD.setor_atual, OLD.roteiro_pos);
+        END IF;
+        NEW.roteiro_pos := pcp_roteiro_pos(rot, NEW.setor_atual, COALESCE(base, -1));
+        RETURN NEW;
+      EXCEPTION WHEN OTHERS THEN
+        -- Fail-open: erro aqui NUNCA trava a movimentação (posição fica NULL → indexOf).
+        NEW.roteiro_pos := NULL; RETURN NEW;
+      END $f$
+    `);
+    await sp.unsafe(`
+      CREATE OR REPLACE FUNCTION pcp_trg_parcial_roteiro_pos() RETURNS trigger
+      LANGUAGE plpgsql AS $f$
+      DECLARE rot text[]; fab text; base integer; it_setor text; it_pos integer; o_setor text; o_pos integer;
+      BEGIN
+        SELECT i.fabrica, COALESCE(NULLIF(i.roteiro_proprio, '{}'), p.roteiro_base), i.setor_atual, i.roteiro_pos
+          INTO fab, rot, it_setor, it_pos
+          FROM producao_itempedido i JOIN producao_pedido p ON p.id = i.pedido_id
+         WHERE i.id = NEW.item_pedido_id;
+        IF fab IS DISTINCT FROM 'caldeiraria' THEN NEW.roteiro_pos := NULL; RETURN NEW; END IF;
+        IF NEW.roteiro_pos IS NOT NULL AND rot[NEW.roteiro_pos + 1] = NEW.setor_atual
+           AND (TG_OP = 'INSERT' OR NEW.roteiro_pos IS DISTINCT FROM OLD.roteiro_pos) THEN
+          RETURN NEW;
+        END IF;
+        IF TG_OP = 'UPDATE' THEN
+          base := pcp_roteiro_pos_atual(rot, OLD.setor_atual, OLD.roteiro_pos);
+        ELSIF NEW.parcial_origem_id IS NOT NULL THEN
+          -- Parcial filha (dividiu ao enviar/devolver): parte da posição da mãe.
+          SELECT o.setor_atual, o.roteiro_pos INTO o_setor, o_pos FROM producao_itemparcial o WHERE o.id = NEW.parcial_origem_id;
+          base := pcp_roteiro_pos_atual(rot, o_setor, o_pos);
+          IF o_setor IS NOT DISTINCT FROM NEW.setor_atual THEN NEW.roteiro_pos := base; RETURN NEW; END IF;
+        ELSE
+          -- Parcial nova sem mãe: nasce onde o item está.
+          base := pcp_roteiro_pos_atual(rot, it_setor, it_pos);
+          IF it_setor IS NOT DISTINCT FROM NEW.setor_atual THEN NEW.roteiro_pos := base; RETURN NEW; END IF;
+        END IF;
+        NEW.roteiro_pos := pcp_roteiro_pos(rot, NEW.setor_atual, COALESCE(base, -1));
+        RETURN NEW;
+      EXCEPTION WHEN OTHERS THEN
+        -- Fail-open: erro aqui NUNCA trava a movimentação (posição fica NULL → indexOf).
+        NEW.roteiro_pos := NULL; RETURN NEW;
+      END $f$
+    `);
+    await sp.unsafe(`DROP TRIGGER IF EXISTS trg_item_roteiro_pos_ins ON producao_itempedido`);
+    await sp.unsafe(`DROP TRIGGER IF EXISTS trg_item_roteiro_pos_upd ON producao_itempedido`);
+    await sp.unsafe(`CREATE TRIGGER trg_item_roteiro_pos_ins BEFORE INSERT ON producao_itempedido
+      FOR EACH ROW EXECUTE FUNCTION pcp_trg_item_roteiro_pos()`);
+    await sp.unsafe(`CREATE TRIGGER trg_item_roteiro_pos_upd BEFORE UPDATE OF setor_atual, roteiro_proprio ON producao_itempedido
+      FOR EACH ROW WHEN (OLD.setor_atual IS DISTINCT FROM NEW.setor_atual OR OLD.roteiro_proprio IS DISTINCT FROM NEW.roteiro_proprio)
+      EXECUTE FUNCTION pcp_trg_item_roteiro_pos()`);
+    await sp.unsafe(`DROP TRIGGER IF EXISTS trg_parcial_roteiro_pos_ins ON producao_itemparcial`);
+    await sp.unsafe(`DROP TRIGGER IF EXISTS trg_parcial_roteiro_pos_upd ON producao_itemparcial`);
+    await sp.unsafe(`CREATE TRIGGER trg_parcial_roteiro_pos_ins BEFORE INSERT ON producao_itemparcial
+      FOR EACH ROW EXECUTE FUNCTION pcp_trg_parcial_roteiro_pos()`);
+    await sp.unsafe(`CREATE TRIGGER trg_parcial_roteiro_pos_upd BEFORE UPDATE OF setor_atual ON producao_itemparcial
+      FOR EACH ROW WHEN (OLD.setor_atual IS DISTINCT FROM NEW.setor_atual)
+      EXECUTE FUNCTION pcp_trg_parcial_roteiro_pos()`);
+  }).catch(e => console.error('[migrations] M69 (roteiro_pos) falhou:', e));
 }

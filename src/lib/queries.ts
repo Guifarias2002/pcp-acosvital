@@ -1,5 +1,5 @@
 import sql from './db';
-import { NOMES, injetarQuarentena } from './types';
+import { NOMES, injetarQuarentena, proximoNoRoteiro } from './types';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -95,16 +95,12 @@ function rotEfetivo(row: Record<string, unknown>): string[] {
   return injetarQuarentena(base);
 }
 
-function proximoSetor(roteiro: string[], setor_atual: string): string | null {
-  const idx = roteiro.indexOf(setor_atual);
-  if (idx === -1 || idx === roteiro.length - 1) return null;
-  return roteiro[idx + 1];
-}
+
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function formatItem(row: any) {
   const roteiro = rotEfetivo(row);
-  const prox = proximoSetor(roteiro, row.setor_atual);
+  const prox = proximoNoRoteiro(roteiro, row.setor_atual, row.roteiro_pos);
   return {
     id: row.id,
     pedido_id: row.pedido_id,
@@ -138,6 +134,7 @@ export function formatItem(row: any) {
     previsao_efetiva: isoDate(row.previsao_conclusao) || isoDate(row.pedido_previsao),
     previsao_efetiva_fmt: fmtData(isoDate(row.previsao_conclusao) || isoDate(row.pedido_previsao) || ''),
     roteiro_efetivo: roteiro,
+    roteiro_pos: row.roteiro_pos ?? null,
     setor_atual: row.setor_atual,
     nome_setor_atual: nomeSector(row.setor_atual),
     status: row.status,

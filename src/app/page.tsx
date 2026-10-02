@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { getDashboard } from '@/lib/api';
 import { useRealtime } from '@/hooks/useRealtime';
-import { DashboardData, STATUS_LABELS, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR, PARCIAL_STATUS_LABELS } from '@/lib/types';
+import { DashboardData, STATUS_LABELS, SETOR_CHOICES, getEtapa, getPedidoEtapa, ETAPA_LABELS, ETAPA_COR, PARCIAL_STATUS_LABELS, posNoRoteiro } from '@/lib/types';
 import { getUser, getToken } from '@/lib/auth';
 import Link from 'next/link';
 
@@ -111,7 +111,7 @@ function SetorRow({ s, isAdmin }: { s: DashboardData['por_setor'][0]; isAdmin: b
 
               {pedidoAberto === pedidoId && info.itens.map(item => {
                 const roteiro = item.roteiro_efetivo || [];
-                const idxAtual = roteiro.indexOf(item.setor_atual);
+                const idxAtual = posNoRoteiro(roteiro, item.setor_atual, item.roteiro_pos);
                 return (
                   <Link key={item.id} href={`/item/${item.id}`} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',

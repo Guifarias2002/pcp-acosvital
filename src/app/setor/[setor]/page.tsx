@@ -60,7 +60,7 @@ import EstoqueFlanges from '@/app/planejamento/EstoqueFlanges';
 import { SUBSETORES_CALD } from '@/lib/caldPlano';
 const SETORES_COM_RECADO = new Set(Object.values(SUBSETORES_CALD).flat());
 import { SETORES_REQUISICAO } from '@/lib/requisicaoHrm';
-import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA, TIPOS_INSPECAO, SETOR_NAO_LOCALIZADO, SETORES_CALD_SEM_PRODUCAO } from '@/lib/types';
+import { SetorPainelData, ItemPedido, LoteItem, ItemParcial, STATUS_LABELS, PRIORIDADE_COR, NOMES, SETOR_CHOICES, PARCIAL_STATUS_LABELS, SETORES_CORTE, SETORES_CHECKLIST_PROCESSO, TIPOS_PRODUTO_CALDEIRARIA, TIPOS_INSPECAO, SETOR_NAO_LOCALIZADO, SETORES_CALD_SEM_PRODUCAO, posNoRoteiro } from '@/lib/types';
 import { fmtQtd } from '@/lib/format';
 import Link from 'next/link';
 import ReceberModal from '@/components/ReceberModal';
@@ -397,11 +397,11 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
       {item.roteiro_efetivo && item.roteiro_efetivo.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
           {item.roteiro_efetivo.map((setorRot: string, i: number) => {
-            const idxAtual = item.roteiro_efetivo.indexOf(item.setor_atual);
+            const idxAtual = posNoRoteiro(item.roteiro_efetivo, item.setor_atual, item.roteiro_pos);
             const done = i < idxAtual;
-            const current = setorRot === item.setor_atual;
+            const current = i === idxAtual;
             return (
-              <span key={setorRot} style={{
+              <span key={`${setorRot}-${i}`} style={{
                 fontSize: 11, padding: '2px 7px', borderRadius: 4, fontWeight: current ? 700 : 400,
                 background: current ? '#1d4ed8' : done ? '#f1f5f9' : 'transparent',
                 color: current ? '#fff' : done ? '#94a3b8' : '#cbd5e1',
@@ -628,7 +628,7 @@ function ItemCard({ item, onRefresh, ocultarCabecalhoPedido }: { item: ItemPedid
           itemDescricao={item.descricao}
           setorOrigem={(() => {
             const rot = item.roteiro_efetivo || [];
-            const idx = rot.indexOf(item.setor_atual);
+            const idx = posNoRoteiro(rot, item.setor_atual, item.roteiro_pos);
             const ant = idx > 0 ? rot[idx - 1] : null;
             return ant ? (NOMES[ant] || ant) : undefined;
           })()}

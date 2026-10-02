@@ -171,8 +171,10 @@ function FiltroSetores({ roteiro, onChange, onFiltro }: { roteiro: string[]; onC
     for (const pt of partes) {
       const c = setorDoTexto(pt);
       if (!c) { if (normSetor(pt) !== 'emissao') naoAchou.push(pt); continue; }
-      // Cada setor entra 1x no roteiro (o editor não repete setor).
-      if (roteiro.includes(c) || novos.includes(c)) continue;
+      // 02/10: etapa PODE repetir (ex.: Solda 2x) — entra na ordem colada.
+      // Só ignora a mesma etapa colada 2x SEGUIDAS (provável linha duplicada).
+      const ultimo = novos.length ? novos[novos.length - 1] : roteiro[roteiro.length - 1];
+      if (c === ultimo) continue;
       novos.push(c);
     }
     if (novos.length) onChange([...roteiro, ...novos]);
@@ -193,7 +195,7 @@ function FiltroSetores({ roteiro, onChange, onFiltro }: { roteiro: string[]; onC
             onKeyDown={e => {
               if (e.key === 'Enter') {
                 e.preventDefault();
-                const alvo = MENU_SETORES.filter(c => !roteiro.includes(c)).find(c => normSetor(NOMES[c] || c).includes(normSetor(txt)));
+                const alvo = MENU_SETORES.find(c => normSetor(NOMES[c] || c).includes(normSetor(txt)));
                 if (txt.trim() && alvo) { onChange([...roteiro, alvo]); muda(''); }
               }
               if (e.key === 'Escape') muda('');
@@ -214,6 +216,11 @@ function FiltroSetores({ roteiro, onChange, onFiltro }: { roteiro: string[]; onC
     </div>
   );
 }
+// Etapa repetida: " (2ª)", " (3ª)"… a partir da 2ª vez que aparece no roteiro.
+const ocorrencia = (rot: string[], i: number) => {
+  const n = rot.slice(0, i + 1).filter(x => x === rot[i]).length;
+  return n > 1 ? ` (${n}ª)` : '';
+};
 // Filtra a lista de disponíveis pelo texto digitado.
 const filtrarSetores = (lista: string[], f: string) => {
   const t = normSetor(f);
@@ -324,21 +331,22 @@ function RoteiroPicker({ roteiro, onChange }: { roteiro: string[]; onChange: (r:
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, alignItems: 'center' }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>1. Emissão</span>
         {roteiro.map((s, i) => (
-          <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#eef4fb', border: '1px solid #c7d7ee', borderRadius: 20, padding: '3px 6px 3px 10px', fontSize: 12, fontWeight: 600, color: '#1a3a5c' }}>
-            {i + 2}. {NOMES[s] || s}
+          <span key={`${s}-${i}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#eef4fb', border: '1px solid #c7d7ee', borderRadius: 20, padding: '3px 6px 3px 10px', fontSize: 12, fontWeight: 600, color: '#1a3a5c' }}>
+            {i + 2}. {NOMES[s] || s}{ocorrencia(roteiro, i)}
             <button type="button" onClick={() => mov(i, -1)} disabled={i === 0} title="Subir" style={{ border: 'none', background: 'none', cursor: i === 0 ? 'default' : 'pointer', color: '#64748b', opacity: i === 0 ? .3 : 1, padding: '0 2px' }}><i className="bi bi-arrow-up" /></button>
             <button type="button" onClick={() => mov(i, 1)} disabled={i === roteiro.length - 1} title="Descer" style={{ border: 'none', background: 'none', cursor: i === roteiro.length - 1 ? 'default' : 'pointer', color: '#64748b', opacity: i === roteiro.length - 1 ? .3 : 1, padding: '0 2px' }}><i className="bi bi-arrow-down" /></button>
-            <button type="button" onClick={() => onChange(roteiro.filter(x => x !== s))} title="Remover" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', padding: '0 2px' }}><i className="bi bi-x-lg" /></button>
+            <button type="button" onClick={() => onChange(roteiro.filter((_, k) => k !== i))} title="Remover" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', padding: '0 2px' }}><i className="bi bi-x-lg" /></button>
           </span>
         ))}
         {roteiro.length === 0 && <span style={{ fontSize: 12, color: '#b45309' }}>sem setor — clique abaixo</span>}
       </div>
       <FiltroSetores roteiro={roteiro} onChange={onChange} onFiltro={setFiltro} />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {filtro && !filtrarSetores(MENU_SETORES.filter(s => !roteiro.includes(s)), filtro).length && <span style={{ fontSize: 12, color: '#94a3b8' }}>Nenhum setor com &quot;{filtro}&quot;.</span>}
-        {filtrarSetores(MENU_SETORES.filter(s => !roteiro.includes(s)), filtro).map(s => (
-          <button key={s} type="button" onClick={() => onChange([...roteiro, s])} style={{ border: '1px solid #dee2e6', background: '#fff', borderRadius: 20, padding: '4px 10px', fontSize: 11.5, fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
-            + {NOMES[s] || s}
+        {filtro && !filtrarSetores(MENU_SETORES, filtro).length && <span style={{ fontSize: 12, color: '#94a3b8' }}>Nenhum setor com &quot;{filtro}&quot;.</span>}
+        {filtrarSetores(MENU_SETORES, filtro).map(s => (
+          <button key={s} type="button" onClick={() => onChange([...roteiro, s])} title={roteiro.includes(s) ? 'Já está no roteiro — clicar adiciona de novo (etapa repetida)' : undefined}
+            style={{ border: `1px ${roteiro.includes(s) ? 'dashed #94a3b8' : 'solid #dee2e6'}`, background: roteiro.includes(s) ? '#f8fafc' : '#fff', borderRadius: 20, padding: '4px 10px', fontSize: 11.5, fontWeight: 600, color: roteiro.includes(s) ? '#64748b' : '#334155', cursor: 'pointer' }}>
+            + {NOMES[s] || s}{roteiro.includes(s) && <span style={{ fontSize: 10, marginLeft: 4 }}>(de novo)</span>}
           </button>
         ))}
       </div>
@@ -463,7 +471,8 @@ function Conteudo() {
           const daObs = roteiroDasObservacoes(String(ped.observacoes || ''), MENU_SETORES);
           const fonte = doItem.length > 1 ? doItem : (daObs.length ? daObs : doPedido);
           const baseRot: string[] = [];
-          for (const s of fonte) if (s !== 'emissao' && MENU_SETORES.includes(s) && !baseRot.includes(s)) baseRot.push(s);
+          // Mantém etapa repetida (02/10); só pula a mesma etapa 2x seguidas.
+          for (const s of fonte) if (s !== 'emissao' && MENU_SETORES.includes(s) && baseRot[baseRot.length - 1] !== s) baseRot.push(s);
           if (baseRot.length) setRoteiroSel(baseRot);
         }
         // Componentes salvos na Anexar OP (bloco [[COMPONENTES]]) — aparecem na
@@ -629,9 +638,10 @@ function Conteudo() {
     } catch { setDesenhoMsg('Erro ao remover o desenho.'); }
   }
 
-  function toggleSetor(cod: string) {
-    setRoteiroSel(prev => prev.includes(cod) ? prev.filter(s => s !== cod) : [...prev, cod]);
-  }
+  // 02/10: etapa pode REPETIR no roteiro — adicionar sempre acrescenta no fim;
+  // remover tira só AQUELA ocorrência (pelo índice).
+  function adicionarSetor(cod: string) { setRoteiroSel(prev => [...prev, cod]); }
+  function removerSetor(i: number) { setRoteiroSel(prev => prev.filter((_, k) => k !== i)); }
   function moverSetor(i: number, dir: -1 | 1) {
     setRoteiroSel(prev => {
       const j = i + dir;
@@ -660,7 +670,7 @@ function Conteudo() {
   function toggleDestino(cod: string) {
     setDestinos(prev => {
       if (prev.includes(cod)) return prev.length === 1 ? prev : prev.filter(s => s !== cod);
-      return roteiroSel.filter(s => prev.includes(s) || s === cod);
+      return Array.from(new Set(roteiroSel)).filter(s => prev.includes(s) || s === cod);
     });
   }
 
@@ -1162,13 +1172,13 @@ function Conteudo() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Passo 1: Emissão (fixo)</div>
               {roteiroSel.map((s, i) => (
-                <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#eef4fb', border: '1px solid #c7d7ee', borderRadius: 8, padding: '6px 10px' }}>
+                <div key={`${s}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#eef4fb', border: '1px solid #c7d7ee', borderRadius: 8, padding: '6px 10px' }}>
                   <span style={{ minWidth: 22, height: 22, borderRadius: 11, background: '#1a3a5c', color: '#fff', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{i + 2}</span>
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#1a3a5c' }}>{NOMES[s] || s}</span>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#1a3a5c' }}>{NOMES[s] || s}{ocorrencia(roteiroSel, i)}</span>
                   {!preview && <>
                     <button onClick={() => moverSetor(i, -1)} disabled={i === 0} title="Subir" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#64748b', opacity: i === 0 ? .3 : 1 }}><i className="bi bi-arrow-up" /></button>
                     <button onClick={() => moverSetor(i, 1)} disabled={i === roteiroSel.length - 1} title="Descer" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#64748b', opacity: i === roteiroSel.length - 1 ? .3 : 1 }}><i className="bi bi-arrow-down" /></button>
-                    <button onClick={() => toggleSetor(s)} title="Remover" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626' }}><i className="bi bi-x-lg" /></button>
+                    <button onClick={() => removerSetor(i)} title="Remover" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626' }}><i className="bi bi-x-lg" /></button>
                   </>}
                 </div>
               ))}
@@ -1179,10 +1189,11 @@ function Conteudo() {
               <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>Adicionar setor (clique na ordem):</div>
               <FiltroSetores roteiro={roteiroSel} onChange={setRoteiroSel} onFiltro={setFiltroProd} />
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {filtroProd && !filtrarSetores(MENU_SETORES.filter(s => !roteiroSel.includes(s)), filtroProd).length && <span style={{ fontSize: 12, color: '#94a3b8' }}>Nenhum setor com &quot;{filtroProd}&quot;.</span>}
-                {filtrarSetores(MENU_SETORES.filter(s => !roteiroSel.includes(s)), filtroProd).map(s => (
-                  <button key={s} onClick={() => toggleSetor(s)} style={{ border: '1px solid #dee2e6', background: '#fff', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
-                    + {NOMES[s] || s}
+                {filtroProd && !filtrarSetores(MENU_SETORES, filtroProd).length && <span style={{ fontSize: 12, color: '#94a3b8' }}>Nenhum setor com &quot;{filtroProd}&quot;.</span>}
+                {filtrarSetores(MENU_SETORES, filtroProd).map(s => (
+                  <button key={s} onClick={() => adicionarSetor(s)} title={roteiroSel.includes(s) ? 'Já está no roteiro — clicar adiciona de novo (etapa repetida)' : undefined}
+                    style={{ border: `1px ${roteiroSel.includes(s) ? 'dashed #94a3b8' : 'solid #dee2e6'}`, background: roteiroSel.includes(s) ? '#f8fafc' : '#fff', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: roteiroSel.includes(s) ? '#64748b' : '#334155', cursor: 'pointer' }}>
+                    + {NOMES[s] || s}{roteiroSel.includes(s) && <span style={{ fontSize: 10.5, marginLeft: 4 }}>(de novo)</span>}
                   </button>
                 ))}
               </div>
@@ -1229,7 +1240,7 @@ function Conteudo() {
                     Mandar para qual setor? (marque um ou mais)
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                    {roteiroSel.map(cod => {
+                    {Array.from(new Set(roteiroSel)).map(cod => {
                       const on = destinos.includes(cod);
                       return (
                         <button key={cod} type="button" onClick={() => toggleDestino(cod)}

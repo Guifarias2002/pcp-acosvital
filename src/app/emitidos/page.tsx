@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRealtime } from '@/hooks/useRealtime';
 import AuthGuard from '@/components/AuthGuard';
 import { getEmitidos } from '@/lib/api';
-import { Pedido, PRIORIDADE_COR, SETOR_CHOICES } from '@/lib/types';
+import { Pedido, PRIORIDADE_COR, SETOR_CHOICES, posNoRoteiro } from '@/lib/types';
 import Link from 'next/link';
 
 const NOMES = Object.fromEntries(SETOR_CHOICES);
@@ -154,11 +154,11 @@ export default function EmitidosPage() {
                     {/* Roteiro */}
                     <div className="flex items-center gap-1 mt-2 flex-wrap">
                       {item.roteiro_efetivo.map((setor, i) => {
-                        const idxAtual = item.roteiro_efetivo.indexOf(item.setor_atual);
+                        const idxAtual = posNoRoteiro(item.roteiro_efetivo, item.setor_atual, item.roteiro_pos);
                         const done = i < idxAtual;
-                        const current = setor === item.setor_atual;
+                        const current = i === idxAtual;
                         return (
-                          <span key={setor} className={`text-xs px-2 py-0.5 rounded ${current ? 'bg-blue-700 text-white font-bold' : done ? 'bg-gray-200 text-gray-400 line-through' : 'bg-gray-100 text-gray-400'}`}>
+                          <span key={`${setor}-${i}`} className={`text-xs px-2 py-0.5 rounded ${current ? 'bg-blue-700 text-white font-bold' : done ? 'bg-gray-200 text-gray-400 line-through' : 'bg-gray-100 text-gray-400'}`}>
                             {current && '● '}{NOMES[setor] || setor}
                           </span>
                         );
