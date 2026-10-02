@@ -29,7 +29,7 @@ const MIGRATION_LOCK_ID = 7274123;
 // deixando TODO o sistema lento. Agora gravamos a versão aplicada em
 // producao_config; se o banco já está nela, pulamos o DDL por completo.
 // AO ADICIONAR UM NOVO PASSO (Mxx), INCREMENTE ESTE NÚMERO pra ele rodar 1×.
-const SCHEMA_VERSION = 69;
+const SCHEMA_VERSION = 70;
 
 export function runMigrations(): Promise<void> {
   if (!migrationPromise) migrationPromise = doRunMigrations();
@@ -1372,4 +1372,25 @@ async function runMigrationSteps(sql: postgres.TransactionSql) {
       FOR EACH ROW WHEN (OLD.setor_atual IS DISTINCT FROM NEW.setor_atual)
       EXECUTE FUNCTION pcp_trg_parcial_roteiro_pos()`);
   }).catch(e => console.error('[migrations] M69 (roteiro_pos) falhou:', e));
+  // M70 (02/10): HERMES (login 'hermes', coordenador da Caldeiraria HRM) com o
+  // MESMO acesso do Alan — copia perfil/is_staff/flags HRM/setores do 'alan'
+  // (que a M68 já fez administrador). Roda 1x (marca 'm70_hermes_igual_alan');
+  // se o login ainda não existir, não faz nada. Precisa re-logar.
+  await sql.savepoint(async (sp) => {
+    const [marca] = await sp`
+      INSERT INTO producao_config (chave, valor, atualizado_em)
+      VALUES ('m70_hermes_igual_alan', 'ok', NOW())
+      ON CONFLICT (chave) DO NOTHING
+      RETURNING chave
+    `;
+    if (!marca) return;
+    await sp`
+      UPDATE usuarios_usuario h
+      SET perfil = a.perfil, is_staff = a.is_staff,
+          acesso_conferencia_hrm = a.acesso_conferencia_hrm, acesso_hrm = a.acesso_hrm,
+          setores = a.setores, setor = a.setor, somente_leitura = false
+      FROM usuarios_usuario a
+      WHERE a.username = 'alan' AND h.username = 'hermes'
+    `;
+  }).catch(e => console.error('[migrations] M70 (hermes = alan) falhou:', e));
 }
